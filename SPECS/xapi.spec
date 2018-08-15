@@ -2,16 +2,17 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.90.5
-Release: 2
+Version: 1.90.6
+Release: 1
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v%{version}&format=tar.gz&prefix=xen-api-%{version}#/xen-api-%{version}.tar.gz
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.90.5&format=tar.gz&prefix=xen-api-1.90.5#/xen-api-1.90.5.tar.gz) = 4602c18e9ee862c285bbe58009b070f19ae465bc
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.90.6&format=tar.gz&prefix=xen-api-1.90.6#/xen-api-1.90.6.tar.gz) = 39141a8cdeda0ed2ac93143b3162383bc1a3e94f
 Source1: corosync
 Source2: network_sriov
 Patch0: 0001-Workaround-for-NVIDIA-330.patch
+Patch1: ca293417-kolkata.patch
 BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -416,6 +417,12 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Jul 26 2018 Richard Davies <richard.davies@citrix.com> 1.90.6-1
+- CP-28936 Assert that a host has enough pCPUs to run a VM
+
+* Tue Jul 24 2018 Richard Davies <richard.davies@citrix.com> - 1.90.5-3
+- fix pool update
+
 * Wed May 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.90.5-2
 - Make SRIOV an experimental feature (off by default)
 
