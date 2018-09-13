@@ -2,17 +2,15 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.90.6
+Version: 1.110.1
 Release: 1
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v%{version}&format=tar.gz&prefix=xen-api-%{version}#/xen-api-%{version}.tar.gz
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.90.6&format=tar.gz&prefix=xen-api-1.90.6#/xen-api-1.90.6.tar.gz) = 39141a8cdeda0ed2ac93143b3162383bc1a3e94f
-Source1: corosync
-Source2: network_sriov
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.110.1&format=tar.gz&prefix=xen-api-1.110.1#/xen-api-1.110.1.tar.gz) = 7a4085e0e13f0831d4ad62a41c525781b4991e31
 Patch0: 0001-Workaround-for-NVIDIA-330.patch
-Patch1: ca293417-kolkata.patch
+Patch1: ca293417.patch
 BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -157,8 +155,6 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-%{__install} -D -m 644 %{SOURCE1} %{buildroot}/etc/xenserver/features.d/corosync
-%{__install} -D -m 644 %{SOURCE1} %{buildroot}/etc/xenserver/features.d/network_sriov
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -344,7 +340,6 @@ rm -rf $RPM_BUILD_ROOT
 /var/xapi
 /opt/xensource/debug/debug_ha_query_liveset
 /opt/xensource/debug/event_listen
-/opt/xensource/debug/graph
 /opt/xensource/debug/import-update-key
 /opt/xensource/debug/vncproxy
 /opt/xensource/debug/with-vdi
@@ -356,8 +351,6 @@ rm -rf $RPM_BUILD_ROOT
 %{_unitdir}/attach-static-vdis.service
 %{_unitdir}/save-boot-info.service
 %{_unitdir}/mpathalert.service
-%config(noreplace) /etc/xenserver/features.d/corosync
-%config(noreplace) /etc/xenserver/features.d/network_sriov
 
 %files xe
 %defattr(-,root,root,-)
@@ -414,30 +407,251 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* Thu Jul 26 2018 Richard Davies <richard.davies@citrix.com> 1.90.6-1
-- CP-28936 Assert that a host has enough pCPUs to run a VM
+* Mon Aug 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.1-1
+- Bumped the minor api version as well as the client min and max version 
+  numbers to 2.11.
+- CA-294917: Added branding to the lima release.
 
-* Tue Jul 24 2018 Richard Davies <richard.davies@citrix.com> - 1.90.5-3
-- fix pool update
+* Thu Aug 02 2018 Rob Hoes <rob.hoes@citrix.com> - 1.110.0-2
+- Added CA-293417 patch
 
-* Wed May 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.90.5-2
+* Mon Jul 30 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.0-1
+- CA-294281: Network reset: warn if networkd.db could not be deleted
+- CA-293399: Corrupted PCI information in xapi database
+- CP-28936: Assert that a host has enough pCPUs to run a VM
+
+* Wed Jul 25 2018 Christian Lindig <christian.lindig@citrix.com> - 1.109.0-1
+- xapi.opam: remove unused nbd dependency
+- CA-293399: Ensure we don't allow invalid utf8 strings into the db
+- CA-294281: Network reset: warn if networkd.db could not be deleted
+- CA-293399: Corrupted PCI information in xapi database
+
+* Thu Jul 19 2018 Thomas Mckelvey <thomas.mckelvey@citrix.com> - 1.108.0-2
+- CP-28711: Get rid of corosync feature flag
+
+* Wed Jul 18 2018 Christian Lindig <christian.lindig@citrix.com> - 1.108.0-1
+- CA-293858: Further prevention of logrotate running on old partition scheme
+- CA-289997: Add a test for Xapi_vdi.update_allowed_operations
+- CA-289997: Fix allowed_operations when VBDs are attached
+
+* Fri Jul 13 2018 Christian Lindig <christian.lindig@citrix.com> - 1.107.0-1
+- CA-289650: Wait for the pidfile from udhcpd before releasing lock
+- CA-289898: GC dangling references from 'Host.updates_requiring_reboot'
+- CA-290840: VM.attached_PCIs field not properly cleanup when reverting 
+             from snapshot
+- CA-291017: Unable to connect server in pool of 64 physical hosts
+- CA-292676: Apply 'VDI missing' logic to picking SRs too
+- CA-292676: Filter out missing VDIs when looking for some to use
+- CA-293786: Cluster.get_network should not be restricted to pool admin
+- CP-28753: drop unused CLUSTER_HOST_CREATION_FAILED message
+- CP-28844: Allow pool operator to perform clustering operations
+
+* Wed Jul 11 2018 Christian Lindig <christian.lindig@citrix.com> - 1.106.0-1
+- CA-287525 replace OPasswd with implementation in C
+
+* Tue Jul 10 2018 Christian Lindig <christian.lindig@citrix.com> - 1.105.0-1
+- CA-289735: do not disable clustering daemon on shutdown from xapi-domains
+- CA-292063: detach static VDIs when HA is disarmed on boot
+- CP-27694: fail with NOT_IMPLEMENTED if there is no clustering daemon available
+- CP-27915: test that VBD.create isn't allowed for cbt_metadata VDI
+- CP-28753: add CLUSTER_HOST_FENCING message
+- CP-28753: always detach all static VDIs
+- Quicktest to run VDI ops on empty VDI with max supported size
+
+* Tue Jul 03 2018 Christian Lindig <christian.lindig@citrix.com> - 1.104.0-1
+- CA-292621: ensure PIF has an IP before calling clustering methods
+- CA-292432: Add quicktest for static-vdis script
+
+* Thu Jun 28 2018 Christian Lindig <christian.lindig@citrix.com> - 1.103.0-1
+- Merge of GFS2 and QEMU upstream features
+- CP-28561: Cluster.get_network fails if cluster_hosts lack common network
+- CP-28561: Test Cluster.get_network
+- CA-289996: Should declare VMs with SR-IOV VFs non-agile for HA purposes
+- CA-292372: Create SM objects for all running SMAPIv2 drivers
+- CP-28132: Implement & move to VDI.attach2 SMAPIv2 call, deprecate VDI.attach
+- CP-28132: Storage_migrate.with_activated_disk: use finally to detach VDI
+- CP-28132: attach now directly returns the xenstore directory
+- CP-28132: update static-vdis script after attach changes
+- CP-28132: remove domain_uuid from attach response
+- CP-27560 set device model default to "qemu-upstream-compat"
+- CP-27560 ensure device model is qemu-upstream-compat
+- CP-27560 during xapi upgrade, upgrade VM device model
+- CP-27560 increment database version
+- CA-290006 update snapshot device model profile
+- Remove unnecessary reference of Api_errors
+
+* Tue Jun 26 2018 Christian Lindig <christian.lindig@citrix.com> - 1.102.0-1
+- CP-28477: Cluster_host.force_destroy ignores exn
+- CP-28477: Cluster_host.forget deletes cluster_host if successful
+- CP-28477, CP-26179: Forward Cluster.destroy, pool_destroy works without
+- XOP-948: Add a test for restricting SR allowed_operations during RPU
+- XOP-948: Restrict SR allowed_operations during RPU
+- CP-28227: Add API errors to clustering datamodel
+- CP-28477, CP-26179: make the info message more clear
+- Remove obsolete clustering quicktest
+- Generalize quicktest filtering
+
+* Wed Jun 20 2018 Stefano Panella <stefano.panella@citrix.com> - 1.101.0-2
+- Enable GFS2 feature flag
+
+* Tue Jun 19 2018 Christian Lindig <christian.lindig@citrix.com> - 1.101.0-1
+- CP-28117: restart HA VMs in parallel when recovering from host failure
+
+* Fri Jun 15 2018 Christian Lindig <christian.lindig@citrix.com> - 1.100.0-1
+- CA-287838: Slave Dom0 becomes incorrect state in DB after pool join
+- CA-290450: quicktest_vdi_ops_data_integrity: test large VDIs too
+- CA-290466: Add quicktest to test parallel VDI dom0 attach limit
+- CA-272147: add quicktest for SR.set_name_label & description
+- CA-291136: skip hosts which do not have an IP address yet
+- CA-291136: wait for carrier on management interface
+- CA-291164: avoid race condition in waiting for management IP address
+- CA-291163: avoid race condition on waiting for clustering IP
+- CA-290526: Update location for cluster stack supported SRs file (#3631)
+- merge safe-string patches: all strings are now immutable
+- nbd_client_manager: increase number of /dev/nbds and wait for a free one
+- drop debug/graph: not built anymore
+- remove legacy graph and rfb ocaml libraries
+- test/test_pool_license: reduce deprecation warnings
+
+* Thu Jun 14 2018 Cheng Zhang<cheng.zhang@citrix.com> - 1.99.0-4
+- Remove experimental flag of SRIoV feature
+
+* Mon Jun 11 2018 Christian Lindig <christian.lindig@citrix.com> - 1.99.0-1
+- Merge GFS2 branch: 
+  CP-24692 CP-25121 CP-26147 CP-25121 CP-25121 CP-25121 CP-25121 CP-26199
+  CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-27172
+  CP-27172 CP-27466 CP-28213 CP-28213 CP-28406 CP-28406 CP-28406 CP-28406
+- CA-290237: Add Cluster_host.joined field to represent cluster membership
+- CA-290237: Prevent data races blocking pool-join on bonds and VLANs
+- CA-290237: Wait for clustering IP before resyncing host
+- CA-290471: fix wrong token timeout in XenCenter (#3611)
+- CA-290686: fix forwarding of Cluster_host.forget
+- CA-290891: Add quicktest for VDI export & import
+- Hardcode token value thresholds in Constants module
+- Test Cluster.create fails for invalid token parameters
+
+* Tue Jun 05 2018 Christian Lindig <christian.lindig@citrix.com> - 1.98.0-1
+- CA-289623: Added missing branding; removed duplicate comment.
+- Rename Xapi_vm_snapshot.default_values to overrides
+- CA-290874: Always derive domain_type from HVM_boot_policy on VM.revert
+- CA-290874: On start and resume, always ensure that the domain type is set
+
+* Thu May 24 2018 Christian Lindig <christian.lindig@citrix.com> - 1.97.0-1
+- CA-289319: Kolkata Update application failure: HANDLE_INVALID
+- CA-289907: Base pool.cpu_info:features_hvm on HVM-capable hosts only
+- CA-289907: Update pool_cpu_features unit test
+- CA-275120: XenAPI methods only callable by SM are publicly visible
+- XSI-6: Corrected and completed event class documentation enhancements.
+- Quicktest: add support for comparing record fields
+- Quicktest: check snapshot VDI fields
+- Moved the output of gen_json.ml into the _build folder.
+- Removed obsolete docbook and pdf format of the API Reference.
+- Split API Reference into two files, one for classes and types and 
+  one for error handling.
+- xapi-database: make safe-string compliant
+- xapi-types: make safe-string compliant
+
+* Fri May 18 2018 Christian Lindig <christian.lindig@citrix.com> - 1.96.0-1
+- pci/lib_test: disable tests until we move back to upstream library
+- travis-python-nosetests: fix tests
+
+* Mon May 14 2018 Christian Lindig <christian.lindig@citrix.com> - 1.95.0-1
+- CP-27911: Port tests to Alcotest
+- CP-27899: Convert quicktests to Alcotest
+
+* Thu May 10 2018 Christian Lindig <christian.lindig@citrix.com> - 1.94.0-1
+- CA-287921: nbd_client_manager: track nbd device -> nbd server mapping
+- CA-289140: log the exception from PBD plug without doing other API calls
+- CA-289140: ignore missing PBDs on startup
+- CA-289620: Remove redundant log of events_watch
+- CP-27911: Port test_host_helpers to Alcotest
+- CP-27911: Port test_xapi_xenops to Alcotest
+- CP-27911: Port test_sr_update_vdis to Alcotest
+- CP-27911: Port test_bond to Alcotest
+- CP-27911: Port test_tunnel to Alcotest
+- CP-27911: Port test_pvs_server to Alcotest
+- CP-27911: Port test_xapi_vbd_helpers to Alcotest
+- CP-27911: Port test_network_sriov to Alcotest
+- CP-26583: Upgrade Xapi to use PPX-based Rrdd idl
+- CP-26583: Update error: Rrd_failure -> Rrdd_internal_error
+- Speed up update_all_allowed_operations: VDI
+- Add randomized quicktest to check VDI.copy data integrity
+- quicktest_vdi_copy_data_integrity: write random bytes from urandom
+
+* Wed May 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.93.0-3
 - Make SRIOV an experimental feature (off by default)
 
-* Tue Apr 24 2018 Christian Lindig <christian.lindig@citrix.com> - 1.90.5-1
-- CA-288312: Don't update HOSTNAME in /etc/sysconfig/network
+* Tue May 01 2018 Christian Lindig <christian.lindig@citrix.com> - 1.93.0-1
+- CA-273986: Add test for Cluster.create cleanup
+- CA-284520: Adding pool pre-check for clustering enabled
+- CA-288411: make the cache work after a toolstack restart
+- cli_protocol.ml: replace deprecated use of String.set with Bytes
+- rfb_randomtest.ml: replace deprecated use of String.set
+- gen_rbac.ml: replace deprecated use of String.set
+- tasks.ml: add missing ignore
+- cli_progress_bar.ml: replace deprecated use of String.set
+- record_util.ml: use String.lowercase_ascii
+- sparse_encoding.ml: replace deprecated use of String.set
+- extauth_plugin_ADpbis.ml: replace deprecated use of String.set
+- storage_mux.ml: replace use of deprecated Stdext.Fun.++
+- rbac_audit.ml: replace use of deprecated String.set
+- xapi_sm.ml: replace use of deprecated Stdext.Fun.++
+- xapi_pif.ml: replace use of deprecated Stdext.Fun.id
+- nbd_client_manager: provide error message for exceptions
+- CA-288394: nbd_client_manager: add program name to log lines
+- nbd_client_manager: extract program into main method
+- CP-27880: drop incorrect all-zero diagnostic counters and deprecate diagnostic-db-log
+- CP-27880: collect timing, db and net statistics in bugtools
+- CP-27880: move Stats to xapi-database
+- CP-27880: collect timing stats from redo_log
+- CA-288635: redo_log: only log WriteField if the value actually changed
+- CA-288635: block_device_io: reduce number of O_DSYNC writes to half in action_write_delta
+- CA-288635: increase db flush chunk size
 
-* Fri Apr 20 2018 Christian Lindig <christian.lindig@citrix.com> - 1.90.4-1
-- CA-288347: Do not take clustering lock in SR.probe
-
-* Tue Apr 17 2018 Christian Lindig <christian.lindig@citrix.com> - 1.90.3-1
-- CA-267687: Logs of VBD operation check that inspects operations 
-  of VBD's VDI do not match returned errors
-
-* Mon Apr 16 2018 Christian Lindig <christian.lindig@citrix.com> - 1.90.2-1
+* Mon Apr 23 2018 Christian Lindig <christian.lindig@citrix.com> - 1.92.0-1
+- CA-267687: Logs of VBD operation check that inspects operations of 
+  VBD's VDI do not match returned errors
+- XSI-6: Event class documentation enhancements.
+- CA-287865: Forwarded task calling Message_forwarding.xxx resulting 
+  current task being early marked completed
 - CA-286874: Redundant checks for SR-IOV when implementing VDI migration (#3547)
+- CA-287854: Add cluster stack constants and check cluster stack valid for
+- CA-287854: Test Cluster.create fails with invalid cluster stack
 - CA-286165: Only non-VF PCI need to update dependencies
+- CA-287863: Reorgnize the code
+- CA-287863: xe vm-shutdown complete the task too early
+- CA-287929: fix incorrect log message (11428 > 11428)
+- CA-281638: Set pool.ha_cluster_stacks upon Cluster.create/destroy success, 
+  not on Cluster_host operations
+- CA-281638: Add tests for Pool.ha_cluster_stack selection
+- CA-287343: Update HA failure tolerance plan for corosync/GFS2 and 
+  add unit tests
+- CA-244573: Storage migration state lost after xapi restarting
+- CA-244573: XenMotion fails after previously attempted SXM is
+  interrupted by XAPI restart and vm goes into suspended state
+- CA-288347: Do not take clustering lock in SR.probe
+- CA-288312: Don't update HOSTNAME in /etc/sysconfig/network
+- ocp-indent cluster_stack_constraints and test_cluster(ing)
+- xapi_services.ml: use Re.Emacs instead of the deprecated Re_emacs
+- xa_auth_stubs: add missing header file
+- Network_event_loop: make sure no duplicated interfaces are 
+  passed to firewall script
+- Improve documentation: Cannot is one word.
+- Remove deleted quicktests from all_tests list
+- Remove quicktest_encodings
+- Move quicktest_vm_placement from quicktests to unit tests
+- Move quicktest_vm_memory_constraints from quicktests to unit tests
+- Convert Test_network_event_loop to alcotest
+- Port Test_event to Alcotest
+- Port test_network to Alcotest
+- Port test_pgpu to Alcotest
+- Port test_xapi_db_upgrade to Alcotest
+- Port test_pci_helpers to Alcotest
+- Port test_pool_db_backup to Alcotest
+- Port test_pool_restore_database to Alcotest
+- Port test_workload_balancing to Alcotest
 
-* Tue Apr 10 2018 Christian Lindig <christian.lindig@citrix.com> - 1.90.1-1
+* Wed Apr 11 2018 Christian Lindig <christian.lindig@citrix.com> - 1.91.0-1
 - CA-286338: Inter-host VM copy failed from source host to a slave in a pool
 - CP-27544: Log cluster/host opaquerefs for message forwarding
 - CP-27544: Add debug info to Cluster calls
