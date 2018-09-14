@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.110.1
-Release: 1
+Release: 1.1.xcp
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -67,8 +67,8 @@ Requires: vmss
 Requires: python-six
 Requires: python-pyudev
 Requires: gmp
-Requires: xapi-storage-plugins
-Requires: xapi-clusterd
+#Requires: xapi-storage-plugins
+#Requires: xapi-clusterd
 Requires(post): /sbin/chkconfig
 Requires(preun): /sbin/chkconfig
 Requires(preun): /sbin/service
@@ -410,6 +410,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Sep 14 2018 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.1.xcp
+- Do not require non-free packages!
+
 * Mon Aug 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.1-1
 - Bumped the minor api version as well as the client min and max version 
   numbers to 2.11.
