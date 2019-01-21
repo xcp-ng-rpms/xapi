@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.90.6
-Release: 1
+Release: 1.1
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -13,6 +13,10 @@ Source1: corosync
 Source2: network_sriov
 Patch0: 0001-Workaround-for-NVIDIA-330.patch
 Patch1: ca293417-kolkata.patch
+
+# XCP-ng patches
+Patch1000: xapi-1.90.6-allow-migrate_send-during-RPU.XCP-ng.patch
+
 BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -417,6 +421,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon Jan 21 2019 Samuel Verschelde <stormi-xcp@ylix.fr> 1.90.6-1.1
+- Enable migrate_send during rolling pool upgrade
+
 * Thu Jul 26 2018 Richard Davies <richard.davies@citrix.com> 1.90.6-1
 - CP-28936 Assert that a host has enough pCPUs to run a VM
 
