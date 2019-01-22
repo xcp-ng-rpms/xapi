@@ -1,0 +1,305 @@
+From 812f126d6cfaaa96b9e4e1e385a4cec6731b5a5d Mon Sep 17 00:00:00 2001
+From: John Else <john.else@gmail.com>
+Date: Mon, 29 Oct 2018 01:06:13 +0000
+Subject: [PATCH 1/5] Implement Zstd option for disk export
+
+The client can specify `compression=gzip` or `compression=zstd` to
+export a VM compressed with the corresponding algorithm. For backwards
+compatibility, `compression=true` will still give a gzip-compressed
+export.
+---
+ ocaml/xapi/export.ml       | 24 +++++++++++++++++++-----
+ ocaml/xapi/importexport.ml |  5 +++++
+ ocaml/xapi/jbuild          |  1 +
+ 3 files changed, 25 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/xapi/export.ml b/ocaml/xapi/export.ml
+index 91ba6a0de1..34e8e546bd 100644
+--- a/ocaml/xapi/export.ml
++++ b/ocaml/xapi/export.ml
+@@ -605,8 +605,21 @@ let handler (req: Request.t) s _ =
+ 
+   Xapi_http.assert_credentials_ok "VM.export" ~http_action:"get_export" req s;
+ 
+-  let use_compression = List.mem_assoc Constants.use_compression req.Request.query && List.assoc Constants.use_compression req.Request.query = "true" in
+-  debug "Using compression: %b" use_compression;
++  let compression_algorithm =
++    if List.mem_assoc Constants.use_compression req.Request.query
++    then
++      match List.assoc Constants.use_compression req.Request.query with
++      | "true" | "gzip" -> Some Gzip
++      | "zstd"          -> Some Zstd
++      | _               -> None
++    else None
++  in
++
++  debug "Using compression: %s"
++    (match compression_algorithm with
++    | Some Gzip -> "Gzip"
++    | Some Zstd -> "Zstd"
++    | None      -> "None");
+   (* Perform the SR reachability check using a fresh context/task because
+      we don't want to complete the task in the forwarding case *)
+ 
+@@ -674,9 +687,10 @@ let handler (req: Request.t) s _ =
+                     (fun () ->
+                        Http_svr.headers s headers;
+                        let go fd = export refresh_session __context rpc session_id fd vm_ref preserve_power_state in
+-                       if use_compression
+-                       then Gzip.compress s go
+-                       else go s
++                       match compression_algorithm with
++                       | Some Gzip -> Gzip.compress s go
++                       | Some Zstd -> Zstd.compress s go
++                       | None      -> go s
+                     )
+ 
+                  (* Exceptions are handled by Xapi_http.with_context *)
+diff --git a/ocaml/xapi/importexport.ml b/ocaml/xapi/importexport.ml
+index f1b209b1c7..56d6006368 100644
+--- a/ocaml/xapi/importexport.ml
++++ b/ocaml/xapi/importexport.ml
+@@ -34,6 +34,11 @@ type version = {
+   export_vsn: int; (* 0 if missing, indicates eg whether to expect sha1sums in the stream *)
+ }
+ 
++(** Supported compression algorithms *)
++type compression_algorithm =
++  | Gzip
++  | Zstd
++
+ let rpc_of_version x =
+   let open Xapi_globs in
+   Rpc.Dict(
+diff --git a/ocaml/xapi/jbuild b/ocaml/xapi/jbuild
+index 507fbd284e..b0c6151057 100644
+--- a/ocaml/xapi/jbuild
++++ b/ocaml/xapi/jbuild
+@@ -109,6 +109,7 @@ let () = Printf.ksprintf Jbuild_plugin.V1.send {|
+    xapi-xenopsd
+    xapi-netdev
+    yojson
++   zstd
+   ))
+   %s)
+ )
+
+From 221dd78d43075948fbd4ad40b156483e0a468030 Mon Sep 17 00:00:00 2001
+From: John Else <john.else@gmail.com>
+Date: Thu, 1 Nov 2018 00:12:58 +0000
+Subject: [PATCH 2/5] Add some helper functions
+
+---
+ ocaml/xapi/importexport.ml | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/ocaml/xapi/importexport.ml b/ocaml/xapi/importexport.ml
+index 56d6006368..e207a3c9ed 100644
+--- a/ocaml/xapi/importexport.ml
++++ b/ocaml/xapi/importexport.ml
+@@ -39,6 +39,17 @@ type compression_algorithm =
+   | Gzip
+   | Zstd
+ 
++let compression_algorithm_of_string = function
++  | "true"
++  | "gzip" -> Some Gzip
++  | "zstd" -> Some Zstd
++  | _      -> None
++
++let string_of_compression_algorithm = function
++  | None      -> "false"
++  | Some Gzip -> "gzip"
++  | Some Zstd -> "zstd"
++
+ let rpc_of_version x =
+   let open Xapi_globs in
+   Rpc.Dict(
+
+From 7b9f3f76db3008fd729965a55e00ebf5b1cd55db Mon Sep 17 00:00:00 2001
+From: John Else <john.else@gmail.com>
+Date: Thu, 1 Nov 2018 00:13:29 +0000
+Subject: [PATCH 3/5] Allow specifying zstd export on the CLI
+
+As with the HTTP export handler, the user can specify `compress=true`
+or `compress=gzip` to export with gzip, or `compress=zstd` to export
+with zstd.
+---
+ ocaml/xapi/cli_operations.ml | 17 +++++++++++------
+ 1 file changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/ocaml/xapi/cli_operations.ml b/ocaml/xapi/cli_operations.ml
+index d1b9785776..b8585582ba 100644
+--- a/ocaml/xapi/cli_operations.ml
++++ b/ocaml/xapi/cli_operations.ml
+@@ -3750,7 +3750,7 @@ let blob_create printer rpc session_id params =
+     raise (Cli_util.Cli_failure "Need one of: vm-uuid, host-uuid, network-uuid, sr-uuid or pool-uuid")
+ 
+ 
+-let export_common fd printer rpc session_id params filename num ?task_uuid use_compression preserve_power_state vm =
++let export_common fd printer rpc session_id params filename num ?task_uuid compression preserve_power_state vm =
+   let vm_metadata_only : bool = get_bool_param params "metadata" in
+   let export_snapshots : bool =
+     if List.mem_assoc "include-snapshots" params
+@@ -3784,27 +3784,32 @@ let export_common fd printer rpc session_id params filename num ?task_uuid use_c
+             (Ref.string_of exporttask)
+             (Ref.string_of (vm.getref ()))
+             Constants.use_compression
+-            (if use_compression then "true" else "false")
++            (Importexport.string_of_compression_algorithm compression)
+             preserve_power_state
+             export_snapshots)
+          "Export";
+        num := !num + 1)
+     (fun () -> task_destroy_fn ())
+ 
++let get_compression_algorithm params =
++  if List.mem_assoc "compress" params
++  then Importexport.compression_algorithm_of_string (List.assoc "compress" params)
++  else None
++
+ let vm_export fd printer rpc session_id params =
+   let filename = List.assoc "filename" params in
+-  let use_compression = get_bool_param params "compress" in
++  let compression = get_compression_algorithm params in
+   let preserve_power_state = get_bool_param params "preserve-power-state" in
+   let task_uuid = if (List.mem_assoc "task-uuid" params) then Some (List.assoc "task-uuid" params) else None in
+   let num = ref 1 in
+   let op vm =
+-    export_common fd printer rpc session_id params filename num ?task_uuid use_compression preserve_power_state vm
++    export_common fd printer rpc session_id params filename num ?task_uuid compression preserve_power_state vm
+   in
+   ignore(do_vm_op printer rpc session_id op params ["filename"; "metadata"; "compress"; "preserve-power-state"; "include-snapshots"])
+ 
+ let vm_export_aux obj_type fd printer rpc session_id params =
+   let filename = List.assoc "filename" params in
+-  let use_compression = get_bool_param params "compress" in
++  let compression = get_compression_algorithm params in
+   let preserve_power_state = get_bool_param params "preserve-power-state" in
+   let num = ref 1 in
+   let uuid = List.assoc (obj_type ^ "-uuid") params in
+@@ -3813,7 +3818,7 @@ let vm_export_aux obj_type fd printer rpc session_id params =
+     failwith (Printf.sprintf "This operation can only be performed on a VM template. %s is not a VM template." uuid);
+   if obj_type = "snapshot" && not (Client.VM.get_is_a_snapshot rpc session_id ref) then
+     failwith (Printf.sprintf "This operation can only be performed on a VM snapshot. %s is not a VM snapshot." uuid);
+-  export_common fd printer rpc session_id params filename num use_compression preserve_power_state (vm_record rpc session_id ref)
++  export_common fd printer rpc session_id params filename num compression preserve_power_state (vm_record rpc session_id ref)
+ 
+ let vm_copy_bios_strings printer rpc session_id params =
+   let host = Client.Host.get_by_uuid rpc session_id (List.assoc "host-uuid" params) in
+
+From b6f3ae0c05aeca0daea55e77a291a638ef7c515e Mon Sep 17 00:00:00 2001
+From: John Else <john.else@gmail.com>
+Date: Mon, 14 Jan 2019 00:07:05 +0000
+Subject: [PATCH 4/5] On VM import, autodetect whether gzip or zstd has been
+ used to compress the image
+
+---
+ ocaml/xapi/import.ml | 35 +++++++++++++++++++++++++++++------
+ 1 file changed, 29 insertions(+), 6 deletions(-)
+
+diff --git a/ocaml/xapi/import.ml b/ocaml/xapi/import.ml
+index f00b4b1e90..8d26b3e598 100644
+--- a/ocaml/xapi/import.ml
++++ b/ocaml/xapi/import.ml
+@@ -1461,11 +1461,11 @@ let assert_filename_is hdr =
+ 
+ (** Takes an fd and a function, tries first to read the first tar block
+     and checks for the existence of 'ova.xml'. If that fails then pipe
+-    the lot through gzip and try again *)
++    the lot through an appropriate decompressor and try again *)
+ let with_open_archive fd ?length f =
+   (* Read the first header's worth into a buffer *)
+   let buffer = Cstruct.create Tar_unix.Header.length in
+-  let retry_with_gzip = ref true in
++  let retry_with_compression = ref true in
+   try
+     Tar_unix.really_read fd buffer;
+ 
+@@ -1474,16 +1474,39 @@ let with_open_archive fd ?length f =
+     assert_filename_is hdr;
+ 
+     (* successfully opened uncompressed stream *)
+-    retry_with_gzip := false;
++    retry_with_compression := false;
+     let xml = read_xml hdr fd in
+     Tar_unix.Archive.skip fd (Tar_unix.Header.compute_zero_padding_length hdr);
+     f xml fd
+   with e ->
+-    if not(!retry_with_gzip) then raise e;
+-    debug "Failed to directly open the archive; trying gzip";
++    if not(!retry_with_compression) then raise e;
++
++    let decompress =
++      (* discern whether the file is compressed with gzip or zstd *)
++      let gzip_magic = "\x1f\x8b" in
++      let zstd_magic = "\x28\xb5\x2f\xfd" in
++      let gzip =
++        Cstruct.equal
++          (Cstruct.of_string gzip_magic)
++          (Cstruct.sub buffer 0 (String.length gzip_magic))
++      in
++      let zstd =
++        Cstruct.equal
++          (Cstruct.of_string zstd_magic)
++          (Cstruct.sub buffer 0 (String.length zstd_magic))
++      in
++      if gzip then begin
++        debug "Failed to directly open the archive; trying gzip";
++        Gzip.decompress
++      end else if zstd then begin
++        debug "Failed to directly open the archive; trying zstd";
++        Zstd.decompress
++      end else raise e
++    in
++
+     let feeder pipe_in = finally
+         (fun () ->
+-           Gzip.decompress pipe_in
++           decompress pipe_in
+              (fun compressed_in ->
+                 (* Write the initial buffer *)
+                 Unix.set_close_on_exec compressed_in;
+
+From 07b687d02980ff4d2a2e0c2bcd1957219573e86e Mon Sep 17 00:00:00 2001
+From: John Else <john.else@gmail.com>
+Date: Wed, 16 Jan 2019 00:13:42 +0000
+Subject: [PATCH 5/5] Add feature flag for zstd export
+
+---
+ ocaml/xapi-types/features.ml  | 2 ++
+ ocaml/xapi-types/features.mli | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/ocaml/xapi-types/features.ml b/ocaml/xapi-types/features.ml
+index 0d2eaf7235..39ff201fdf 100644
+--- a/ocaml/xapi-types/features.ml
++++ b/ocaml/xapi-types/features.ml
+@@ -62,6 +62,7 @@ type feature =
+   | USB_passthrough
+   | Network_sriov
+   | Corosync
++  | Zstd_export
+ [@@deriving rpc]
+ 
+ type orientation = Positive | Negative
+@@ -113,6 +114,7 @@ let keys_of_features =
+     USB_passthrough, ("restrict_usb_passthrough", Negative, "USB_passthrough");
+     Network_sriov, ("restrict_network_sriov", Negative, "Network_sriov");
+     Corosync, ("restrict_corosync", Negative, "Corosync");
++    Zstd_export, ("restrict_zstd_export", Negative, "Zstd_export");
+   ]
+ 
+ (* A list of features that must be considered "enabled" by `of_assoc_list`
+diff --git a/ocaml/xapi-types/features.mli b/ocaml/xapi-types/features.mli
+index 5c7a9687a5..558dad10c5 100644
+--- a/ocaml/xapi-types/features.mli
++++ b/ocaml/xapi-types/features.mli
+@@ -62,6 +62,7 @@ type feature =
+   | USB_passthrough              (** Enable the use of USB passthrough. *)
+   | Network_sriov                (** Enable the use of Network SRIOV. *)
+   | Corosync                     (** Enable the use of corosync. *)
++  | Zstd_export                  (** Enable the use of VM export with zstd compression. *)
+ 
+ (** Convert RPC into {!feature}s *)
+ val feature_of_rpc : Rpc.t -> feature

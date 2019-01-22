@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.110.1
-Release: 1.2.xcp
+Release: 1.3.xcp
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -14,6 +14,7 @@ Patch1: ca293417.patch
 
 # XCP-ng patches
 Patch1000: xapi-1.110.1-allow-migrate_send-during-RPU.XCP-ng.patch
+Patch1001: xapi-1.110.1-zstd-support.XCP-ng.patch
 
 BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
@@ -414,6 +415,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Jan 22 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.3.xcp
+- Add ZSTD support
+
 * Mon Jan 21 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.2.xcp
 - Allow Xen Storage Motion during pool upgrade
 
