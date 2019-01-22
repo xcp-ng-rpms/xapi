@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.110.1
-Release: 1.3.xcp
+Release: 1.4.xcp
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -74,6 +74,7 @@ Requires: python-pyudev
 Requires: gmp
 #Requires: xapi-storage-plugins
 #Requires: xapi-clusterd
+Requires: zstd
 Requires(post): /sbin/chkconfig
 Requires(preun): /sbin/chkconfig
 Requires(preun): /sbin/service
@@ -415,7 +416,7 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* Tue Jan 22 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.3.xcp
+* Tue Jan 22 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.4.xcp
 - Add ZSTD support
 
 * Mon Jan 21 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.2.xcp
