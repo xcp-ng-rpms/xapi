@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.110.1
-Release: 1.1.xcp
+Release: 1.2.xcp
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -11,6 +11,10 @@ Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api
 Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.110.1&format=tar.gz&prefix=xen-api-1.110.1#/xen-api-1.110.1.tar.gz) = 7a4085e0e13f0831d4ad62a41c525781b4991e31
 Patch0: 0001-Workaround-for-NVIDIA-330.patch
 Patch1: ca293417.patch
+
+# XCP-ng patches
+Patch1000: xapi-1.110.1-allow-migrate_send-during-RPU.XCP-ng.patch
+
 BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -410,6 +414,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon Jan 21 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.2.xcp
+- Allow Xen Storage Motion during pool upgrade
+
 * Fri Sep 14 2018 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.1.xcp
 - Do not require non-free packages!
 
