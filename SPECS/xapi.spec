@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.90.6
-Release: 1.1
+Release: 1.2
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -16,6 +16,7 @@ Patch1: ca293417-kolkata.patch
 
 # XCP-ng patches
 Patch1000: xapi-1.90.6-allow-migrate_send-during-RPU.XCP-ng.patch
+Patch1001: xapi-1.90.6-fix-SXM-from-pre-7.3-hosts.backport.patch
 
 BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
@@ -421,6 +422,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Mar 14 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.90.6-1.2
+- Fix Xen Storage Motion during pool upgrade when sender is < 7.3
+
 * Mon Jan 21 2019 Samuel Verschelde <stormi-xcp@ylix.fr> 1.90.6-1.1
 - Enable migrate_send during rolling pool upgrade
 

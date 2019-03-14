@@ -1,0 +1,38 @@
+From 40fa06915a4fbc1d13ca423a4831c817615d3768 Mon Sep 17 00:00:00 2001
+From: YarsinCitrix <yarsin.he@citrix.com>
+Date: Wed, 5 Sep 2018 08:03:28 +0100
+Subject: [PATCH] CA-293678 SXM in partially upgraded pool with pre-7.3 hosts
+ fails migration checks
+
+assert_can_migrate_sender is added in 7.3 along with some code reoganization.
+So if in any chance this is called from master to slave in RPC but slave is
+before 7.3, the slave will raise exception and hance fail the entire code due
+to this unknown method.
+
+In assert_can_migrate_sender, it is mostly regarding pgpu check, which may not
+be necessary in older release, so just ignore this unknown method.
+
+Signed-off-by: YarsinCitrix <yarsin.he@citrix.com>
+---
+ ocaml/xapi/message_forwarding.ml | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index 8d4c179f15..b0f87e51f0 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -1679,8 +1679,12 @@ module Forward = functor(Local: Custom_actions.CUSTOM_ACTIONS) -> struct
+     let assert_can_migrate_sender ~__context ~vm ~dest ~live ~vdi_map ~vif_map ~vgpu_map ~options =
+       info "VM.assert_can_migrate_sender: VM = '%s'" (vm_uuid ~__context vm);
+       let local_fn = Local.VM.assert_can_migrate_sender ~vm ~dest ~live ~vdi_map ~vif_map ~vgpu_map ~options in
+-      forward_vm_op ~local_fn ~__context ~vm
+-        (fun session_id rpc -> Client.VM.assert_can_migrate_sender rpc session_id vm dest live vdi_map vif_map vgpu_map options)
++      try
++        forward_vm_op ~local_fn ~__context ~vm
++          (fun session_id rpc -> Client.VM.assert_can_migrate_sender rpc session_id vm dest live vdi_map vif_map vgpu_map options)
++      with
++      | Api_errors.Server_error(code, params) when code=Api_errors.message_method_unknown ->
++        debug "VM.assert_can_migrate_sender not known by destine, assuming older version host no need to do this."
+ 
+     let assert_can_migrate ~__context ~vm ~dest ~live ~vdi_map ~vif_map ~options ~vgpu_map =
+       info "VM.assert_can_migrate: VM = '%s'" (vm_uuid ~__context vm);
