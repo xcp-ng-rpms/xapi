@@ -135,20 +135,17 @@ This package contains Xen-API documentation in html format.
 %autosetup -p1 -n xen-api-%{version}
 
 %build
-eval $(opam config env --root=/usr/lib/opamroot)
 ./configure %{?coverage:--enable-coverage}
 ulimit -s 16384 && COMPILE_JAVA=no %{__make}
 make doc
 
 %check
-eval $(opam config env --root=/usr/lib/opamroot)
 COMPILE_JAVA=no %{__make} test
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
 ls %{buildroot}/testresults/
 
 %install
-eval $(opam config env --root=/usr/lib/opamroot)
 rm -rf %{buildroot}
 
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
