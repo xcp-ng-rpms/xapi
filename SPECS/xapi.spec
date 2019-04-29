@@ -2,22 +2,26 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.110.1
-Release: 1.6%{?dist}
+Version: 1.160.1
+Release: 1.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v%{version}&format=tar.gz&prefix=xen-api-%{version}#/xen-api-%{version}.tar.gz
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.110.1&format=tar.gz&prefix=xen-api-1.110.1#/xen-api-1.110.1.tar.gz) = 7a4085e0e13f0831d4ad62a41c525781b4991e31
-Patch0: 0001-Workaround-for-NVIDIA-330.patch
-Patch1: ca293417.patch
+
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz
+Source1: SOURCES/xapi/guefi
+Source2: SOURCES/xapi/guefi.sh
+Source3: SOURCES/xapi/guefi-secureboot
+Source4: SOURCES/xapi/guefi-secureboot.sh
+
+
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+
 
 # XCP-ng patches
 Patch1000: xapi-1.110.1-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.110.1-zstd-support.XCP-ng.patch
-Patch1002: xapi-1.110.1-fix-SXM-from-pre-7.3-hosts.backport.patch
 
-BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
 BuildRequires: xen-devel
@@ -49,6 +53,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -56,6 +61,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -88,6 +94,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -95,6 +102,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -103,6 +111,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -114,6 +123,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -125,6 +135,7 @@ for writing additional code generators.
 
 
 %package doc
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -132,7 +143,7 @@ Group:   Development/Documentation
 This package contains Xen-API documentation in html format.
 
 %prep
-%autosetup -p1 -n xen-api-%{version}
+%autosetup -p1
 
 %build
 ./configure %{?coverage:--enable-coverage}
@@ -162,6 +173,10 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+%{__install} -D -m 644 %{SOURCE1} %{buildroot}/etc/xenserver/features.d/guefi
+%{__install} -D -m 755 %{SOURCE2} %{buildroot}/etc/xenserver/features.d/guefi.sh
+%{__install} -D -m 644 %{SOURCE3} %{buildroot}/etc/xenserver/features.d/guefi-secureboot
+%{__install} -D -m 755 %{SOURCE4} %{buildroot}/etc/xenserver/features.d/guefi-secureboot.sh
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -236,6 +251,7 @@ rm -rf $RPM_BUILD_ROOT
 /etc/xapi.d/plugins/iovirt
 /etc/xapi.d/plugins/install-supp-pack
 /etc/xapi.d/plugins/disk-space
+/etc/xapi.d/efi-clone
 /etc/xapi.d/extensions
 /etc/xapi.d/mail-languages/en-US.json
 /etc/xapi.d/mail-languages/zh-CN.json
@@ -247,6 +263,7 @@ rm -rf $RPM_BUILD_ROOT
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
 /opt/xensource/bin/fix_firewall.sh
+/opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
 /opt/xensource/bin/perfmon
 /opt/xensource/bin/static-vdis
@@ -358,6 +375,10 @@ rm -rf $RPM_BUILD_ROOT
 %{_unitdir}/attach-static-vdis.service
 %{_unitdir}/save-boot-info.service
 %{_unitdir}/mpathalert.service
+%config(noreplace) /etc/xenserver/features.d/guefi
+%config(noreplace) /etc/xenserver/features.d/guefi-secureboot
+/etc/xenserver/features.d/guefi.sh
+/etc/xenserver/features.d/guefi-secureboot.sh
 
 %files xe
 %defattr(-,root,root,-)
@@ -371,7 +392,7 @@ rm -rf $RPM_BUILD_ROOT
 /opt/xensource/debug/quicktest
 /opt/xensource/debug/quicktestbin
 
-%global ocaml_dir /usr/lib/opamroot/system
+%global ocaml_dir /usr/lib/opamroot/ocaml-system
 %global ocaml_libdir %{ocaml_dir}/lib
 %global ocaml_docdir %{ocaml_dir}/doc
 
@@ -404,6 +425,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %if 0%{?coverage:1}
 %package testresults
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -414,25 +436,287 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* Thu Mar 14 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.5
-- Fix Xen Storage Motion during pool upgrade when sender is < 7.3
+* Mon Apr 29 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.160.1-1.1
+- New release for XCP-ng 8.0
+- Patch xapi-1.110.1-allow-migrate_send-during-RPU.XCP-ng.patch re-applied
+- Patch xapi-1.110.1-zstd-support.XCP-ng.patch re-applied
+- Patch xapi-1.110.1-fix-SXM-from-pre-7.3-hosts.backport.patch dropped, since it is included in main sources
+- Remove dependency to non-free packages again
 
-* Tue Jan 22 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.4.xcp
-- Add ZSTD support
+* Thu Mar 21 2019 Edwin Török <edvin.torok@citrix.com> - 1.160.1-1
+- CA-310173: remember multipath status with static vdi data
 
-* Mon Jan 21 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.2.xcp
-- Allow Xen Storage Motion during pool upgrade
+* Mon Mar 18 2019 Christian Lindig <christian.lindig@citrix.com> - 1.160.0-1
+- CA-311705: Add VDI usage checking for metadata backup scripts
 
-* Fri Sep 14 2018 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.1.xcp
-- Do not require non-free packages!
+* Thu Mar 07 2019 Christian Lindig <christian.lindig@citrix.com> - 1.159.0-1
+- CP-29134 Update versions for Naples release
+
+* Tue Mar 05 2019 Christian Lindig <christian.lindig@citrix.com> - 1.158.0-1
+- CA-311823: Do not raise alerts for "new CPU features"
+
+* Mon Feb 25 2019 Christian Lindig <christian.lindig@citrix.com> - 1.157.0-1
+- Revert "CA-290024: Reject booting pv-iommu VMs on a host where the premap is yet to complete"
+
+* Mon Feb 25 2019 Christian Lindig <christian.lindig@citrix.com> - 1.156.0-1
+- CA-310971: consider enabling the host again after plugging clustering PBDs
+- CA-309815: add dependencies in perfmon.service
+
+* Wed Feb 20 2019 Christian Lindig <christian.lindig@citrix.com> - 1.155.0-1
+- CA-309048 handle domain sockets for wsproxy (#3816)
+
+* Tue Feb 19 2019 Christian Lindig <christian.lindig@citrix.com> - 1.154.0-1
+- CA-304473: lock the db before flush_and_exit on master
+
+* Wed Feb 13 2019 Christian Lindig <christian.lindig@citrix.com> - 1.153.0-1
+- CA-309809: avoid a stuck GFS2 mount by checking quorate state before PBD plug
+- ocp-indent xapi-clustering.ml
+
+* Wed Feb 06 2019 Rob Hoes <rob.hoes@citrix.com> - 1.152.0-1
+- CP-29962: Ignore monitor_config_file for GVT-g VGPU types
+
+* Tue Feb 05 2019 Christian Lindig <christian.lindig@citrix.com> - 1.151.0-1
+- CP-30578: check if clustering required and wait for quorum
+- Simplify .travis-xs-opam.sh
+
+* Fri Feb 01 2019 Christian Lindig <christian.lindig@citrix.com> - 1.150.0-1
+- CP-30527: use Memory for unit conversions
+- CP-30527: Gather Xen capabilities from xenopsd
+- CP-30527: Fetch Xen version from xenopsd
+- CP-30527: Remove Xenctrl check when reading host memory
+- CP-30527: Constrict usage of xenopsd to gather host info
+
+* Tue Jan 29 2019 Christian Lindig <christian.lindig@citrix.com> - 1.149.0-1
+- CP-30508: Reliably detect IOMMU presence in host
+
+* Wed Jan 23 2019 Christian Lindig <christian.lindig@citrix.com> - 1.148.0-1
+- Prepare for Dune 1.6
+- Makefile: remove OPAM_PREFIX, OPAM_LIBDIR
+
+* Tue Jan 22 2019 Christian Lindig <christian.lindig@citrix.com> - 1.147.0-1
+- CA-307829: XSI-216 Add active state in update_vgpu
+- CA-272180: report suspend ack failures on API
+- CA-272180: report suspend timeouts on API
+- Replaced jbuild files with dune.
+
+* Wed Jan 09 2019 Christian Lindig <christian.lindig@citrix.com> - 1.146.0-1
+- CP-29673: allow checkpoint op for VM with vgpu
+- CA-302456: Do not clear 'resident_on' during a checkpoint operation
+- CA-304576: Allow checkpoint on suspended VM with Nvidia vGPU
+- CA-307012: Avoid checking power_state for checkpoint while creating VGPU.
+
+* Mon Jan 07 2019 Christian Lindig <christian.lindig@citrix.com> - 1.145.0-1
+- CA-300719: Block export >2TB VDI to VHD format
+
+* Wed Jan 02 2019 Christian Lindig <christian.lindig@citrix.com> - 1.144.0-1
+- Use sets not lists
+
+* Tue Dec 18 2018 Christian Lindig <christian.lindig@citrix.com> - 1.143.0-1
+- CP-28659, CP-28662: Add VM.NVRAM field
+- CP-28662: send NVRAM to xenopsd
+- CP-29070: prevent changes to NVRAM while the VM is running
+- CP-29420: read_record_internal: avoid intermediate lists and deep call stacks
+- CP-29420: finer grained locking for xenopsd metadata
+- CP-29169: call varstore-rm on UEFI VM clone
+- CP-28675: Add a VM_SECURE_BOOT_FAILED message type
+- CP-29857: forbid qemu-upstream-uefi device-model on Bios
+- CP-29857: defer setting device-model until first VM.start
+- CP-29857: do not reject qemu-upstream-uefi for vUSB
+- CP-29936: override control/feature-suspend if data/cant_suspend_reason is set
+- CP-29967: add varstored-guard to xe-toolstack-restart
+- CP-30032: spawn varstore-rm in a chroot (#3782)
+- CP-29002: add unit test for VM.NVRAM field
+
+* Fri Dec 14 2018 Christian Lindig <christian.lindig@citrix.com> - 1.142.0-1
+- Remove some unused binaries, tests, and values
+- CA-281176: hide deprecated VDI operations from the allowed_operations field
+
+* Tue Dec 11 2018 Patrick Fox <patrick.fox@citrix.com> - 1.140.0-uefi
+- Add guefi feature flag
+
+* Mon Dec 10 2018 Christian Lindig <christian.lindig@citrix.com> - 1.141.0-1
+- Use dune and define profile "gprof" for profiling
+
+* Tue Dec 04 2018 Christian Lindig <christian.lindig@citrix.com> - 1.140.0-1
+- CA-300644: return immediately when attach-static-vdis failed
+- Reference xapi-inventory instead of xcp-inventory; the latter is being deprecated.
+- Reference xapi-idl instead of xcp; the latter is being deprecated.
+
+* Fri Nov 30 2018 Christian Lindig <christian.lindig@citrix.com> - 1.139.0-1
+- Revert "CP-28951: Add message of xen low memory alarm"
+- CA-302538: Disallow restore across partition layout changes
+
+* Wed Nov 28 2018 Christian Lindig <christian.lindig@citrix.com> - 1.138.0-1
+- CP-29757: block SXM of encrypted VDIs
+- CP-29757: Add new VDI_IS_ENCRYPTED exception
+
+* Tue Nov 27 2018 Christian Lindig <christian.lindig@citrix.com> - 1.137.0-1
+- CP-30039: Generate automatically the release and class files for 
+  the xapi project docs; added release date to the releases.
+- Use lowercase for class filenames.
+- Improved field doc so we don't need extra doc notes for it i
+  on xapi-project.github.io
+- CA-298465: Only try to detach locally attached updates when booting
+- Added some historical data.
+- CA-299554 XSI-132 use correct vCPU count for dom0
+
+* Thu Nov 22 2018 Christian Lindig <christian.lindig@citrix.com> - 1.136.0-1
+- CA-300103 designate a single Tools SR, delete others
+
+* Fri Nov 16 2018 Christian Lindig <christian.lindig@citrix.com> - 1.135.0-1
+- New ocaml-rpc
+
+* Fri Nov 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.134.0-1
+- CA-290024: Reject booting pv-iommu VMs on a host where the 
+  premap is yet to complete
+
+* Tue Nov 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.133.0-1
+- Restored mustache in the dependencies of xapi-datamodel as it 
+  is needed for doc generation.
+- XSO-244/CA-168413: Show minimum role per message in the API reference markdown.
+- CA-294900 remove network_sriov on network reset
+- CA-302194 XSI-87 apply guest agent config on start
+
+* Wed Oct 31 2018 Christian Lindig <christian.lindig@citrix.com> - 1.132.0-1
+- Update opam files for Opam 2 (#3752)
+
+* Mon Oct 29 2018 Christian Lindig <christian.lindig@citrix.com> - 1.131.0-1
+- CA-300115 lower VM.assert_operation_valid permissions
+
+* Wed Oct 24 2018 Christian Lindig <christian.lindig@citrix.com> - 1.130.0-1
+- CA-297137: Don't update current_domain_type if xenopsd returns undefined
+- CA-300715: Use Dup fd to avoid close twice.
+- Increase VDI size for metadata backups.
+
+* Mon Oct 22 2018 Christian Lindig <christian.lindig@citrix.com> - 1.129.0-1
+- CA-299944: Proxy requests to updates
+- CA-300210: Add 'CIPHER_SERVER_PREFERENCE' option in xapi ssl config
+- CP-29687: Remove TLS_RSA_WITH_AES_128_CBC_SHA(AES128-SHA) for CC
+- Cleanup Context module a little
+- Eliminate redundant Context.task_in_database field
+- Encode difference between real and dummy tasks in Ref.t type
+- Move Context.get_task_name to TaskHelper.get_name
+- Move Helpers.short_string_of_ref to Ref.short_string_of
+- Remove confusing "forwarded task destroyed" log lines
+- Remove dead code from Context module
+- Remove unused __context arg from Context constructors
+- Remove unused Context.string_of
+- Remove unused Server.dispatch function
+
+* Thu Oct 18 2018 Edwin Török <edvin.torok@citrix.com> - 1.128.0-1
+- Add quicktests for 2GB vdi TAR import export
+- CP-29605 CP-29604: Query sparseness of VDIs during TAR export
+- Use opam2 container in travis
+- CA-297297 Make create_row idempotent
+- Wrap entire function in lock
+- Use opam2 container in travis
+- Make code non quadratic, Fix style and comments
+- CA-297343: Use transform_xenops_exn in pool_migrate
+- Address latest review comments
+
+* Thu Oct 11 2018 Rob Hoes <rob.hoes@citrix.com> - 1.127.0-1
+- CP-28301: validate and send HVM-boot-params["firmware"] to xenopsd
+- CP-28659: Add VM.NVRAM field
+- CP-28662: send NVRAM to xenopsd
+- CP-28662: use record instead of string map for NVRAM
+- CP-28662: do not display NVRAM by default
+- CP-29070: introduce VM.set_NVRAM_EFI_variables for varstored
+- CP-29070: prevent changes to NVRAM while the VM is running
+- CA-299371: mark NVRAM as hidden by default
+- CP-29196: Enable FIPS mode if existence of cc preparations (#3722)
+- CP-29696: Change the order of cipher base on latest requirement
+
+* Tue Oct 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.126.0-1
+- CP-29521: VDI import/export in TAR format
+
+* Thu Oct 04 2018 Christian Lindig <christian.lindig@citrix.com> - 1.125.0-1
+- CA-297520: Ensure we can always turn exceptions into at least internal errors
+- Reduce number of DB calls when resynchronising PIF params
+- Set PIF.capabilities for physical PIFs only
+- The MTU of a bond slave comes from its master's bridge
+- Remove spammy log line in xapi_pif_helpers.ml
+- Remove unnecessary call to xcp-networkd
+- Confirm that the interface exists before querying IP configuration
+- Improve update_getty
+
+* Mon Oct 01 2018 Christian Lindig <christian.lindig@citrix.com> - 1.124.0-1
+- CP-28923: Add sm capability for large and thinly provisioned VDIs
+- CP-28951: Add message of xen low memory alarm
+- Move implementations_of_backend to xcp-idl
+
+* Wed Sep 26 2018 Christian Lindig <christian.lindig@citrix.com> - 1.123.0-1
+- CA-290696: Update task to un-cancellable after xenopsd notify xapi (#3696)
+- XSO-886: Do not add micro version to the pv_drivers_version if
+  the latter is empty.
+- CA-298318: Set the SM name_label correctly
+
+* Mon Sep 24 2018 Christian Lindig <christian.lindig@citrix.com> - 1.122.0-1
+- CP-27110: Use PPX storage interface
+- CP-27110: Use opaque VDI and SR types
+
+* Wed Sep 19 2018 Christian Lindig <christian.lindig@citrix.com> - 1.121.0-1
+- CP-29084: Rebranding XenServer to Citrix Hypervisor in Toolstack.
+
+* Tue Sep 18 2018 Christian Lindig <christian.lindig@citrix.com> - 1.120.0-1
+- Revert "Workaround for NVIDIA-130"
+- CA-293417: pool_update_download_handler: include Content-Type in HTTP response
+- CA-293417: unit test for path verification in /update/ handler
+- CA-293417: fix path verification in /update/ handler
+
+* Mon Sep 17 2018 Rob Hoes <rob.hoes@citrix.com> - 1.119.0-2
+- Remove CA-293417 patch
+
+* Mon Sep 17 2018 Christian Lindig <christian.lindig@citrix.com> - 1.119.0-1
+- Refine the format of generated db_actions code
+- CP-29389: Delete duplicate function 'parse_device_config'
+- Remove patch for "* Workaround for NVIDIA-130"
+
+* Fri Sep 14 2018 Christian Lindig <christian.lindig@citrix.com> - 1.118.0-2
+- move NVIDIA patch to source code repository
+
+* Wed Sep 12 2018 Christian Lindig <christian.lindig@citrix.com> - 1.118.0-1
+- CA-293678 SXM in partially upgraded pool with pre-7.3 hosts fails
+- Update opam files
+
+* Tue Sep 11 2018 Christian Lindig <christian.lindig@citrix.com> - 1.117.0-1
+- Reduce amount of log messages when importing
+
+* Wed Sep 05 2018 Christian Lindig <christian.lindig@citrix.com> - 1.116.0-1
+- CA-293085: Stop xapi-nbd before eject
+- CA-291569: Change config for stunnel
+- CP-29015: Set correct ciphers for stunnel server
+- CA-295828: set 'fips = no' for both ssl-legacy mode and non-legacy mode
+- CA-296204: Reduce stunnel RSA key length to 2048- Use PPX Xenops interface
+- database/jbuild: link only ppx_sexp_conv.runtime-lib
+
+
+* Fri Aug 31 2018 Christian Lindig <christian.lindig@citrix.com> - 1.115.0-1
+- CA-289625: Use jemalloc
+
+* Tue Aug 28 2018 Christian Lindig <christian.lindig@citrix.com> - 1.114.0-1
+- Simplify PPX processing in jbuild files
+
+* Tue Aug 21 2018 Christian Lindig <christian.lindig@citrix.com> - 1.113.0-1
+- CA-294874 xe-toolstack-restart reformat
+- CA-294874 xe-toolstack-restart: add message-switch
+- Update to newer interface requirements of Task_server
+- Add opam dependency on ctypes
+
+* Mon Aug 13 2018 Christian Lindig <christian.lindig@citrix.com> - 1.112.0-1
+- Bumped the minor api version as well as the client min and max version numbers to 2.11.
+- CA-294917: Added branding to the lima release.
 
 * Mon Aug 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.1-1
 - Bumped the minor api version as well as the client min and max version 
   numbers to 2.11.
 - CA-294917: Added branding to the lima release.
 
-* Thu Aug 02 2018 Rob Hoes <rob.hoes@citrix.com> - 1.110.0-2
+* Thu Aug 02 2018 Rob Hoes <rob.hoes@citrix.com> - 1.111.0-2
 - Added CA-293417 patch
+
+* Wed Aug 01 2018 Christian Lindig <christian.lindig@citrix.com> - 1.111.0-1
+- CP-28116: reintroduce VM quicktests
+- CA-286723: Replace timeboxed api call with a better solution
 
 * Mon Jul 30 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.0-1
 - CA-294281: Network reset: warn if networkd.db could not be deleted
