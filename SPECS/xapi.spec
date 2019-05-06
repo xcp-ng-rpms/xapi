@@ -20,7 +20,7 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 
 # XCP-ng patches
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
-Patch1001: xapi-1.110.1-zstd-support.XCP-ng.patch
+Patch1001: xapi-1.160.1-zstd-support.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -439,7 +439,7 @@ Coverage files from unit tests
 * Mon Apr 29 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.160.1-1.1
 - New release for XCP-ng 8.0
 - Rediff patch xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
-- Patch xapi-1.110.1-zstd-support.XCP-ng.patch re-applied
+- Rediff xapi-1.160.1-zstd-support.XCP-ng.patch re-applied
 - Patch xapi-1.110.1-fix-SXM-from-pre-7.3-hosts.backport.patch dropped, since it is included in main sources
 - Remove dependency to non-free packages again
 
