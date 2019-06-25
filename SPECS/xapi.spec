@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.110.1
-Release: 1.5%{?dist}
+Release: 1.6%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -16,6 +16,7 @@ Patch1: ca293417.patch
 Patch1000: xapi-1.110.1-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.110.1-zstd-support.XCP-ng.patch
 Patch1002: xapi-1.110.1-fix-SXM-from-pre-7.3-hosts.backport.patch
+Patch1003: xapi-1.110.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 
 BuildRequires: ocaml-camlp4-devel
 BuildRequires: ocaml-ocamldoc
@@ -414,6 +415,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Jun 25 2019 Benjamin Reis <benjamin.reis@vates.fr> - 1.110.1-1.6
+- Patch xapi-1.110.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch added
+
 * Thu Mar 14 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.5
 - Fix Xen Storage Motion during pool upgrade when sender is < 7.3
 
