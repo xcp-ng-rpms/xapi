@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.110.1
-Release: 1.6%{?dist}
+Release: 1.7%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -415,7 +415,7 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* Tue Jun 25 2019 Benjamin Reis <benjamin.reis@vates.fr> - 1.110.1-1.6
+* Tue Jun 25 2019 Benjamin Reis <benjamin.reis@vates.fr> - 1.110.1-1.7
 - Patch xapi-1.110.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch added
 
 * Thu Mar 14 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.110.1-1.5
