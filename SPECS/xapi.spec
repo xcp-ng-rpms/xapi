@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.160.1
-Release: 1.1%{?dist}
+Release: 1.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -21,6 +21,7 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 # XCP-ng patches
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.160.1-zstd-support.XCP-ng.patch
+Patch1002: xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -436,6 +437,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Jun 25 2019 Benjamin Reis <benjamin.reis@vates.fr> - 1.160.1-1.2
+- Patch xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch added
+
 * Mon Apr 29 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.160.1-1.1
 - New release for XCP-ng 8.0
 - Rediff patch xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
