@@ -2,20 +2,20 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.160.1
-Release: 1.2%{?dist}
+Version: 1.160.2
+Release: 1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz
 Source1: SOURCES/xapi/guefi
 Source2: SOURCES/xapi/guefi.sh
 Source3: SOURCES/xapi/guefi-secureboot
 Source4: SOURCES/xapi/guefi-secureboot.sh
 
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 
 
 # XCP-ng patches
@@ -54,7 +54,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -62,7 +62,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -95,7 +95,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -103,7 +103,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -112,7 +112,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -124,7 +124,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -136,7 +136,7 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -426,7 +426,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.1&format=tar.gz&prefix=xapi-1.160.1#/xen-api-1.160.1.tar.gz) = f5ae6cce3fe7877c7a5d16e657c158d93eda0412
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.160.2&format=tar.gz&prefix=xapi-1.160.2#/xen-api-1.160.2.tar.gz) = 5ba6c01e485c61eefb69e520e641a918653ee2d1
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -437,6 +437,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Oct 18 2019 Igor Druzhinin <igor.druzhinin@citrix.com> - 1.160.2-1
+- CA-314317: Protect PVS-cache get_or_recreate_vdi by mutex
+
 * Tue Jun 25 2019 Benjamin Reis <benjamin.reis@vates.fr> - 1.160.1-1.2
 - Patch xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch added
 
