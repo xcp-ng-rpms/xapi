@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.214.1
-Release: 2.1%{?dist}
+Release: 2.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -181,7 +181,11 @@ rm -rf $RPM_BUILD_ROOT
 %systemd_post perfmon.service
 %systemd_post genptoken.service
 %systemd_post xapi.service
-%systemd_post xapi-wait-init-complete.service
+# workaround Citrix Hypervisor update bug: run systemctl preset in any case, not just at upgrade
+# see https://bugs.xenserver.org/browse/XSO-978
+# Note: should be fixed upstream in 8.2
+#%%systemd_post xapi-wait-init-complete.service
+systemctl preset xapi-wait-init-complete.service
 %systemd_post attach-static-vdis.service
 %systemd_post save-boot-info.service
 %systemd_post mpathalert.service
@@ -419,6 +423,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Feb 19 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.214.1-2.2
+- Fix update bug causing missing symlink and failing VM autostart
+- Fixes https://bugs.xenserver.org/browse/XSO-978
+
 * Thu Dec 19 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.214.1-2.1
 - Rebase on CH 8.1
 - Keep xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
