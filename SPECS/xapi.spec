@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.160.2
-Release: 1%{?dist}
+Release: 1.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -22,6 +22,7 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.160.1-zstd-support.XCP-ng.patch
 Patch1002: xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+Patch1003: xapi-1.160.2-create-suspended-vm.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -437,6 +438,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Mar 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.160.2-1.1
+- Patch xapi-1.160.2-create-suspended-vm.XCP-ng.patch added
+
 * Fri Oct 18 2019 Igor Druzhinin <igor.druzhinin@citrix.com> - 1.160.2-1
 - CA-314317: Protect PVS-cache get_or_recreate_vdi by mutex
 
