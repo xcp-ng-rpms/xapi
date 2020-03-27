@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.214.1
-Release: 2.3%{?dist}
+Release: 2.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -19,6 +19,7 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.214.1-create-suspended-vm.XCP-ng.patch
+Patch1003: xapi-1.214.1-create-plugged-vif-and-vbd-for-suspended-vm.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -424,6 +425,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Mar 27 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.4
+- Patch xapi-1.214.1-create-plugged-vif-and-vbd-for-suspended-vm.XCP-ng.patch added
+
 * Tue Mar 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.3
 - Patch xapi-1.214.1-create-suspended-vm.XCP-ng.patch added
 
