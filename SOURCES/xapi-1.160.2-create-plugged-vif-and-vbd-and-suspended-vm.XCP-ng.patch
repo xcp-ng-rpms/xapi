@@ -1,0 +1,622 @@
+This patch does:
+* This patch enables to create a VM in `Suspended` state with a `suspend_VDI` set
+  This add to the `vm.create` method:
+    * `power_state` with default value: `Halted`
+    * `suspend_VDI` with default value: `Ref.null`
+    * `last_booted_record` with default value: `""`
+    * `last_boot_CPU_flags` with default value: `[]`
+  The default behavior is not changed
+* add `device` and `currently_attached` to the `VBD.create` method to allow the creation of an already plugged VBD. the new fields can only be used if the VM is suspened (else it throws). Default behaviour is kept.
+* add `currently_attached` to the `VIF.create` method to allow the creation of an already plugged VIF. the new fields can only be used if the VM is suspened (else it throws). Default behaviour is kept.
+
+diff --git c/ocaml/idl/datamodel.ml w/ocaml/idl/datamodel.ml
+index 6777903ae..0e43ffa21 100644
+--- c/ocaml/idl/datamodel.ml
++++ w/ocaml/idl/datamodel.ml
+@@ -1466,7 +1466,7 @@ end
+ (* These are included in vbds and vifs -- abstracted here to keep both these uses consistent *)
+ let device_status_fields =
+   [
+-    field ~ty:Bool ~qualifier:DynamicRO "currently_attached" "is the device currently attached (erased on reboot)";
++    field ~ty:Bool ~qualifier:StaticRO ~default_value:(Some (VBool false)) "currently_attached" "is the device currently attached (erased on reboot)";
+     field ~ty:Int ~qualifier:DynamicRO "status_code" "error/success code associated with last attach-operation (erased on reboot)";
+     field ~ty:String ~qualifier:DynamicRO "status_detail" "error/success information associated with last attach-operation status (erased on reboot)";
+     field ~ty:(Map(String, String)) ~qualifier:DynamicRO "runtime_properties" "Device runtime properties"
+@@ -2981,7 +2981,7 @@ module VBD = struct
+            field ~qualifier:StaticRO ~ty:(Ref _vm) "VM" "the virtual machine";
+            field ~qualifier:StaticRO ~ty:(Ref _vdi) "VDI" "the virtual disk";
+
+-           field ~qualifier:DynamicRO "device" "device seen by the guest e.g. hda1";
++           field ~qualifier:StaticRO ~ty:String ~default_value:(Some (VString "")) "device" "device seen by the guest e.g. hda1";
+            field "userdevice" "user-friendly device name e.g. 0,1,2,etc.";
+            field ~ty:Bool "bootable" "true if this VBD is bootable";
+            field ~qualifier:StaticRO ~ty:mode "mode" "the mode the VBD should be mounted with";
+diff --git c/ocaml/idl/datamodel_vm.ml w/ocaml/idl/datamodel_vm.ml
+index b78caf518..2a2bc8ea3 100644
+--- c/ocaml/idl/datamodel_vm.ml
++++ w/ocaml/idl/datamodel_vm.ml
+@@ -1361,13 +1362,13 @@ let set_NVRAM_EFI_variables = call ~flags:[`Session]
+       ~contents:
+         ([ uid _vm;
+          ] @ (allowed_and_current_operations operations) @ [
+-           field ~writer_roles:_R_VM_OP ~qualifier:DynamicRO ~ty:power_state "power_state" "Current power state of the machine";
+            namespace ~name:"name" ~contents:(names oss_since_303 RW) ();
++           field ~writer_roles:_R_VM_OP ~qualifier:StaticRO ~default_value:(Some (VEnum "Halted")) ~ty:power_state "power_state" "Current power state of the machine";
+
+            field ~ty:Int "user_version" "Creators of VMs and templates may store version information here.";
+            field ~effect:true ~ty:Bool "is_a_template" "true if this is a template. Template VMs can never be started, they are used only for cloning other VMs";
+            field ~ty:Bool ~default_value:(Some (VBool false)) ~qualifier:DynamicRO ~writer_roles:_R_POOL_ADMIN ~lifecycle:[Published, rel_falcon, "Identifies default templates"] "is_default_template" "true if this is a default template. Default template VMs can never be started or migrated, they are used only for cloning other VMs";
+-           field ~qualifier:DynamicRO ~ty:(Ref _vdi) "suspend_VDI" "The VDI that a suspend image is stored on. (Only has meaning if VM is currently suspended)";
++           field ~qualifier:StaticRO ~default_value:(Some (VRef null_ref)) ~ty:(Ref _vdi) "suspend_VDI" "The VDI that a suspend image is stored on. (Only has meaning if VM is currently suspended)";
+
+            field ~writer_roles:_R_VM_POWER_ADMIN ~qualifier:DynamicRO ~ty:(Ref _host) "resident_on" "the host the VM is currently resident on";
+            field ~writer_roles:_R_VM_POWER_ADMIN ~in_oss_since:None ~internal_only:true ~qualifier:DynamicRO ~ty:(Ref _host) "scheduled_to_be_resident_on" "the host on which the VM is due to be started/resumed/migrated. This acts as a memory reservation indicator";
+@@ -1395,14 +1396,14 @@ let set_NVRAM_EFI_variables = call ~flags:[`Session]
+            field  ~ty:(Map(String, String)) "other_config" "additional configuration" ~map_keys_roles:["pci", _R_POOL_ADMIN; ("folder",(_R_VM_OP));("XenCenter.CustomFields.*",(_R_VM_OP))];
+            field ~qualifier:DynamicRO ~ty:Int "domid" "domain ID (if available, -1 otherwise)";
+            field ~qualifier:DynamicRO ~in_oss_since:None ~ty:String "domarch" "Domain architecture (if available, null string otherwise)";
+-           field ~in_oss_since:None ~qualifier:DynamicRO ~ty:(Map(String, String)) "last_boot_CPU_flags" "describes the CPU flags on which the VM was last booted";
++           field ~in_oss_since:None ~qualifier:StaticRO ~ty:(Map(String, String)) ~default_value:(Some (VMap [])) "last_boot_CPU_flags" "describes the CPU flags on which the VM was last booted";
+            field ~qualifier:DynamicRO ~ty:Bool "is_control_domain" "true if this is a control domain (domain 0 or a driver domain)";
+            field ~qualifier:DynamicRO ~ty:(Ref _vm_metrics) "metrics" "metrics associated with this VM";
+            field ~qualifier:DynamicRO ~ty:(Ref _vm_guest_metrics) "guest_metrics" "metrics associated with the running guest";
+            (* This was an internal field in Rio, Miami beta1, Miami beta2 but is now exposed so that
+               	   it will be included automatically in Miami GA exports and can be restored, important if
+               	   the VM is in a suspended state *)
+-           field ~in_oss_since:None ~internal_only:false ~in_product_since:rel_miami ~qualifier:DynamicRO ~ty:String "last_booted_record" "marshalled value containing VM record at time of last boot, updated dynamically to reflect the runtime state of the domain" ~default_value:(Some (VString ""));
++           field ~in_oss_since:None ~internal_only:false ~in_product_since:rel_miami ~qualifier:StaticRO ~ty:String "last_booted_record" "marshalled value containing VM record at time of last boot, updated dynamically to reflect the runtime state of the domain" ~default_value:(Some (VString ""));
+            field ~in_oss_since:None ~ty:String "recommendations" "An XML specification of recommended values and ranges for properties of this VM";
+            field ~effect:true ~in_oss_since:None ~ty:(Map(String, String)) ~in_product_since:rel_miami ~qualifier:RW "xenstore_data" "data to be inserted into the xenstore tree (/local/domain/<domid>/vm-data) after the VM is created." ~default_value:(Some (VMap []));
+            field ~writer_roles:_R_POOL_OP ~in_oss_since:None ~ty:Bool ~in_product_since:rel_orlando ~internal_deprecated_since:rel_boston ~qualifier:StaticRO "ha_always_run" "if true then the system will attempt to keep the VM running as much as possible." ~default_value:(Some (VBool false));
+diff --git c/ocaml/perftest/createVM.ml w/ocaml/perftest/createVM.ml
+index 21e994c72..0b2bb4e3e 100644
+--- c/ocaml/perftest/createVM.ml
++++ w/ocaml/perftest/createVM.ml
+@@ -38,7 +38,7 @@ let make_iscsi session_id pool network =
+     let template = List.hd (Client.VM.get_by_name_label rpc session_id iscsi_vm_template) in
+     let newvm = Client.VM.clone rpc session_id template "ISCSI target server" in
+     Client.VM.provision rpc session_id newvm;
+-    let _ (* isovbd *) = Client.VBD.create rpc session_id newvm iscsi_iso "0" true `RO `CD false false [] "" [] in
++    let _ (* isovbd *) = Client.VBD.create rpc session_id newvm iscsi_iso "" "0" true `RO `CD false false [] false "" [] in
+     let realpool = List.hd (Client.Pool.get_all rpc session_id) in
+     let defaultsr = Client.Pool.get_default_SR rpc session_id realpool in
+
+@@ -46,13 +46,13 @@ let make_iscsi session_id pool network =
+       let storage_vdi_label = Printf.sprintf "SCSI VDI %d" i in
+       let storage_vdi = Client.VDI.create rpc session_id storage_vdi_label "" defaultsr sr_disk_size `user false false [oc_key,pool.key] [] [] [] in
+       let userdevice = Printf.sprintf "%d" (i+1) in
+-      ignore(Client.VBD.create rpc session_id newvm storage_vdi userdevice false `RW `Disk false false [] "" [])
++      ignore(Client.VBD.create rpc session_id newvm storage_vdi "" userdevice false `RW `Disk false false [] false "" [])
+     done;
+
+     Client.VM.set_PV_bootloader rpc session_id newvm "pygrub";
+     Client.VM.set_PV_args rpc session_id newvm (Printf.sprintf "net_ip=%s net_mask=255.255.255.0" (make_iscsi_ip pool));
+     Client.VM.set_HVM_boot_policy rpc session_id newvm "";
+-    let (_ : API.ref_VIF) = Client.VIF.create rpc session_id "0" network newvm "" 1500L [oc_key,pool.key] "" [] `network_default [] [] in
++    let (_ : API.ref_VIF) = Client.VIF.create rpc session_id "0" network newvm "" 1500L [oc_key,pool.key] false "" [] `network_default [] [] in
+     Client.VM.add_to_other_config rpc session_id newvm oc_key pool.key;
+     let localhost_uuid = Inventory.lookup "INSTALLATION_UUID" in
+     Client.VM.start_on rpc session_id newvm (Client.Host.get_by_uuid rpc session_id localhost_uuid) false false;
+@@ -77,12 +77,13 @@ let make ~rpc ~session_id ~pool ~vm ~networks ~storages =
+             ~virtual_size:4194304L ~_type:`user ~sharable:false ~read_only:false ~xenstore_data:[] ~other_config:[]
+             ~sm_config:[] ~tags:[] in
+         ignore(Client.VBD.create ~rpc ~session_id ~vM:clone ~vDI:newdisk ~userdevice:(string_of_int userdevice) ~bootable:false
+-                 ~mode:`RW ~_type:`Disk ~unpluggable:true ~empty:false ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~other_config:[])
++                 ~mode:`RW ~_type:`Disk ~unpluggable:true ~empty:false ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~other_config:[]
++                 ~device:"" ~currently_attached:false)
+       done;
+       Client.VM.provision ~rpc ~session_id ~vm:clone;
+       for device = 0 to (min vm.vifs (Array.length networks)) - 1 do
+         ignore(Client.VIF.create ~rpc ~session_id ~device:(string_of_int device) ~network:networks.(device) ~vM:clone ~mAC:""
+-                 ~mTU:1500L ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[] ~ipv6_allowed:[])
++                 ~mTU:1500L ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[] ~ipv6_allowed:[] ~currently_attached:false)
+       done;
+       Client.VM.set_memory_static_min ~rpc ~session_id ~self:clone ~value:16777216L;
+       Client.VM.set_memory_dynamic_min ~rpc ~session_id ~self:clone ~value:16777216L;
+diff --git c/ocaml/perftest/createpool.ml w/ocaml/perftest/createpool.ml
+index 6770cb24c..ee21534ca 100644
+--- c/ocaml/perftest/createpool.ml
++++ w/ocaml/perftest/createpool.ml
+@@ -56,7 +56,7 @@ let initialise session_id template pool =
+   let interfaces = Array.init pool.interfaces_per_host (fun i ->
+       let net = networks.(get_network_num_from_interface pool i) in
+       Client.VIF.create ~rpc ~session_id ~device:(string_of_int i) ~network:net ~vM:template ~mAC:"" ~mTU:1500L
+-        ~other_config:[oc_key,pool.key] ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[] ~ipv6_allowed:[])
++        ~other_config:[oc_key,pool.key] ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[] ~ipv6_allowed:[] ~currently_attached:false)
+   in
+
+   (* Create a disk for local storage *)
+@@ -69,6 +69,7 @@ let initialise session_id template pool =
+       ~sm_config:[] ~tags:[] in
+   let (_: API.ref_VBD) = Client.VBD.create ~rpc ~session_id ~vM:template ~vDI:newdisk ~userdevice:sr_disk_device ~bootable:false
+       ~mode:`RW ~_type:`Disk ~unpluggable:true ~empty:false ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~other_config:[oc_key,pool.key]
++      ~device:"" ~currently_attached:false
+   in
+
+   debug "Setting up xenstore keys";
+diff --git c/ocaml/quicktest/qt.ml w/ocaml/quicktest/qt.ml
+index 43cfb829e..6b30e3fec 100644
+--- c/ocaml/quicktest/qt.ml
++++ w/ocaml/quicktest/qt.ml
+@@ -189,6 +189,8 @@ module VDI = struct
+         ~qos_algorithm_type:""
+         ~qos_algorithm_params:[]
+         ~other_config:[]
++        ~device:""
++        ~currently_attached:false
+     in
+     Xapi_stdext_pervasives.Pervasiveext.finally
+       (fun () ->
+diff --git c/ocaml/quicktest/quicktest_vdi.ml w/ocaml/quicktest/quicktest_vdi.ml
+index 841b996c1..28bd41aa1 100644
+--- c/ocaml/quicktest/quicktest_vdi.ml
++++ w/ocaml/quicktest/quicktest_vdi.ml
+@@ -163,6 +163,7 @@ let vbd_create_helper ~rpc ~session_id ~vM ~vDI ?(userdevice="autodetect") () :
+   Client.Client.VBD.create ~rpc ~session_id ~vM ~vDI ~userdevice ~bootable:false ~mode:`RW
+     ~_type:`Disk ~unpluggable:true ~empty:false ~other_config:[]
+     ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++    ~device:"" ~currently_attached:false
+
+ (** Check that snapshot works regardless which host has the VDI activated *)
+ let vdi_snapshot_in_pool rpc session_id sr_info () =
+@@ -273,6 +274,7 @@ let vdi_general_test rpc session_id sr_info () =
+           ~vM:dom0 ~vDI:newvdi ~userdevice:device ~bootable:false
+           ~mode:`RW ~_type:`Disk ~unpluggable:true ~empty:false
+           ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++          ~device:"" ~currently_attached:false
+       in
+       Xapi_stdext_pervasives.Pervasiveext.finally
+         (fun () ->
+diff --git c/ocaml/quicktest/quicktest_vm_import_export.ml w/ocaml/quicktest/quicktest_vm_import_export.ml
+index 642509f6c..4df4eb85f 100644
+--- c/ocaml/quicktest/quicktest_vm_import_export.ml
++++ w/ocaml/quicktest/quicktest_vm_import_export.ml
+@@ -42,14 +42,18 @@ let with_setup rpc session_id sr vm_template f =
+       let vdi = Client.Client.VDI.create rpc session_id "small"
+           "description" sr 4194304L `user false false [] [] [] [] in
+       ignore(Client.Client.VBD.create ~rpc ~session_id ~vM:vm ~vDI:cd ~userdevice:"0" ~bootable:false
+-               ~mode:`RO ~_type:`CD ~unpluggable:true ~empty:false ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]);
++               ~mode:`RO ~_type:`CD ~unpluggable:true ~empty:false ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++               ~device:"" ~currently_attached:false);
+       ignore(Client.Client.VBD.create ~rpc ~session_id ~vM:vm ~vDI:cd ~userdevice:"1" ~bootable:false
+-               ~mode:`RO ~_type:`Disk ~unpluggable:true ~empty:false ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]);
++               ~mode:`RO ~_type:`Disk ~unpluggable:true ~empty:false ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++               ~device:"" ~currently_attached:false);
+       ignore(Client.Client.VBD.create ~rpc ~session_id ~vM:vm ~vDI:cd ~userdevice:"2" ~bootable:false
+-               ~mode:`RO ~_type:`CD ~unpluggable:true ~empty:true ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]);
++               ~mode:`RO ~_type:`CD ~unpluggable:true ~empty:true ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++               ~device:"" ~currently_attached:false);
+       ignore(Client.Client.VBD.create ~rpc ~session_id ~vM:vm ~vDI:vdi ~userdevice:"3" ~bootable:false
+                ~mode:`RW ~_type:`Disk ~unpluggable:true ~empty:false ~other_config:[Xapi_globs.owner_key,""]
+-               ~qos_algorithm_type:"" ~qos_algorithm_params:[]);
++               ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++               ~device:"" ~currently_attached:false);
+       f vm
+     )
+
+diff --git c/ocaml/tests/test_common.ml w/ocaml/tests/test_common.ml
+index a92f2881b..66a8aa3c5 100644
+--- c/ocaml/tests/test_common.ml
++++ w/ocaml/tests/test_common.ml
+@@ -125,10 +125,10 @@ let make_vm ~__context ?(name_label="name_label") ?(name_description="descriptio
+     ?(ha_restart_priority="") ?(tags=[]) ?(blocked_operations=[]) ?(protection_policy=Ref.null)
+     ?(is_snapshot_from_vmpp=false) ?(appliance=Ref.null) ?(start_delay=0L)
+     ?(snapshot_schedule=Ref.null) ?(is_vmss_snapshot=false)
+-    ?(shutdown_delay=0L) ?(order=0L) ?(suspend_SR=Ref.null) ?(version=0L)
++    ?(shutdown_delay=0L) ?(order=0L) ?(suspend_SR=Ref.null) ?(suspend_VDI=Ref.null) ?(version=0L)
+     ?(generation_id="0:0") ?(hardware_platform_version=0L)
+     ?(has_vendor_device=false) ?(has_vendor_device=false) ?(reference_label="")
+-    ?(domain_type=`hvm) ?(nVRAM=[]) () =
++    ?(domain_type=`hvm) ?(nVRAM=[]) ?(last_booted_record="") ?(last_boot_CPU_flags=[]) ?(power_state=`Halted) () =
+   Xapi_vm.create ~__context ~name_label ~name_description ~user_version ~is_a_template
+     ~affinity ~memory_target ~memory_static_max ~memory_dynamic_max ~memory_dynamic_min
+     ~memory_static_min ~vCPUs_params ~vCPUs_max ~vCPUs_at_startup ~actions_after_shutdown
+@@ -136,10 +136,10 @@ let make_vm ~__context ?(name_label="name_label") ?(name_description="descriptio
+     ~pV_args ~pV_bootloader_args ~pV_legacy_args ~hVM_boot_policy ~hVM_boot_params
+     ~hVM_shadow_multiplier ~platform ~nVRAM ~pCI_bus ~other_config ~xenstore_data ~recommendations
+     ~ha_always_run ~ha_restart_priority ~tags ~blocked_operations ~protection_policy
+-    ~is_snapshot_from_vmpp ~appliance ~start_delay ~shutdown_delay ~order ~suspend_SR
++    ~is_snapshot_from_vmpp ~appliance ~start_delay ~shutdown_delay ~order ~suspend_SR ~suspend_VDI
+     ~snapshot_schedule ~is_vmss_snapshot
+     ~version ~generation_id ~hardware_platform_version ~has_vendor_device ~reference_label
+-    ~domain_type
++    ~domain_type ~last_booted_record ~last_boot_CPU_flags ~power_state
+
+ let make_host ~__context ?(uuid=make_uuid ()) ?(name_label="host")
+     ?(name_description="description") ?(hostname="localhost") ?(address="127.0.0.1")
+diff --git c/ocaml/tests/test_vdi_cbt.ml w/ocaml/tests/test_vdi_cbt.ml
+index c557f3069..ee5ab2049 100644
+--- c/ocaml/tests/test_vdi_cbt.ml
++++ w/ocaml/tests/test_vdi_cbt.ml
+@@ -108,7 +108,8 @@ let test_vbd_create () =
+   Alcotest.check_raises
+     "VBD.create should throw VDI_INCOMPATIBLE_TYPE for a cbt_metadata VDI"
+     Api_errors.(Server_error (vdi_incompatible_type, [Ref.string_of vDI; Record_util.vdi_type_to_string `cbt_metadata]))
+-    (fun () -> Xapi_vbd.create ~__context ~vM ~vDI ~userdevice:"autodetect" ~bootable:true ~mode:`RW ~_type:`Disk ~unpluggable:true ~empty:false ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[] |> ignore)
++    (fun () -> Xapi_vbd.create ~__context ~vM ~vDI ~userdevice:"autodetect" ~bootable:true ~mode:`RW ~_type:`Disk ~unpluggable:true ~empty:false ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++    ~device:"" ~currently_attached:false |> ignore)
+
+ let test_get_nbd_info =
+   let assert_same_infos =
+diff --git c/ocaml/xapi/attach_helpers.ml w/ocaml/xapi/attach_helpers.ml
+index 19a707bb6..fc82d06d9 100644
+--- c/ocaml/xapi/attach_helpers.ml
++++ w/ocaml/xapi/attach_helpers.ml
+@@ -80,7 +80,7 @@ let with_vbds rpc session_id __context vm vdis mode f =
+            let vbd = Client.VBD.create ~rpc ~session_id ~vM:vm ~empty:false ~vDI:vdi
+                ~userdevice:"autodetect" ~bootable:false ~mode ~_type:`Disk ~unpluggable:true
+                ~qos_algorithm_type:"" ~qos_algorithm_params:[]
+-               ~other_config:[ Xapi_globs.vbd_task_key, Ref.string_of task_id ] in
++               ~other_config:[ Xapi_globs.vbd_task_key, Ref.string_of task_id ] ~device:"" ~currently_attached:false in
+            (* sanity-check *)
+            if has_vbd_leaked __context vbd
+            then error "Attach_helpers.with_vbds new VBD has leaked: %s" (Ref.string_of vbd);
+diff --git c/ocaml/xapi/cli_operations.ml w/ocaml/xapi/cli_operations.ml
+index ceb91714b..af76252a1 100644
+--- c/ocaml/xapi/cli_operations.ml
++++ w/ocaml/xapi/cli_operations.ml
+@@ -306,7 +306,8 @@ let get_host_from_session rpc session_id =
+ (* Create a VBD record in database and attempt to hotplug it, ignoring hotplug errors *)
+ let create_vbd_and_plug_with_other_config rpc session_id vm vdi device_name bootable rw cd unpluggable qtype qparams other_config =
+   let vbd = Client.VBD.create ~rpc ~session_id ~vM:vm ~vDI:vdi ~userdevice:device_name ~bootable ~mode:rw
+-      ~_type:cd ~unpluggable ~empty:false ~qos_algorithm_type:qtype ~qos_algorithm_params:qparams ~other_config in
++      ~_type:cd ~unpluggable ~empty:false ~qos_algorithm_type:qtype ~qos_algorithm_params:qparams
++      ~other_config ~device:"" ~currently_attached:false in
+   try Client.VBD.plug rpc session_id vbd
+   with Api_errors.Server_error(_, _) as e ->
+     debug "VBD created but not hotplugged: %s" (Api_errors.to_string e)
+@@ -1361,7 +1362,7 @@ let vbd_create printer rpc session_id params =
+       ~unpluggable
+       ~empty
+       ~qos_algorithm_type:""
+-      ~qos_algorithm_params:[] ~other_config:[] in
++      ~qos_algorithm_params:[] ~other_config:[] ~device:"" ~currently_attached:false in
+   let vbd_uuid=Client.VBD.get_uuid rpc session_id vbd in
+   printer (Cli_printer.PList [vbd_uuid])
+
+@@ -1614,7 +1615,7 @@ let vif_create printer rpc session_id params =
+   let vm=Client.VM.get_by_uuid rpc session_id vm_uuid in
+   let network=Client.Network.get_by_uuid rpc session_id network_uuid in
+   let mtu = Client.Network.get_MTU rpc session_id network in
+-  let vif = Client.VIF.create rpc session_id device network vm mac mtu [] "" [] `network_default [] [] in
++  let vif = Client.VIF.create rpc session_id device network vm mac mtu [] false "" [] `network_default [] [] in
+   let uuid = Client.VIF.get_uuid rpc session_id vif in
+   printer (Cli_printer.PList [uuid])
+
+@@ -1702,12 +1703,16 @@ let vm_create printer rpc session_id params =
+       ~shutdown_delay:0L
+       ~order:0L
+       ~suspend_SR:Ref.null
++      ~suspend_VDI:Ref.null
+       ~version:0L
+       ~generation_id:""
+       ~hardware_platform_version:0L
+       ~has_vendor_device:false ~reference_label:""
+       ~domain_type:`unspecified
+       ~nVRAM:[]
++      ~last_booted_record:""
++      ~last_boot_CPU_flags:[]
++      ~power_state:`Halted
+   in
+   let uuid=Client.VM.get_uuid rpc session_id vm in
+   printer (Cli_printer.PList [uuid])
+diff --git c/ocaml/xapi/debug_populate.ml w/ocaml/xapi/debug_populate.ml
+index e1ed28ad3..61e38ef97 100644
+--- c/ocaml/xapi/debug_populate.ml
++++ w/ocaml/xapi/debug_populate.ml
+@@ -82,7 +82,7 @@ let rec make_vifs __context vmref i =
+   else
+     begin
+       ignore(Xapi_vif.create  ~__context ~device:(string_of_int i) ~network:(get_random nws) ~vM:vmref
+-               ~mAC:"de:ad:be:ef:99:88" ~mTU:Int64.zero ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[] ~ipv6_allowed:[]);
++               ~mAC:"de:ad:be:ef:99:88" ~mTU:Int64.zero ~other_config:[] ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[] ~ipv6_allowed:[] ~currently_attached:false);
+       make_vifs __context vmref (i-1)
+     end
+
+diff --git c/ocaml/xapi/import_xva.ml w/ocaml/xapi/import_xva.ml
+index 85377d05a..65fca466f 100644
+--- c/ocaml/xapi/import_xva.ml
++++ w/ocaml/xapi/import_xva.ml
+@@ -95,11 +95,15 @@ let make __context rpc session_id srid (vms, vdis) =
+             ~shutdown_delay:0L
+             ~order:0L
+             ~suspend_SR:Ref.null
++            ~suspend_VDI:Ref.null
+             ~version:0L
+             ~generation_id:""
+             ~hardware_platform_version:0L
+             ~has_vendor_device:false ~reference_label:""
+             ~nVRAM:[]
++            ~last_booted_record:""
++            ~last_boot_CPU_flags:[]
++            ~power_state:`Halted
+         in
+
+         TaskHelper.operate_on_db_task ~__context
+@@ -126,7 +130,7 @@ let make __context rpc session_id srid (vms, vdis) =
+                 ~_type:`Disk
+                 ~empty:false
+                 ~unpluggable:(vbd.vdi.variety <> `system)
+-                ~qos_algorithm_type:"" ~qos_algorithm_params:[] in
++                ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~device:"" ~currently_attached:false in
+             clean_up_stack :=
+               (fun __context rpc session_id ->
+                  Client.VBD.destroy rpc session_id vbd_ref) :: !clean_up_stack) vm.vbds;
+@@ -134,7 +138,8 @@ let make __context rpc session_id srid (vms, vdis) =
+         begin
+           try
+             ignore (Client.VBD.create ~rpc ~session_id ~vM:vm_ref ~vDI:Ref.null ~other_config:[] ~userdevice:"autodetect"
+-                      ~bootable:false ~mode:`RO ~_type:`CD ~unpluggable:true ~empty:true ~qos_algorithm_type:"" ~qos_algorithm_params:[])
++                      ~bootable:false ~mode:`RO ~_type:`CD ~unpluggable:true ~empty:true ~qos_algorithm_type:"" ~qos_algorithm_params:[]
++                      ~device:"" ~currently_attached:false)
+           with e -> warn "could not create CD drive on imported XVA: %s" (Printexc.to_string e)
+         end;
+         (vm,vm_ref)
+diff --git c/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
+index 0de51c410..de9e786c2 100644
+--- c/ocaml/xapi/message_forwarding.ml
++++ w/ocaml/xapi/message_forwarding.ml
+@@ -2889,9 +2889,9 @@ module Forward = functor(Local: Custom_actions.CUSTOM_ACTIONS) -> struct
+
+     (* -------------------------------------------------------------------------- *)
+
+-    let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config ~qos_algorithm_type ~qos_algorithm_params =
++    let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config ~currently_attached ~qos_algorithm_type ~qos_algorithm_params =
+       info "VIF.create: VM = '%s'; network = '%s'" (vm_uuid ~__context vM) (network_uuid ~__context network);
+-      Local.VIF.create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config ~qos_algorithm_type ~qos_algorithm_params
++      Local.VIF.create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config ~currently_attached ~qos_algorithm_type ~qos_algorithm_params
+
+     let destroy ~__context ~self =
+       info "VIF.destroy: VIF = '%s'" (vif_uuid ~__context self);
+@@ -3822,10 +3822,13 @@ module Forward = functor(Local: Custom_actions.CUSTOM_ACTIONS) -> struct
+
+
+     (* these are db functions *)
+-    let create ~__context ~vM ~vDI ~userdevice ~bootable ~mode ~_type ~unpluggable ~empty ~other_config ~qos_algorithm_type ~qos_algorithm_params =
++    let create ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type ~unpluggable
++      ~empty ~other_config ~currently_attached ~qos_algorithm_type ~qos_algorithm_params =
++
+       info "VBD.create: VM = '%s'; VDI = '%s'" (vm_uuid ~__context vM) (vdi_uuid ~__context vDI);
+       (* NB must always execute this on the master because of the autodetect_mutex *)
+-      Local.VBD.create ~__context ~vM ~vDI ~userdevice ~bootable ~mode ~_type ~unpluggable ~empty ~other_config ~qos_algorithm_type ~qos_algorithm_params
++      Local.VBD.create ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type ~unpluggable
++        ~empty ~other_config ~currently_attached ~qos_algorithm_type ~qos_algorithm_params
+
+     let set_mode ~__context ~self ~value =
+       info "VBD.set_mode: VBD = '%s'; value = %s" (vbd_uuid ~__context self) (Record_util.vbd_mode_to_string value);
+diff --git c/ocaml/xapi/xapi_pool_update.ml w/ocaml/xapi/xapi_pool_update.ml
+index b4ad70daa..1857bc88a 100644
+--- c/ocaml/xapi/xapi_pool_update.ml
++++ w/ocaml/xapi/xapi_pool_update.ml
+@@ -216,7 +216,7 @@ let attach_helper ~__context ~uuid ~vdi ~use_localhost_proxy =
+               let vbd = Client.VBD.create ~rpc ~session_id ~vM:dom0 ~empty:false ~vDI:vdi
+                   ~userdevice:"autodetect" ~bootable:false ~mode:`RO ~_type:`Disk ~unpluggable:true
+                   ~qos_algorithm_type:"" ~qos_algorithm_params:[]
+-                  ~other_config:[] in
++                  ~other_config:[] ~device:"" ~currently_attached:false in
+               Client.VBD.plug ~rpc ~session_id ~self:vbd;
+               "/dev/" ^ (Client.VBD.get_device ~rpc ~session_id ~self:vbd)) in
+        with_api_errors (mount device) mount_point;
+diff --git c/ocaml/xapi/xapi_templates.ml w/ocaml/xapi/xapi_templates.ml
+index bbd232901..431384b7b 100644
+--- c/ocaml/xapi/xapi_templates.ml
++++ w/ocaml/xapi/xapi_templates.ml
+@@ -113,7 +113,8 @@ let create_disk rpc session_id vm sm_config disk =
+   let vbd_ref = Client.VBD.create ~rpc ~session_id
+       ~vM:vm ~vDI:vdi ~userdevice:disk.device ~bootable:disk.bootable ~mode:`RW ~_type:`Disk
+       ~unpluggable:(disk._type <> `system)
+-      ~empty:false ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~other_config:[Xapi_globs.owner_key,""] in
++      ~empty:false ~qos_algorithm_type:"" ~qos_algorithm_params:[] ~other_config:[Xapi_globs.owner_key,""]
++      ~device:"" ~currently_attached:false in
+   let device=Client.VBD.get_userdevice ~rpc ~session_id ~self:vbd_ref in
+   Client.VDI.set_name_label ~rpc ~session_id ~self:vdi ~value:device;
+   vbd_ref
+diff --git c/ocaml/xapi/xapi_vbd.ml w/ocaml/xapi/xapi_vbd.ml
+index cc86844cb..afcb91f79 100644
+--- c/ocaml/xapi/xapi_vbd.ml
++++ w/ocaml/xapi/xapi_vbd.ml
+@@ -132,8 +132,16 @@ let unplug_force_no_safety_check = unplug_force
+ let autodetect_mutex = Mutex.create ()
+
+ (** VBD.create doesn't require any interaction with xen *)
+-let create  ~__context ~vM ~vDI ~userdevice ~bootable ~mode ~_type ~unpluggable ~empty
+-    ~other_config ~qos_algorithm_type ~qos_algorithm_params =
++let create  ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type ~unpluggable ~empty
++    ~other_config ~currently_attached ~qos_algorithm_type ~qos_algorithm_params =
++
++  if device <> "" || currently_attached then begin
++    match (Db.VM.get_power_state ~__context ~self:vM) with
++      | `Suspended -> ()
++      | _ -> raise (Api_errors.(Server_error (
++          vm_bad_power_state, ["Plugged VBD creation only allowed for suspended VM"])
++        ))
++  end;
+
+   if not empty then begin
+     let vdi_type = Db.VDI.get_type ~__context ~self:vDI in
+@@ -217,9 +225,9 @@ let create  ~__context ~vM ~vDI ~userdevice ~bootable ~mode ~_type ~unpluggable
+
+         Db.VBD.create ~__context ~ref ~uuid:(Uuid.to_string uuid)
+           ~current_operations:[] ~allowed_operations:[] ~storage_lock:false
+-          ~vM ~vDI ~userdevice ~device:"" ~bootable ~mode ~_type ~unpluggable
++          ~vM ~vDI ~userdevice ~device ~bootable ~mode ~_type ~unpluggable
+           ~empty ~reserved:false ~qos_algorithm_type ~qos_algorithm_params
+-          ~qos_supported_algorithms:[] ~currently_attached:false
++          ~qos_supported_algorithms:[] ~currently_attached
+           ~status_code:Int64.zero ~status_detail:"" ~runtime_properties:[]
+           ~other_config ~metrics;
+         update_allowed_operations ~__context ~self:ref;
+diff --git c/ocaml/xapi/xapi_vdi_helpers.ml w/ocaml/xapi/xapi_vdi_helpers.ml
+index ce25567f2..50159eb64 100644
+--- c/ocaml/xapi/xapi_vdi_helpers.ml
++++ w/ocaml/xapi/xapi_vdi_helpers.ml
+@@ -99,7 +99,7 @@ let enable_database_replication ~__context ~get_vdi_callback =
+             let vbd = Client.VBD.create ~rpc ~session_id ~vM:dom0 ~empty:false ~vDI:vdi
+                 ~userdevice:"autodetect" ~bootable:false ~mode:`RW ~_type:`Disk
+                 ~unpluggable:true ~qos_algorithm_type:"" ~qos_algorithm_params:[]
+-                ~other_config:[]
++                ~other_config:[] ~device:"" ~currently_attached:false
+             in
+             Client.VBD.plug ~rpc ~session_id ~self:vbd;
+             vbd)
+diff --git c/ocaml/xapi/xapi_vif.ml w/ocaml/xapi/xapi_vif.ml
+index b2d854f4d..04ad55b57 100644
+--- c/ocaml/xapi/xapi_vif.ml
++++ w/ocaml/xapi/xapi_vif.ml
+@@ -34,8 +34,17 @@ let unplug_force ~__context ~self =
+   Xapi_xenops.vif_unplug ~__context ~self true
+
+ let create  ~__context ~device ~network ~vM
+-    ~mAC ~mTU ~other_config ~qos_algorithm_type ~qos_algorithm_params ~locking_mode ~ipv4_allowed ~ipv6_allowed : API.ref_VIF =
+-  create ~__context ~device ~network ~vM ~currently_attached:false
++    ~mAC ~mTU ~other_config  ~currently_attached ~qos_algorithm_type ~qos_algorithm_params ~locking_mode ~ipv4_allowed ~ipv6_allowed : API.ref_VIF =
++
++  if currently_attached then begin
++    match (Db.VM.get_power_state ~__context ~self:vM) with
++      | `Suspended -> ()
++      | _ -> raise (Api_errors.(Server_error (
++          vm_bad_power_state, ["Plugged VIF creation only allowed for suspended VM"])
++        ))
++  end;
++
++  create ~__context ~device ~network ~vM ~currently_attached
+     ~mAC ~mTU ~other_config ~qos_algorithm_type ~qos_algorithm_params ~locking_mode ~ipv4_allowed ~ipv6_allowed
+     ~ipv4_configuration_mode:`None ~ipv4_addresses:[] ~ipv4_gateway:""
+     ~ipv6_configuration_mode:`None ~ipv6_addresses:[] ~ipv6_gateway:""
+diff --git c/ocaml/xapi/xapi_vif.mli w/ocaml/xapi/xapi_vif.mli
+index 6847f6edc..3b3e4a587 100644
+--- c/ocaml/xapi/xapi_vif.mli
++++ w/ocaml/xapi/xapi_vif.mli
+@@ -49,6 +49,7 @@ val create :
+   mAC:string ->
+   mTU:int64 ->
+   other_config:(string * string) list ->
++  currently_attached:bool ->
+   qos_algorithm_type:string ->
+   qos_algorithm_params:(string * string) list ->
+   locking_mode:API.vif_locking_mode ->
+diff --git c/ocaml/xapi/xapi_vm.ml w/ocaml/xapi/xapi_vm.ml
+index f9a174eb1..bb183572c 100644
+--- c/ocaml/xapi/xapi_vm.ml
++++ w/ocaml/xapi/xapi_vm.ml
+@@ -517,8 +517,9 @@ let resume_on  ~__context ~vm ~host ~start_paused ~force =
+   resume ~__context ~vm ~start_paused ~force
+
+
+-let create ~__context ~name_label ~name_description
++let create ~__context ~name_label ~name_description ~power_state
+     ~user_version ~is_a_template
++    ~suspend_VDI
+     ~affinity
+     ~memory_target
+     ~memory_static_max
+@@ -533,7 +534,8 @@ let create ~__context ~name_label ~name_description
+     ~pV_kernel ~pV_ramdisk ~pV_args ~pV_bootloader_args ~pV_legacy_args
+     ~hVM_boot_policy ~hVM_boot_params ~hVM_shadow_multiplier
+     ~platform
+-    ~pCI_bus ~other_config ~recommendations ~xenstore_data
++    ~pCI_bus ~other_config ~last_boot_CPU_flags ~last_booted_record
++    ~recommendations ~xenstore_data
+     ~ha_always_run ~ha_restart_priority ~tags
+     ~blocked_operations ~protection_policy
+     ~is_snapshot_from_vmpp
+@@ -551,6 +553,22 @@ let create ~__context ~name_label ~name_description
+     ~nVRAM
+   : API.ref_VM =
+
++  begin match power_state with
++    | `Halted when suspend_VDI <> Ref.null ->
++      raise (Api_errors.(Server_error (vm_bad_power_state, ["No suspend_VDI should be provided if VM created in `Halted state"])))
++    | `Suspended when suspend_VDI = Ref.null || last_booted_record = "" || last_boot_CPU_flags = [] ->
++      raise (Api_errors.(Server_error (
++        vm_bad_power_state,
++        ["VM created in `Suspended state needs a suspend_VDI, non empty last_booted_record and non empty last_boot_CPU_flags"])
++      ))
++    | `Running | `Paused ->
++      raise (Api_errors.(Server_error (
++        vm_bad_power_state,
++        ["Bad power state for VM creation "; Record_util.power_to_string power_state; " should be `Halted or `Suspended"])
++      ))
++    | `Halted | `Suspended -> ()
++  end;
++
+   if has_vendor_device then
+     Pool_features.assert_enabled ~__context ~f:Features.PCI_device_for_auto_update;
+   (* Add random mac_seed if there isn't one specified already *)
+@@ -569,6 +587,8 @@ let create ~__context ~name_label ~name_description
+
+   let metrics = Ref.make () and metrics_uuid = Uuid.to_string (Uuid.make_uuid ()) in
+   let vCPUs_utilisation = [(0L, 0.)] in
++  let suspended = (power_state = `Suspended) in
++  let current_domain_type = if suspended then domain_type else `unspecified in
+   Db.VM_metrics.create ~__context ~ref:metrics ~uuid:metrics_uuid
+     ~memory_actual:0L ~vCPUs_number:0L
+     ~vCPUs_utilisation
+@@ -583,11 +603,13 @@ let create ~__context ~name_label ~name_description
+     ~hvm:false
+     ~nested_virt:false
+     ~nomigrate:false
+-    ~current_domain_type:`unspecified
++    ~current_domain_type
+   ;
+   let domain_type = if domain_type = `unspecified then derive_domain_type ~hVM_boot_policy else domain_type in
++  let last_booted_record = if suspended then last_booted_record else "" in
++  let last_boot_CPU_flags = if suspended then last_boot_CPU_flags else [] in
+   Db.VM.create ~__context ~ref:vm_ref ~uuid:(Uuid.to_string uuid)
+-    ~power_state:(`Halted) ~allowed_operations:[]
++    ~power_state ~allowed_operations:[]
+     ~current_operations:[]
+     ~blocked_operations:[]
+     ~name_label ~name_description
+@@ -608,16 +630,16 @@ let create ~__context ~name_label ~name_description
+     ~actions_after_shutdown ~actions_after_reboot
+     ~actions_after_crash
+     ~hVM_boot_policy ~hVM_boot_params ~hVM_shadow_multiplier
+-    ~suspend_VDI:Ref.null
++    ~suspend_VDI
+     ~platform
+     ~nVRAM
+     ~pV_kernel ~pV_ramdisk ~pV_args ~pV_bootloader ~pV_bootloader_args
+     ~pV_legacy_args
+     ~pCI_bus ~other_config ~domid:(-1L) ~domarch:""
+-    ~last_boot_CPU_flags:[]
++    ~last_boot_CPU_flags
+     ~is_control_domain:false
+     ~metrics ~guest_metrics:Ref.null
+-    ~last_booted_record:"" ~xenstore_data ~recommendations
++    ~last_booted_record ~xenstore_data ~recommendations
+     ~blobs:[]
+     ~ha_restart_priority
+     ~ha_always_run ~tags
+@@ -638,7 +660,6 @@ let create ~__context ~name_label ~name_description
+     ~requires_reboot:false ~reference_label
+     ~domain_type
+   ;
+-  Db.VM.set_power_state ~__context ~self:vm_ref ~value:`Halted;
+   Xapi_vm_lifecycle.update_allowed_operations ~__context ~self:vm_ref;
+   update_memory_overhead ~__context ~vm:vm_ref;
+   update_vm_virtual_hardware_platform_version ~__context ~vm:vm_ref;
+diff --git c/ocaml/xapi/xapi_vm.mli w/ocaml/xapi/xapi_vm.mli
+index bc34705cc..6ac93018b 100644
+--- c/ocaml/xapi/xapi_vm.mli
++++ w/ocaml/xapi/xapi_vm.mli
+@@ -92,8 +92,10 @@ val create :
+   __context:Context.t ->
+   name_label:string ->
+   name_description:string ->
++  power_state:API.vm_power_state ->
+   user_version:int64 ->
+   is_a_template:bool ->
++  suspend_VDI:API.ref_VDI ->
+   affinity:[ `host ] Ref.t ->
+   memory_target:int64 ->
+   memory_static_max:int64 ->
+@@ -123,6 +125,8 @@ val create :
+   platform:(string * string) list ->
+   pCI_bus:string ->
+   other_config:(string * string) list ->
++  last_boot_CPU_flags:(string * string) list ->
++  last_booted_record:string ->
+   recommendations:string ->
+   xenstore_data:(string * string) list ->
+   ha_always_run:bool ->
