@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.214.1
-Release: 2.5%{?dist}
+Release: 2.6%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -424,6 +424,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon Mar 30 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.6
+- Patch xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch modified
+- Put default values in `create_from_record` as well.
+
 * Mon Mar 30 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.5
 - Patch xapi-1.214.1-create-suspended-vm.XCP-ng.patch and
 - Patch xapi-1.214.1-create-plugged-vif-and-vbd-for-suspended-vm.XCP-ng.patch merged into
