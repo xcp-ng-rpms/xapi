@@ -1,0 +1,24 @@
+Open OpenFlow port (TCP 6653) when a SDN controller is set and close it when SDN controller is unset.
+
+diff --git i/scripts/plugins/openvswitch-config-update w/scripts/plugins/openvswitch-config-update
+index fbd5d571d..d59543892 100755
+--- i/scripts/plugins/openvswitch-config-update
++++ w/scripts/plugins/openvswitch-config-update
+@@ -76,6 +76,8 @@ def update(session, args):
+         output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
+         cmd = [iptablectl, 'close', '4789', 'udp']
+         output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
++        cmd = [iptablectl, 'close', '6653']
++        output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
+         try:
+             emergency_reset(session, None)
+         except:
+@@ -251,6 +253,8 @@ def setControllerCfg(bootstrap, controller):
+     # Open VxLAN IANA port to allow SDN controller to create VxLANs
+     cmd = [iptablectl, 'open', '4789', 'udp']
+     output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
++    cmd = [iptablectl, 'open', '6653']
++    output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
+
+
+ def composeController(protocol, controllerIP, tcpport):
