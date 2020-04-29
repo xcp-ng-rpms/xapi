@@ -426,7 +426,7 @@ Coverage files from unit tests
 
 %changelog
 * Fri Apr 24 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.7
-- Patch xapi-1.214.1-open-openflow-port.XCP-ng.patch modified
+- Patch xapi-1.214.1-open-openflow-port.XCP-ng.patch added
 - Open OpenFlow port when a SDN controller is set and close it when SDN controller is unset
 
 * Mon Mar 30 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.6
