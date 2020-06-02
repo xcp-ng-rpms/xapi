@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.214.1
-Release: 2.7%{?dist}
+Release: 2.8%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -425,6 +425,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon Jun 01 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.8
+- Patch xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch modified
+- Do not throw when new params are misused, just ignore them to keep compatibility with API clients
+
 * Fri Apr 24 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.7
 - Patch xapi-1.214.1-open-openflow-port.XCP-ng.patch added
 - Open OpenFlow port when a SDN controller is set and close it when SDN controller is unset
