@@ -1,0 +1,166 @@
+From d3dc46b14fca92a4e75ca2268f5f7061776596d3 Mon Sep 17 00:00:00 2001
+From: Lin Liu <lin.liu@citrix.com>
+Date: Tue, 28 Apr 2020 02:54:22 +0000
+Subject: [PATCH 1/2] CA-338596: Upload files limit should deal with the dot
+ style
+
+Xe client permit filenames with "..", which can lead to any file.
+This commit fix this issue by canonicalize the file path before
+perform prefix match
+
+Signed-off-by: Lin Liu <lin.liu@citrix.com>
+Signed-off-by: Pau Ruiz Safont <pau.safont@citrix.com>
+---
+ ocaml/xe-cli/dune      |  1 +
+ ocaml/xe-cli/newcli.ml | 62 ++++++++++++++++++++++++++----------------
+ 2 files changed, 39 insertions(+), 24 deletions(-)
+
+diff --git a/ocaml/xe-cli/dune b/ocaml/xe-cli/dune
+index a62f58081..2b830ed4a 100644
+--- a/ocaml/xe-cli/dune
++++ b/ocaml/xe-cli/dune
+@@ -3,6 +3,7 @@
+   (public_name xe)
+   (package xe)
+   (libraries
++   fpath
+    stunnel
+    threads
+    xapi-cli-protocol
+diff --git a/ocaml/xe-cli/newcli.ml b/ocaml/xe-cli/newcli.ml
+index 6ceff6dab..e1ceee4d9 100644
+--- a/ocaml/xe-cli/newcli.ml
++++ b/ocaml/xe-cli/newcli.ml
+@@ -88,6 +88,14 @@ let hdrs =
+   ; "location"
+   ]
+ 
++let canonicalize path =
++  let open Fpath in
++  match Filename.is_relative path with
++  | true ->
++      (Sys.getcwd () |> v) // (path |> v) |> normalize
++  | false ->
++      path |> v |> normalize
++
+ let end_of_string s from = String.sub s from (String.length s - from)
+ 
+ let strip_cr r =
+@@ -154,12 +162,15 @@ let parse_port (x : string) =
+     error "Port number must be an integer (0-65535)\n" ;
+     raise Usage
+ 
+-let parse_eql arg =
+-  try Astring.String.cut ~sep:"=" arg with Invalid_argument _ -> None
+-
+-let get_named_args args =
++let get_permit_filenames args =
+   List.filter_map
+-    (fun arg -> match parse_eql arg with Some (k, v) -> Some v | _ -> None)
++    (fun arg ->
++      match Astring.String.cut ~sep:"=" arg with
++      | Some (k, v) -> (
++        match String.trim v with "" -> None | _ -> Some (v |> canonicalize)
++      )
++      | _ ->
++          None)
+     args
+ 
+ (* Extract the arguments we're interested in. Return a list of the argumets we know *)
+@@ -237,7 +248,7 @@ let parse_args =
+     | [] ->
+         []
+     | arg :: args -> (
+-      match parse_eql arg with
++      match Astring.String.cut ~sep:"=" arg with
+       | Some (k, v) when set_keyword (k, v) ->
+           process_args args
+       | _ ->
+@@ -381,7 +392,7 @@ exception Unexpected_msg of message
+ 
+ exception Server_internal_error
+ 
+-exception Upload_filename_error of string
++exception Filename_not_permitted of string
+ 
+ let handle_unmarshal_failure ex ifd =
+   match ex with
+@@ -398,22 +409,25 @@ let handle_unmarshal_failure ex ifd =
+   | e ->
+       raise e
+ 
+-let assert_upload_filename_in_args filename permitted_filenames =
++let assert_filename_permitted permitted_filenames filename =
+   (* Prefix match instead of exact match is used here to workaround the old xva format that request files
+    * are not in the command line *)
+-  let is_filename_permited =
++  let requested_file = canonicalize filename in
++  match
+     List.exists
+-      (fun file_in_arg -> Astring.String.is_prefix ~affix:file_in_arg filename)
++      (fun file -> Fpath.is_prefix file requested_file)
+       permitted_filenames
+-  in
+-  if not is_filename_permited then
+-    let error_message =
+-      Printf.sprintf
+-        "Blocked upload of the file %s, which was requested by the server. The \
+-         file name was not present on the command line\n"
+-        filename
+-    in
+-    raise (Upload_filename_error error_message)
++  with
++  | false ->
++      let error_message =
++        Printf.sprintf
++          "Blocked upload/download of the file %s, which was requested by the \
++           server. The file name was not present on the command line\n"
++          filename
++      in
++      raise (Filename_not_permitted error_message)
++  | _ ->
++      ()
+ 
+ let main_loop ifd ofd permitted_filenames =
+   (* Intially exchange version information *)
+@@ -462,7 +476,7 @@ let main_loop ifd ofd permitted_filenames =
+     | Command (Debug x) ->
+         debug "debug from server: %s\n%!" x
+     | Command (Load x) -> (
+-        assert_upload_filename_in_args x permitted_filenames ;
++        assert_filename_permitted permitted_filenames x ;
+         try
+           let fd = Unix.openfile x [Unix.O_RDONLY] 0 in
+           marshal ofd (Response OK) ;
+@@ -632,7 +646,7 @@ let main_loop ifd ofd permitted_filenames =
+             ()
+       )
+     | Command (HttpPut (filename, url)) -> (
+-        assert_upload_filename_in_args filename permitted_filenames ;
++        assert_filename_permitted permitted_filenames filename ;
+         try
+           let rec doit url =
+             let server, path = parse_url url in
+@@ -768,7 +782,7 @@ let main () =
+       ) ;
+       let args = parse_args args in
+       (* All the named args are taken as permitted filename to be uploaded *)
+-      let permitted_filenames = get_named_args args in
++      let permitted_filenames = get_permit_filenames args in
+       if List.length args < 1 then
+         raise Usage
+       else
+@@ -824,8 +838,8 @@ let main () =
+           | Unix.WSTOPPED c ->
+               "stopped by signal " ^ string_of_int c
+           )
+-    | Upload_filename_error e ->
+-        error "Upload file error: %s.\n" e
++    | Filename_not_permitted e ->
++        error "File not permitted: %s.\n" e
+     | ClientSideError e ->
+         error "Client Side error: %s.\n" e
+     | e ->
+-- 
+2.26.2
+
