@@ -23,11 +23,9 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 
 # XCP-ng patches
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
-# TODO: update the following patches to their latest version
-# And check they apply
-Patch1001: xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-Patch1002: xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
-Patch1003: xapi-1.214.1-open-openflow-port.XCP-ng.patch
+Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+Patch1002: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+Patch1003: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -465,7 +463,13 @@ Coverage files from unit tests
 * Wed Jul 01 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
 - Rebase on CH 8.2
 - Remove dependency to non-free packages again
-- TODO: review patches
+- Adapt patches (done by Benjamin Reis):
+- Redo xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+- (Open VxLAN port for VxLAN tunnels. Now based on the tunnel's protocol field)
+- Rediff xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+- (Create plugged vifs and vbds and suspended vms)
+- Rediff xapi-1.249.3-open-openflow-port.XCP-ng.patch
+- (Open OpenFlow port for SDN controller)
 
 * Thu Jun 11 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.3-1
 - CA-340776: move stunnel disconnection to the end where it was
