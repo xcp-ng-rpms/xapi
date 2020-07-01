@@ -2,21 +2,29 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.214.1
-Release: 2.8%{?dist}
+Version: 1.249.3
+Release: 1.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz
-Patch0: SOURCES/xapi/0001-Define-branding-for-release-Quebec.patch
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz
+Patch1: SOURCES/xapi/0001-CA-338596-Upload-files-limit-should-deal-with-the-do.patch
+Patch2: SOURCES/xapi/0002-CA-338608-Limit-xe-client-to-download-files-specifie.patch
+Patch3: SOURCES/xapi/0003-Branding-for-the-Stockholm-release.patch
 
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+
+
+# Internal security fix
+# Release branding
 
 
 # XCP-ng patches
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
+# TODO: update the following patches to their latest version
+# And check they apply
 Patch1001: xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.214.1-open-openflow-port.XCP-ng.patch
@@ -53,7 +61,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -61,7 +69,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -69,7 +77,7 @@ Requires:       %{name}-cov = %{version}-%{release}
 %endif
 Requires: hwdata
 Requires: redhat-lsb-core
-Requires: stunnel_xs
+Requires: stunnel >= 5.55
 Requires: vhd-tool
 Requires: libffi
 Requires: busybox
@@ -84,9 +92,9 @@ Requires: gmp
 Requires: zstd
 Requires: xxhash-libs
 Requires: jemalloc
-Requires(post): xs-presets >= 1.1
-Requires(preun): xs-presets >= 1.1
-Requires(postun): xs-presets >= 1.1
+Requires(post): xs-presets >= 1.3
+Requires(preun): xs-presets >= 1.3
+Requires(postun): xs-presets >= 1.3
 BuildRequires: systemd
 %{?systemd_requires}
 
@@ -94,7 +102,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -102,7 +110,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -111,7 +119,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -123,7 +131,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -135,7 +143,7 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -147,7 +155,7 @@ This package contains Xen-API documentation in html format.
 
 %build
 ./configure %{?coverage:--enable-coverage}
-ulimit -s 16384 && COMPILE_JAVA=no %{__make}
+ulimit -s 16384 && COMPILE_JAVA=no XAPI_VERSION=%{version} %{__make}
 make doc
 
 %check
@@ -179,21 +187,38 @@ rm -rf $RPM_BUILD_ROOT
 
 %post core
 %systemd_post cdrommon@.service
+%systemd_post gencert.service
 %systemd_post xapi-domains.service
 %systemd_post perfmon.service
 %systemd_post genptoken.service
 %systemd_post xapi.service
-# workaround Citrix Hypervisor update bug: run systemctl preset in any case, not just at upgrade
-# see https://bugs.xenserver.org/browse/XSO-978
-# Note: should be fixed upstream in 8.2
-#%%systemd_post xapi-wait-init-complete.service
-systemctl preset xapi-wait-init-complete.service
+%systemd_post xapi-wait-init-complete.service
 %systemd_post attach-static-vdis.service
 %systemd_post save-boot-info.service
 %systemd_post mpathalert.service
+%systemd_post generate-iscsi-iqn.service
+%systemd_post control-domain-params-init.service
+%systemd_post network-init.service
+
+# remove old stunnel config file
+rm -f /etc/xensource/xapi-ssl.conf
+
+# On upgrade, migrate from the old statefile to the new statefile so that
+# services are not rerun.
+if [ $1 -gt 1 ] ; then
+    grep -q ^success /etc/firstboot.d/state/05-prepare-networking 2>/dev/null && touch /var/lib/misc/ran-network-init || :
+    grep -q ^success /etc/firstboot.d/state/40-generate-iscsi-iqn 2>/dev/null && touch /var/lib/misc/ran-generate-iscsi-iqn || :
+    grep -q ^success /etc/firstboot.d/state/50-prepare-control-domain-params 2>/dev/null && touch /var/lib/misc/ran-control-domain-params-init || :
+fi
+
+# systemd_post does not enable new services on update. Make sure
+# recent services are enabled by default
+
+systemctl preset xapi-wait-init-complete || :
 
 %preun core
 %systemd_preun cdrommon@.service
+%systemd_preun gencert.service
 %systemd_preun xapi-domains.service
 %systemd_preun perfmon.service
 %systemd_preun xapi.service
@@ -201,6 +226,9 @@ systemctl preset xapi-wait-init-complete.service
 %systemd_preun attach-static-vdis.service
 %systemd_preun save-boot-info.service
 %systemd_preun mpathalert.service
+%systemd_preun generate-iscsi-iqn.service
+%systemd_preun control-domain-params-init.service
+%systemd_preun network-init.service
 
 %postun core
 %systemd_postun cdrommon@.service
@@ -212,6 +240,9 @@ systemctl preset xapi-wait-init-complete.service
 %systemd_postun attach-static-vdis.service
 %systemd_postun save-boot-info.service
 %systemd_postun mpathalert.service
+%systemd_postun generate-iscsi-iqn.service
+%systemd_postun control-domain-params-init.service
+%systemd_postun network-init.service
 
 %files core -f core-files
 %defattr(-,root,root,-)
@@ -221,8 +252,8 @@ systemctl preset xapi-wait-init-complete.service
 /etc/pam.d/xapi
 /etc/cron.d/xapi-logrotate.cron
 /etc/cron.daily/license-check
+/etc/cron.daily/certificate-check
 /opt/xensource/libexec/xapi-init
-/opt/xensource/libexec/xapissl
 /opt/xensource/libexec/attach-static-vdis
 /opt/xensource/libexec/save-boot-info
 %config(noreplace) /etc/sysconfig/perfmon
@@ -239,10 +270,6 @@ systemctl preset xapi-wait-init-complete.service
 /etc/xapi.d/plugins/extauth-hook-AD.pyo
 /etc/xapi.d/plugins/extauth-hook-AD.pyc
 /etc/xapi.d/plugins/firewall-port
-/etc/xapi.d/plugins/iLO.py
-/etc/xapi.d/plugins/iLO.pyo
-/etc/xapi.d/plugins/iLO.pyc
-/etc/xapi.d/plugins/iLOPowerON.xml
 /etc/xapi.d/plugins/openvswitch-config-update
 /etc/xapi.d/plugins/perfmon
 /etc/xapi.d/plugins/power-on-host
@@ -264,6 +291,7 @@ systemctl preset xapi-wait-init-complete.service
 /etc/xensource/master.d/01-example
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
+%{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
 /opt/xensource/bin/fix_firewall.sh
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
@@ -279,7 +307,6 @@ systemctl preset xapi-wait-init-complete.service
 /opt/xensource/bin/xe-restore-metadata
 /opt/xensource/bin/xe-reset-networking
 /opt/xensource/bin/xe-scsi-dev-map
-/opt/xensource/bin/xe-set-iscsi-iqn
 /opt/xensource/bin/xe-toolstack-restart
 /opt/xensource/bin/xe-xentrace
 /opt/xensource/bin/xe-switch-network-backend
@@ -306,9 +333,13 @@ systemctl preset xapi-wait-init-complete.service
 /opt/xensource/libexec/backup-sr-metadata.pyc
 /opt/xensource/libexec/block_device_io
 /opt/xensource/libexec/cdrommon
+/opt/xensource/libexec/alert-certificate-check
+/opt/xensource/libexec/control-domain-params-init
 /opt/xensource/libexec/daily-license-check
 /opt/xensource/libexec/fence
+/opt/xensource/libexec/generate-iscsi-iqn
 /opt/xensource/libexec/generate_ssl_cert
+/opt/xensource/libexec/gencert
 /opt/xensource/libexec/host-backup
 /opt/xensource/libexec/host-bugreport-upload
 /opt/xensource/libexec/host-display
@@ -323,9 +354,11 @@ systemctl preset xapi-wait-init-complete.service
 /opt/xensource/libexec/nbd_client_manager.py
 /opt/xensource/libexec/nbd_client_manager.pyo
 /opt/xensource/libexec/nbd_client_manager.pyc
+/opt/xensource/libexec/network-init
 /opt/xensource/libexec/print-custom-templates
 /opt/xensource/libexec/probe-device-for-file
 /opt/xensource/libexec/genptoken
+/opt/xensource/libexec/reset-and-reboot
 /opt/xensource/libexec/restore-sr-metadata.py
 /opt/xensource/libexec/restore-sr-metadata.pyo
 /opt/xensource/libexec/restore-sr-metadata.pyc
@@ -359,6 +392,7 @@ systemctl preset xapi-wait-init-complete.service
 /opt/xensource/debug/vncproxy
 /opt/xensource/debug/with-vdi
 %{_unitdir}/cdrommon@.service
+%{_unitdir}/gencert.service
 %{_unitdir}/xapi-domains.service
 %{_unitdir}/perfmon.service
 %{_unitdir}/genptoken.service
@@ -368,6 +402,9 @@ systemctl preset xapi-wait-init-complete.service
 %{_unitdir}/attach-static-vdis.service
 %{_unitdir}/save-boot-info.service
 %{_unitdir}/mpathalert.service
+%{_unitdir}/generate-iscsi-iqn.service
+%{_unitdir}/control-domain-params-init.service
+%{_unitdir}/network-init.service
 
 %files xe
 %defattr(-,root,root,-)
@@ -414,7 +451,7 @@ systemctl preset xapi-wait-init-complete.service
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.214.1&format=tar.gz&prefix=xapi-1.214.1#/xen-api-1.214.1.tar.gz) = fa48b5d32486b7c135ece06da29325b1dfbd37e5
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -425,45 +462,333 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* Mon Jun 01 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.8
-- Patch xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch modified
-- Do not throw when new params are misused, just ignore them to keep compatibility with API clients
-
-* Fri Apr 24 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.7
-- Patch xapi-1.214.1-open-openflow-port.XCP-ng.patch added
-- Open OpenFlow port when a SDN controller is set and close it when SDN controller is unset
-
-* Mon Mar 30 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.6
-- Patch xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch modified
-- Put default values in `create_from_record` as well.
-
-* Mon Mar 30 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.5
-- Patch xapi-1.214.1-create-suspended-vm.XCP-ng.patch and
-- Patch xapi-1.214.1-create-plugged-vif-and-vbd-for-suspended-vm.XCP-ng.patch merged into
-- Patch xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
-- Better error handling
-
-* Fri Mar 27 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.4
-- Patch xapi-1.214.1-create-plugged-vif-and-vbd-for-suspended-vm.XCP-ng.patch added
-
-* Tue Mar 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.3
-- Patch xapi-1.214.1-create-suspended-vm.XCP-ng.patch added
-
-* Wed Feb 19 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.214.1-2.2
-- Fix update bug causing missing symlink and failing VM autostart
-- Fixes https://bugs.xenserver.org/browse/XSO-978
-
-* Thu Dec 19 2019 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.214.1-2.1
-- Rebase on CH 8.1
-- Keep xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
-- Keep xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-- Drop xapi-1.160.1-zstd-support.XCP-ng.patch, merged upstream
+* Wed Jul 01 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
+- Rebase on CH 8.2
 - Remove dependency to non-free packages again
+- TODO: review patches
 
-* Thu Nov 28 2019 Ben Anson <ben.anson@citrix.com> - 1.214.1-2
-- CA-330162 make floppies a first class citizen
-- CA-330162 Improve vbd-create error message
+* Thu Jun 11 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.3-1
+- CA-340776: move stunnel disconnection to the end where it was
+
+* Wed Jun 10 2020 Konstantina Chremmou <konstantina.chremmou@citrix.com> - 1.249.2-2
+- Added patch with branding for the Stockholm release.
+
+* Wed Jun 10 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.2-1
+- CA-340776: disconnect from stunnel cleanly
+- Fix use of close_in/out on Unixfd.with_connection
+
+* Wed Jun 03 2020 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.1-1
+- CA-340148: Format code with ocamlformat
+
+* Mon Jun 01 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.0-1
+- maintenance: improve IMPORT_INCOMPATIBLE_VERSION error message
+- maintenance: fix build with workspaces
+- CA-337546: update to new Stunnel_cache API with Safe_resources support
+- CA-337546: enable runtime warnings
+- Revert "CA-334811 assign xapi version automatically"
+
+* Fri May 29 2020 Christian Lindig <christian.lindig@citrix.com> - 1.248.0-1
+- Format extauth_plugin_ADpbis
+- maintenance: improve logging when loading db backup fails
+- CA-334811 assign xapi version automatically
+- CA-338602: lwsmd daemon should not be running when AD is not configured
+- CA-338602: Enable nsswitch during bootup if host is authed with AD
+- CA-337867: Expose 'scheduled_to_be_resident_on' to XAPI event
+- CA-339526 make gc_compact call public
+- CA-339329 firstboot scripts shouldn't sync DB when ugprading
+- CA-339656 use HOME when generating SSL certificate
+- CA-339656 print generate_ssl_cert output neatly
+- CA-339656 add generate_ssl_cert to essential executables
+- CA-338565: Improve error message for uploading file exceeds the limit.
+- CA-337867: Expose 'VM.scheduled_to_be_resident_on' field (take 2)
+
+* Tue May 19 2020 Christian Lindig <christian.lindig@citrix.com> - 1.247.0-1
+- maintenance: prepare for ocamlformat
+
+* Mon May 18 2020 Christian Lindig <christian.lindig@citrix.com> - 1.246.0-1
+- CP-33121: Remove Stdext and Stdext.monadic usages from tests
+- CP-33121: Remove Stdext and Stdext.monadic from xapi_database
+- CP-33121: remove Stdext.monadic from quicktests
+- CP-33121: remove Stdext and Stdext.monadic from xapi_datamodel
+- CP-33121: Remove Stdext.Opt usages from xapi
+- maintenance: prefer using Option.fold
+
+* Mon May 18 2020 Christian Lindig <christian.lindig@citrix.com> - 1.245.0-1
+- CA-339601: source the iqn conf file.
+
+* Tue May 15 2020 Lin Liu <lin.liu@citrix.com> - 1.244.0-2
+- CA-338596: Check filenames for xe upload and download files
+
+* Tue May 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.244.0-1
+- CA-338137: Fix upgrade case in generate-iscsi-iqn
+
+* Wed May 06 2020 Christian Lindig <christian.lindig@citrix.com> - 1.243.0-1
+- CA-336730 add debugging to help solve template timeout issue
+
+* Wed Apr 29 2020 Christian Lindig <christian.lindig@citrix.com> - 1.242.0-1
+- CA-338617: Use the FQDN if possible when generating certificates
+
+* Wed Apr 29 2020 Christian Lindig <christian.lindig@citrix.com> - 1.241.0-1
+- CA-334763: Show errors during metadata export/import
+- CP-33511 reduced XenAPI sessions to one per mail-alarm script invocation
+- CP-33511 code formatted using black
+- CP-27904: use Pci instead of Pciutils
+- CA-337113/CA-338521: No more Tools ISO by default
+- CA-338423: Remove use of Tools SR from Quicktest
+
+* Mon Apr 27 2020 Christian Lindig <christian.lindig@citrix.com> - 1.240.0-1
+- Merge REQ-821: Separate out xapi's CLI server into its own library
+- CP-33465: xapi-cli-server: initial library
+- CP-33473: Remove deprecated CLI commands.
+- CP-33457: Add field 'editions' to host class.
+- CP-33457: Use RPC call in 'host_all_editions' CLI implementation.
+- CP-33457: Get license editions by Host RPC call.
+- CP-33489: Remove direct use Xapi_role.expr_no_permissions in gen_cmds.
+- CP-33490: Remove use ExnHelper in CLI implementations
+- CP-33400: xe command check to make sure uploaded files
+- CP-33400: parse_eql use Astring lib
+- CP-33451: Create diagnostics class
+- CP-33503: Remove direct use of class_to_string and string_to_class in records.ml.
+- CP-33212: Restrict CLI upload file size
+- CP-33501: Move the "fake" RPC function into Xapi_cli
+- CP-33501: Avoid use of Context in Xapi_cli
+- CP-33452: cli server call Diagnostics.gc_compact to compact the heap
+- CP-33494: Add Task.set_progress API call
+- CP-33494: Eliminate uses of Db_actions and TaskHelper in Cli_operations
+- CP-33453: cli server call Diagnostics.gc_stats to retrieve gc stats
+- CP-33499: Refine cli_util.ml in CLI implementations.
+- CP-33454: cli server call API to retrieve db stats
+- CP-33455: cli server call Diagnostics.network_stats to
+- CP-33455: Only pass the necessary params to API call
+- CP-33493: Eliminate uses of Xapi_template in Cli_operations.
+- CP-33540: Remove Diagnostic function session argument
+- CP-33492: Remove use of Xapi_globs.* functions in CLI implementations
+- CP-33498: Remove dependency of storage_interface in cli_operations
+- CP-33492: Move the BIOS strings to constants.ml.
+- CP-33454: cli server call API to retrieve db stats
+- CP-33540: Fix sdk build failure by providing necessary docs
+- CP-33496: Remove use of Xapi_http module in cli_operations.ml.
+- CP-33496: Add Vpx_types in xapi types.
+- CP-33456: Clean diagnostic_license_status with permitted modules
+- CP-33551: Move Compression_algorithms into xapi_types
+- CP-33491: Move out the role setter in pool_role
+- CP-33496: Make xva.ml as module.
+- CP-33496: Move xapi-xva into xapi-public
+- CP-33496: Move table.ml to xapi-public
+- CP-33552: Add API get_attached_live_hosts to SR
+- CP-33556: Remove Importexport from cli server
+- CP-33497: Remove dependency of Helper.get_localhost and Context
+- CP-33552: Code refine basing on comments
+- Reduce opam packages, rename xapi-public
+- CP-33488: Move cli related files into xapi-cli-server folder.
+- CP-33556: Remove Importexport from cli server
+- Add xapi-inventory as dependency of xapi-consts.opam.
+
+* Thu Apr 23 2020 Christian Lindig <christian.lindig@citrix.com> - 1.239.0-1
+- Cp-32669: adapt tests to X509 0.11.0
+
+* Tue Apr 21 2020 Christian Lindig <christian.lindig@citrix.com> - 1.238.0-1
+- CP-32678: Use a variant instead of a boolean for certificates
+- CP-32678: Add private key validation
+- CP-32678: Add server certificate validation
+- CP-32686: Don't generate diffie-hellman parameters
+- CP-32686: follow shellcheck recommendations
+- CP-32686: Server Certificate installation
+- CP-32681: Add certificates to DB schema
+- CA-265116: Better documentation for certificate API
+- CA-265116: Distinguish CA certificates from server ones
+- CP-32678: Return the certificate on install
+- CP-32678: Add API to install server certificates
+- CP-32678: Do not open stdext's Listext
+- CP-32678: Add CLI to install server certificates
+- CP-32681: store fingerprints as non-binary string
+- CP-32663: Usage more natural language on errors
+- CP-32696: Send expiring certificates alerts daily
+- CP-32706: add emergency call to install a self-signed cert
+- CA-337491: generate_ssl_cert now can replace existing servert cert
+- CP-32696: avoid alerts on the 31st day
+- CP-32696: Place message under a single root
+- CP-32696: Use a separate test runner for alerts
+- CA-337520: detect recently expired certificates as such
+- CP-32695: Use UTC for dates in certificate errors
+- CP-32708: prepare to detach install code from xapi
+- CP-32708: Move certificate installation and validation to gencert
+- CA-337731: reject files without certs for chains
+- CA-337865: clear expired certificate alerts
+- CA-337865: filter certificate alerts only once
+- CP-32663: bump schema version
+- CA-338141 mirror other_config when performing InternalAsync operation
+
+* Fri Apr 17 2020 Christian Lindig <christian.lindig@citrix.com> - 1.237.0-1
+- CA-337899 pass ciphersuites arg to sparse_dd
+- CA-334756: add missing capabilities to SM features table
+- CP-33292: add VDI read caching SM capability
+- CP-31118: Avoid xapi as module name in logs
+- CA-337929 remove gencert xapi-wait-init-complete dependency
+- CA-337903 insert stunnel into xapi shutdown order
+- CA-337875 base not always passed to sparse_dd
+
+* Tue Apr 14 2020 Christian Lindig <christian.lindig@citrix.com> - 1.236.0-1
+- CP-31116: simplify dbtest dune for database package
+- CP-28222: Reenable testing for pci
+- CP-28222: port db tests to alcotest and enable them on opam
+- CA-337087 avoid race condition in Helpers.Task.wait_for
+- CA-337087 fix uncancellable migrations
+
+* Mon Apr 06 2020 Ben Anson <ben.anson@citrix.com> - 1.235.0-2
+- REQ-811: fix stunnel config in xapi.spec
+
+* Mon Apr 06 2020 Christian Lindig <christian.lindig@citrix.com> - 1.235.0-1
+- CP-33380: update to x509 0.10.0
+
+* Fri Apr 03 2020 Christian Lindig <christian.lindig@citrix.com> - 1.234.0-1
+- maintenance: fix compiler warnings
+- CP-32840 fix xapi according to Stunnel changes
+- CA-32840 remove references to ciphersuites
+- CP-32840 stub out Host.set_ssl_legacy
+- CP-32840 deprecate ssl_legacy flag in host class
+- CP-32840 stub out legacy ssl operations on pools
+- CP-32840 xapi stunnel config shouldn't enable legacy options
+- CP-33058 centralize cipherstring
+- CP-32840 final clean up of legacy ssl related code/docs
+- CP-32840 fix xapi according to Stunnel changes
+- CA-32840 remove references to ciphersuites
+- CP-33058 centralize cipherstring
+- CP-33057 purge lingering stunnel configs
+- CP-33057 rewrite init.d-xapissl script in ocaml
+- CP-33057 replace usages of xapissl script with systemd
+- CP-33057 increase number of file descriptors for stunnel@xapi
+- CP-32840 enable fips for CC certification
+- maintenance: move paths to xapi_globs
+- CP-33243: gencert binary
+- CP-33243: create systemd gencert service
+- CA-336408 ensure legacy ssl is disabled on upgrade
+- CP-33061 remove iLO script
+- REQ-453 re-expose reconfigure_stunnel
+
+* Fri Mar 27 2020 Christian Lindig <christian.lindig@citrix.com> - 1.233.0-1
+- CA-336735: preserve formatting of stars for wlb recommendations
+
+* Mon Mar 23 2020 Christian Lindig <christian.lindig@citrix.com> - 1.232.0-1
+- improve invalid VIF map error message for intra-pool migration
+- Fix build: drop Xcp_coverage
+- Simplify build: drop coverage rewriter
+
+* Fri Mar 20 2020 Christian Lindig <christian.lindig@citrix.com> - 1.231.0-1
+- improve invalid VIF map error message for intra-pool migration
+- travis: follow validator recommendations
+
+* Tue Mar 17 2020 Christian Lindig <christian.lindig@citrix.com> - 1.230.0-1
+- maintenance: don't generate empty modules
+- CA-333610 generate multiple async client frontends
+- CA-333610 modify server.ml to accept InternalAsync calls
+- CP-32398 must not use POD when using SRIOV vGPU
+- CP-32649: Use Stdlib's Result
+- CA-336258: Remove unused function argument
+- CA-336258: fix API forwarder for JSONRPC calls
+- CA-333610 utility to try InternalAsync call with fallback
+- CA-333610 avoid long running idle connection during migration
+- maintenance: server_helpers interface file
+- CA-336685 improve error for mem constraints violation
+
+* Thu Mar 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.229.0-1
+- Fix cluster_stack_in_use error message
+- datamodel_common: add quebec release
+- CP-32678: update to X509 0.9.0
+- license: enable unit-tests
+- tests: move daily license checks to the suite
+
+* Fri Mar 06 2020 Christian Lindig <christian.lindig@citrix.com> - 1.228.0-1
+- CA-334951: Use a variant to model recommendations
+- CA-334951: Ignore 0-star recommendations from WLB
+- CA-334951: Code hygiene
+- CA-334951: Use a map instead of a hashtable
+- CP-33121: Stop using Xstringext in cli_operations
+
+* Mon Mar 02 2020 Christian Lindig <christian.lindig@citrix.com> - 1.227.0-1
+- maintenance: json files must not be executable
+
+* Mon Feb 24 2020 Christian Lindig <christian.lindig@citrix.com> - 1.226.0-1
+- CA-334909: Only update if the update is needed
+- CP-33121: remove Listext usages
+- CP-33121: reduce Stdext usages from xapi_vm
+- CP-33121: remove stdext usages from xapi_vm_appliance
+- CP-33121: Reduce usage of Xstringext
+- CP-33121: remove uneeded open lines
+
+* Wed Feb 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.225.0-1
+- Fix parsing of platform:cores-per-socket to avoid divide-by-0 error
+- CP-32124: Set fips=yes explicitly for stunnel
+- CP-32124: Remove 'LEGACY_CLIENT_ACCEPT' for stunnel
+- CP-32124: Set the default log facility as 'authpriv'
+- CA-331142: stunnel on server side close SSL sock unexpectedly
+- CA-334797: Disable TLSv1.3 when legacy is true
+- CP-32298: Move 40-generate-iscsi-iqn to a standalone service
+- CA-325068: Move networking firstboot script to its own service
+- CP-31090: Move prepare-control-domain-params script to its own service
+- CP-31090: Move reset-and-reboot into a separate script
+- CA-333712: use wrapped string type for pool internal API calls
+
+* Wed Feb 05 2020 Ross Lagerwall <ross.lagerwall@citrix.com> - 1.224.0-2
+- CP-31090: Migrate toolstack xenserver-firstboot scripts
+
+* Tue Feb 04 2020 Christian Lindig <christian.lindig@citrix.com> - 1.224.0-1
+- Mark OCaml source code files as not executable
+
+* Tue Jan 28 2020 Christian Lindig <christian.lindig@citrix.com> - 1.223.0-1
+- Branding for the quebec release; defined stockholm release; corrected
+       field version; bumped client min/max version to 2.15.
+- Remove xenserver-buildenv based Travis builds
+- REQ-627 CA-333495 add Xapi_pci.dequarantine
+
+* Fri Jan 24 2020 Konstantina Chremmou <konstantina.chremmou@citrix.com> - 1.222.0-2
+- Removed patch with Quebec branding (it is moving into the source code)
+
+* Fri Jan 17 2020 Christian Lindig <christian.lindig@citrix.com> - 1.222.0-1
+- CA-325582: do not open Listext in message_forwarding
+- CA-325582: Move DB checks for SR removal to message_forwarding
+- CA-325582: Allow forwarding SR operations to all hosts with related PBDs
+- CA-325582: Remove SR DSs from memory on SR.forget and destroy
+- CA-325582: fix some storage quicktests for pools
+
+* Fri Jan 10 2020 Christian Lindig <christian.lindig@citrix.com> - 1.221.0-1
+- CP-32461: Delete CPUID leveling checks from WLB
+
+* Mon Jan 06 2020 Christian Lindig <christian.lindig@citrix.com> - 1.220.0-1
+- CA-328130 extract usb speed attribute
+- CA-328130 add usb speed field to api
+- CA-328130 Make sure speed updated after update
+- CA-328130 Fix usb_scan tests
+
+* Mon Dec 09 2019 Christian Lindig <christian.lindig@citrix.com> - 1.219.0-1
+- maintenance: remove Pervasives deprecated warnings
+- CP-28369: remove unused daemonize code
+- CP-32429: Modernize python2 code (automated)
+- CP-32429: Modernize python2 code, needs manual fixes
+- CP-32429: Fix invalid transformations from futurize
+- CP-32429: Modernize python2 code, with manual fixes
+- CP-32429: enable python3 testing
+- CP-32429: Use python-3 compatible idioms on tests
+
+* Wed Dec 04 2019 Christian Lindig <christian.lindig@citrix.com> - 1.218.0-1
+- CA-325940 bind PCI before calling sriov-manage
+
+* Fri Nov 29 2019 Christian Lindig <christian.lindig@citrix.com> - 1.217.0-1
 - CA-330162 Allow explicit floppy userdevice
+- CA-330162 Improve vbd-create error message
+- fixup! CA-330162 make floppies a first class citizen
+- CA-330162 make floppies a first class citizen
+- CA-330961 Clean the yum cache before prechecking/applying an update
+- maintenance: optimize Helpers.get_localhost
+
+* Mon Nov 25 2019 Christian Lindig <christian.lindig@citrix.com> - 1.216.0-1
+- CA-330979: set current_domain_type for slaves
+- fix compiler warnings: Warning 52
+- fix compiler warnings: (+++)
+- fix compiler warnings: Re.get_ofs deprecated
+
+* Mon Nov 25 2019 Christian Lindig <christian.lindig@citrix.com> - 1.215.0-1
+- CA-313081 fix moving template between SRs
 
 * Fri Nov 22 2019 Christian Lindig <christian.lindig@citrix.com> - 1.214.0-2
 - Define branding for release Quebec

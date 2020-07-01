@@ -1,0 +1,78 @@
+From eda4e6eb30743d5152cfd0804c8ed60a859ed07a Mon Sep 17 00:00:00 2001
+From: Lin Liu <lin.liu@citrix.com>
+Date: Mon, 11 May 2020 10:08:27 +0000
+Subject: [PATCH 2/2] CA-338608: Limit xe client to download files specified in
+ the args
+
+xe client currently download all the files and save it to any
+places the server asks it to.
+This commit perform check before download the files.
+
+Signed-off-by: Lin Liu <lin.liu@citrix.com>
+Signed-off-by: Pau Ruiz Safont <pau.safont@citrix.com>
+---
+ ocaml/xe-cli/newcli.ml | 27 ++++++++++++++++++++++-----
+ 1 file changed, 22 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/xe-cli/newcli.ml b/ocaml/xe-cli/newcli.ml
+index e1ceee4d9..1f497f3b1 100644
+--- a/ocaml/xe-cli/newcli.ml
++++ b/ocaml/xe-cli/newcli.ml
+@@ -409,9 +409,18 @@ let handle_unmarshal_failure ex ifd =
+   | e ->
+       raise e
+ 
+-let assert_filename_permitted permitted_filenames filename =
++let assert_filename_permitted ?(permit_cwd = false) permitted_filenames filename
++    =
+   (* Prefix match instead of exact match is used here to workaround the old xva format that request files
+    * are not in the command line *)
++  let permitted_filenames =
++    match permit_cwd with
++    | true ->
++        Filename.current_dir_name |> canonicalize |> fun x ->
++        x :: permitted_filenames
++    | _ ->
++        permitted_filenames
++  in
+   let requested_file = canonicalize filename in
+   match
+     List.exists
+@@ -717,12 +726,15 @@ let main_loop ifd ofd permitted_filenames =
+               let file_ch =
+                 if filename = "" then
+                   Unix.out_channel_of_descr (Unix.dup Unix.stdout)
+-                else
++                else (
++                  assert_filename_permitted ~permit_cwd:true permitted_filenames
++                    filename ;
+                   try
+                     open_out_gen
+                       [Open_wronly; Open_creat; Open_excl]
+                       0o600 filename
+                   with e -> raise (ClientSideError (Printexc.to_string e))
++                )
+               in
+               while input_line ic <> "\r" do
+                 ()
+@@ -749,9 +761,14 @@ let main_loop ifd ofd permitted_filenames =
+           marshal ofd (Response Failed) ;
+           Printf.fprintf stderr "Operation failed. Error: %s\n" msg ;
+           exit_code := Some 1
+-      | e ->
+-          debug "HttpGet failure: %s\n%!" (Printexc.to_string e) ;
+-          marshal ofd (Response Failed)
++      | e -> (
++        match e with
++        | Filename_not_permitted _ ->
++            raise e
++        | _ ->
++            debug "HttpGet failure: %s\n%!" (Printexc.to_string e) ;
++            marshal ofd (Response Failed)
++      )
+     )
+     | Command Prompt ->
+         let data = input_line stdin in
+-- 
+2.26.2
+
