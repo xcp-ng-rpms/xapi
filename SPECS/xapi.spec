@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.3
-Release: 1.1%{?dist}
+Release: 1.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -25,7 +25,7 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
 # TODO: update the following patches to their latest version
 # And check they apply
-Patch1001: xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.214.1-open-openflow-port.XCP-ng.patch
 
@@ -462,6 +462,11 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Jul 01 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.2
+- Remove xapi-1.260.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+- Add xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+- Open VxLAN port for VxLAN tunnels
+
 * Wed Jul 01 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
 - Rebase on CH 8.2
 - Remove dependency to non-free packages again
