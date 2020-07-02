@@ -460,7 +460,7 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* Wed Jul 01 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.2
+* Wed Jul 01 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.1
 - Remove xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 - Add xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 - Open VxLAN port for VxLAN tunnels
