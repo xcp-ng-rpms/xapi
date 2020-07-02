@@ -26,7 +26,7 @@ Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
 # TODO: update the following patches to their latest version
 # And check they apply
 Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-Patch1002: xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+Patch1002: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.214.1-open-openflow-port.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
@@ -466,6 +466,9 @@ Coverage files from unit tests
 - Remove xapi-1.260.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 - Add xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 - Open VxLAN port for VxLAN tunnels
+- Remove xapi-1.260.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+- Add xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+- Create plugged vifs and vbds and suspended vms
 
 * Wed Jul 01 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
 - Rebase on CH 8.2
