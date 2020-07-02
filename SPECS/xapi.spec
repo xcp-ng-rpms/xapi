@@ -463,10 +463,10 @@ Coverage files from unit tests
 
 %changelog
 * Wed Jul 01 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.2
-- Remove xapi-1.260.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+- Remove xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 - Add xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 - Open VxLAN port for VxLAN tunnels
-- Remove xapi-1.260.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+- Remove xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 - Add xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 - Create plugged vifs and vbds and suspended vms
 - Remove xapi-1.214.1-open-openflow-port.XCP-ng.patch
