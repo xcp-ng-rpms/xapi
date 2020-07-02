@@ -23,8 +23,6 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 
 # XCP-ng patches
 Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
-# TODO: update the following patches to their latest version
-# And check they apply
 Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.249.3-open-openflow-port.XCP-ng.patch
