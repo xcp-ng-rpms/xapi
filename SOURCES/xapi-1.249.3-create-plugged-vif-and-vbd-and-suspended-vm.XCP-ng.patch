@@ -443,11 +443,11 @@ index 9e7b36fd2..7aaba3142 100644
    in
    let device = Client.VBD.get_userdevice ~rpc ~session_id ~self:vbd_ref in
    Client.VDI.set_name_label ~rpc ~session_id ~self:vdi ~value:device ;
-diff --git a/ocaml/xapi/xapi_vbd.ml b/ocaml/xapi/xapi_vbd.ml
-index 7986fe702..836c68b33 100644
---- a/ocaml/xapi/xapi_vbd.ml
-+++ b/ocaml/xapi/xapi_vbd.ml
-@@ -167,9 +167,20 @@ let unplug_force_no_safety_check = unplug_force
+diff --git c/ocaml/xapi/xapi_vbd.ml w/ocaml/xapi/xapi_vbd.ml
+index 7986fe702..94aa36ba7 100644
+--- c/ocaml/xapi/xapi_vbd.ml
++++ w/ocaml/xapi/xapi_vbd.ml
+@@ -167,9 +167,19 @@ let unplug_force_no_safety_check = unplug_force
  let autodetect_mutex = Mutex.create ()
 
  (** VBD.create doesn't require any interaction with xen *)
@@ -455,23 +455,22 @@ index 7986fe702..836c68b33 100644
 -    ~empty ~other_config ~qos_algorithm_type ~qos_algorithm_params =
 -  ( if not empty then
 +let create ~__context ~vM ~vDI ~device ~userdevice ~bootable ~mode ~_type ~unpluggable
-+    ~empty ~other_config ~currently_attached ~qos_algorithm_type ~qos_algorithm_params =
++     ~empty ~other_config ~currently_attached ~qos_algorithm_type ~qos_algorithm_params =
++  (* TODO: Raise bad power state error (once all API clients make sure to onlu call the needed params in the create method) when:
++    - power_state == `Halted and (device <> "" || currently_attached)
++  *)
++
++  let power_state = Db.VM.get_power_state ~__context ~self:vM in
++  let suspended = (power_state = `Suspended) in
++  let _device = if suspended then device else "" in
++  let _currently_attached = if suspended then currently_attached else false in
++
 +  (
-+
-+    (* TODO: Raise bad power state error (once all API clients make sure to onlu call the needed params in the create method) when:
-+      - power_state == `Halted and (device <> "" || currently_attached)
-+    *)
-+
-+    let power_state = Db.VM.get_power_state ~__context ~self:vM in
-+    let suspended = (power_state = `Suspended) in
-+    let _device = if suspended then device else "" in
-+    let _currently_attached = if suspended then currently_attached else false in
-+
 +    if not empty then
        let vdi_type = Db.VDI.get_type ~__context ~self:vDI in
        if
          not
-@@ -287,9 +298,9 @@ let create ~__context ~vM ~vDI ~userdevice ~bootable ~mode ~_type ~unpluggable
+@@ -287,9 +297,9 @@ let create ~__context ~vM ~vDI ~userdevice ~bootable ~mode ~_type ~unpluggable
            in
            Db.VBD.create ~__context ~ref ~uuid:(Uuid.to_string uuid)
              ~current_operations:[] ~allowed_operations:[] ~storage_lock:false
