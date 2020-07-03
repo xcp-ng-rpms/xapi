@@ -22,7 +22,8 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 
 
 # XCP-ng patches
-Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
+# Patches 1000, 1001 and 1002 merged in xen-api 1.250.0
+Patch1000: xapi-1.249.3-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.249.3-open-openflow-port.XCP-ng.patch
@@ -460,10 +461,11 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* Wed Jul 01 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
+* Fri Jul 03 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
 - Rebase on CH 8.2
 - Remove dependency to non-free packages again
-- Adapt patches (done by Benjamin Reis):
+- Rediff xapi-1.249.3-allow-migrate_send_during-RPU.XCP-ng.patch
+- Adapt other patches (done by Benjamin Reis):
 - Redo xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 - (Open VxLAN port for VxLAN tunnels. Now based on the tunnel's protocol field)
 - Rediff xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
