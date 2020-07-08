@@ -1,0 +1,26 @@
+From 3954d1514e4af39edc64ed424a3fbd9fd6f0a539 Mon Sep 17 00:00:00 2001
+From: Ronan Abhamon <ronan.abhamon@vates.fr>
+Date: Wed, 8 Jul 2020 17:20:03 +0200
+Subject: [PATCH] chore(scripts/xapi.conf): add LINSTOR SR driver to whitelist
+ of SM plugins
+
+---
+ scripts/xapi.conf | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/xapi.conf b/scripts/xapi.conf
+index 0af33e7f3..73c5a5639 100644
+--- a/scripts/xapi.conf
++++ b/scripts/xapi.conf
+@@ -168,7 +168,7 @@ sparse_dd = /usr/libexec/xapi/sparse_dd
+ # sm-dir =  @OPTDIR@/sm
+ 
+ # Whitelist of SM plugins
+-sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb
++sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso linstor lvm lvmohba lvmofcoe shm smb
+ 
+ # Directory containing tools ISO
+ # tools-sr-dir = @OPTDIR@/packages/iso
+-- 
+2.25.1
+

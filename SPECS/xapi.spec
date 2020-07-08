@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.214.1
-Release: 2.8%{?dist}
+Release: 2.9%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -20,6 +20,7 @@ Patch1000: xapi-1.160.1-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.160.1-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.214.1-open-openflow-port.XCP-ng.patch
+Patch1004: xapi-1.214.1-add-sm-linstor-plugin-to-whitelist.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -425,6 +426,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Jul 08 2020 Ronan Abhamon <ronan.abhamon@vates.fr> - 1.214.1-2.9
+- Patch xapi-1.214.1-add-sm-linstor-plugin-to-whitelist.XCP-ng.patch added
+
 * Mon Jun 01 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.214.1-2.8
 - Patch xapi-1.214.1-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch modified
 - Do not throw when new params are misused, just ignore them to keep compatibility with API clients
