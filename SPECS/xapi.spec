@@ -27,6 +27,7 @@ Patch1000: xapi-1.249.3-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.249.3-open-openflow-port.XCP-ng.patch
+Patch1004: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -472,6 +473,8 @@ Coverage files from unit tests
 - (Create plugged vifs and vbds and suspended vms)
 - Rediff xapi-1.249.3-open-openflow-port.XCP-ng.patch
 - (Open OpenFlow port for SDN controller)
+- Add xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+- Fill the new protocol fields of the tunnels if the info is in its network's other_config
 
 * Thu Jun 11 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.3-1
 - CA-340776: move stunnel disconnection to the end where it was

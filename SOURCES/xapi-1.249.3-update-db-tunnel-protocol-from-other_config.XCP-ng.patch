@@ -1,0 +1,39 @@
+diff --git i/ocaml/xapi/xapi_db_upgrade.ml w/ocaml/xapi/xapi_db_upgrade.ml
+index 8a4292666..5f14c16c6 100644
+--- i/ocaml/xapi/xapi_db_upgrade.ml
++++ w/ocaml/xapi/xapi_db_upgrade.ml
+@@ -829,6 +829,26 @@ let remove_legacy_ssl_support =
+                Db.Host.set_ssl_legacy ~__context ~self ~value:false))
+   }
+
++let fill_tunnel_protocol =
++  {
++    description=
++      "Fill up the new field protocol of a Tunnel"
++  ; version= (fun _ -> true)
++  ; fn=
++      (fun ~__context ->
++        Db.Tunnel.get_all ~__context
++        |> List.iter (fun self ->
++          let pif = Db.Tunnel.get_access_PIF ~__context ~self in
++          let network = Db.PIF.get_network ~__context ~self:pif in
++          let other_config = Db.Network.get_other_config ~__context ~self:network in
++          let encapsulation = List.assoc_opt "xo:sdn-controller:encapsulation" other_config
++            |> Option.value ~default:"gre" in
++          let value = Record_util.tunnel_protocol_of_string encapsulation in
++          Db.Tunnel.set_protocol ~__context ~self ~value
++        )
++      )
++  }
++
+ let rules =
+   [
+     upgrade_domain_type
+@@ -857,6 +877,7 @@ let rules =
+   ; upgrade_cluster_timeouts
+   ; upgrade_secrets
+   ; remove_legacy_ssl_support
++  ; fill_tunnel_protocol
+   ]
+
+ (* Maybe upgrade most recent db *)
