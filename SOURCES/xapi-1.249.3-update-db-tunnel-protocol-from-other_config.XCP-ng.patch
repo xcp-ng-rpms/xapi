@@ -1,10 +1,23 @@
 Fill new `protocol` field in a `Tunnel` record if the info is present in the tunnel's network's other config.
+On version previous de `stockholm` the field didn't exist, we stored the info in the network's other_config.
+Now the field `protocol` exist in a `Tunnel` record, this patch is used to fill it using the previously stored info.
 
 diff --git i/ocaml/xapi/xapi_db_upgrade.ml w/ocaml/xapi/xapi_db_upgrade.ml
-index 8a4292666..5f14c16c6 100644
+index 8a4292666..912663ebf 100644
 --- i/ocaml/xapi/xapi_db_upgrade.ml
 +++ w/ocaml/xapi/xapi_db_upgrade.ml
-@@ -829,6 +829,26 @@ let remove_legacy_ssl_support =
+@@ -94,6 +94,10 @@ let jura =
+   ( Datamodel_common.jura_release_schema_major_vsn
+   , Datamodel_common.jura_release_schema_minor_vsn )
+
++let quebec =
++  ( Datamodel_common.quebec_release_schema_major_vsn
++  , Datamodel_common.quebec_release_schema_minor_vsn )
++
+ (* This is to support upgrade from Dundee tech-preview versions *)
+ let vsn_with_meaningful_has_vendor_device =
+   ( Datamodel_common.meaningful_vm_has_vendor_device_schema_major_vsn
+@@ -829,6 +833,26 @@ let remove_legacy_ssl_support =
                 Db.Host.set_ssl_legacy ~__context ~self ~value:false))
    }
 
@@ -12,7 +25,7 @@ index 8a4292666..5f14c16c6 100644
 +  {
 +    description=
 +      "Fill up the new field protocol of a Tunnel"
-+  ; version= (fun _ -> true)
++  ; version= (fun x -> x <= quebec)
 +  ; fn=
 +      (fun ~__context ->
 +        Db.Tunnel.get_all ~__context
@@ -31,7 +44,7 @@ index 8a4292666..5f14c16c6 100644
  let rules =
    [
      upgrade_domain_type
-@@ -857,6 +877,7 @@ let rules =
+@@ -857,6 +881,7 @@ let rules =
    ; upgrade_cluster_timeouts
    ; upgrade_secrets
    ; remove_legacy_ssl_support
