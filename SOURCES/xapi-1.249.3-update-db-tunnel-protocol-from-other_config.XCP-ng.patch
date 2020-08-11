@@ -1,3 +1,5 @@
+Fill new `protocol` field in a `Tunnel` record if the info is present in the tunnel's network's other config.
+
 diff --git i/ocaml/xapi/xapi_db_upgrade.ml w/ocaml/xapi/xapi_db_upgrade.ml
 index 8a4292666..5f14c16c6 100644
 --- i/ocaml/xapi/xapi_db_upgrade.ml

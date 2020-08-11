@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.3
-Release: 1.1%{?dist}
+Release: 1.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -462,6 +462,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Aug 11 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.2
+- Add xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+- Fill the new protocol fields of the tunnels if the info is in its network's other_config
+
 * Fri Jul 03 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
 - Rebase on CH 8.2
 - Remove dependency to non-free packages again
@@ -473,8 +477,6 @@ Coverage files from unit tests
 - (Create plugged vifs and vbds and suspended vms)
 - Rediff xapi-1.249.3-open-openflow-port.XCP-ng.patch
 - (Open OpenFlow port for SDN controller)
-- Add xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-- Fill the new protocol fields of the tunnels if the info is in its network's other_config
 
 * Thu Jun 11 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.3-1
 - CA-340776: move stunnel disconnection to the end where it was
