@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.3
-Release: 1.1%{?dist}
+Release: 1.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -27,6 +27,7 @@ Patch1000: xapi-1.249.3-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1002: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1003: xapi-1.249.3-open-openflow-port.XCP-ng.patch
+Patch1004: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -461,6 +462,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Aug 11 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.2
+- Add xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+- Fill the new protocol fields of the tunnels if the info is in its network's other_config
+
 * Fri Jul 03 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
 - Rebase on CH 8.2
 - Remove dependency to non-free packages again
