@@ -1,5 +1,5 @@
 Fill new `protocol` field in a `Tunnel` record if the info is present in the tunnel's network's other config.
-On version previous of `stockholm` the field didn't exist, we stored the info in the network's other_config.
+On version prior to `stockholm` the field didn't exist, we stored the info in the network's other_config.
 Now that the field `protocol` exists in a `Tunnel` record, this patch is used to fill it using the previously stored info.
 
 diff --git i/ocaml/xapi/xapi_db_upgrade.ml w/ocaml/xapi/xapi_db_upgrade.ml
