@@ -264,7 +264,10 @@ systemctl preset xapi-wait-init-complete || :
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 %dir /etc/xapi.conf.d
-%config /etc/xapi.conf.d/allow-sched-gran.conf
+# We're not using %%config for this file to avoid issues if users modify them
+# (creation of .rpmsave or .rpmnew files that may confuse xapi)
+# BTW users are not supposed to modify that file
+/etc/xapi.conf.d/allow-sched-gran.conf
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/DRAC.py
 /etc/xapi.d/plugins/DRAC.pyo
