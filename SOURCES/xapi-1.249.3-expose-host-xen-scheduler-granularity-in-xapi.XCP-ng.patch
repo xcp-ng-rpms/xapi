@@ -1,0 +1,196 @@
+This patch adds 2 new methods to the `Host` object:
+  `set_sched_gran`: sets Xen's scheduler granularity (either `core`, `cpu` or `socket`)
+  `get_sched_gran`: gets Xen's scheduler granularity
+
+It uses `/opt/xensource/libexec/xen-cmdline`
+
+New entry in `/etc/xapi.conf` to allow the feature: `allow-host-sched-gran-modification: true`
+
+diff --git c/ocaml/idl/datamodel_host.ml w/ocaml/idl/datamodel_host.ml
+index 4bd86d7dc..36fefa5b1 100644
+--- c/ocaml/idl/datamodel_host.ml
++++ w/ocaml/idl/datamodel_host.ml
+@@ -1325,6 +1325,34 @@ let host_query_ha = call ~flags:[`Session]
+     ~allowed_roles:_R_LOCAL_ROOT_ONLY
+     ()
+
++  let host_sched_gran = Enum("host_sched_gran", [
++    "core", "core scheduling";
++    "cpu", "CPU scheduling";
++    "socket", "socket scheduling";
++  ])
++
++  let set_sched_gran = call
++    ~name:"set_sched_gran"
++    ~lifecycle:[Prototyped, rel_next, ""]
++    ~doc:"Sets xen's sched-gran on a host. See: https://xenbits.xen.org/docs/unstable/misc/xen-command-line.html#sched-gran-x86"
++    ~params:[
++      Ref _host, "self", "The host";
++      host_sched_gran, "value", "The sched-gran to apply to a host"
++    ]
++    ~allowed_roles:_R_LOCAL_ROOT_ONLY
++    ()
++
++  let get_sched_gran = call
++    ~name:"get_sched_gran"
++    ~lifecycle:[Prototyped, rel_next, ""]
++    ~doc:"Gets xen's sched-gran on a host"
++    ~params:[
++      Ref _host, "self", "The host";
++    ]
++    ~allowed_roles:_R_LOCAL_ROOT_ONLY
++    ~result:(host_sched_gran, "The host's sched-gran")
++    ()
++
+   (** Hosts *)
+   let t =
+     create_obj ~in_db:true ~in_product_since:rel_rio ~in_oss_since:oss_since_303 ~internal_deprecated_since:None ~persist:PersistEverything ~gen_constructor_destructor:false ~name:_host ~descr:"A physical host" ~gen_events:true
+@@ -1443,6 +1471,8 @@ let host_query_ha = call ~flags:[`Session]
+         set_iscsi_iqn;
+         set_multipathing;
+         set_uefi_certificates;
++        set_sched_gran;
++        get_sched_gran;
+       ]
+       ~contents:
+         ([ uid _host;
+diff --git c/ocaml/xapi-cli-server/record_util.ml w/ocaml/xapi-cli-server/record_util.ml
+index f358c6aac..bf8eddbcb 100644
+--- c/ocaml/xapi-cli-server/record_util.ml
++++ w/ocaml/xapi-cli-server/record_util.ml
+@@ -591,6 +591,25 @@ let host_display_to_string h =
+   | `disable_on_reboot ->
+       "disable_on_reboot"
+
++let host_sched_gran_of_string s =
++  match String.lowercase_ascii s with
++  | "core" ->
++      `core
++  | "cpu" ->
++      `cpu
++  | "socket" ->
++      `socket
++  | _ ->
++      raise (Record_failure ("Expected 'core','cpu', 'socket', got " ^ s))
++
++let host_sched_gran_to_string = function
++  | `core ->
++      "core"
++  | `cpu ->
++      "cpu"
++  | `socket ->
++      "socket"
++
+ let pgpu_dom0_access_to_string x = host_display_to_string x
+
+ let string_to_vdi_onboot s =
+diff --git c/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
+index d8f8c5027..fdc89ed2e 100644
+--- c/ocaml/xapi/message_forwarding.ml
++++ w/ocaml/xapi/message_forwarding.ml
+@@ -3361,6 +3361,20 @@ functor
+           (host_uuid ~__context host)
+           value ;
+         Local.Host.set_uefi_certificates ~__context ~host ~value
++
++      let set_sched_gran ~__context ~self ~value =
++        info "Host.set_sched_gran: host='%s' sched='%s'"
++          (host_uuid ~__context self)
++          (Record_util.host_sched_gran_to_string value) ;
++        let local_fn = Local.Host.set_sched_gran ~self ~value in
++        do_op_on ~local_fn ~__context ~host:self (fun session_id rpc ->
++            Client.Host.set_sched_gran rpc session_id self value)
++
++      let get_sched_gran ~__context ~self =
++        info "Host.get_sched_gran: host='%s'" (host_uuid ~__context self) ;
++        let local_fn = Local.Host.get_sched_gran ~self in
++        do_op_on ~local_fn ~__context ~host:self (fun session_id rpc ->
++            Client.Host.get_sched_gran rpc session_id self)
+     end
+
+     module Host_crashdump = struct
+diff --git c/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
+index 1962b3fee..fad44111f 100644
+--- c/ocaml/xapi/xapi_globs.ml
++++ w/ocaml/xapi/xapi_globs.ml
+@@ -241,6 +241,8 @@ let tools_sr_pbd_device_config =
+
+ let create_tools_sr = ref false
+
++let allow_host_sched_gran_modification = ref false
++
+ let default_template_key = "default_template"
+
+ let base_template_name_key = "base_template_name"
+@@ -1105,6 +1107,10 @@ let other_options =
+     , Arg.Set create_tools_sr
+     , (fun () -> string_of_bool !create_tools_sr)
+     , "Indicates whether to create an SR for Tools ISOs" )
++  ; ( "allow-host-sched-gran-modification"
++    , Arg.Set allow_host_sched_gran_modification
++    , (fun () -> string_of_bool !allow_host_sched_gran_modification)
++    , "Allows to modify the host's scheduler granularity" )
+   ]
+
+ let all_options = options_of_xapi_globs_spec @ other_options
+diff --git c/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
+index 1870bd0c5..7c66b3877 100644
+--- c/ocaml/xapi/xapi_host.ml
++++ w/ocaml/xapi/xapi_host.ml
+@@ -2382,3 +2382,42 @@ let set_multipathing ~__context ~host ~value =
+   Db.Host.add_to_other_config ~__context ~self:host ~key:"multipathing"
+     ~value:(string_of_bool value) ;
+   Xapi_host_helpers.Configuration.set_multipathing value
++
++let set_sched_gran ~__context ~self ~value =
++  if Helpers.get_localhost ~__context <> self then
++    failwith "Forwarded to the wrong host" ;
++  if not !Xapi_globs.allow_host_sched_gran_modification then
++    raise
++      Api_errors.(
++        Server_error (operation_not_allowed, ["Disabled by xapi.conf"])) ;
++  let arg =
++    Printf.sprintf "sched-gran=%s" (Record_util.host_sched_gran_to_string value)
++  in
++  let args = ["--set-xen"; arg] in
++  try
++    let _ = Helpers.call_script !Xapi_globs.xen_cmdline_script args in
++    ()
++  with e ->
++    error "Failed to update sched-gran: %s" (Printexc.to_string e) ;
++    raise
++      Api_errors.(
++        Server_error (internal_error, ["Failed to update sched-gran"]))
++
++let get_sched_gran ~__context ~self =
++  if Helpers.get_localhost ~__context <> self then
++    failwith "Forwarded to the wrong host" ;
++  let args = ["--get-xen"; "sched-gran"] in
++  try
++    let ret =
++      String.trim (Helpers.call_script !Xapi_globs.xen_cmdline_script args)
++    in
++    match ret with
++    | "" ->
++        `cpu (* If no entry then default value: cpu *)
++    | _ ->
++        let value = List.nth (String.split_on_char '=' ret) 1 in
++        Record_util.host_sched_gran_of_string value
++  with e ->
++    error "Failed to get sched-gran: %s" (Printexc.to_string e) ;
++    raise
++      Api_errors.(Server_error (internal_error, ["Failed to get sched-gran"]))
+diff --git c/ocaml/xapi/xapi_host.mli w/ocaml/xapi/xapi_host.mli
+index 84f605b62..fac7b06b5 100644
+--- c/ocaml/xapi/xapi_host.mli
++++ w/ocaml/xapi/xapi_host.mli
+@@ -478,3 +478,9 @@ val set_iscsi_iqn :
+
+ val set_multipathing :
+   __context:Context.t -> host:API.ref_host -> value:bool -> unit
++
++val set_sched_gran :
++  __context:Context.t -> self:API.ref_host -> value:API.host_sched_gran -> unit
++
++val get_sched_gran :
++  __context:Context.t -> self:API.ref_host -> API.host_sched_gran
