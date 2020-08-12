@@ -1,6 +1,18 @@
 Fill new `protocol` field in a `Tunnel` record if the info is present in the tunnel's network's other config.
-On version prior to `stockholm` the field didn't exist, we stored the info in the network's other_config.
-Now that the field `protocol` exists in a `Tunnel` record, this patch is used to fill it using the previously stored info.
+
+In XCP-ng before 8.2, our open-vxlan-port-for-sdn-controller made XAPI open the vxlan port automatically when
+there was a SDN controller, independantly of the protocol (GRE or vxlan).
+
+Starting with XCP-ng 8.2, the new open-vxlan-port-for-sdn-controller patch (based on the PR merged upstream
+after stockholm's release [CH 8.2]) adds a new `Tunnel` record with a `protocol` field and only opens the port
+if the protocol is vxlan.
+
+In order to still support tunnels created before `Tunnel` was added, the present patch leverages the XAPI database
+upgrade mechanism to create the `Tunnel` objects when a tunnel is found, reading the protocol information from
+the network's `other_config` field where XO used to put it before the change.
+
+This patch will remain needed as long as we want to support such smooth transition for tunnels created before
+XCP-ng 8.2.
 
 diff --git i/ocaml/xapi/xapi_db_upgrade.ml w/ocaml/xapi/xapi_db_upgrade.ml
 index 8a4292666..912663ebf 100644
