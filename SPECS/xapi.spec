@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.3
-Release: 1.2%{?dist}
+Release: 1.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -23,13 +23,14 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 
 
 # XCP-ng patches
-# Patches 1000, 1001 and 1002 merged in xen-api 1.250.0
-Patch1000: xapi-1.249.3-allow-migrate_send-during-RPU.XCP-ng.patch
-Patch1001: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-Patch1002: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
-Patch1003: xapi-1.249.3-open-openflow-port.XCP-ng.patch
-Patch1004: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1005: xapi-1.249.3-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1000: xapi-1.249.3-update-xapi-conf.XCP-ng.patch
+# Patches 1001, 1002 and 1003 merged in xen-api 1.250.0
+Patch1001: xapi-1.249.3-allow-migrate_send-during-RPU.XCP-ng.patch
+Patch1002: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
+Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+Patch1006: xapi-1.249.3-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -251,7 +252,9 @@ systemctl preset xapi-wait-init-complete || :
 %files core -f core-files
 %defattr(-,root,root,-)
 /opt/xensource/bin/xapi
-%config(noreplace) /etc/xapi.conf
+# XCP-ng: using %%config instead of upstream's %%config(noreplace)
+# to ensure our defaults are applied
+%config /etc/xapi.conf
 /etc/logrotate.d/audit
 /etc/pam.d/xapi
 /etc/cron.d/xapi-logrotate.cron
@@ -470,6 +473,11 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Aug 13 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.3
+- Enforce update of xapi.conf when it's updated in the RPM
+- Add warning on top of xapi.conf to prevent user modification
+- Add additional experimental sm drivers to xapi.conf
+
 * Tue Aug 11 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.2
 - Add xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 - Fill the new protocol fields of the tunnels if the info is in its network's other_config
