@@ -10,6 +10,7 @@ URL:  http://www.xen.org
 
 Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz
 Source1: 00-XCP-ng-allow-sched-gran.conf
+Source2: 00-XCP-ng-create-tools-sr.conf
 Patch1: SOURCES/xapi/0001-CA-338596-Upload-files-limit-should-deal-with-the-do.patch
 Patch2: SOURCES/xapi/0002-CA-338608-Limit-xe-client-to-download-files-specifie.patch
 Patch3: SOURCES/xapi/0003-Branding-for-the-Stockholm-release.patch
@@ -186,6 +187,7 @@ mkdir $RPM_BUILD_ROOT/etc/xcp
 mkdir -p %{buildroot}/etc/xenserver/features.d
 
 install -m 0755 %{SOURCE1} %{buildroot}/etc/xapi.conf.d/
+install -m 0755 %{SOURCE2} %{buildroot}/etc/xapi.conf.d/
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -267,10 +269,11 @@ systemctl preset xapi-wait-init-complete || :
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 %dir /etc/xapi.conf.d
-# We're not using %%config for this file to avoid issues if users modify them
+# We're not using %%config for those files, in /etc/xapi.conf.d/, to avoid issues if users modify them
 # (creation of .rpmsave or .rpmnew files that may confuse xapi)
-# BTW users are not supposed to modify that file
+# BTW users are NOT supposed to modify those files!
 /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
+/etc/xapi.conf.d/00-XCP-ng-create-tools-sr.conf
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/DRAC.py
 /etc/xapi.d/plugins/DRAC.pyo
@@ -475,6 +478,7 @@ Coverage files from unit tests
 %changelog
 * Tue Aug 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.4
 - /etc/xapi.conf.d/allow-sched-gran.conf becomes /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
+- New conf file: /etc/xapi.conf.d/00-XCP-ng-create-tools-sr.conf
 
 * Thu Aug 13 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.3
 - Enforce update of xapi.conf when it's updated in the RPM
