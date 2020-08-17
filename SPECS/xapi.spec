@@ -3,13 +3,13 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.3
-Release: 1.3%{?dist}
+Release: 1.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
 Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz
-Source1: allow-sched-gran.conf
+Source1: 00-XCP-ng-allow-sched-gran.conf
 Patch1: SOURCES/xapi/0001-CA-338596-Upload-files-limit-should-deal-with-the-do.patch
 Patch2: SOURCES/xapi/0002-CA-338608-Limit-xe-client-to-download-files-specifie.patch
 Patch3: SOURCES/xapi/0003-Branding-for-the-Stockholm-release.patch
@@ -270,7 +270,7 @@ systemctl preset xapi-wait-init-complete || :
 # We're not using %%config for this file to avoid issues if users modify them
 # (creation of .rpmsave or .rpmnew files that may confuse xapi)
 # BTW users are not supposed to modify that file
-/etc/xapi.conf.d/allow-sched-gran.conf
+/etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/DRAC.py
 /etc/xapi.d/plugins/DRAC.pyo
@@ -473,6 +473,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Aug 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.4
+- /etc/xapi.conf.d/allow-sched-gran.conf becomes /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
+
 * Thu Aug 13 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.3
 - Enforce update of xapi.conf when it's updated in the RPM
 - Add warning on top of xapi.conf to prevent user modification
