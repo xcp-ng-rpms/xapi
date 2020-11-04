@@ -469,7 +469,7 @@ Coverage files from unit tests
 - Sync with hotfix XS82E002
 - Maintenance update
 
-* Tue Aug 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.4
+* Mon Aug 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.4
 - /etc/xapi.conf.d/allow-sched-gran.conf becomes /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
 - New conf file: /etc/xapi.conf.d/00-XCP-ng-create-tools-sr.conf
 
