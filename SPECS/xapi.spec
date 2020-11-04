@@ -2,23 +2,17 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.3
+Version: 1.249.5
 Release: 1
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz
-Patch1: SOURCES/xapi/0001-CA-338596-Upload-files-limit-should-deal-with-the-do.patch
-Patch2: SOURCES/xapi/0002-CA-338608-Limit-xe-client-to-download-files-specifie.patch
-Patch3: SOURCES/xapi/0003-Branding-for-the-Stockholm-release.patch
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz
 
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 
-
-# Internal security fix
-# Release branding
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -52,7 +46,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -60,7 +54,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -92,7 +86,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -100,7 +94,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -109,7 +103,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -121,7 +115,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -133,7 +127,7 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -180,7 +174,6 @@ rm -rf $RPM_BUILD_ROOT
 %systemd_post gencert.service
 %systemd_post xapi-domains.service
 %systemd_post perfmon.service
-%systemd_post genptoken.service
 %systemd_post xapi.service
 %systemd_post xapi-wait-init-complete.service
 %systemd_post attach-static-vdis.service
@@ -224,7 +217,6 @@ systemctl preset xapi-wait-init-complete || :
 %systemd_postun cdrommon@.service
 %systemd_postun xapi-domains.service
 %systemd_postun perfmon.service
-%systemd_postun genptoken.service
 %systemd_postun xapi.service
 %systemd_postun xapi-wait-init-complete.service
 %systemd_postun attach-static-vdis.service
@@ -347,7 +339,6 @@ systemctl preset xapi-wait-init-complete || :
 /opt/xensource/libexec/network-init
 /opt/xensource/libexec/print-custom-templates
 /opt/xensource/libexec/probe-device-for-file
-/opt/xensource/libexec/genptoken
 /opt/xensource/libexec/reset-and-reboot
 /opt/xensource/libexec/restore-sr-metadata.py
 /opt/xensource/libexec/restore-sr-metadata.pyo
@@ -385,7 +376,6 @@ systemctl preset xapi-wait-init-complete || :
 %{_unitdir}/gencert.service
 %{_unitdir}/xapi-domains.service
 %{_unitdir}/perfmon.service
-%{_unitdir}/genptoken.service
 %{_unitdir}/xapi.service
 %{_unitdir}/xapi-wait-init-complete.service
 %{_unitdir}/xapi-init-complete.target
@@ -441,7 +431,7 @@ systemctl preset xapi-wait-init-complete || :
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.3&format=tar.gz&prefix=xapi-1.249.3#/xen-api-1.249.3.tar.gz) = 1e5131db79bfd86f5f68ebe6aa9c9ea344195ed4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -452,6 +442,43 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Oct 23 2020 Ben Anson <ben.anson@citrix.com> - 1.249.5-1
+- CA-347543 use /usr/bin/pool_secret_wrapper only if CC
+
+* Mon Sep 28 2020 Ben Anson <ben.anson@citrix.com> - 1.249.4-2
+- REQ-819 maintenance: remove @ list concats in suite_alcotest
+- REQ-819 CP-33774 PSR orchestration
+- REQ-819 CP-33777 store list of pool secrets rather than only one
+- REQ-819 CP-33777 expose code to generate ptoken as a library
+- REQ-819 rel_next
+- REQ-819 CP-33777 real implementation
+- REQ-819 Error message improvement.
+- REQ-819 CA-34357 add PSR feature flag
+- REQ-819 maintenance: remove reference to unused file
+- REQ-819 CP-34379 don't proceed with rotation if PSR state is inconsistent
+- REQ-819 REQ-819 make PSR and HA mutually exclusive
+- REQ-819 Branding for the Stockholm release.
+- REQ-819 REQ-819: rel_next -> rel_stockholm_psr
+- REQ-819 CP-33780: add pool secret rotation fistpoints
+- REQ-819 CP-34357: add designate_new_master to pool operations
+- REQ-819 CP-34357: block PSR if any pool operations are in progress
+- REQ-819 maintenance: remove unused pool op valid assert from mli
+- REQ-819 CA-34873: remove genptoken & genptoken.service
+- REQ-819 CP-34873: generate pool secrets optionally via script
+- REQ-819 maintenance: make call_script interface cleaner
+- REQ-819 CP-34936 don't log result from pool_secret_wrapper
+
+* Mon Sep 28 2020 Ben Anson <ben.anson@citrix.com> - 1.249.4-1
+- CA-343117: host-backup: Include /boot/efi in the tarball
+- CA-341155: Fix console refresh when starting management server
+- CA-342171 fix get_server_localtime
+- CA-344268: Fix timing issue in PBIS available check
+- CA-343230 improve bewildering HTTP 403 error
+- CA-343230 assert (rather than assume) that update VBDs are attached
+
+* Mon Sep 28 2020 Ben Anson <ben.anson@citrix.com> - 1.249.3-2
+- REQ-819 CP-34873: remove genptoken services
+
 * Thu Jun 11 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.3-1
 - CA-340776: move stunnel disconnection to the end where it was
 
