@@ -20,11 +20,11 @@ Source2: 00-XCP-ng-create-tools-sr.conf
 Patch1000: xapi-1.249.3-update-xapi-conf.XCP-ng.patch
 # Patches 1001, 1002 and 1003 merged in xen-api 1.250.0
 Patch1001: xapi-1.249.3-allow-migrate_send-during-RPU.XCP-ng.patch
-Patch1002: xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+Patch1002: xapi-1.249.5-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1006: xapi-1.249.3-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1006: xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -468,6 +468,8 @@ Coverage files from unit tests
 * Wed Nov 04 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.5-1.1
 - Sync with hotfix XS82E002
 - Maintenance update
+- Adapt patch xapi-1.249.5-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+- Adapt patch xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 
 * Mon Aug 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.4
 - /etc/xapi.conf.d/allow-sched-gran.conf becomes /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
