@@ -468,6 +468,8 @@ Coverage files from unit tests
 * Wed Nov 04 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.5-1.1
 - Sync with hotfix XS82E002
 - Maintenance update
+- Adapt patch xapi-1.249.5-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+- Adapt patch xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 
 * Mon Aug 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.4
 - /etc/xapi.conf.d/allow-sched-gran.conf becomes /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
