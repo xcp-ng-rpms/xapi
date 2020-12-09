@@ -1,0 +1,29 @@
+commit e0781cd63
+Author: BenjiReis <benjamin.reis@vates.fr>
+Date:   Fri Nov 27 15:36:17 2020 +0100
+
+    Continue fixing console location in IPv6
+    
+    Signed-off-by: BenjiReis <benjamin.reis@vates.fr>
+
+diff --git a/ocaml/xapi/dbsync_master.ml b/ocaml/xapi/dbsync_master.ml
+index 4c3a94bbd..a29e5fffd 100644
+--- a/ocaml/xapi/dbsync_master.ml
++++ b/ocaml/xapi/dbsync_master.ml
+@@ -84,15 +84,7 @@ let refresh_console_urls ~__context =
+             | "" ->
+                 ""
+             | address ->
+-              let address =
+-                match Xapi_stdext_unix.Unixext.domain_of_addr address with
+-                | Some x when x = Unix.PF_INET ->
+-                  address
+-                | Some x when x = Unix.PF_INET6 ->
+-                  "[" ^ address ^ "]"
+-                | _ ->
+-                  ""
+-              in
++              let address = Http.Url.maybe_wrap_IPv6_literal address in
+               Printf.sprintf "https://%s%s?ref=%s" address
+                 Constants.console_uri (Ref.string_of console)
+           in

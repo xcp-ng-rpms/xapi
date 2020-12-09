@@ -1,0 +1,137 @@
+commit 6af791009
+Author: BenjiReis <benjamin.reis@vates.fr>
+Date:   Tue Dec 29 13:56:20 2020 +0100
+
+    Wrap IPv6 addresses when creating URLs
+    
+    Signed-off-by: BenjiReis <benjamin.reis@vates.fr>
+
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 43d2b3fad..385aec798 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -6237,7 +6237,10 @@ let pool_dump_db fd printer rpc session_id params =
+   let make_command task_id =
+     let pool = List.hd (Client.Pool.get_all rpc session_id) in
+     let master = Client.Pool.get_master rpc session_id pool in
+-    let master_address = Client.Host.get_address rpc session_id master in
++    let master_address =
++      Http.Url.maybe_wrap_IPv6_literal
++        (Client.Host.get_address rpc session_id master)
++    in
+     let uri =
+       Printf.sprintf "https://%s%s?session_id=%s&task_id=%s" master_address
+         Constants.pool_xml_db_sync (Ref.string_of session_id)
+diff --git a/ocaml/xapi/create_misc.ml b/ocaml/xapi/create_misc.ml
+index 7fa57b070..f4ea248c7 100644
+--- a/ocaml/xapi/create_misc.ml
++++ b/ocaml/xapi/create_misc.ml
+@@ -335,7 +335,8 @@ and create_domain_zero_console_record_with_protocol ~__context ~domain_zero_ref
+     ~dom0_console_protocol =
+   let console_ref = Ref.make () in
+   let address =
+-    Db.Host.get_address ~__context ~self:(Helpers.get_localhost ~__context)
++    Http.Url.maybe_wrap_IPv6_literal
++      (Db.Host.get_address ~__context ~self:(Helpers.get_localhost ~__context))
+   in
+   let location =
+     Printf.sprintf "https://%s%s?ref=%s" address Constants.console_uri
+diff --git a/ocaml/xapi/export.ml b/ocaml/xapi/export.ml
+index dd5c1a16b..8329b47fe 100644
+--- a/ocaml/xapi/export.ml
++++ b/ocaml/xapi/export.ml
+@@ -828,7 +828,10 @@ let handler (req : Request.t) s _ =
+         (* task when it exits, and we don't want to do that *)
+         try
+           let host = find_host_for_VM ~__context vm_ref in
+-          let address = Db.Host.get_address ~__context ~self:host in
++          let address =
++            Http.Url.maybe_wrap_IPv6_literal
++              (Db.Host.get_address ~__context ~self:host)
++          in
+           let url =
+             Printf.sprintf "https://%s%s?%s" address req.Request.uri
+               (String.concat "&"
+diff --git a/ocaml/xapi/import.ml b/ocaml/xapi/import.ml
+index c057153bf..f32ea1294 100644
+--- a/ocaml/xapi/import.ml
++++ b/ocaml/xapi/import.ml
+@@ -2261,7 +2261,10 @@ let handler (req : Request.t) s _ =
+           if not (check_sr_availability ~__context sr) then (
+             debug "sr not available - redirecting" ;
+             let host = find_host_for_sr ~__context sr in
+-            let address = Db.Host.get_address ~__context ~self:host in
++            let address =
++              Http.Url.maybe_wrap_IPv6_literal
++                (Db.Host.get_address ~__context ~self:host)
++            in
+             let url =
+               Printf.sprintf "https://%s%s?%s" address req.Request.uri
+                 (String.concat "&"
+diff --git a/ocaml/xapi/importexport.ml b/ocaml/xapi/importexport.ml
+index cc95a5b14..b58b9b920 100644
+--- a/ocaml/xapi/importexport.ml
++++ b/ocaml/xapi/importexport.ml
+@@ -429,6 +429,7 @@ module Format = struct
+ end
+ 
+ let return_302_redirect (req : Http.Request.t) s address =
++  let address = Http.Url.maybe_wrap_IPv6_literal address in
+   let url =
+     Printf.sprintf "https://%s%s?%s" address req.Http.Request.uri
+       (String.concat "&"
+diff --git a/ocaml/xapi/rrdd_proxy.ml b/ocaml/xapi/rrdd_proxy.ml
+index 81b16fc3d..8b852c7f5 100644
+--- a/ocaml/xapi/rrdd_proxy.ml
++++ b/ocaml/xapi/rrdd_proxy.ml
+@@ -32,6 +32,7 @@ let get_query_string_from_query ~(query : (string * string) list) : string =
+ let make_url_from_query ~(address : string) ~(uri : string)
+     ~(query : (string * string) list) : string =
+   let query_string = get_query_string_from_query query in
++  let address = Http.Url.maybe_wrap_IPv6_literal address in
+   Printf.sprintf "https://%s%s?%s" address uri query_string
+ 
+ let make_url ~(address : string) ~(req : Http.Request.t) : string =
+diff --git a/ocaml/xapi/sm_fs_ops.ml b/ocaml/xapi/sm_fs_ops.ml
+index de78678e8..2feffdfb2 100644
+--- a/ocaml/xapi/sm_fs_ops.ml
++++ b/ocaml/xapi/sm_fs_ops.ml
+@@ -43,7 +43,9 @@ let import_vdi_url ~__context ?(prefer_slaves = false) rpc session_id task_id
+   (* Find a suitable host for the SR containing the VDI *)
+   let sr = Db.VDI.get_SR ~__context ~self:vdi in
+   let host = Importexport.find_host_for_sr ~__context ~prefer_slaves sr in
+-  let address = Db.Host.get_address ~__context ~self:host in
++  let address =
++    Http.Url.maybe_wrap_IPv6_literal (Db.Host.get_address ~__context ~self:host)
++  in
+   Printf.sprintf "https://%s%s?vdi=%s&session_id=%s&task_id=%s" address
+     Constants.import_raw_vdi_uri (Ref.string_of vdi) (Ref.string_of session_id)
+     (Ref.string_of task_id)
+diff --git a/ocaml/xapi/xapi_message.ml b/ocaml/xapi/xapi_message.ml
+index 78c872153..d4844165b 100644
+--- a/ocaml/xapi/xapi_message.ml
++++ b/ocaml/xapi/xapi_message.ml
+@@ -756,7 +756,8 @@ let handler (req : Http.Request.t) fd _ =
+         if not (Pool_role.is_master ()) then
+           let url =
+             Printf.sprintf "https://%s%s?%s"
+-              (Pool_role.get_master_address ())
++              (Http.Url.maybe_wrap_IPv6_literal
++                (Pool_role.get_master_address ()))
+               req.Http.Request.uri
+               (String.concat "&" (List.map (fun (a, b) -> a ^ "=" ^ b) query))
+           in
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index 661d942cc..4eb66caef 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -2009,7 +2009,8 @@ let update_vm ~__context id =
+                   (fun (_, state) ->
+                     let localhost = Helpers.get_localhost ~__context in
+                     let address =
+-                      Db.Host.get_address ~__context ~self:localhost
++                      Http.Url.maybe_wrap_IPv6_literal
++                        (Db.Host.get_address ~__context ~self:localhost)
+                     in
+                     let uri =
+                       Printf.sprintf "https://%s%s" address
