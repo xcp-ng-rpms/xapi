@@ -25,6 +25,7 @@ Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1007: fix-ipv6-console-location.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
