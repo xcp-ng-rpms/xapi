@@ -25,15 +25,15 @@ Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
-Patch1007: fix-ipv6-console-location.patch
-Patch1008: allow-ipv6-migration.patch
-Patch1009: add-ipv6-addresses-to-this_is_my_address.patch
-Patch1010: wrap-ipv6-addresses-url.patch
-Patch1011: fix-ipv6-console-location-bis.patch
-Patch1012: add-ipv6-dns.patch
-Patch1013: vncproxy-ipv6.patch
-Patch1014: replace-gethostbyname.patch
-Patch1015: reconfigure-ipv6-when-necessary.patch
+Patch1007: xapi-1.249.5-fix-ipv6-console-location.patch
+Patch1008: xapi-1.249.5-allow-ipv6-migration.patch
+Patch1009: xapi-1.249.5-add-ipv6-addresses-to-this_is_my_address.patch
+Patch1010: xapi-1.249.5-wrap-ipv6-addresses-url.patch
+Patch1011: xapi-1.249.5-fix-ipv6-console-location-bis.patch
+Patch1012: xapi-1.249.5-add-ipv6-dns.patch
+Patch1013: xapi-1.249.5-vncproxy-ipv6.patch
+Patch1014: xapi-1.249.5-replace-gethostbyname.patch
+Patch1015: xapi-1.249.5-reconfigure-ipv6-when-necessary.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
