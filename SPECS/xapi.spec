@@ -26,6 +26,14 @@ Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: fix-ipv6-console-location.patch
+Patch1008: allow-ipv6-migration.patch
+Patch1009: add-ipv6-addresses-to-this_is_my_address.patch
+Patch1010: wrap-ipv6-addresses-url.patch
+Patch1011: fix-ipv6-console-location-bis.patch
+Patch1012: add-ipv6-dns.patch
+Patch1013: vncproxy-ipv6.patch
+Patch1014: replace-gethostbyname.patch
+Patch1015: reconfigure-ipv6-when-necessary.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1029,7 +1037,7 @@ Coverage files from unit tests
 - CA-258385: Improved phrasing for errors thrown by assert_can_migrate.
 - Replace /tmp/network-reset literal with Xapi_globs
 - Travis: remove opam-coverage
-- Modifications to the error messages for better compliance with the 
+- Modifications to the error messages for better compliance with the
   values exposed via the API clients.
 
 * Thu Jun 06 2019 Christian Lindig <christian.lindig@citrix.com> - 1.177.0-1
@@ -1088,7 +1096,7 @@ Coverage files from unit tests
 * Fri May 03 2019 Christian Lindig <christian.lindig@citrix.com> - 1.170.0-1
 - CA-316165: workaround - disable CBT unit tests
 - CA-316165: disable more unit tests that used Thread.delay
-- Changed the checksum algorithm from SHA1 to xxHash, 
+- Changed the checksum algorithm from SHA1 to xxHash,
   backwards compatability is maintained
 - Revert "CP-30614: Use rrd files to gather memory statistics"
 
@@ -1107,11 +1115,11 @@ Coverage files from unit tests
 - Zstd export: Implement Zstd option for disk export
 - Zstd export: Add some helper functions
 - Zstd export: Allow specifying zstd export on the CLI
-- Zstd export: On VM import, autodetect whether gzip or zstd 
+- Zstd export: On VM import, autodetect whether gzip or zstd
   has been used to compress the image
 - Zstd export: Add feature flag for zstd export
 - Add zstd dependency to xapi.opam
-- Zstd export: fall back to gzip in all non-zstd cases, not just 
+- Zstd export: fall back to gzip in all non-zstd cases, not just
   if the gzip magic string is present
 
 * Tue Apr 09 2019 Christian Lindig <christian.lindig@citrix.com> - 1.165.0-1
@@ -1254,7 +1262,7 @@ Coverage files from unit tests
 - CP-29757: Add new VDI_IS_ENCRYPTED exception
 
 * Tue Nov 27 2018 Christian Lindig <christian.lindig@citrix.com> - 1.137.0-1
-- CP-30039: Generate automatically the release and class files for 
+- CP-30039: Generate automatically the release and class files for
   the xapi project docs; added release date to the releases.
 - Use lowercase for class filenames.
 - Improved field doc so we don't need extra doc notes for it i
@@ -1270,11 +1278,11 @@ Coverage files from unit tests
 - New ocaml-rpc
 
 * Fri Nov 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.134.0-1
-- CA-290024: Reject booting pv-iommu VMs on a host where the 
+- CA-290024: Reject booting pv-iommu VMs on a host where the
   premap is yet to complete
 
 * Tue Nov 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.133.0-1
-- Restored mustache in the dependencies of xapi-datamodel as it 
+- Restored mustache in the dependencies of xapi-datamodel as it
   is needed for doc generation.
 - XSO-244/CA-168413: Show minimum role per message in the API reference markdown.
 - CA-294900 remove network_sriov on network reset
@@ -1410,7 +1418,7 @@ Coverage files from unit tests
 - CA-294917: Added branding to the lima release.
 
 * Mon Aug 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.1-1
-- Bumped the minor api version as well as the client min and max version 
+- Bumped the minor api version as well as the client min and max version
   numbers to 2.11.
 - CA-294917: Added branding to the lima release.
 
@@ -1443,7 +1451,7 @@ Coverage files from unit tests
 * Fri Jul 13 2018 Christian Lindig <christian.lindig@citrix.com> - 1.107.0-1
 - CA-289650: Wait for the pidfile from udhcpd before releasing lock
 - CA-289898: GC dangling references from 'Host.updates_requiring_reboot'
-- CA-290840: VM.attached_PCIs field not properly cleanup when reverting 
+- CA-290840: VM.attached_PCIs field not properly cleanup when reverting
              from snapshot
 - CA-291017: Unable to connect server in pool of 64 physical hosts
 - CA-292676: Apply 'VDI missing' logic to picking SRs too
@@ -1523,7 +1531,7 @@ Coverage files from unit tests
 - Remove experimental flag of SRIoV feature
 
 * Mon Jun 11 2018 Christian Lindig <christian.lindig@citrix.com> - 1.99.0-1
-- Merge GFS2 branch: 
+- Merge GFS2 branch:
   CP-24692 CP-25121 CP-26147 CP-25121 CP-25121 CP-25121 CP-25121 CP-26199
   CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-27172
   CP-27172 CP-27466 CP-28213 CP-28213 CP-28406 CP-28406 CP-28406 CP-28406
@@ -1552,7 +1560,7 @@ Coverage files from unit tests
 - Quicktest: check snapshot VDI fields
 - Moved the output of gen_json.ml into the _build folder.
 - Removed obsolete docbook and pdf format of the API Reference.
-- Split API Reference into two files, one for classes and types and 
+- Split API Reference into two files, one for classes and types and
   one for error handling.
 - xapi-database: make safe-string compliant
 - xapi-types: make safe-string compliant
@@ -1615,10 +1623,10 @@ Coverage files from unit tests
 - CA-288635: increase db flush chunk size
 
 * Mon Apr 23 2018 Christian Lindig <christian.lindig@citrix.com> - 1.92.0-1
-- CA-267687: Logs of VBD operation check that inspects operations of 
+- CA-267687: Logs of VBD operation check that inspects operations of
   VBD's VDI do not match returned errors
 - XSI-6: Event class documentation enhancements.
-- CA-287865: Forwarded task calling Message_forwarding.xxx resulting 
+- CA-287865: Forwarded task calling Message_forwarding.xxx resulting
   current task being early marked completed
 - CA-286874: Redundant checks for SR-IOV when implementing VDI migration (#3547)
 - CA-287854: Add cluster stack constants and check cluster stack valid for
@@ -1627,10 +1635,10 @@ Coverage files from unit tests
 - CA-287863: Reorgnize the code
 - CA-287863: xe vm-shutdown complete the task too early
 - CA-287929: fix incorrect log message (11428 > 11428)
-- CA-281638: Set pool.ha_cluster_stacks upon Cluster.create/destroy success, 
+- CA-281638: Set pool.ha_cluster_stacks upon Cluster.create/destroy success,
   not on Cluster_host operations
 - CA-281638: Add tests for Pool.ha_cluster_stack selection
-- CA-287343: Update HA failure tolerance plan for corosync/GFS2 and 
+- CA-287343: Update HA failure tolerance plan for corosync/GFS2 and
   add unit tests
 - CA-244573: Storage migration state lost after xapi restarting
 - CA-244573: XenMotion fails after previously attempted SXM is
@@ -1640,7 +1648,7 @@ Coverage files from unit tests
 - ocp-indent cluster_stack_constraints and test_cluster(ing)
 - xapi_services.ml: use Re.Emacs instead of the deprecated Re_emacs
 - xa_auth_stubs: add missing header file
-- Network_event_loop: make sure no duplicated interfaces are 
+- Network_event_loop: make sure no duplicated interfaces are
   passed to firewall script
 - Improve documentation: Cannot is one word.
 - Remove deleted quicktests from all_tests list
@@ -1797,7 +1805,7 @@ Coverage files from unit tests
 - datamodel_values: remove unused to_xml
 - idl: revert datamodel_values to_rpc change and use to_ocaml_string instead
 - datamodel_values: correctly stringify numbers also when they are negative
-- gen_api: prevent default values for VCustom fields, these may contain 
+- gen_api: prevent default values for VCustom fields, these may contain
   code that break the unmarshaller
 - gen_api, datamodel_values: get defaults for VCustoms suitable for the API generator
 - database: simplify types after removing bigbuffer
@@ -1989,7 +1997,7 @@ Coverage files from unit tests
 - Refactoring: move modules into files
 - Backwards-compatibility: Move api_versions back to datamodel
 - Cleanup: Remove redundant pipe definitions
-- Remove field_has_effect from VBD.mode in favour of explicit declaration 
+- Remove field_has_effect from VBD.mode in favour of explicit declaration
   of setter
 - Remove redundant effectful fields (after CA-11132)
 - Remove effectful 'actions_after_crash' in favour of explicit setter
@@ -2014,7 +2022,7 @@ Coverage files from unit tests
 - Test CA-274152: SR.scan should update VDI.sharable
 - Xapi_sr.update_vdis: correctly set VDI.sharable field
 - CP-26444: static-vdis: need to save/pass uuid to SR.attach with SMAPIv3
-- CA-259369: Make sure we don't return SRmaster in the update 
+- CA-259369: Make sure we don't return SRmaster in the update
   device-config after SR.create
 - CP-20544: initialize coverage for XAPI itself too
 - CA-281002 CA-271406 let XSM+vGPU fail if VM reboots

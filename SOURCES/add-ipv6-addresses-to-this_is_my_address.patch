@@ -1,0 +1,31 @@
+commit 8d6d91049
+Author: BenjiReis <benjamin.reis@vates.fr>
+Date:   Tue Dec 29 13:48:35 2020 +0100
+
+    Add ipv6 addresses to this_is_my_address
+    
+    Signed-off-by: BenjiReis <benjamin.reis@vates.fr>
+
+diff --git a/ocaml/xapi/helpers.ml b/ocaml/xapi/helpers.ml
+index 6508e6dfe..a557ab382 100644
+--- a/ocaml/xapi/helpers.ml
++++ b/ocaml/xapi/helpers.ml
+@@ -1024,9 +1024,15 @@ let is_valid_MAC mac =
+ (** Returns true if the supplied IP address looks like one of mine *)
+ let this_is_my_address ~__context address =
+   let dbg = Context.string_of_task __context in
+-  let inet_addrs =
+-    Net.Interface.get_ipv4_addr dbg
+-      (Xapi_inventory.lookup Xapi_inventory._management_interface)
++  let inet_addrs = match Unixext.domain_of_addr address with
++    | Some x when x = Unix.PF_INET ->
++      Net.Interface.get_ipv4_addr dbg
++        (Xapi_inventory.lookup Xapi_inventory._management_interface)
++    | Some x when x = Unix.PF_INET6 ->
++      Net.Interface.get_ipv6_addr dbg
++        (Xapi_inventory.lookup Xapi_inventory._management_interface)
++    | _ ->
++      []
+   in
+   let addresses = List.map Unix.string_of_inet_addr (List.map fst inet_addrs) in
+   List.mem address addresses

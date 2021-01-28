@@ -1,0 +1,23 @@
+diff --git i/ocaml/xapi/xapi.ml w/ocaml/xapi/xapi.ml
+index 63ca54707..d53488bc6 100644
+--- i/ocaml/xapi/xapi.ml
++++ w/ocaml/xapi/xapi.ml
+@@ -673,8 +673,16 @@ let check_network_reset () =
+               | None ->
+                   phy_pif
+             in
+-            Xapi_pif.reconfigure_ip ~__context ~self:pif ~mode ~iP ~netmask
+-              ~gateway ~dNS ;
++            (* Reconfigure accordingly to primary_address_type *)
++            ( match Db.PIF.get_primary_address_type ~__context ~self:pif with
++            | `IPv4 ->
++                Xapi_pif.reconfigure_ip ~__context ~self:pif ~mode ~iP ~netmask
++                  ~gateway ~dNS
++            | `IPv6 ->
++                Xapi_pif.reconfigure_ipv6 ~__context ~self:pif ~mode
++                  ~iPv6:(iP ^ "/" ^ netmask)
++                  ~gateway ~dNS
++            ) ;
+             Xapi_host.management_reconfigure ~__context ~pif) ;
+     (* Remove trigger file *)
+     Unix.unlink Xapi_globs.network_reset_trigger

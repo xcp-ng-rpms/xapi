@@ -1,0 +1,217 @@
+diff --git c/ocaml/xapi/helpers.ml w/ocaml/xapi/helpers.ml
+index b3d928f09..162e8e55b 100644
+--- c/ocaml/xapi/helpers.ml
++++ w/ocaml/xapi/helpers.ml
+@@ -141,7 +141,13 @@ let determine_gateway_and_dns_ifs ~__context
+       ~expr:
+         (And
+            ( Eq (Field "host", Literal (Ref.string_of localhost))
+-           , Not (Eq (Field "ip_configuration_mode", Literal "None")) ))
++           , Or
++               ( And
++                   ( Not (Eq (Field "ip_configuration_mode", Literal "None"))
++                   , Eq (Field "primary_address_type", Literal "IPv4") )
++               , And
++                   ( Not (Eq (Field "ipv6_configuration_mode", Literal "None"))
++                   , Eq (Field "primary_address_type", Literal "IPv6") ) ) ))
+   in
+   if ip_pifs = [] then
+     (None, None)
+diff --git i/ocaml/xapi/nm.ml w/ocaml/xapi/nm.ml
+index 1638c4a85..fa78fa205 100644
+--- i/ocaml/xapi/nm.ml
++++ w/ocaml/xapi/nm.ml
+@@ -16,7 +16,7 @@ module D = Debug.Make (struct let name = "nm" end)
+ open D
+ open Stdext
+ open Xstringext
+-open Listext
++module Listext = Xapi_stdext_std.Listext.List
+ open Threadext
+ open Db_filter_types
+ open Network
+@@ -101,7 +101,7 @@ let determine_other_config ~__context pif_rc net_rc =
+     Db.Pool.get_other_config ~__context ~self:(Helpers.get_pool ~__context)
+   in
+   let additional = [("network-uuids", net_rc.API.network_uuid)] in
+-  (pool_oc |> List.update_assoc net_oc |> List.update_assoc pif_oc) @ additional
++  (pool_oc |> Listext.update_assoc net_oc |> Listext.update_assoc pif_oc) @ additional
+
+ let create_bond ~__context bond mtu persistent =
+   (* Get all information we need from the DB before doing anything that may drop our
+@@ -265,7 +265,7 @@ let create_vlan ~__context vlan persistent =
+     determine_other_config ~__context master_rc master_network_rc
+   in
+   let other_config =
+-    List.replace_assoc "network-uuids"
++    Listext.replace_assoc "network-uuids"
+       (master_network_rc.API.network_uuid
+       ^ ";"
+       ^ slave_network_rc.API.network_uuid
+@@ -513,6 +513,7 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+                   bond_record.API.bond_slaves ;
+                 maybe_update_master_pif_mac ~__context bond_record rc pif
+           in
++          let address_type = rc.API.pIF_primary_address_type in
+           Network.transform_networkd_exn pif (fun () ->
+               let persistent = is_dom0_interface rc in
+               let gateway_if, dns_if =
+@@ -537,12 +538,12 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+               Net.Bridge.make_config dbg false bridge_config ;
+               Net.Interface.make_config dbg false interface_config ;
+               (* Configure IPv4 parameters and DNS *)
+-              let ipv4_conf, ipv4_gateway, dns =
++              let ipv4_conf, ipv4_gateway =
+                 match rc.API.pIF_ip_configuration_mode with
+                 | `None ->
+-                    (None4, None, ([], []))
++                    (None4, None)
+                 | `DHCP ->
+-                    (DHCP4, None, ([], []))
++                    (DHCP4, None)
+                 | `Static ->
+                     let conf =
+                       Static4
+@@ -557,30 +558,7 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+                       else
+                         None
+                     in
+-                    let dns =
+-                      if rc.API.pIF_DNS <> "" then
+-                        let nameservers =
+-                          List.map Unix.inet_addr_of_string
+-                            (String.split ',' rc.API.pIF_DNS)
+-                        in
+-                        let domains =
+-                          if List.mem_assoc "domain" rc.API.pIF_other_config
+-                          then (
+-                            let domains =
+-                              List.assoc "domain" rc.API.pIF_other_config
+-                            in
+-                            try String.split ',' domains
+-                            with _ ->
+-                              warn "Invalid DNS search domains: %s" domains ;
+-                              []
+-                          ) else
+-                            []
+-                        in
+-                        (nameservers, domains)
+-                      else
+-                        ([], [])
+-                    in
+-                    (conf, gateway, dns)
++                    (conf, gateway)
+               in
+               let ipv4_routes = determine_static_routes net_rc in
+               (* Configure IPv6 parameters *)
+@@ -619,6 +597,37 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+                     in
+                     (conf, gateway)
+               in
++              let static =
++                match address_type with
++                | `IPv4 ->
++                    rc.API.pIF_ip_configuration_mode = `Static
++                | `IPv6 ->
++                    rc.API.pIF_ipv6_configuration_mode = `Static
++              in
++              let dns =
++                if static then
++                  if rc.API.pIF_DNS <> "" then
++                    let nameservers =
++                      List.map Unix.inet_addr_of_string
++                        (String.split ',' rc.API.pIF_DNS)
++                    in
++                    let domains =
++                      match List.assoc_opt "domain" rc.API.pIF_other_config with
++                      | None ->
++                          []
++                      | Some domains -> (
++                        try String.split ',' domains
++                        with _ ->
++                          warn "Invalid DNS search domains: %s" domains ;
++                          []
++                      )
++                    in
++                    (nameservers, domains)
++                  else
++                    ([], [])
++                else
++                  ([], [])
++              in
+               let mtu = determine_mtu rc net_rc in
+               let ethtool_settings, ethtool_offload =
+                 determine_ethtool_settings rc.API.pIF_properties
+@@ -643,14 +652,33 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+               in
+               Net.Interface.make_config dbg false interface_config) ;
+           let new_ip =
+-            match Net.Interface.get_ipv4_addr dbg bridge with
++            let addr =
++              match address_type with
++              | `IPv4 ->
++                  Net.Interface.get_ipv4_addr dbg bridge
++              | `IPv6 ->
++                  Net.Interface.get_ipv6_addr dbg bridge
++            in
++            match addr with
+             | (ip, _) :: _ ->
+                 Unix.string_of_inet_addr ip
+             | [] ->
+                 ""
+           in
+-          if new_ip <> rc.API.pIF_IP then (
+-            warn "An IP address of dom0 was changed" ;
++          let pif_ip =
++            match address_type with
++            | `IPv4 ->
++                rc.API.pIF_IP
++            | `IPv6 -> (
++              match rc.API.pIF_IPv6 with
++              | [] ->
++                  ""
++              | hd :: _ -> (
++                match String.split_on_char '/' hd with [ip; _] -> ip | _ -> ""
++              )
++            )
++          in
++          if new_ip <> pif_ip then (            warn "An IP address of dom0 was changed" ;
+             warn "About to kill idle client stunnels" ;
+             (* The master_connection would otherwise try to take a broken stunnel from the cache *)
+             Stunnel_cache.flush () ;
+diff --git c/ocaml/xapi/xapi_pif.ml w/ocaml/xapi/xapi_pif.ml
+index 47bcdfa54..183dea2d0 100644
+--- c/ocaml/xapi/xapi_pif.ml
++++ w/ocaml/xapi/xapi_pif.ml
+@@ -709,7 +709,14 @@ let reconfigure_ipv6 ~__context ~self ~mode ~iPv6 ~gateway ~dNS =
+   Db.PIF.set_ipv6_configuration_mode ~__context ~self ~value:mode ;
+   Db.PIF.set_ipv6_gateway ~__context ~self ~value:gateway ;
+   Db.PIF.set_IPv6 ~__context ~self ~value:[iPv6] ;
+-  if dNS <> "" then Db.PIF.set_DNS ~__context ~self ~value:dNS ;
++  (* Keep IPv4 DNS entries *)
++  let pif_dns =
++    List.filter
++      (fun dns_addr ->
++        Xapi_stdext_unix.Unixext.domain_of_addr dns_addr = Some Unix.PF_INET)
++      (String.split_on_char ',' (Db.PIF.get_DNS ~__context ~self))
++  in
++  Db.PIF.set_DNS ~__context ~self ~value:(String.concat "," (dNS :: pif_dns)) ;
+   if Db.PIF.get_currently_attached ~__context ~self then (
+     debug
+       "PIF %s is currently_attached and the configuration has changed; calling \
+@@ -755,7 +762,14 @@ let reconfigure_ip ~__context ~self ~mode ~iP ~netmask ~gateway ~dNS =
+   Db.PIF.set_IP ~__context ~self ~value:iP ;
+   Db.PIF.set_netmask ~__context ~self ~value:netmask ;
+   Db.PIF.set_gateway ~__context ~self ~value:gateway ;
+-  Db.PIF.set_DNS ~__context ~self ~value:dNS ;
++  (* Keep IPv6 DNS entries *)
++  let pif_dns =
++    List.filter
++      (fun dns_addr ->
++        Xapi_stdext_unix.Unixext.domain_of_addr dns_addr = Some Unix.PF_INET6)
++      (String.split_on_char ',' (Db.PIF.get_DNS ~__context ~self))
++  in
++  Db.PIF.set_DNS ~__context ~self ~value:(String.concat "," (dNS :: pif_dns)) ;
+   if Db.PIF.get_currently_attached ~__context ~self then (
+     debug
+       "PIF %s is currently_attached and the configuration has changed; calling \
