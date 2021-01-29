@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.5
-Release: 1.1%{?dist}
+Release: 1.1.0.ipv6.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -474,6 +474,18 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Jan 29 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-.1.1.0.ipv6.1
+- Add IPv6 patches:
+- xapi-1.249.5-fix-ipv6-console-location.patch
+- xapi-1.249.5-allow-ipv6-migration.patch
+- xapi-1.249.5-add-ipv6-addresses-to-this_is_my_address.patch
+- xapi-1.249.5-wrap-ipv6-addresses-url.patch
+- xapi-1.249.5-fix-ipv6-console-location-bis.patch
+- xapi-1.249.5-add-ipv6-dns.patch
+- xapi-1.249.5-vncproxy-ipv6.patch
+- xapi-1.249.5-replace-gethostbyname.patch
+- xapi-1.249.5-reconfigure-ipv6-when-necessary.patch
+
 * Wed Nov 04 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.5-1.1
 - Sync with hotfix XS82E002
 - Maintenance update
