@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.5
-Release: 1.1%{?dist}
+Release: 1.1.0.evacnet.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -25,6 +25,7 @@ Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1007: xapi-1.249.5-add-network-to-host-evacuate.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -465,6 +466,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon May 10 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.evacnet.1
+- Adds xapi-1.249.5-add-network-to-host-evacuate.XCP-ng.patch
+
 * Wed Nov 04 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.5-1.1
 - Sync with hotfix XS82E002
 - Maintenance update
