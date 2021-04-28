@@ -1,0 +1,241 @@
+Enable to choose a migration network in `VM.pool_migrate`:
+* Add `network` key in `options` expecting a network ref to try to migrate on
+* If not possible, fallback on management address
+
+Enable to choose a migration network `Host.evacuate`:
+* Add `network` field to `Host.evacuate` method
+* Use `network` in `VM.pool_migrate` calls when relevant
+
+Add assert_valid_ip_configuration_on_network_for_host helper to ensure a host has a pif with a not none ip configuration in a given network.
+Use this helper in host.evacaute and VM.pool_migrate when a migration network is given.
+
+diff --git c/ocaml/idl/datamodel_host.ml w/ocaml/idl/datamodel_host.ml
+index 1073f8071..d0a12ef38 100644
+--- c/ocaml/idl/datamodel_host.ml
++++ w/ocaml/idl/datamodel_host.ml
+@@ -336,7 +336,14 @@ let host_query_ha = call ~flags:[`Session]
+       ~in_product_since:rel_miami
+       ~name:"evacuate"
+       ~doc:"Migrate all VMs off of this host, where possible."
+-      ~params:[Ref _host, "host", "The host to evacuate"]
++      ~lifecycle:[
++        Published, rel_miami, "";
++        Extended, rel_next, "Enable migration network selection."
++      ]
++      ~versioned_params:[
++        {param_type=Ref _host; param_name="host"; param_doc="The host to evacuate"; param_release=miami_release; param_default=None};
++        {param_type=Ref _network; param_name="network"; param_doc="Optional preferred network for migration"; param_release=next_release; param_default=(Some (VRef null_ref))}
++      ]
+       ~allowed_roles:_R_POOL_OP
+       ()
+
+diff --git c/ocaml/xapi-cli-server/cli_frontend.ml w/ocaml/xapi-cli-server/cli_frontend.ml
+index b53aaf195..ea899abc9 100644
+--- c/ocaml/xapi-cli-server/cli_frontend.ml
++++ w/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -2430,7 +2430,7 @@ let rec cmdtable_data : (string * cmd_spec) list =
+   ; ( "host-evacuate"
+     , {
+         reqd= []
+-      ; optn= []
++      ; optn= ["network-uuid"]
+       ; help= "Migrate all VMs off a host."
+       ; implementation= No_fd Cli_operations.host_evacuate
+       ; flags= [Host_selectors]
+diff --git c/ocaml/xapi-cli-server/cli_operations.ml w/ocaml/xapi-cli-server/cli_operations.ml
+index 6904de41f..fb93a6681 100644
+--- c/ocaml/xapi-cli-server/cli_operations.ml
++++ w/ocaml/xapi-cli-server/cli_operations.ml
+@@ -4767,10 +4767,16 @@ let host_all_editions printer rpc session_id params =
+   printer (Cli_printer.PList editions)
+
+ let host_evacuate printer rpc session_id params =
++  let network =
++    List.assoc_opt "network-uuid" params
++    |> Option.fold ~none:Ref.null ~some:(fun uuid ->
++           Client.Network.get_by_uuid rpc session_id uuid)
++  in
+   ignore
+     (do_host_op rpc session_id ~multiple:false
+-       (fun _ host -> Client.Host.evacuate rpc session_id (host.getref ()))
+-       params [])
++       (fun _ host ->
++         Client.Host.evacuate rpc session_id (host.getref ()) network)
++       params ["network-uuid"])
+
+ let host_get_vms_which_prevent_evacuation printer rpc session_id params =
+   let uuid = List.assoc "uuid" params in
+diff --git c/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
+index a8d40fcaf..b166daef5 100644
+--- c/ocaml/xapi/message_forwarding.ml
++++ w/ocaml/xapi/message_forwarding.ml
+@@ -2987,13 +2987,14 @@ functor
+           (host_uuid ~__context self) ;
+         Local.Host.get_vms_which_prevent_evacuation ~__context ~self
+
+-      let evacuate ~__context ~host =
++      let evacuate ~__context ~host ~network =
+         info "Host.evacuate: host = '%s'" (host_uuid ~__context host) ;
+         (* Block call if this would break our VM restart plan (because the body of this sets enabled to false) *)
+         Xapi_ha_vm_failover.assert_host_disable_preserves_ha_plan ~__context
+           host ;
+         with_host_operation ~__context ~self:host ~doc:"Host.evacuate"
+-          ~op:`evacuate (fun () -> Local.Host.evacuate ~__context ~host)
++          ~op:`evacuate (fun () ->
++            Local.Host.evacuate ~__context ~host ~network)
+
+       let retrieve_wlb_evacuate_recommendations ~__context ~self =
+         info "Host.retrieve_wlb_evacuate_recommendations: host = '%s'"
+diff --git c/ocaml/xapi/vm_evacuation.ml w/ocaml/xapi/vm_evacuation.ml
+index 875faa6b7..0ecf6b397 100644
+--- c/ocaml/xapi/vm_evacuation.ml
++++ w/ocaml/xapi/vm_evacuation.ml
+@@ -60,7 +60,9 @@ let ensure_no_vms ~__context ~rpc ~session_id ~evacuate_timeout =
+       else
+         estimate_evacuate_timeout ~__context ~host
+     in
+-    let tasks = [Client.Async.Host.evacuate ~rpc ~session_id ~host] in
++    let tasks =
++      [Client.Async.Host.evacuate ~rpc ~session_id ~host ~network:Ref.null]
++    in
+     if not (Tasks.with_tasks_destroy ~rpc ~session_id ~timeout ~tasks) then
+       get_running_domains () |> List.iter cancel_vm_tasks
+   in
+diff --git c/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
+index 5f7b914aa..67c292fff 100644
+--- c/ocaml/xapi/xapi_host.ml
++++ w/ocaml/xapi/xapi_host.ml
+@@ -548,7 +548,7 @@ let compute_evacuation_plan ~__context ~host =
+            Using original algorithm" ;
+         compute_evacuation_plan_no_wlb ~__context ~host
+
+-let evacuate ~__context ~host =
++let evacuate ~__context ~host ~network =
+   let task = Context.get_task_id __context in
+   let plans = compute_evacuation_plan ~__context ~host in
+   (* Check there are no errors in this list *)
+@@ -566,9 +566,26 @@ let evacuate ~__context ~host =
+     match plan with
+     | Migrate host ->
+         ( try
++            ( if network <> Ref.null then
++                let hosts = Db.Host.get_all ~__context in
++                List.iter
++                  (fun host ->
++                    ignore
++                    @@ Xapi_network_attach_helpers
++                       .assert_valid_ip_configuration_on_network_for_host
++                         ~__context ~self:network ~host)
++                  hosts
++            ) ;
++            let with_network_option =
++              if network <> Ref.null then
++                [("network", Ref.string_of network)]
++              else
++                []
++            in
++            let options = ("live", "true") :: with_network_option in
+             Helpers.call_api_functions ~__context (fun rpc session_id ->
+                 Client.Client.VM.pool_migrate ~rpc ~session_id ~vm ~host
+-                  ~options:[("live", "true")])
++                  ~options)
+           with
+         | Api_errors.Server_error (code, params)
+           when code = Api_errors.vm_bad_power_state ->
+diff --git c/ocaml/xapi/xapi_host.mli w/ocaml/xapi/xapi_host.mli
+index b74a30bfc..e4c5cffab 100644
+--- c/ocaml/xapi/xapi_host.mli
++++ w/ocaml/xapi/xapi_host.mli
+@@ -54,7 +54,8 @@ val assert_can_evacuate : __context:Context.t -> host:API.ref_host -> unit
+ val get_vms_which_prevent_evacuation :
+   __context:Context.t -> self:API.ref_host -> (API.ref_VM * string list) list
+
+-val evacuate : __context:Context.t -> host:API.ref_host -> unit
++val evacuate :
++  __context:Context.t -> host:API.ref_host -> network:API.ref_network -> unit
+
+ val retrieve_wlb_evacuate_recommendations :
+   __context:Context.t -> self:API.ref_host -> (API.ref_VM * string list) list
+diff --git c/ocaml/xapi/xapi_network_attach_helpers.ml w/ocaml/xapi/xapi_network_attach_helpers.ml
+index eb25e1895..ec66b3730 100644
+--- c/ocaml/xapi/xapi_network_attach_helpers.ml
++++ w/ocaml/xapi/xapi_network_attach_helpers.ml
+@@ -82,6 +82,26 @@ let assert_can_attach_network_on_host ~__context ~self ~host =
+   let local_pifs = get_local_pifs ~__context ~network:self ~host in
+   List.iter (fun pif -> assert_no_slave ~__context pif) local_pifs
+
++let assert_valid_ip_configuration_on_network_for_host ~__context ~self ~host =
++  match get_local_pifs ~__context ~network:self ~host with
++  | [] ->
++      raise
++        Api_errors.(
++          Server_error
++            (pif_not_present, [Ref.string_of host; Ref.string_of self]))
++  | pif :: _ -> (
++      if not (Db.PIF.get_currently_attached ~__context ~self:pif) then
++        raise
++          Api_errors.(
++            Server_error (required_pif_is_unplugged, [Ref.string_of pif])) ;
++      match Xapi_pif_helpers.get_primary_address ~__context ~pif with
++      | Some ip ->
++          ip
++      | None ->
++          raise
++            Api_errors.(Server_error (interface_has_no_ip, [Ref.string_of pif]))
++    )
++
+ let assert_can_see_named_networks ~__context ~vm ~host reqd_nets =
+   let is_network_available_on host net =
+     (* has the network been actualised by one or more PIFs, or is managed by xapi?*)
+diff --git c/ocaml/xapi/xapi_network_attach_helpers.mli w/ocaml/xapi/xapi_network_attach_helpers.mli
+index be3c47862..5c1943565 100644
+--- c/ocaml/xapi/xapi_network_attach_helpers.mli
++++ w/ocaml/xapi/xapi_network_attach_helpers.mli
+@@ -44,3 +44,6 @@ val assert_can_see_named_networks :
+ val assert_can_attach_network_on_host :
+   __context:Context.t -> self:[`network] Ref.t -> host:[`host] Ref.t -> unit
+ (** Raises an exception if the network cannot be attached. *)
++
++val assert_valid_ip_configuration_on_network_for_host :
++  __context:Context.t -> self:[`network] Ref.t -> host:[`host] Ref.t -> string
+diff --git c/ocaml/xapi/xapi_pif_helpers.ml w/ocaml/xapi/xapi_pif_helpers.ml
+index bab6e41e8..bc82198d3 100644
+--- c/ocaml/xapi/xapi_pif_helpers.ml
++++ w/ocaml/xapi/xapi_pif_helpers.ml
+@@ -242,3 +242,11 @@ let is_device_underneath_same_type ~__context pif1 pif2 =
+     (pci_rec.Db_actions.pCI_vendor_id, pci_rec.Db_actions.pCI_device_id)
+   in
+   get_device_info pif1 = get_device_info pif2
++
++let get_primary_address ~__context ~pif =
++  match Db.PIF.get_primary_address_type ~__context ~self:pif with
++  | `IPv4 -> (
++    match Db.PIF.get_IP ~__context ~self:pif with "" -> None | ip -> Some ip
++  )
++  | `IPv6 ->
++      List.nth_opt (Db.PIF.get_IPv6 ~__context ~self:pif) 0
+diff --git c/ocaml/xapi/xapi_vm_migrate.ml w/ocaml/xapi/xapi_vm_migrate.ml
+index 424c81a8c..8468d61ce 100644
+--- c/ocaml/xapi/xapi_vm_migrate.ml
++++ w/ocaml/xapi/xapi_vm_migrate.ml
+@@ -312,9 +312,18 @@ let pool_migrate ~__context ~vm ~host ~options =
+   let queue_name = queue_of_vm ~__context ~self:vm in
+   let module XenopsAPI = (val make_client queue_name : XENOPS) in
+   let session_id = Ref.string_of (Context.get_session_id __context) in
+-  let ip =
+-    Http.Url.maybe_wrap_IPv6_literal (Db.Host.get_address ~__context ~self:host)
++  (* If `network` provided in `options`, try to get `xenops_url` on this network *)
++  let address =
++    match List.assoc_opt "network" options with
++    | None ->
++        Db.Host.get_address ~__context ~self:host
++    | Some network_ref ->
++        let network = Ref.of_string network_ref in
++        Xapi_network_attach_helpers
++        .assert_valid_ip_configuration_on_network_for_host ~__context
++          ~self:network ~host
+   in
++  let ip = Http.Url.maybe_wrap_IPv6_literal address in
+   let xenops_url =
+     Printf.sprintf "http://%s/services/xenops?session_id=%s" ip session_id
+   in
