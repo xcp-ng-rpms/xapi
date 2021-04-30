@@ -37,6 +37,7 @@ Patch1015: xapi-1.249.5-reconfigure-ipv6-when-necessary.patch
 Patch1016: xapi-1.249.5-bond-create-address-type.patch
 Patch1017: xapi-1.249.5-tunnel-create-address-type.patch
 Patch1018: xapi-1.249.5-vlan-create-address-type.patch
+Patch1019: xapi-1.249.5-sriov-create-address-type.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -482,6 +483,7 @@ Coverage files from unit tests
 - Add xapi-1.249.5-bond-create-address-type.patch
 - Add xapi-1.249.5-tunnel-create-address-type.patch
 - Add xapi-1.249.5-vlan-create-address-type.patch
+- Add xapi-1.249.5-sriov-create-address-type.patch
 
 * Fri Jan 29 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.1
 - Add IPv6 patches:
