@@ -35,6 +35,7 @@ Patch1013: xapi-1.249.5-vncproxy-ipv6.patch
 Patch1014: xapi-1.249.5-replace-gethostbyname.patch
 Patch1015: xapi-1.249.5-reconfigure-ipv6-when-necessary.patch
 Patch1016: xapi-1.249.5-bond-create-address-type.patch
+Patch1017: xapi-1.249.5-tunnel-create-address-type.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -478,6 +479,7 @@ Coverage files from unit tests
 * Fri Apr 30 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.2
 - Update xapi-1.249.5-reconfigure-ipv6-when-necessary.patch to be aligned with upstream merge
 - Add xapi-1.249.5-bond-create-address-type.patch
+- Add xapi-1.249.5-tunnel-create-address-type.patch
 
 * Fri Jan 29 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.1
 - Add IPv6 patches:
