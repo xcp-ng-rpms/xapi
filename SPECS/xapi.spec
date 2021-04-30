@@ -480,6 +480,7 @@ Coverage files from unit tests
 %changelog
 * Fri Apr 30 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.2
 - Update xapi-1.249.5-reconfigure-ipv6-when-necessary.patch to be aligned with upstream merge
+- Update xapi-1.249.5-add-ipv6-dns.patch to be aligned with upstream merge
 - Add xapi-1.249.5-bond-create-address-type.patch
 - Add xapi-1.249.5-tunnel-create-address-type.patch
 - Add xapi-1.249.5-vlan-create-address-type.patch

@@ -1,7 +1,7 @@
-diff --git c/ocaml/xapi/helpers.ml w/ocaml/xapi/helpers.ml
-index b3d928f09..162e8e55b 100644
---- c/ocaml/xapi/helpers.ml
-+++ w/ocaml/xapi/helpers.ml
+diff --git a/ocaml/xapi/helpers.ml b/ocaml/xapi/helpers.ml
+index b3d928f099..162e8e55bf 100644
+--- a/ocaml/xapi/helpers.ml
++++ b/ocaml/xapi/helpers.ml
 @@ -141,7 +141,13 @@ let determine_gateway_and_dns_ifs ~__context
        ~expr:
          (And
@@ -17,10 +17,10 @@ index b3d928f09..162e8e55b 100644
    in
    if ip_pifs = [] then
      (None, None)
-diff --git i/ocaml/xapi/nm.ml w/ocaml/xapi/nm.ml
-index 1638c4a85..fa78fa205 100644
---- i/ocaml/xapi/nm.ml
-+++ w/ocaml/xapi/nm.ml
+diff --git a/ocaml/xapi/nm.ml b/ocaml/xapi/nm.ml
+index 1c13f25485..6aeda51af8 100644
+--- a/ocaml/xapi/nm.ml
++++ b/ocaml/xapi/nm.ml
 @@ -16,7 +16,7 @@ module D = Debug.Make (struct let name = "nm" end)
  open D
  open Stdext
@@ -30,16 +30,17 @@ index 1638c4a85..fa78fa205 100644
  open Threadext
  open Db_filter_types
  open Network
-@@ -101,7 +101,7 @@ let determine_other_config ~__context pif_rc net_rc =
+@@ -100,7 +100,8 @@ let determine_other_config ~__context pif_rc net_rc =
      Db.Pool.get_other_config ~__context ~self:(Helpers.get_pool ~__context)
    in
    let additional = [("network-uuids", net_rc.API.network_uuid)] in
 -  (pool_oc |> List.update_assoc net_oc |> List.update_assoc pif_oc) @ additional
-+  (pool_oc |> Listext.update_assoc net_oc |> Listext.update_assoc pif_oc) @ additional
++  (pool_oc |> Listext.update_assoc net_oc |> Listext.update_assoc pif_oc)
++  @ additional
 
  let create_bond ~__context bond mtu persistent =
    (* Get all information we need from the DB before doing anything that may drop our
-@@ -265,7 +265,7 @@ let create_vlan ~__context vlan persistent =
+@@ -264,7 +265,7 @@ let create_vlan ~__context vlan persistent =
      determine_other_config ~__context master_rc master_network_rc
    in
    let other_config =
@@ -48,7 +49,7 @@ index 1638c4a85..fa78fa205 100644
        (master_network_rc.API.network_uuid
        ^ ";"
        ^ slave_network_rc.API.network_uuid
-@@ -513,6 +513,7 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+@@ -512,6 +513,7 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
                    bond_record.API.bond_slaves ;
                  maybe_update_master_pif_mac ~__context bond_record rc pif
            in
@@ -56,7 +57,7 @@ index 1638c4a85..fa78fa205 100644
            Network.transform_networkd_exn pif (fun () ->
                let persistent = is_dom0_interface rc in
                let gateway_if, dns_if =
-@@ -537,12 +538,12 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+@@ -536,12 +538,12 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
                Net.Bridge.make_config dbg false bridge_config ;
                Net.Interface.make_config dbg false interface_config ;
                (* Configure IPv4 parameters and DNS *)
@@ -72,7 +73,7 @@ index 1638c4a85..fa78fa205 100644
                  | `Static ->
                      let conf =
                        Static4
-@@ -557,30 +558,7 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+@@ -556,30 +558,7 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
                        else
                          None
                      in
@@ -104,7 +105,7 @@ index 1638c4a85..fa78fa205 100644
                in
                let ipv4_routes = determine_static_routes net_rc in
                (* Configure IPv6 parameters *)
-@@ -619,6 +597,37 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+@@ -618,6 +597,35 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
                      in
                      (conf, gateway)
                in
@@ -116,11 +117,13 @@ index 1638c4a85..fa78fa205 100644
 +                    rc.API.pIF_ipv6_configuration_mode = `Static
 +              in
 +              let dns =
-+                if static then
-+                  if rc.API.pIF_DNS <> "" then
++                match (static, rc.API.pIF_DNS) with
++                | false, _ | true, "" ->
++                    ([], [])
++                | true, pif_dns ->
 +                    let nameservers =
 +                      List.map Unix.inet_addr_of_string
-+                        (String.split ',' rc.API.pIF_DNS)
++                        (String.split ',' pif_dns)
 +                    in
 +                    let domains =
 +                      match List.assoc_opt "domain" rc.API.pIF_other_config with
@@ -134,15 +137,11 @@ index 1638c4a85..fa78fa205 100644
 +                      )
 +                    in
 +                    (nameservers, domains)
-+                  else
-+                    ([], [])
-+                else
-+                  ([], [])
 +              in
                let mtu = determine_mtu rc net_rc in
                let ethtool_settings, ethtool_offload =
                  determine_ethtool_settings rc.API.pIF_properties
-@@ -643,14 +652,33 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+@@ -642,13 +650,38 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
                in
                Net.Interface.make_config dbg false interface_config) ;
            let new_ip =
@@ -161,7 +160,6 @@ index 1638c4a85..fa78fa205 100644
                  ""
            in
 -          if new_ip <> rc.API.pIF_IP then (
--            warn "An IP address of dom0 was changed" ;
 +          let pif_ip =
 +            match address_type with
 +            | `IPv4 ->
@@ -171,18 +169,23 @@ index 1638c4a85..fa78fa205 100644
 +              | [] ->
 +                  ""
 +              | hd :: _ -> (
-+                match String.split_on_char '/' hd with [ip; _] -> ip | _ -> ""
++                (* IPv6 addresses are stored with this format: <ipv6>/<cidr> *)
++                match String.split_on_char '/' hd with
++                | [ip; _] ->
++                    ip
++                | _ ->
++                    ""
 +              )
 +            )
 +          in
-+          if new_ip <> pif_ip then (            warn "An IP address of dom0 was changed" ;
++          if new_ip <> pif_ip then (
+             warn "An IP address of dom0 was changed" ;
              warn "About to kill idle client stunnels" ;
              (* The master_connection would otherwise try to take a broken stunnel from the cache *)
-             Stunnel_cache.flush () ;
-diff --git c/ocaml/xapi/xapi_pif.ml w/ocaml/xapi/xapi_pif.ml
-index 47bcdfa54..183dea2d0 100644
---- c/ocaml/xapi/xapi_pif.ml
-+++ w/ocaml/xapi/xapi_pif.ml
+diff --git a/ocaml/xapi/xapi_pif.ml b/ocaml/xapi/xapi_pif.ml
+index 47bcdfa548..183dea2d01 100644
+--- a/ocaml/xapi/xapi_pif.ml
++++ b/ocaml/xapi/xapi_pif.ml
 @@ -709,7 +709,14 @@ let reconfigure_ipv6 ~__context ~self ~mode ~iPv6 ~gateway ~dNS =
    Db.PIF.set_ipv6_configuration_mode ~__context ~self ~value:mode ;
    Db.PIF.set_ipv6_gateway ~__context ~self ~value:gateway ;
@@ -215,3 +218,48 @@ index 47bcdfa54..183dea2d0 100644
    if Db.PIF.get_currently_attached ~__context ~self then (
      debug
        "PIF %s is currently_attached and the configuration has changed; calling \
+diff --git a/scripts/network-init b/scripts/network-init
+index 616846a56a..5aa1858c50 100755
+--- a/scripts/network-init
++++ b/scripts/network-init
+@@ -36,14 +36,14 @@ prepare_networking() {
+             else
+                 PIF="${PHYSICAL_PIF}"
+             fi
++            isStatic=false
+             case $MODE in
+                 dhcp|none)
+                     $XE pif-reconfigure-ip uuid=${PIF} mode=${MODE} || true
+                     ;;
+                 static)
+-                    domain=`echo $DOMAIN | tr ' ' ','`
++                    isStatic=true
+                     $XE pif-reconfigure-ip uuid=${PIF} mode=static IP=${IP} netmask=${NETMASK} gateway=${GATEWAY} ${DNS+DNS=$DNS} || true
+-                    [ $domain ] && $XE pif-param-set uuid=${PIF} other-config:domain=$domain || true
+                     ;;
+             esac
+             case $MODEV6 in
+@@ -51,9 +51,14 @@ prepare_networking() {
+                     $XE pif-reconfigure-ipv6 uuid=${PIF} mode=${MODEV6} || true
+                     ;;
+                 static)
+-                    $XE pif-reconfigure-ipv6 uuid=${PIF} mode=static IPv6=${IPv6} gateway=${IPv6_GATEWAY} || true
++                    isStatic=true
++                    $XE pif-reconfigure-ipv6 uuid=${PIF} mode=static IPv6=${IPv6} gateway=${IPv6_GATEWAY} ${DNS+DNS=$DNS} || true
+                     ;;
+             esac
++            if [ $isStatic = true ] ; then
++                domain=`echo $DOMAIN | tr ' ' ','`
++                [ $domain ] && $XE pif-param-set uuid=${PIF} other-config:domain=$domain || true
++            fi
+             if [ "${MANAGEMENT_ADDRESS_TYPE}" = "IPv6" ] ; then
+                     $XE host-management-disable
+                     $XE pif-set-primary-address-type uuid="${PIF}" primary_address_type=${MANAGEMENT_ADDRESS_TYPE}
+@@ -97,6 +102,7 @@ rename_network_label() {
+             name_label="Guest Network $((${device_id} - 2))"
+             pif_uuid=$(${XE} pif-list device=${device} params=uuid --minimal)
+             ${XE} pif-reconfigure-ip uuid="${pif_uuid}" mode=none
++            ${XE} pif-reconfigure-ipv6 uuid="${pif_uuid}" mode=none
+         else
+             echo "Warning: found unsupported device ${device}"
+             continue
