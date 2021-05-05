@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.5
-Release: 1.1.0.ipv6.2%{?dist}
+Release: 1.1.0.ipv6.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -478,6 +478,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed May 05 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.3
+- Rebuild for IPv6
+
 * Fri Apr 30 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.2
 - Update xapi-1.249.5-reconfigure-ipv6-when-necessary.patch to be aligned with upstream merge
 - Update xapi-1.249.5-add-ipv6-dns.patch to be aligned with upstream merge
