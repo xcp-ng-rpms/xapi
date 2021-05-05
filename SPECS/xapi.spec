@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.5
-Release: 1.1.0.ipv6.1%{?dist}
+Release: 1.1.0.ipv6.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -34,6 +34,10 @@ Patch1012: xapi-1.249.5-add-ipv6-dns.patch
 Patch1013: xapi-1.249.5-vncproxy-ipv6.patch
 Patch1014: xapi-1.249.5-replace-gethostbyname.patch
 Patch1015: xapi-1.249.5-reconfigure-ipv6-when-necessary.patch
+Patch1016: xapi-1.249.5-bond-create-address-type.patch
+Patch1017: xapi-1.249.5-tunnel-create-address-type.patch
+Patch1018: xapi-1.249.5-vlan-create-address-type.patch
+Patch1019: xapi-1.249.5-sriov-create-address-type.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -474,6 +478,14 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Apr 30 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.2
+- Update xapi-1.249.5-reconfigure-ipv6-when-necessary.patch to be aligned with upstream merge
+- Update xapi-1.249.5-add-ipv6-dns.patch to be aligned with upstream merge
+- Add xapi-1.249.5-bond-create-address-type.patch
+- Add xapi-1.249.5-tunnel-create-address-type.patch
+- Add xapi-1.249.5-vlan-create-address-type.patch
+- Add xapi-1.249.5-sriov-create-address-type.patch
+
 * Fri Jan 29 2021 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.5-1.1.0.ipv6.1
 - Add IPv6 patches:
 - xapi-1.249.5-fix-ipv6-console-location.patch
