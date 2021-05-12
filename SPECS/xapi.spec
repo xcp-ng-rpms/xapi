@@ -2,16 +2,16 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.5
+Version: 1.249.9
 Release: 1
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz
 
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 
 
 BuildRequires: ocaml-ocamldoc
@@ -46,7 +46,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -54,7 +54,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -86,7 +86,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -94,7 +94,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -103,7 +103,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -115,7 +115,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -127,7 +127,7 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -431,7 +431,7 @@ systemctl preset xapi-wait-init-complete || :
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.5&format=tar.gz&prefix=xapi-1.249.5#/xen-api-1.249.5.tar.gz) = 607ad86216d25e7ecab68f51cadc91eb14183db8
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.9&format=tar.gz&prefix=xapi-1.249.9#/xen-api-1.249.9.tar.gz) = 118d1a5b749f00093808689259a1915d1fbf14c1
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -442,6 +442,42 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Apr 28 2021 Rob Hoes <rob.hoes@citrix.com> - 1.249.9-1
+- CA-349123: Update VBD/VIF plug fix
+
+* Wed Apr 28 2021 Rob Hoes <rob.hoes@citrix.com> - 1.249.8-1
+- CA-349123: Fix metadata race in VBD/VIF plug
+
+* Fri Mar 26 2021 Ben Anson <ben.anson@citrix.com> - 1.249.7-1
+- maintenance: allow tests to run in a sandbox
+- idl: fix name of dependencies of tests
+- CA-352111: Do not output on cronjobs unless there's an error
+
+* Thu Feb 11 2021 Ben Anson <ben.anson@citrix.com> - 1.249.6-1
+- CP-35026 tell stunnel to provide inet address info
+- CP-35026 utils for extracting IP addresses
+- CP-35026 add client field to Context.t
+- CP-35026 pass client info to the debug module
+- ci: enable github actions
+- maintenance: declar fpath as a dependency for xe
+- ci: remove travis
+- CP-35021 VM.suspend - assert support for NVidia cards
+- CP-35021 introduce new API error for vGPU suspend
+- maintenance: make format
+- maintenance: make format
+- REQ-819 stockholm schema version bump
+- CP-34602: test get_server_localtime and message.get_since
+- CA-342551: Avoid replacing certificate alerts
+- CA-343646: generate certificate alerts
+- CA-343646: Avoid using API when no alerts are going to be modified
+- CP-35210: log why a private key or certificates failed to validate
+- CA-351323 XSI-828 fix snapshot metadata lookup
+- CA-348700: Block VDI.copy if on-boot=reset
+- maintenance: detect schema updates which are missing version bumps
+- CA-332779: Update power_state first in force_state_reset_keep_current_operations
+- CA-332779: Avoid VM.remove in maybe_cleanup_vm
+- CA-347560: Call VM.import_metadata_async for MD updates
+
 * Fri Oct 23 2020 Ben Anson <ben.anson@citrix.com> - 1.249.5-1
 - CA-347543 use /usr/bin/pool_secret_wrapper only if CC
 
