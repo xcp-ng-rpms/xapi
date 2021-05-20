@@ -25,6 +25,7 @@ Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -466,6 +467,7 @@ Coverage files from unit tests
 
 %changelog
 * Tue May 18 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.9-1.1
+- Add: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 - Sync with hotfix XS82E020
 - *** Upstream changelog ***
 - * Wed Apr 28 2021 Rob Hoes <rob.hoes@citrix.com> - 1.249.9-1
