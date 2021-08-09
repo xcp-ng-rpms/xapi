@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.9
-Release: 1.1%{?dist}
+Release: 1.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -26,6 +26,7 @@ Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
+Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -466,6 +467,11 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon Aug 09 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.9-1.2
+- Add xapi-1.249.9-fix-usb-device-reset.backport.patch
+- Fixes USB passthrough when combined with PCI device passthrough to same VM
+- Related to https://github.com/xcp-ng/xcp/issues/511
+
 * Tue May 18 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.9-1.1
 - Add: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 - Sync with hotfix XS82E020
