@@ -114,7 +114,7 @@ diff --git c/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
 index 1962b3fee..fad44111f 100644
 --- c/ocaml/xapi/xapi_globs.ml
 +++ w/ocaml/xapi/xapi_globs.ml
-@@ -241,6 +241,8 @@ let tools_sr_pbd_device_config =
+@@ -253,6 +253,8 @@
 
  let create_tools_sr = ref false
 
@@ -123,10 +123,10 @@ index 1962b3fee..fad44111f 100644
  let default_template_key = "default_template"
 
  let base_template_name_key = "base_template_name"
-@@ -1105,6 +1107,10 @@ let other_options =
-     , Arg.Set create_tools_sr
-     , (fun () -> string_of_bool !create_tools_sr)
-     , "Indicates whether to create an SR for Tools ISOs" )
+@@ -1125,6 +1127,10 @@
+     , Arg.Set website_https_only
+     , (fun () -> string_of_bool !website_https_only)
+     , "Allow access to the internal website using HTTPS only (no HTTP)" )
 +  ; ( "allow-host-sched-gran-modification"
 +    , Arg.Set allow_host_sched_gran_modification
 +    , (fun () -> string_of_bool !allow_host_sched_gran_modification)
