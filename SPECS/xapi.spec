@@ -468,8 +468,8 @@ Coverage files from unit tests
 
 %changelog
 * Thu Sep 02 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.10-1.1
-- Adapt `expose-host-xen-scheduler-granularity-in-xapi` patch to 1.249.10
 - Sync with hotfix XS82E031
+- Adapt `expose-host-xen-scheduler-granularity-in-xapi` patch to 1.249.10
 - *** Upstream changelog ***
 - * Fri Jul 16 2021 Ben Anson <ben.anson@citrix.com> - 1.249.10-1
 - - CP-36827: Backport XSI-989
