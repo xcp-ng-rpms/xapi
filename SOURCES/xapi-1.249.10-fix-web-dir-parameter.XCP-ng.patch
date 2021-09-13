@@ -1,0 +1,48 @@
+From f2a7aed7ceec13a63e1126f3d0ebb8730b15c5df Mon Sep 17 00:00:00 2001
+From: Samuel Verschelde <stormi-xcp@ylix.fr>
+Date: Fri, 10 Sep 2021 12:35:33 +0200
+Subject: [PATCH] Fix handling of web-dir parameter
+
+The web-dir parameter is not taken into account in the definition of
+common_http_handlers' get_root handler, because !Xapi_globs.web_dir is
+evaluated once and for all when the module loads, before the
+configuration file is read.
+
+Turn common_http_handlers into a function so that it is evaluated when
+called.
+
+Backported from 8909814f812312014b3a386f97d20ff06d342d44
+
+Related to issue #4512
+
+Signed-off-by: Samuel Verschelde <stormi-xcp@ylix.fr>
+Co-authored-by: BenjiReis <benjamin.reis@vates.fr>
+---
+ ocaml/xapi/xapi.ml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/xapi.ml b/ocaml/xapi/xapi.ml
+index 07d437700..85186bbe3 100644
+--- a/ocaml/xapi/xapi.ml
++++ b/ocaml/xapi/xapi.ml
+@@ -708,7 +708,7 @@ let master_only_http_handlers =
+     , Http_svr.BufIO remote_database_access_handler_v2 )
+   ]
+ 
+-let common_http_handlers =
++let common_http_handlers () =
+   [
+     ("get_services_xenops", Http_svr.FdIO Xapi_services.get_handler)
+   ; ("put_services_xenops", Http_svr.FdIO Xapi_services.put_handler)
+@@ -944,7 +944,7 @@ let server_init () =
+           ; ("Killing stray sparse_dd processes", [], Sparse_dd_wrapper.killall)
+           ; ( "Registering http handlers"
+             , []
+-            , fun () -> List.iter Xapi_http.add_handler common_http_handlers )
++            , fun () -> List.iter Xapi_http.add_handler (common_http_handlers ()) )
+           ; ( "Registering master-only http handlers"
+             , [Startup.OnlyMaster]
+             , fun () ->
+-- 
+2.30.2
+

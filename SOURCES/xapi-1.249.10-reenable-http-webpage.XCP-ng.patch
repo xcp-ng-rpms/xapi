@@ -1,0 +1,19 @@
+XAPI 1.249.10 enforces HTTPS for serving files over HTTP, but this also
+causes 403 errors for many HTTPS requests due to a bug in xen-api-libs-transitional.
+
+A fix was already contributed upstream in xen-api-libs-transitional, but until
+it's included in a hotfix, we let HTTP enabled.
+
+Index: xapi-1.249.10/ocaml/xapi/xapi_globs.ml
+===================================================================
+--- xapi-1.249.10/ocaml/xapi/xapi_globs.ml
++++ xapi-1.249.10/ocaml/xapi/xapi_globs.ml	2021-11-16 15:25:52.505282640 +0100
+@@ -779,7 +779,7 @@
+ 
+ let web_dir = ref "/opt/xensource/www"
+ 
+-let website_https_only = ref true
++let website_https_only = ref false
+ 
+ let cluster_stack_root = ref "/usr/libexec/xapi/cluster-stack"
+ 

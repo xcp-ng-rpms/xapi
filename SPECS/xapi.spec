@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.10
-Release: 1.1%{?dist}
+Release: 1.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -27,6 +27,8 @@ Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.10-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
+Patch1009: xapi-1.249.10-fix-web-dir-parameter.XCP-ng.patch
+Patch1010: xapi-1.249.10-reenable-http-webpage.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -467,6 +469,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon Sep 13 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.10-1.2
+- Fix handling of web-dir parameter
+- Reenable access to the website on port 80, to avoid a regression
+
 * Thu Sep 02 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.10-1.1
 - Sync with hotfix XS82E031
 - Adapt `expose-host-xen-scheduler-granularity-in-xapi` patch to 1.249.10
