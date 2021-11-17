@@ -1,0 +1,7 @@
+name: Test build env
+
+on: [push]
+
+jobs:
+  call-test-rpm-build:
+    uses: xcp-ng-rpms/test-rpm-build/.github/workflows/test-rpm-build.yaml@create-reusable-workflow
