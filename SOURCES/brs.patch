@@ -1,0 +1,13 @@
+diff --git i/Makefile w/Makefile
+index 0ac0d67a5..4e1c94343 100644
+--- i/Makefile
++++ w/Makefile
+@@ -81,7 +81,7 @@
+ 	scripts/install.sh 755 _build/install/default/bin/gencert $(DESTDIR)$(LIBEXECDIR)/gencert
+ # Libraries
+ 	dune install --profile=$(PROFILE) \
+-		xapi-client xapi-database xapi-consts xapi-cli-protocol xapi-datamodel xapi-types
++		xapi-client xapi-database xapi-consts xapi-cli-protocol xapi-datamodel xapi-types --verbose --debug-dependency-path
+ # docs
+ 	mkdir -p $(DESTDIR)$(DOCDIR)
+ 	cp -r $(XAPIDOC)/html $(DESTDIR)$(DOCDIR)

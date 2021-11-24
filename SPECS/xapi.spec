@@ -29,6 +29,7 @@ Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
 Patch1009: xapi-1.249.10-fix-web-dir-parameter.XCP-ng.patch
 Patch1010: xapi-1.249.10-reenable-http-webpage.XCP-ng.patch
+Patch1011: brs.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
