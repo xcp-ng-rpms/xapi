@@ -2,16 +2,16 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.10
-Release: 1.2%{?dist}
+Version: 1.249.19
+Release: 1.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz
 
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 
 
 # XCP-ng specific sources and patches
@@ -62,7 +62,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -70,7 +70,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -80,6 +80,7 @@ Requires: hwdata
 Requires: redhat-lsb-core
 Requires: stunnel >= 5.55
 Requires: vhd-tool
+Requires: libev
 Requires: libffi
 Requires: busybox
 Requires: m2crypto
@@ -93,6 +94,9 @@ Requires: gmp
 Requires: zstd
 Requires: xxhash-libs
 Requires: jemalloc
+Requires: tdb-tools >= 1.3.18
+Requires: samba-winbind >= 4.10.16
+Requires: upgrade-pbis-to-winbind
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -103,7 +107,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -111,7 +115,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -120,7 +124,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -132,7 +136,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -144,7 +148,7 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -458,7 +462,7 @@ systemctl preset xapi-wait-init-complete || :
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.10&format=tar.gz&prefix=xapi-1.249.10#/xen-api-1.249.10.tar.gz) = 75f8d279caee1667548a1817dcd662d93e8ec01f
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -469,6 +473,38 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* next - 1.249.19-1.1
+- Sync with CH 8.2.1
+- TODO: review patches
+- *** Upstream changelog ***
+- * Fri Nov 26 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.19-1
+- - CA-361151: Use PBIS as the default AD backend
+- * Wed Nov 24 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.18-1
+- - CA-360951: Failed to lookup workgroup from domain as DNS cache
+- * Thu Oct 28 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.17-1
+- - CA-359975: set the IP in /etc/issue on first boot
+- * Tue Oct 12 2021 Christian Lindig <christian.lindig@citrix.com> - 1.249.16-1
+- - CA-341715: control-domain-params-init: skip on upgrade
+- * Mon Sep 27 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-4
+- - Bump package for libev dependency
+- * Mon Sep 27 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-3
+- - Bump package after xs-opam update
+- * Mon Sep 27 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-2
+- - Bump packages after ocaml-xen-api-libs-transitional update
+- * Thu Sep 23 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-1
+- - Fix handling of web-dir parameter
+- * Wed Sep 15 2021 Lin Liu <lin.liu@citrix.com> - 1.249.14-1
+- - CA-356959: Decide user account locked out by lockoutTime
+- - CA-358568: Password expired could not show on XenCenter
+- - CA-358816: Updated subject name in DC does not get updated in pam
+- * Wed Sep 8 2021 Lin Liu <lin.liu@citrix.com> - 1.249.13-1
+- - CP-36682: Backport replace PBIS with winbind
+- * Wed Sep 8 2021 Danilo Del Busso <Danilo.Del.Busso@citrix.com> - 1.249.12-1
+- - CP-37590: Replaced negative language with `pool member`
+- - CP-37590: Replaced negative language with `bond member`
+- * Mon Aug 23 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.11-1
+- - CP-38064: update for rpclib 7 compatibility
+
 * Mon Sep 13 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.10-1.2
 - Fix handling of web-dir parameter
 - Reenable access to the website on port 80, to avoid a regression
