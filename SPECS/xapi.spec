@@ -24,10 +24,9 @@ Patch1002: xapi-1.249.5-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1006: xapi-1.249.10-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1006: xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
-Patch1009: xapi-1.249.10-fix-web-dir-parameter.XCP-ng.patch
 Patch1010: xapi-1.249.10-reenable-http-webpage.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
@@ -475,7 +474,8 @@ Coverage files from unit tests
 %changelog
 * next - 1.249.19-1.1
 - Sync with CH 8.2.1
-- TODO: review patches
+- Remove xapi-1.249.10-fix-web-dir-parameter.XCP-ng.patch, contributed and included upstream
+- Rediff xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 - *** Upstream changelog ***
 - * Fri Nov 26 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.19-1
 - - CA-361151: Use PBIS as the default AD backend

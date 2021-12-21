@@ -7,40 +7,40 @@ It uses `/opt/xensource/libexec/xen-cmdline`
 New entry in `/etc/xapi.conf` to allow the feature: `allow-host-sched-gran-modification: true`
 
 diff --git i/ocaml/idl/datamodel_host.ml w/ocaml/idl/datamodel_host.ml
-index 3bb2288d1..04fb03ba6 100644
+index 3bb2288d1..69299177e 100644
 --- i/ocaml/idl/datamodel_host.ml
 +++ w/ocaml/idl/datamodel_host.ml
 @@ -1364,6 +1364,34 @@ let host_query_ha = call ~flags:[`Session]
      ~hide_from_docs:true
      ()
 
-+    let host_sched_gran = Enum("host_sched_gran", [
-+      "core", "core scheduling";
-+      "cpu", "CPU scheduling";
-+      "socket", "socket scheduling";
-+    ])
++  let host_sched_gran = Enum("host_sched_gran", [
++    "core", "core scheduling";
++    "cpu", "CPU scheduling";
++    "socket", "socket scheduling";
++  ])
 +
-+    let set_sched_gran = call
-+      ~name:"set_sched_gran"
-+      ~lifecycle:[Prototyped, rel_next, ""]
-+      ~doc:"Sets xen's sched-gran on a host. See: https://xenbits.xen.org/docs/unstable/misc/xen-command-line.html#sched-gran-x86"
-+      ~params:[
-+        Ref _host, "self", "The host";
-+        host_sched_gran, "value", "The sched-gran to apply to a host"
-+      ]
-+      ~allowed_roles:_R_LOCAL_ROOT_ONLY
-+      ()
++  let set_sched_gran = call
++    ~name:"set_sched_gran"
++    ~lifecycle:[Prototyped, rel_next, ""]
++    ~doc:"Sets xen's sched-gran on a host. See: https://xenbits.xen.org/docs/unstable/misc/xen-command-line.html#sched-gran-x86"
++    ~params:[
++      Ref _host, "self", "The host";
++      host_sched_gran, "value", "The sched-gran to apply to a host"
++    ]
++    ~allowed_roles:_R_LOCAL_ROOT_ONLY
++    ()
 +
-+    let get_sched_gran = call
-+      ~name:"get_sched_gran"
-+      ~lifecycle:[Prototyped, rel_next, ""]
-+      ~doc:"Gets xen's sched-gran on a host"
-+      ~params:[
-+        Ref _host, "self", "The host";
-+      ]
-+      ~allowed_roles:_R_LOCAL_ROOT_ONLY
-+      ~result:(host_sched_gran, "The host's sched-gran")
-+      ()
++  let get_sched_gran = call
++    ~name:"get_sched_gran"
++    ~lifecycle:[Prototyped, rel_next, ""]
++    ~doc:"Gets xen's sched-gran on a host"
++    ~params:[
++      Ref _host, "self", "The host";
++    ]
++     ~allowed_roles:_R_LOCAL_ROOT_ONLY
++    ~result:(host_sched_gran, "The host's sched-gran")
++    ()
 +
    (** Hosts *)
    let t =
@@ -54,11 +54,11 @@ index 3bb2288d1..04fb03ba6 100644
        ]
        ~contents:
          ([ uid _host;
-diff --git c/ocaml/xapi-cli-server/record_util.ml w/ocaml/xapi-cli-server/record_util.ml
-index f358c6aac..bf8eddbcb 100644
---- c/ocaml/xapi-cli-server/record_util.ml
+diff --git i/ocaml/xapi-cli-server/record_util.ml w/ocaml/xapi-cli-server/record_util.ml
+index eac0c120c..e969e2ec3 100644
+--- i/ocaml/xapi-cli-server/record_util.ml
 +++ w/ocaml/xapi-cli-server/record_util.ml
-@@ -591,6 +591,25 @@ let host_display_to_string h =
+@@ -595,6 +595,25 @@ let host_display_to_string h =
    | `disable_on_reboot ->
        "disable_on_reboot"
 
@@ -85,7 +85,7 @@ index f358c6aac..bf8eddbcb 100644
 
  let string_to_vdi_onboot s =
 diff --git i/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
-index 7b2b4a3ec..1357cd879 100644
+index 03e8b5510..9bd5bad89 100644
 --- i/ocaml/xapi/message_forwarding.ml
 +++ w/ocaml/xapi/message_forwarding.ml
 @@ -3396,6 +3396,21 @@ functor
@@ -101,20 +101,20 @@ index 7b2b4a3ec..1357cd879 100644
 +        do_op_on ~local_fn ~__context ~host:self (fun session_id rpc ->
 +          Client.Host.set_sched_gran rpc session_id self value)
 +
-+        let get_sched_gran ~__context ~self =
-+          info "Host.get_sched_gran: host='%s'" (host_uuid ~__context self) ;
-+          let local_fn = Local.Host.get_sched_gran ~self in
-+          do_op_on ~local_fn ~__context ~host:self (fun session_id rpc ->
++      let get_sched_gran ~__context ~self =
++        info "Host.get_sched_gran: host='%s'" (host_uuid ~__context self) ;
++            let local_fn = Local.Host.get_sched_gran ~self in
++            do_op_on ~local_fn ~__context ~host:self (fun session_id rpc ->
 +            Client.Host.get_sched_gran rpc session_id self)
 +
      end
 
      module Host_crashdump = struct
-diff --git c/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
-index 1962b3fee..fad44111f 100644
---- c/ocaml/xapi/xapi_globs.ml
+diff --git i/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
+index 5e5d7bdd0..6e29d4d8a 100644
+--- i/ocaml/xapi/xapi_globs.ml
 +++ w/ocaml/xapi/xapi_globs.ml
-@@ -253,6 +253,8 @@
+@@ -253,6 +253,8 @@ let tools_sr_pbd_device_config =
 
  let create_tools_sr = ref false
 
@@ -123,10 +123,10 @@ index 1962b3fee..fad44111f 100644
  let default_template_key = "default_template"
 
  let base_template_name_key = "base_template_name"
-@@ -1125,6 +1127,10 @@
-     , Arg.Set website_https_only
-     , (fun () -> string_of_bool !website_https_only)
-     , "Allow access to the internal website using HTTPS only (no HTTP)" )
+@@ -1172,6 +1174,10 @@ let other_options =
+     , Arg.Set_string extauth_ad_backend
+     , (fun () -> !extauth_ad_backend)
+     , "Which AD backend used to talk to DC" )
 +  ; ( "allow-host-sched-gran-modification"
 +    , Arg.Set allow_host_sched_gran_modification
 +    , (fun () -> string_of_bool !allow_host_sched_gran_modification)
@@ -135,10 +135,10 @@ index 1962b3fee..fad44111f 100644
 
  let all_options = options_of_xapi_globs_spec @ other_options
 diff --git i/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
-index 9ec235a5b..9889ec204 100644
+index cc7c2f7db..e833f8d67 100644
 --- i/ocaml/xapi/xapi_host.ml
 +++ w/ocaml/xapi/xapi_host.ml
-@@ -2383,3 +2383,42 @@ let notify_send_new_pool_secret ~__context ~host ~old_ps ~new_ps =
+@@ -2385,3 +2385,42 @@ let notify_send_new_pool_secret ~__context ~host ~old_ps ~new_ps =
 
  let cleanup_pool_secret ~__context ~host ~old_ps ~new_ps =
    Xapi_psr.cleanup ~__context ~old_ps ~new_ps
