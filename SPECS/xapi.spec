@@ -93,9 +93,10 @@ Requires: gmp
 Requires: zstd
 Requires: xxhash-libs
 Requires: jemalloc
-Requires: tdb-tools >= 1.3.18
-Requires: samba-winbind >= 4.10.16
-Requires: upgrade-pbis-to-winbind
+# XCP-ng: disable the added requires for the postponed PBIS to winbind switch
+#Requires: tdb-tools >= 1.3.18
+#Requires: samba-winbind >= 4.10.16
+#Requires: upgrade-pbis-to-winbind
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -472,10 +473,11 @@ Coverage files from unit tests
 %endif
 
 %changelog
-* next - 1.249.19-1.1
+* Tue Dec 21 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.19-1.1
 - Sync with CH 8.2.1
 - Remove xapi-1.249.10-fix-web-dir-parameter.XCP-ng.patch, contributed and included upstream
 - Rediff xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+- Disable requires to tdb-tools, samba-winbind and proprietary upgrade-pbis-to-winbind for now
 - *** Upstream changelog ***
 - * Fri Nov 26 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.19-1
 - - CA-361151: Use PBIS as the default AD backend
