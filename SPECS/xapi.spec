@@ -28,6 +28,7 @@ Patch1006: xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.pa
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
 Patch1010: xapi-1.249.10-reenable-http-webpage.XCP-ng.patch
+Patch1011: brs.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
