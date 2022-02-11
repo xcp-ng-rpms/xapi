@@ -27,6 +27,7 @@ Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
+Patch1009: xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -472,6 +473,11 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Feb 11 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.19-1.3
+- Add backport of CA-363207: SSH access failing when using AD groups with spaces in name
+- * xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
+- * See: https://github.com/xapi-project/xen-api/pull/4617
+
 * Tue Jan 25 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.19-1.2
 - Disable HTTP webpage now that regressions were fixed
 - Remove patch xapi-1.249.10-reenable-http-webpage.XCP-ng.patch

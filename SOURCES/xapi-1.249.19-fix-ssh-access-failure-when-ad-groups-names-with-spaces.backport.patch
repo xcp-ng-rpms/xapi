@@ -1,0 +1,29 @@
+From 485f48f69a9adbacf7f55bfaeec077e88e1a558d Mon Sep 17 00:00:00 2001
+From: Lin Liu <lin.liu@citrix.com>
+Date: Thu, 3 Feb 2022 10:48:26 +0000
+Subject: [PATCH] CA-363207: SSH access failing when using AD groups with
+ spaces in name
+
+pam module cannot handle subject name with space, the subject is split
+by space, put it into [] to handle it
+
+Signed-off-by: Lin Liu <lin.liu@citrix.com>
+(cherry picked from commit 1e5ab3728e34588de1bde833f73bc8b382975c65)
+---
+ scripts/plugins/extauth-hook-AD.py | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/scripts/plugins/extauth-hook-AD.py b/scripts/plugins/extauth-hook-AD.py
+index 55be941897..47234b5438 100755
+--- a/scripts/plugins/extauth-hook-AD.py
++++ b/scripts/plugins/extauth-hook-AD.py
+@@ -165,6 +165,9 @@ def _add_subject(self, subject_rec):
+         try:
+             sid = subject_rec['subject_identifier']
+             name = subject_rec["other_config"]["subject-name"]
++            # CA-363207: Pam cannot handle space, put it inside []
++            if " " in name:
++                name = "[{}]".format(name)
+             is_group = subject_rec["other_config"]["subject-is-group"] == "true"
+             logger.debug("Permit %s with sid %s is_group as %s", name, sid, is_group)
+             condition = "ingroup" if is_group else "="
