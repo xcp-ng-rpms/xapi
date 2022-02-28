@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.32
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.1.0.evacnet.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -26,6 +26,9 @@ Patch1007: xapi-1.249.32-update-schema-hash.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
 Patch1010: xapi-1.249.32-fix-quicktest-default-sr-param.backport.patch
 Patch1011: xapi-1.249.32-redirect-fileserver-https.backport.patch
+
+# "Evacnet" patch
+Patch1020: xapi-1.249.26-add-network-to-host-evacuate.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -459,6 +462,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Aug 16 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.32-1.1.0.evacnet.1
+- Rebase on 1.249.32-1.1 and re-add xapi-1.249.26-add-network-to-host-evacuate.XCP-ng.patch
+
 * Wed Aug 09 2023 Gael Duperrey <gduperrey@vates.fr> - 1.249.32-1.1
 - Sync with hotfix XS82ECU1040
 - Remove and rebase XCP-ng patches to adapt them
