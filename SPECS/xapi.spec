@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.19
-Release: 1.3.0.ipv6.1%{?dist}
+Release: 1.3.0.ipv6.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -41,6 +41,7 @@ Patch1019: xapi-1.249.5-bond-create-address-type.patch
 Patch1020: xapi-1.249.5-tunnel-create-address-type.patch
 Patch1021: xapi-1.249.5-vlan-create-address-type.patch
 Patch1022: xapi-1.249.5-sriov-create-address-type.patch
+Patch1023: xapi-1.249.19-filter-dns-input.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -486,6 +487,15 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue May 17 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.19-1.3.0.ipv6.4
+- xapi-1.249.19-filter-dns-input.patch v3
+
+* Tue May 17 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.19-1.3.0.ipv6.3
+- xapi-1.249.19-filter-dns-input.patch v2
+
+* Tue May 17 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.19-1.3.0.ipv6.2
+- xapi-1.249.19-filter-dns-input.patch
+
 * Thu Feb 17 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.19-1.3.0.ipv6.1
 - Add IPv6 patches:
 - xapi-1.249.5-fix-ipv6-console-location.patch
