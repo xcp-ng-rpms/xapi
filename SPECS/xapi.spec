@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.19
-Release: 1.3%{?dist}
+Release: 1.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -28,6 +28,8 @@ Patch1006: xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.pa
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
 Patch1009: xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
+# Contributed upstream, can be dropped in next version bump
+Patch1010: xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -473,6 +475,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Aug 02 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.19-1.4
+- Add xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
+
 * Fri Feb 11 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.19-1.3
 - Add backport of CA-363207: SSH access failing when using AD groups with spaces in name
 - * xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
