@@ -2,16 +2,16 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.19
-Release: 1.4%{?dist}
+Version: 1.249.25
+Release: 2.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz
 
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 
 
 # XCP-ng specific sources and patches
@@ -26,8 +26,6 @@ Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1006: xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
-Patch1008: xapi-1.249.9-fix-usb-device-reset.backport.patch
-Patch1009: xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
 # Contributed upstream, can be dropped in next version bump
 Patch1010: xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
 
@@ -63,7 +61,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -71,7 +69,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -109,7 +107,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -117,7 +115,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -126,7 +124,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -138,7 +136,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -150,7 +148,7 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -464,7 +462,7 @@ systemctl preset xapi-wait-init-complete || :
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.19&format=tar.gz&prefix=xapi-1.249.19#/xen-api-1.249.19.tar.gz) = fc09bbd29ad06c9a2b53b554ba263e9e08594ed6
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -475,6 +473,40 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Aug 16 2022 Gael Duperrey <gduperrey@vates.fr> 1.249.25-2.1
+- Sync to hotfix XS82ECU1011
+- Remove xapi-1.249.9-fix-usb-device-reset.backport.patch
+- Remove xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
+- * Wed May 18 2022 Christian Lindig <christian.lindig@citrix.com> - 1.249.25-2
+- - XSI-791/CA-343760 Backport to yangtze
+- * Tue May 17 2022 Christian Lindig <christian.lindig@citrix.com> - 1.249.25-1
+- - XSI-1246/CA-367232: Daily license re-apply fails is HA is enabled
+- * Tue May 17 2022 Christian Lindig <christian.lindig@citrix.com> - 1.249.24-1
+- - CA-363633: Always take the generation-id directly from xapi
+- - CP-38462 UPD-825 Recognise ethtool-advertise on PIFs
+- - CA-366801 UPD-825 xsh: fix XAPI blob sync and EBADF
+- - CA-363391 UPD-825 fix wake-on-lan script
+- - CA-361209 UPD-825 backport utility functions in records.ml
+- - CA-361209 UPD-825 When using WoL find the remote physical PIF
+- - CA-361209 UPD-825 add vlan references to PIF's cli records
+- - CA-365112: Minor refine to keep code flat
+- - CA-365112: Fixup pep8 issues
+- - CA-365112: Permit pool admin username with space to ssh login
+- * Tue Feb 22 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.23-1
+- - Revert stunnel-on-demand commits
+- * Fri Feb 04 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.22-1
+- - CA-363207: SSH access failing when using AD groups with spaces in name
+- * Wed Feb 02 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.21-1
+- - CA-363068: Ensure that stunnel-on-demand shuts down after xapi
+- * Fri Jan 28 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.20-1
+- - CA-361220: xenopsd: avoid space leak in VM.import_metadata_async
+- - USB device reset for Privileged VMs (with PCI device attached) is not working due to bad argument '-r'
+- - CP-38978: Accept TCP4 connection
+- - CP-38978: Update xe-toolstack-restart
+- - CP-38978: Separate stunnel service and socket for fips off and on
+- - CP-38978: Separate stunnel conf file for fips
+- - CP-38978: Add systemd socket for on-demand stunnel
+
 * Tue Aug 02 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.19-1.4
 - Add xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
 
@@ -662,7 +694,7 @@ Coverage files from unit tests
 * Mon May 18 2020 Christian Lindig <christian.lindig@citrix.com> - 1.245.0-1
 - CA-339601: source the iqn conf file.
 
-* Tue May 15 2020 Lin Liu <lin.liu@citrix.com> - 1.244.0-2
+* Fri May 15 2020 Lin Liu <lin.liu@citrix.com> - 1.244.0-2
 - CA-338596: Check filenames for xe upload and download files
 
 * Tue May 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.244.0-1
