@@ -1,0 +1,20 @@
+[Unit]
+Description=Manages host memory by ballooning VMs
+Description=XCP ballooning daemon
+After=xenstored.service message-switch.service syslog.target
+Wants=xenstored.service message-switch.service syslog.target
+
+[Service]
+Environment="LD_PRELOAD=/usr/lib64/libjemalloc.so.1"
+Environment="MALLOC_CONF=narenas:1,tcache:false,lg_dirty_mult:22"
+Environment=OCAMLRUNPARAM=b
+EnvironmentFile=-/etc/sysconfig/squeezed
+ExecStart=/usr/sbin/squeezed $SQUEEZED_OPTIONS
+StandardError=null
+# restart but fail if more than 5 failures in 30s
+Restart=on-failure
+StartLimitBurst=5
+StartLimitInterval=30s
+
+[Install]
+WantedBy=multi-user.target
