@@ -1,34 +1,56 @@
+%global package_speccommit 29a7ecd7bf86ff0ec27cccfa829497e5a8c7a4a8
+%global package_srccommit v22.20.0
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.25
-Release: 2.1%{?dist}
+Version: 22.20.0
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
-License: LGPL+linking exception
+License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
-
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz
-
-
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
-
+Source0: xen-api-22.20.0.tar.gz
+Source1: xcp-rrdd.service
+Source2: xcp-rrdd-sysconfig
+Source3: xcp-rrdd-conf
+Source4: xcp-rrdd-tmp
+Source5: xcp-rrdd-iostat.service
+Source6: xcp-rrdd-squeezed.service
+Source7: xcp-rrdd-xenpm.service
+Source8: xenopsd-xc.service
+Source9: xenopsd-simulator.service
+Source10: xenopsd-sysconfig
+Source11: xenopsd-64-conf
+Source12: squeezed.service
+Source13: squeezed-sysconfig
+Source14: squeezed-conf
+Source15: xcp-networkd-sysconfig
+Source16: xcp-networkd-network-conf
+Source17: message-switch.service
+Source18: message-switch-conf
+Source19: message-switch-bugtool1.xml
+Source20: message-switch-bugtool2.xml
+Source21: forkexecd.service
+Source22: forkexecd-sysconfig
+Source23: xapi-storage-script.service
+Source24: xapi-storage-script-sysconfig
+Source25: xapi-storage-script-conf.in
 
 # XCP-ng specific sources and patches
-Source1: 00-XCP-ng-allow-sched-gran.conf
-Source2: 00-XCP-ng-create-tools-sr.conf
+Source100: 00-XCP-ng-allow-sched-gran.conf
+Source101: 00-XCP-ng-create-tools-sr.conf
+# Enables our additional sm drivers
 Patch1000: xapi-1.249.3-update-xapi-conf.XCP-ng.patch
-# Patches 1001, 1002 and 1003 merged in xen-api 1.250.0
-Patch1001: xapi-1.249.3-allow-migrate_send-during-RPU.XCP-ng.patch
-Patch1002: xapi-1.249.5-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-Patch1003: xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
-Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
-Patch1005: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1006: xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
-Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
+# Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
+Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
+# Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
+Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
+# Drop this patch when we don't want to support migration from older SDN controller anymore
+Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
-Patch1010: xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
+Patch1004: xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
 
+%{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
 BuildRequires: xen-devel
@@ -39,29 +61,22 @@ BuildRequires: gmp-devel
 BuildRequires: libuuid-devel
 BuildRequires: make
 BuildRequires: python2-devel
-BuildRequires: xs-opam-repo
-BuildRequires: ocaml-xcp-idl-devel
-BuildRequires: ocaml-xen-api-libs-transitional-devel
-BuildRequires: forkexecd-devel
-BuildRequires: message-switch-devel
-BuildRequires: ocaml-rrdd-plugin-devel
-BuildRequires: ocaml-tapctl-devel
+BuildRequires: xs-opam-repo >= 6.54.0-2
+BuildRequires: libnl3-devel
 BuildRequires: systemd-devel
 BuildRequires: pciutils-devel
 BuildRequires: xen-dom0-libs-devel
-BuildRequires: xenopsd-devel
 BuildRequires: xxhash-devel
-
-%global _use_internal_dependency_generator 0
-%global __requires_exclude *caml*
-AutoReqProv: no
+BuildRequires: sm
+BuildRequires: xen-ocaml-devel
+BuildRequires: blktap-devel
+BuildRequires: openssl-devel
 
 %description
 XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -69,7 +84,6 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -77,9 +91,9 @@ Requires:       %{name}-cov = %{version}-%{release}
 %endif
 Requires: hwdata
 Requires: redhat-lsb-core
+Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
 Requires: vhd-tool
-Requires: libev
 Requires: libffi
 Requires: busybox
 Requires: m2crypto
@@ -88,15 +102,18 @@ Requires: vmss
 Requires: python-six
 Requires: python-pyudev
 Requires: gmp
-#Requires: xapi-storage-plugins
-#Requires: xapi-clusterd
-Requires: zstd
+# XCP-ng: remove Requires for proprietary components
+# Requires: xapi-storage-plugins
+# Requires: xapi-clusterd >= 0.64.0
 Requires: xxhash-libs
 Requires: jemalloc
-# XCP-ng: disable the added requires for the postponed PBIS to winbind switch
-#Requires: tdb-tools >= 1.3.18
-#Requires: samba-winbind >= 4.10.16
-#Requires: upgrade-pbis-to-winbind
+Requires: zstd
+Requires: yum-utils >= 1.1.31
+Requires: createrepo_c >= 0.10.0
+Requires: tdb-tools >= 1.3.18
+Requires: samba-winbind >= 4.10.16
+# XCP-ng: remove Requires for proprietary component
+# Requires: upgrade-pbis-to-winbind
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -107,15 +124,24 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
 %description xe
 The command-line interface for controlling XCP hosts.
 
+%package rrd2csv
+Summary: A tool to output RRD values in CSV format
+Group: System/Hypervisor
+Obsoletes: rrd2csv
+Obsoletes: xsiostat < 1.0.1-3
+Obsoletes: xsifstat < 1.0.1-3
+
+%description rrd2csv
+This package contains the rrd2csv tool, useful to expose live RRDD
+metrics on standard output, in the CSV format.
+
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -124,11 +150,11 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
-Requires: ocaml-xen-api-libs-transitional-devel
-Requires: ocaml-xcp-idl-devel
+Obsoletes: ocaml-xen-api-client
+Obsoletes: ocaml-xen-api-client-devel
+Requires: xapi-idl-devel = %{version}-%{release}
 Requires: xs-opam-repo
 
 %description client-devel
@@ -136,35 +162,264 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
-Requires: ocaml-xen-api-libs-transitional-devel
-Requires: ocaml-xcp-idl-devel
+Requires: xapi-idl-devel = %{version}-%{release}
 
 %description datamodel-devel
 This package contains the internal xapi datamodel as a library suitable
 for writing additional code generators.
 
+%package sdk
+Summary: xapi Xen-API Software Development Kit
+Group:   Development/Libraries
+BuildArch: noarch
+
+%description sdk
+This package contains Xen-API bindings for C, Csharp, Java, and PowerShell,
+generated automatically from the xapi datamodel, and the Python module.
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
 %description doc
 This package contains Xen-API documentation in html format.
 
+%package libs-devel
+Summary: Development files for
+Group:   Development/Libraries
+Obsoletes: ocaml-xen-api-libs-transitional-devel < 2.40
+Obsoletes: ocaml-xen-api-libs-transitional
+Requires:  xs-opam-repo
+Requires:  forkexecd-devel = %{version}-%{release}
+Requires:  xapi-idl-devel = %{version}-%{release}
+
+
+%description libs-devel
+The xapi-libs-devel package contains libraries and signature files for
+developing applications that use xapi-libs.
+
+%package -n xenopsd
+Summary:        Simple VM manager
+Requires:       message-switch >= 12.21.0
+Requires:       xen-dom0-tools
+Requires:       xen-dom0-libs >= 4.13.3-10.10
+Requires:       python2-scapy
+Requires:       jemalloc
+
+%description -n xenopsd
+Simple VM manager for the xapi toolstack.
+
+%package -n xenopsd-xc
+Summary:        Xenopsd using xc
+Requires:       xenopsd = %{version}-%{release}
+Requires:       forkexecd
+Requires:       xen-libs
+Requires:       emu-manager
+# NVME support requires newer qemu
+# Semantic versioning: describe acceptable range of qemu versions
+# if a new major version of qemu/qemu.pg is released and xenopsd is still
+# compatible then we just have to update this line and bump the minor for xenopsd
+Requires:       qemu >= 2:4.2.1-5.0.0
+Conflicts:      qemu >= 2:4.2.1-6.0.0
+Obsoletes:      ocaml-xenops-tools
+
+%description -n xenopsd-xc
+Simple VM manager for Xen using libxc.
+
+%package -n xenopsd-simulator
+Summary:        Xenopsd simulator
+Requires:       xenopsd = %{version}-%{release}
+
+%description -n xenopsd-simulator
+A synthetic VM manager for testing.
+
+%package -n xenopsd-cli
+Summary:        CLI for xenopsd, the xapi toolstack domain manager
+Requires:       xenopsd = %{version}-%{release}
+Obsoletes:      xenops-cli
+
+%description -n xenopsd-cli
+Command-line interface for xenopsd, the xapi toolstack domain manager.
+
+%package -n squeezed
+Summary:        Memory ballooning daemon for the xapi toolstack
+
+%description -n squeezed
+Memory ballooning daemon for the xapi toolstack.
+
+%package -n xcp-rrdd
+Summary:        Statistics gathering daemon for the xapi toolstack
+Requires(pre):  shadow-utils
+
+%description -n xcp-rrdd
+Statistics gathering daemon for the xapi toolstack.
+
+%package -n xcp-rrdd-devel
+Summary:        Development files for xcp-rrdd
+Requires:       xcp-rrdd = %{version}-%{release}
+Requires:       xs-opam-repo
+Requires:       forkexecd-devel%{?_isa} = %{version}-%{release}
+Requires:       xapi-idl-devel%{?_isa} = %{version}-%{release}
+Requires:       xen-ocaml-devel
+Obsoletes:      ocaml-rrd-transport-devel
+Obsoletes:      ocaml-rrdd-plugin-devel
+
+%description -n xcp-rrdd-devel
+The xcp-rrdd-devel package contains libraries and signature files for
+developing applications that use xcp-rrdd.
+
+%package -n rrdd-plugins
+Summary:   RRDD metrics plugin
+Requires:  jemalloc
+Requires:  xen-dom0-tools
+Requires:  xapi-rrd2csv
+
+%description -n rrdd-plugins
+This packages contains plugins registering to the RRD daemon and exposing various metrics.
+
+%package -n vhd-tool
+Summary: Command-line tools for manipulating and streaming .vhd format files
+
+%description -n vhd-tool
+Simple command-line tools for manipulating and streaming .vhd format file.
+
+%package -n xcp-networkd
+Summary:  Simple host network management service for the xapi toolstack
+Requires: ethtool
+Requires: libnl3
+# XCP-ng: remove Requires to proprietary component
+# Requires: pvsproxy
+
+%description -n xcp-networkd
+Simple host networking management service for the xapi toolstack.
+
+%package -n message-switch
+Summary:        A store and forward message switch
+
+%description -n message-switch
+A store and forward message switch for OCaml.
+
+%package -n message-switch-devel
+Summary:        Development files for message-switch
+Requires:       message-switch = %{version}-%{release}
+Requires:       xs-opam-repo
+
+%description -n message-switch-devel
+The message-switch-devel package contains libraries and signature files for
+developing applications that use message-switch.
+
+%package idl-devel
+Summary:        Development files for xapi IDL
+Requires:       xs-opam-repo
+Obsoletes:      ocaml-xcp-idl-devel < 1.200.0
+Obsoletes:      ocaml-xcp-idl < 1.200.0
+
+%description idl-devel
+The xapi-idl-devel package contains libraries and signature files for
+developing applications that the XAPI IDL interface.
+
+%package -n forkexecd
+Summary:        A subprocess management service
+License:        LGPL
+BuildRequires:  xs-opam-repo
+BuildRequires:  systemd-devel
+Requires:       jemalloc
+%{?systemd_requires}
+Obsoletes:      xapi-forkexecd <= 1.31.0-2
+
+%description -n forkexecd
+A service which starts and manages subprocesses, avoiding the need to manually
+fork() and exec() in a multithreaded program.
+
+%package -n forkexecd-devel
+Summary:        Development files for xapi-forkexecd
+Requires:       forkexecd = %{version}-%{release}
+Requires:       xs-opam-repo
+Requires:       xapi-idl-devel = %{version}-%{release}
+Obsoletes:      xapi-forkexecd-devel <= 1.31.0-2
+
+%description -n forkexecd-devel
+The forkexecd-devel package contains libraries and signature files for
+developing applications that use forkexecd.
+
+%package storage
+Summary:       Xapi storage interface
+License:       LGPL+linking exception
+
+%description storage
+Xapi storage inteface libraries
+
+%package storage-ocaml-plugin-runtime
+Summary:        Development files for xapi-storage
+Requires:       xapi-storage = %{version}-%{release}
+
+%description storage-ocaml-plugin-runtime
+The xapi-storage-ocaml-plugin package contains runtime libraries for OCaml
+plugins for xapi-storage.
+
+%package storage-ocaml-plugin-devel
+Summary:        Development files for xapi-storage
+Requires:       xapi-storage-ocaml-plugin-runtime = %{version}-%{release}
+Requires:       xs-opam-repo
+
+%description storage-ocaml-plugin-devel
+The xapi-storage-ocaml-plugin-devel package contains libraries and signature files for
+developing applications that use xapi-storage.
+
+%package storage-script
+Summary: Xapi storage script plugin server
+License: LGPL+linking exception
+Requires:	jemalloc
+
+%description storage-script
+Allows script-based Xapi storage adapters.
+
+%package -n sm-cli
+Summary: CLI for xapi toolstack storage managers
+
+%description -n sm-cli
+Command-line interface for xapi toolstack storage managers.
+
+%package -n wsproxy
+Summary: Websockets proxy for VNC traffic
+
+%description -n wsproxy
+Websockets proxy for VNC traffic
+
+%package nbd
+Summary: NBD server that exposes XenServer disks
+
+%description nbd
+NBD server that exposes XenServer disks
+
+%package -n varstored-guard
+Summary: Deprivileged XAPI socket Daemon for EFI variable storage
+
+%description -n varstored-guard
+A daemon for implementing a deprivileged XAPI socket for varstored.
+It is responsible for giving access only to a specific VM to varstored.
+
+%global ocaml_dir %{_opamroot}/ocaml-system
+%global ocaml_libdir %{ocaml_dir}/lib
+%global ocaml_docdir %{_prefix}/doc
+
+%global __python     /usr/bin/python2
+
 %prep
 %autosetup -p1
+%{?_cov_prepare}
 
 %build
-./configure %{?coverage:--enable-coverage}
-ulimit -s 16384 && COMPILE_JAVA=no XAPI_VERSION=%{version} %{__make}
-make doc
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --prefix %{_prefix} --libdir %{ocaml_libdir}
+ulimit -s 16384 && COMPILE_JAVA=no XAPI_VERSION=%{version} %{?_cov_wrap} %{__make}
+XAPI_VERSION=%{version} %{__make} doc
+XAPI_VERSION=%{version} %{__make} sdk
+sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
 
 %check
-COMPILE_JAVA=no %{__make} test
+XAPI_VERSION=%{version} COMPILE_JAVA=no %{__make} test
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
 ls %{buildroot}/testresults/
@@ -172,13 +427,13 @@ ls %{buildroot}/testresults/
 %install
 rm -rf %{buildroot}
 
-DESTDIR=$RPM_BUILD_ROOT %{__make} install
+XAPI_VERSION=%{version} DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
 SITEDIR=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 for f in XenAPI XenAPIPlugin inventory; do
-	for e in py pyc pyo; do
-		echo $SITEDIR/$f.$e
-	done
+    for e in py pyc pyo; do
+        echo $SITEDIR/$f.$e
+    done
 done > core-files
 
 ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
@@ -186,12 +441,75 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+mkdir -p %{buildroot}%{_sbindir}
+mkdir -p %{buildroot}%{_tmpfilesdir}
+%{__install} -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/xcp-rrdd.service
+%{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/xcp-rrdd
+%{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/xcp-rrdd.conf
+%{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_tmpfilesdir}/xcp-rrdd.conf
+%{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/xcp-rrdd-iostat.service
+%{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_unitdir}/xcp-rrdd-squeezed.service
+%{__install} -D -m 0644 %{SOURCE7} %{buildroot}%{_unitdir}/xcp-rrdd-xenpm.service
 
-install -m 0755 %{SOURCE1} %{buildroot}/etc/xapi.conf.d/
-install -m 0755 %{SOURCE2} %{buildroot}/etc/xapi.conf.d/
+%{__install} -D -m 0644 %{SOURCE8} %{buildroot}%{_unitdir}/xenopsd-xc.service
+%{__install} -D -m 0644 %{SOURCE9} %{buildroot}%{_unitdir}/xenopsd-simulator.service
+%{__install} -D -m 0644 %{SOURCE10} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
+%{__install} -D -m 0644 %{SOURCE11} %{buildroot}%{_sysconfdir}/xenopsd.conf
+
+%{__install} -D -m 0644 %{SOURCE12} %{buildroot}%{_unitdir}/squeezed.service
+%{__install} -D -m 0644 %{SOURCE13} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
+%{__install} -D -m 0644 %{SOURCE14} %{buildroot}%{_sysconfdir}/squeezed.conf
+
+%{__install} -D -m 0644 %{SOURCE15} %{buildroot}%{_sysconfdir}/sysconfig/xcp-networkd
+%{__install} -D -m 0644 %{SOURCE16} %{buildroot}%{_sysconfdir}/xensource/network.conf
+
+%{__install} -D -m 0644 %{SOURCE17} %{buildroot}%{_unitdir}/message-switch.service
+%{__install} -D -m 0644 %{SOURCE18} %{buildroot}%{_sysconfdir}/message-switch.conf
+
+%{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch.xml
+%{__install} -D -m 0644 %{SOURCE20} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch/stuff.xml
+%{__install} -D -m 0644 %{SOURCE21} %{buildroot}%{_unitdir}/forkexecd.service
+%{__install} -D -m 0644 %{SOURCE22} %{buildroot}%{_sysconfdir}/sysconfig/forkexecd
+
+mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/volume
+mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/datapath
+mkdir -p %{buildroot}%{_sbindir}
+mkdir -p %{buildroot}%{_mandir}/man8
+%{__install} -D -m 0644 xapi-storage-script.conf %{buildroot}%{_sysconfdir}/xapi-storage-script.conf
+%{__install} -D -m 0644 %{SOURCE23} %{buildroot}%{_unitdir}/xapi-storage-script.service
+%{__install} -D -m 0644 %{SOURCE24} %{buildroot}%{_sysconfdir}/sysconfig/xapi-storage-script
+rm %{buildroot}%{ocaml_libdir}/xapi-storage-script -rf
+rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
+%{?_cov_install}
+
+# XCP-ng: add specific configuration files
+install -m 0755 %{SOURCE100} %{buildroot}/etc/xapi.conf.d/
+install -m 0755 %{SOURCE101} %{buildroot}/etc/xapi.conf.d/
+
+# XCP-ng: remove the ptoken and accesstoken yum plugins
+rm -f %{buildroot}/etc/yum/pluginconf.d/accesstoken.conf
+rm -f %{buildroot}/etc/yum/pluginconf.d/ptoken.conf
+rm -f %{buildroot}/usr/lib/yum-plugins/accesstoken.py
+rm -f %{buildroot}/usr/lib/yum-plugins/ptoken.py
 
 %clean
 rm -rf $RPM_BUILD_ROOT
+
+%pre -n xenopsd
+/usr/bin/getent passwd qemu >/dev/null 2>&1 || /usr/sbin/useradd \
+    -M -U -r \
+    -s /sbin/nologin \
+    -d / \
+    qemu >/dev/null 2>&1 || :
+/usr/bin/getent passwd qemu_base >/dev/null 2>&1 || /usr/sbin/useradd \
+    -M -U -r \
+    -s /sbin/nologin \
+    -d / \
+    -u 65535 \
+    qemu_base >/dev/null 2>&1 || :
+
+%pre -n xcp-rrdd
+getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 
 %post core
 %systemd_post cdrommon@.service
@@ -223,6 +541,63 @@ fi
 
 systemctl preset xapi-wait-init-complete || :
 
+%post -n xenopsd-xc
+%systemd_post xenopsd-xc.service
+
+%post -n xenopsd-simulator
+%systemd_post xenopsd-simulator.service
+
+%post -n squeezed
+%systemd_post squeezed.service
+
+%post -n xcp-rrdd
+%systemd_post xcp-rrdd.service
+%tmpfiles_create %{_tmpfilesdir}/xcp-rrdd.conf
+
+%post -n rrdd-plugins
+%systemd_post xcp-rrdd-iostat.service
+%systemd_post xcp-rrdd-squeezed.service
+%systemd_post xcp-rrdd-xenpm.service
+
+%post -n xcp-networkd
+%systemd_post xcp-networkd.service
+
+%post -n message-switch
+%systemd_post message-switch.service
+if [ $1 -gt 1 ] ; then
+  # upgrade from SysV, see http://0pointer.de/public/systemd-man/daemon.html
+  # except %triggerun doesn't work since previous package had no systemd,
+  # and don't transition in 2 steps
+  if /sbin/chkconfig --level 5 message-switch ; then
+    /bin/systemctl --no-reload enable message-switch.service >/dev/null 2>&1 || :
+    /sbin/chkconfig --del message-switch >/dev/null 2>&1 || :
+  else
+    # remove broken symlinks that a previous version of the package may have forgotten to remove
+    find /etc/rc.d -name "*message-switch" -delete >/dev/null 2>&1 || :
+  fi
+fi
+
+%post -n forkexecd
+%systemd_post forkexecd.service
+
+%post storage-script
+%systemd_post xapi-storage-script.service
+
+%post -n wsproxy
+%systemd_post wsproxy.service
+%systemd_post wsproxy.socket
+
+# systemd_post does not start new units on update. Make sure recent services
+# are started.
+systemctl start wsproxy.socket >/dev/null 2>&1 || :
+
+%post nbd
+%systemd_post xapi-nbd.service
+%systemd_post xapi-nbd.path
+
+%post -n varstored-guard
+%systemd_post varstored-guard.service
+
 %preun core
 %systemd_preun cdrommon@.service
 %systemd_preun gencert.service
@@ -237,6 +612,46 @@ systemctl preset xapi-wait-init-complete || :
 %systemd_preun control-domain-params-init.service
 %systemd_preun network-init.service
 
+%preun -n xenopsd-xc
+%systemd_preun xenopsd-xc.service
+
+%preun -n xenopsd-simulator
+%systemd_preun xenopsd-simulator.service
+
+%preun -n squeezed
+%systemd_preun squeezed.service
+
+%preun -n xcp-rrdd
+%systemd_preun xcp-rrdd.service
+
+%preun -n rrdd-plugins
+%systemd_preun xcp-rrdd-iostat.service
+%systemd_preun xcp-rrdd-squeezed.service
+%systemd_preun xcp-rrdd-xenpm.service
+
+%preun -n xcp-networkd
+%systemd_preun xcp-networkd.service
+
+%preun -n message-switch
+%systemd_preun message-switch.service
+
+%preun -n forkexecd
+%systemd_preun forkexecd.service
+
+%preun storage-script
+%systemd_preun xapi-storage-script.service
+
+%preun -n wsproxy
+%systemd_preun wsproxy.service
+%systemd_preun wsproxy.socket
+
+%preun nbd
+%systemd_preun xapi-nbd.service
+%systemd_preun xapi-nbd.path
+
+%preun -n varstored-guard
+%systemd_preun varstored-guard.service
+
 %postun core
 %systemd_postun cdrommon@.service
 %systemd_postun xapi-domains.service
@@ -250,6 +665,52 @@ systemctl preset xapi-wait-init-complete || :
 %systemd_postun control-domain-params-init.service
 %systemd_postun network-init.service
 
+%postun -n xenopsd-xc
+%systemd_postun xenopsd-xc.service
+
+%postun -n xenopsd-simulator
+%systemd_postun_with_restart xenopsd-simulator.service
+
+%postun -n squeezed
+%systemd_postun squeezed.service
+
+%postun -n xcp-rrdd
+%systemd_postun xcp-rrdd.service
+
+%postun -n rrdd-plugins
+%systemd_postun xcp-rrdd-iostat.service
+%systemd_postun xcp-rrdd-squeezed.service
+%systemd_postun xcp-rrdd-xenpm.service
+
+%postun -n xcp-networkd
+%systemd_postun xcp-networkd.service
+
+%postun -n message-switch
+%systemd_postun message-switch.service
+
+%postun -n forkexecd
+%systemd_postun forkexecd.service
+
+%postun storage-script
+%systemd_postun xapi-storage-script.service
+
+%postun -n wsproxy
+%systemd_postun wsproxy.service
+%systemd_postun wsproxy.socket
+
+%postun nbd
+%systemd_postun xapi-nbd.service
+%systemd_postun xapi-nbd.path
+
+%postun -n varstored-guard
+%systemd_postun varstored-guard.service
+
+# this would be done by %postun of old package, except old package wasn't
+# using systemd, without this a systemctl restart message-switch would fail
+# after an upgrade
+%posttrans -n message-switch
+/bin/systemctl daemon-reload >/dev/null 2>&1 || :
+
 %files core -f core-files
 %defattr(-,root,root,-)
 /opt/xensource/bin/xapi
@@ -261,6 +722,7 @@ systemctl preset xapi-wait-init-complete || :
 /etc/cron.d/xapi-logrotate.cron
 /etc/cron.daily/license-check
 /etc/cron.daily/certificate-check
+/etc/cron.hourly/certificate-refresh
 /opt/xensource/libexec/xapi-init
 /opt/xensource/libexec/attach-static-vdis
 /opt/xensource/libexec/save-boot-info
@@ -305,6 +767,9 @@ systemctl preset xapi-wait-init-complete || :
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
 %{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
+# XCP-ng: we don't need these configuration files that are specific to CH8C's update process
+#%%config(noreplace) /etc/yum/pluginconf.d/accesstoken.conf
+#%%config(noreplace) /etc/yum/pluginconf.d/ptoken.conf
 /opt/xensource/bin/fix_firewall.sh
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
@@ -351,7 +816,6 @@ systemctl preset xapi-wait-init-complete || :
 /opt/xensource/libexec/daily-license-check
 /opt/xensource/libexec/fence
 /opt/xensource/libexec/generate-iscsi-iqn
-/opt/xensource/libexec/generate_ssl_cert
 /opt/xensource/libexec/gencert
 /opt/xensource/libexec/host-backup
 /opt/xensource/libexec/host-bugreport-upload
@@ -403,6 +867,13 @@ systemctl preset xapi-wait-init-complete || :
 /opt/xensource/debug/import-update-key
 /opt/xensource/debug/vncproxy
 /opt/xensource/debug/with-vdi
+# XCP-ng: we don't need these plugins that are specific to CH8C's update process
+#/usr/lib/yum-plugins/accesstoken.py
+#/usr/lib/yum-plugins/accesstoken.pyo
+#/usr/lib/yum-plugins/accesstoken.pyc
+#/usr/lib/yum-plugins/ptoken.py
+#/usr/lib/yum-plugins/ptoken.pyo
+#/usr/lib/yum-plugins/ptoken.pyc
 %{_unitdir}/cdrommon@.service
 %{_unitdir}/gencert.service
 %{_unitdir}/xapi-domains.service
@@ -429,10 +900,6 @@ systemctl preset xapi-wait-init-complete || :
 /opt/xensource/debug/quicktest
 /opt/xensource/debug/quicktestbin
 
-%global ocaml_dir %{_opamroot}/ocaml-system
-%global ocaml_libdir %{ocaml_dir}/lib
-%global ocaml_docdir %{ocaml_dir}/doc
-
 %files client-devel
 %defattr(-,root,root,-)
 %{ocaml_libdir}/xapi-types/*
@@ -445,6 +912,12 @@ systemctl preset xapi-wait-init-complete || :
 %exclude %{ocaml_libdir}/xapi-client/*.cmti
 %{ocaml_libdir}/xapi-cli-protocol/*
 %exclude %{ocaml_libdir}/xapi-cli-protocol/*.cmt
+%{ocaml_libdir}/xen-api-client/*
+%exclude %{ocaml_libdir}/xen-api-client/*.cmt
+%{ocaml_libdir}/xen-api-client-lwt/*
+%exclude %{ocaml_libdir}/xen-api-client-lwt/*.cmt
+%{ocaml_libdir}/xen-api-client-async/*
+%exclude %{ocaml_libdir}/xen-api-client-async/*.cmt
 
 %files datamodel-devel
 %defattr(-,root,root,-)
@@ -455,14 +928,272 @@ systemctl preset xapi-wait-init-complete || :
 %exclude %{ocaml_libdir}/xapi-datamodel/*.cmt
 %exclude %{ocaml_libdir}/xapi-datamodel/*.cmti
 
+%files rrd2csv
+%defattr(-,root,root,-)
+/opt/xensource/bin/rrd2csv
+/opt/xensource/man/man1/rrd2csv.1
+
 %files doc
 %defattr(-,root,root,-)
 %{_datarootdir}/xapi/doc/*
 %exclude %{ocaml_docdir}/*
 
+%files sdk
+%{_datarootdir}/xapi/sdk/*
+%exclude %{_datarootdir}/xapi/sdk/*/dune
+%exclude %{_datarootdir}/xapi/sdk/python/*.pyc
+%exclude %{_datarootdir}/xapi/sdk/python/*.pyo
+%exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyc
+%exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyo
+
+%files libs-devel
+%defattr(-,root,root,-)
+%{ocaml_libdir}/gzip/*
+%exclude %{ocaml_libdir}/gzip/*.cmt
+%exclude %{ocaml_libdir}/gzip/*.cmti
+
+%{ocaml_libdir}/http-svr/*
+%exclude %{ocaml_libdir}/http-svr/*.cmt
+%exclude %{ocaml_libdir}/http-svr/*.cmti
+
+%{ocaml_libdir}/pciutil/*
+%exclude %{ocaml_libdir}/pciutil/*.cmt
+%exclude %{ocaml_libdir}/pciutil/*.cmti
+
+%{ocaml_libdir}/sexpr/*
+%exclude %{ocaml_libdir}/sexpr/*.cmt
+%exclude %{ocaml_libdir}/sexpr/*.cmti
+
+%{ocaml_libdir}/stunnel/*
+%exclude %{ocaml_libdir}/stunnel/*.cmt
+%exclude %{ocaml_libdir}/stunnel/*.cmti
+
+%{ocaml_libdir}/uuid/*
+%exclude %{ocaml_libdir}/uuid/*.cmt
+%exclude %{ocaml_libdir}/uuid/*.cmti
+
+%{ocaml_libdir}/xml-light2/*
+%exclude %{ocaml_libdir}/xml-light2/*.cmt
+%exclude %{ocaml_libdir}/xml-light2/*.cmti
+
+%{ocaml_libdir}/zstd/*
+%exclude %{ocaml_libdir}/zstd/*.cmt
+%exclude %{ocaml_libdir}/zstd/*.cmti
+
+%{ocaml_libdir}/xapi-compression/*
+%exclude %{ocaml_libdir}/xapi-compression/*.cmt
+%exclude %{ocaml_libdir}/xapi-compression/*.cmti
+
+%{ocaml_libdir}/safe-resources/*
+%exclude %{ocaml_libdir}/safe-resources/*.cmt
+%exclude %{ocaml_libdir}/safe-resources/*.cmti
+
+%files -n xenopsd
+%{_sysconfdir}/udev/rules.d/xen-backend.rules
+%{_libdir}/xen/bin/qemu-wrapper
+%{_libexecdir}/xenopsd/vif
+%{_libexecdir}/xenopsd/vif-real
+%{_libexecdir}/xenopsd/block
+%{_libexecdir}/xenopsd/tap
+%{_libexecdir}/xenopsd/qemu-dm-wrapper
+%{_libexecdir}/xenopsd/qemu-vif-script
+%{_libexecdir}/xenopsd/setup-vif-rules
+%{_libexecdir}/xenopsd/setup-pvs-proxy-rules
+%{_libexecdir}/xenopsd/common.py
+%{_libexecdir}/xenopsd/common.pyo
+%{_libexecdir}/xenopsd/common.pyc
+%{_libexecdir}/xenopsd/igmp_query_injector.py
+%{_libexecdir}/xenopsd/igmp_query_injector.pyo
+%{_libexecdir}/xenopsd/igmp_query_injector.pyc
+%config(noreplace) %{_sysconfdir}/sysconfig/xenopsd
+%config(noreplace) %{_sysconfdir}/xenopsd.conf
+
+%exclude %{ocaml_dir}
+
+%files -n xenopsd-xc
+%{_sbindir}/xenopsd-xc
+%{_unitdir}/xenopsd-xc.service
+%{_mandir}/man1/xenopsd-xc.1.gz
+%{_libexecdir}/xenopsd/set-domain-uuid
+/opt/xensource/libexec/fence.bin
+%{_bindir}/list_domains
+
+%files -n xenopsd-cli
+%{_sbindir}/xenops-cli
+%{_mandir}/man1/xenops-cli.1.gz
+
+%files -n xenopsd-simulator
+%{_sbindir}/xenopsd-simulator
+%{_unitdir}/xenopsd-simulator.service
+%{_mandir}/man1/xenopsd-simulator.1.gz
+
+%files -n squeezed
+%{_sbindir}/squeezed
+%{_unitdir}/squeezed.service
+%config(noreplace) %{_sysconfdir}/sysconfig/squeezed
+%config(noreplace) %{_sysconfdir}/squeezed.conf
+
+%files -n xcp-rrdd
+%{_sbindir}/xcp-rrdd
+%{_unitdir}/xcp-rrdd.service
+%config(noreplace) %{_sysconfdir}/sysconfig/xcp-rrdd
+%config(noreplace) %{_sysconfdir}/xcp-rrdd.conf
+%{_tmpfilesdir}/xcp-rrdd.conf
+
+%files -n xcp-rrdd-devel
+%{ocaml_docdir}/rrd-transport/*
+%{ocaml_docdir}/rrdd-plugin/*
+%{ocaml_libdir}/rrd-transport/*
+%{ocaml_libdir}/rrdd-plugin/*
+%{_bindir}/rrdreader
+%{_bindir}/rrdwriter
+%{_bindir}/rrddump
+
+%files -n rrdd-plugins
+/etc/logrotate.d/xcp-rrdd-plugins
+/etc/sysconfig/xcp-rrdd-plugins
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-iostat
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-squeezed
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-xenpm
+/etc/xensource/bugtool/xcp-rrdd-plugins.xml
+/etc/xensource/bugtool/xcp-rrdd-plugins/stuff.xml
+%{_unitdir}/xcp-rrdd-iostat.service
+%{_unitdir}/xcp-rrdd-squeezed.service
+%{_unitdir}/xcp-rrdd-xenpm.service
+
+%files -n vhd-tool
+%{_bindir}/vhd-tool
+/etc/sparse_dd.conf
+/usr/libexec/xapi/sparse_dd
+/usr/libexec/xapi/get_vhd_vsize
+/opt/xensource/libexec/get_nbd_extents.py
+/opt/xensource/libexec/get_nbd_extents.pyc
+/opt/xensource/libexec/get_nbd_extents.pyo
+/opt/xensource/libexec/python_nbd_client.py
+/opt/xensource/libexec/python_nbd_client.pyc
+/opt/xensource/libexec/python_nbd_client.pyo
+
+%files -n xcp-networkd
+%{_sbindir}/xcp-networkd
+%{_bindir}/networkd_db
+%{_unitdir}/xcp-networkd.service
+%{_mandir}/man1/xcp-networkd.1.gz
+%config(noreplace) %{_sysconfdir}/sysconfig/xcp-networkd
+%config(noreplace) %{_sysconfdir}/xcp-networkd.conf
+%config(noreplace) %{_sysconfdir}/xensource/network.conf
+
+%files -n message-switch
+%{_unitdir}/message-switch.service
+%{_sbindir}/message-switch
+%{_sbindir}/message-cli
+%config(noreplace) /etc/message-switch.conf
+/etc/xensource/bugtool/message-switch/stuff.xml
+/etc/xensource/bugtool/message-switch.xml
+
+%files -n message-switch-devel
+%doc %{ocaml_docdir}/message-switch/LICENSE
+%doc %{ocaml_docdir}/message-switch/README.markdown
+%defattr(-,root,root,-)
+%{ocaml_docdir}/message-switch-core
+%{ocaml_docdir}/message-switch-unix
+%{ocaml_docdir}/message-switch-async
+%{ocaml_docdir}/message-switch-lwt
+%{ocaml_docdir}/message-switch-cli
+%{ocaml_docdir}/message-switch
+%{ocaml_libdir}/message-switch
+%{ocaml_libdir}/message-switch-cli
+%{ocaml_libdir}/message-switch-core
+%{ocaml_libdir}/message-switch-unix
+%{ocaml_libdir}/message-switch-async
+%{ocaml_libdir}/message-switch-lwt
+%exclude %{ocaml_libdir}/*/*.cmt
+%exclude %{ocaml_libdir}/*/*.cmti
+
+%files idl-devel
+%{ocaml_docdir}/xapi-idl
+%{_bindir}/xcp-idl-debugger
+%{ocaml_libdir}/xapi-idl
+%{ocaml_libdir}/stublibs/*.so
+
+%files -n forkexecd
+%{ocaml_docdir}/xapi-forkexecd/LICENSE
+%{_sbindir}/forkexecd
+%{_sbindir}/forkexecd-cli
+%{_unitdir}/forkexecd.service
+%config(noreplace) %{_sysconfdir}/sysconfig/forkexecd
+
+%files -n forkexecd-devel
+%{ocaml_libdir}/xapi-forkexecd
+%{ocaml_libdir}/forkexec
+%{ocaml_docdir}/forkexec
+%{ocaml_docdir}/xapi-forkexecd
+# part of the main package
+%exclude %{ocaml_docdir}/xapi-forkexecd/LICENSE
+
+%files storage
+%defattr(-,root,root,-)
+%{python_sitelib}/xapi/__init__.py*
+%{python_sitelib}/xapi/storage/__init__.py*
+%{python_sitelib}/xapi/storage/common.py*
+%{python_sitelib}/xapi/storage/log.py*
+%{python_sitelib}/xapi/storage/api/datapath.py*
+%{python_sitelib}/xapi/storage/api/volume.py*
+%{python_sitelib}/xapi/storage/api/plugin.py*
+%{python_sitelib}/xapi/storage/api/__init__.py*
+%{python_sitelib}/xapi/storage/api/v5/datapath.py*
+%{python_sitelib}/xapi/storage/api/v5/volume.py*
+%{python_sitelib}/xapi/storage/api/v5/plugin.py*
+%{python_sitelib}/xapi/storage/api/v5/task.py*
+%{python_sitelib}/xapi/storage/api/v5/__init__.py*
+%exclude %{python_sitelib}/*.egg-info
+
+%files storage-ocaml-plugin-runtime
+%defattr(-,root,root,-)
+%{ocaml_libdir}/xapi-storage/*
+%exclude %{ocaml_libdir}/xapi-storage/*.a
+%exclude %{ocaml_libdir}/xapi-storage/*.cmt
+%exclude %{ocaml_libdir}/xapi-storage/*.cmx
+%exclude %{ocaml_libdir}/xapi-storage/*.cmxa
+%exclude %{ocaml_libdir}/xapi-storage/*.ml
+
+%files storage-ocaml-plugin-devel
+%defattr(-,root,root,-)
+%{ocaml_docdir}/xapi-storage/*
+%{ocaml_libdir}/xapi-storage/*
+%exclude %{ocaml_libdir}/xapi-storage/*.cma
+%exclude %{ocaml_libdir}/xapi-storage/*.cmi
+%exclude %{ocaml_libdir}/xapi-storage/*.cmt
+%exclude %{ocaml_libdir}/xapi-storage/*.cmxs
+%exclude %{ocaml_libdir}/xapi-storage/*.ml
+
+%files storage-script
+%{_libexecdir}/xapi-storage-script
+%{_sbindir}/xapi-storage-script
+%{_mandir}/man8/xapi-storage-script.8*
+%{_unitdir}/xapi-storage-script.service
+%config(noreplace) %{_sysconfdir}/sysconfig/xapi-storage-script
+%config(noreplace) %{_sysconfdir}/xapi-storage-script.conf
+
+%files -n sm-cli
+%{_sbindir}/sm-cli
+
+%files -n wsproxy
+/opt/xensource/libexec/wsproxy
+%{_unitdir}/wsproxy.service
+%{_unitdir}/wsproxy.socket
+
+%files nbd
+%{_sbindir}/xapi-nbd
+%{_unitdir}/xapi-nbd.service
+%{_unitdir}/xapi-nbd.path
+
+%files -n varstored-guard
+%license LICENSE
+%{_sbindir}/varstored-guard
+%{_unitdir}/varstored-guard.service
+
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -472,191 +1203,906 @@ Coverage files from unit tests
 /testresults
 %endif
 
+%{?_cov_results_package}
+
 %changelog
-* Tue Aug 16 2022 Gael Duperrey <gduperrey@vates.fr> 1.249.25-2.1
-- Sync to hotfix XS82ECU1011
-- Remove xapi-1.249.9-fix-usb-device-reset.backport.patch
-- Remove xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
-- * Wed May 18 2022 Christian Lindig <christian.lindig@citrix.com> - 1.249.25-2
-- - XSI-791/CA-343760 Backport to yangtze
-- * Tue May 17 2022 Christian Lindig <christian.lindig@citrix.com> - 1.249.25-1
-- - XSI-1246/CA-367232: Daily license re-apply fails is HA is enabled
-- * Tue May 17 2022 Christian Lindig <christian.lindig@citrix.com> - 1.249.24-1
-- - CA-363633: Always take the generation-id directly from xapi
-- - CP-38462 UPD-825 Recognise ethtool-advertise on PIFs
-- - CA-366801 UPD-825 xsh: fix XAPI blob sync and EBADF
-- - CA-363391 UPD-825 fix wake-on-lan script
-- - CA-361209 UPD-825 backport utility functions in records.ml
-- - CA-361209 UPD-825 When using WoL find the remote physical PIF
-- - CA-361209 UPD-825 add vlan references to PIF's cli records
-- - CA-365112: Minor refine to keep code flat
-- - CA-365112: Fixup pep8 issues
-- - CA-365112: Permit pool admin username with space to ssh login
-- * Tue Feb 22 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.23-1
-- - Revert stunnel-on-demand commits
-- * Fri Feb 04 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.22-1
-- - CA-363207: SSH access failing when using AD groups with spaces in name
-- * Wed Feb 02 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.21-1
-- - CA-363068: Ensure that stunnel-on-demand shuts down after xapi
-- * Fri Jan 28 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.20-1
-- - CA-361220: xenopsd: avoid space leak in VM.import_metadata_async
-- - USB device reset for Privileged VMs (with PCI device attached) is not working due to bad argument '-r'
-- - CP-38978: Accept TCP4 connection
-- - CP-38978: Update xe-toolstack-restart
-- - CP-38978: Separate stunnel service and socket for fips off and on
-- - CP-38978: Separate stunnel conf file for fips
-- - CP-38978: Add systemd socket for on-demand stunnel
-
-* Tue Aug 02 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.19-1.4
-- Add xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
-
-* Fri Feb 11 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.19-1.3
-- Add backport of CA-363207: SSH access failing when using AD groups with spaces in name
-- * xapi-1.249.19-fix-ssh-access-failure-when-ad-groups-names-with-spaces.backport.patch
-- * See: https://github.com/xapi-project/xen-api/pull/4617
-
-* Tue Jan 25 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.19-1.2
-- Disable HTTP webpage now that regressions were fixed
-- Remove patch xapi-1.249.10-reenable-http-webpage.XCP-ng.patch
-
-* Tue Dec 21 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.19-1.1
-- Sync with CH 8.2.1
-- Remove xapi-1.249.10-fix-web-dir-parameter.XCP-ng.patch, contributed and included upstream
-- Rediff xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
-- Disable requires to tdb-tools, samba-winbind and proprietary upgrade-pbis-to-winbind for now
-- *** Upstream changelog ***
-- * Fri Nov 26 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.19-1
-- - CA-361151: Use PBIS as the default AD backend
-- * Wed Nov 24 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.18-1
-- - CA-360951: Failed to lookup workgroup from domain as DNS cache
-- * Thu Oct 28 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.17-1
-- - CA-359975: set the IP in /etc/issue on first boot
-- * Tue Oct 12 2021 Christian Lindig <christian.lindig@citrix.com> - 1.249.16-1
-- - CA-341715: control-domain-params-init: skip on upgrade
-- * Mon Sep 27 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-4
-- - Bump package for libev dependency
-- * Mon Sep 27 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-3
-- - Bump package after xs-opam update
-- * Mon Sep 27 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-2
-- - Bump packages after ocaml-xen-api-libs-transitional update
-- * Thu Sep 23 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.15-1
-- - Fix handling of web-dir parameter
-- * Wed Sep 15 2021 Lin Liu <lin.liu@citrix.com> - 1.249.14-1
-- - CA-356959: Decide user account locked out by lockoutTime
-- - CA-358568: Password expired could not show on XenCenter
-- - CA-358816: Updated subject name in DC does not get updated in pam
-- * Wed Sep 8 2021 Lin Liu <lin.liu@citrix.com> - 1.249.13-1
-- - CP-36682: Backport replace PBIS with winbind
-- * Wed Sep 8 2021 Danilo Del Busso <Danilo.Del.Busso@citrix.com> - 1.249.12-1
-- - CP-37590: Replaced negative language with `pool member`
-- - CP-37590: Replaced negative language with `bond member`
-- * Mon Aug 23 2021 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.11-1
-- - CP-38064: update for rpclib 7 compatibility
-
-* Mon Sep 13 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.10-1.2
-- Fix handling of web-dir parameter
-- Reenable access to the website on port 80, to avoid a regression
-
-* Thu Sep 02 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.10-1.1
-- Sync with hotfix XS82E031
-- Adapt `expose-host-xen-scheduler-granularity-in-xapi` patch to 1.249.10
-- *** Upstream changelog ***
-- * Fri Jul 16 2021 Ben Anson <ben.anson@citrix.com> - 1.249.10-1
-- - CP-36827: Backport XSI-989
-- - CA-353553 add API error for when NVidia GPU is misconfigured
-- - format
-- - CP-35523: Block access to the website on port 80
-- - CP-35523: Always accept requests from the unix socket
-- - CA-355657 XSI-1037 reduce load during bugtool
-- - XSI-995 handle case where pci doesn't exist in VM.power_stat- e_reset
-- - CA-329462 Cluster.create should clean up if it fails
-- - XSI-804 ensure HVM boot params consistent
-
-* Mon Aug 09 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.9-1.2
-- Add xapi-1.249.9-fix-usb-device-reset.backport.patch
-- Fixes USB passthrough when combined with PCI device passthrough to same VM
-- Related to https://github.com/xcp-ng/xcp/issues/511
-
-* Tue May 18 2021 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.9-1.1
-- Add: xapi-1.249.9-update-schema-hash.XCP-ng.patch
-- Sync with hotfix XS82E020
-- *** Upstream changelog ***
-- * Wed Apr 28 2021 Rob Hoes <rob.hoes@citrix.com> - 1.249.9-1
-- - CA-349123: Update VBD/VIF plug fix
-- * Wed Apr 28 2021 Rob Hoes <rob.hoes@citrix.com> - 1.249.8-1
-- - CA-349123: Fix metadata race in VBD/VIF plug
-- * Fri Mar 26 2021 Ben Anson <ben.anson@citrix.com> - 1.249.7-1
-- - maintenance: allow tests to run in a sandbox
-- - idl: fix name of dependencies of tests
-- - CA-352111: Do not output on cronjobs unless there's an error
-- * Thu Feb 11 2021 Ben Anson <ben.anson@citrix.com> - 1.249.6-1
-- - CP-35026 tell stunnel to provide inet address info
-- - CP-35026 utils for extracting IP addresses
-- - CP-35026 add client field to Context.t
-- - CP-35026 pass client info to the debug module
-- - maintenance: declar fpath as a dependency for xe
-- - CP-35021 VM.suspend - assert support for NVidia cards
-- - CP-35021 introduce new API error for vGPU suspend
-- - REQ-819 stockholm schema version bump
-- - CP-34602: test get_server_localtime and message.get_since
-- - CA-342551: Avoid replacing certificate alerts
-- - CA-343646: generate certificate alerts
-- - CA-343646: Avoid using API when no alerts are going to be modified
-- - CP-35210: log why a private key or certificates failed to validate
-- - CA-351323 XSI-828 fix snapshot metadata lookup
-- - CA-348700: Block VDI.copy if on-boot=reset
-- - maintenance: detect schema updates which are missing version bumps
-- - CA-332779: Update power_state first in force_state_reset_keep_current_operations
-- - CA-332779: Avoid VM.remove in maybe_cleanup_vm
-- - CA-347560: Call VM.import_metadata_async for MD updates
-
-* Wed Nov 04 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.5-1.1
-- Sync with hotfix XS82E002
-- Maintenance update
-- Adapt patch xapi-1.249.5-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-- Adapt patch xapi-1.249.5-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
-- Rebuilt all dependencies first after xs-opam-repo update
-
-* Mon Aug 17 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.4
-- /etc/xapi.conf.d/allow-sched-gran.conf becomes /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
-- New conf file: /etc/xapi.conf.d/00-XCP-ng-create-tools-sr.conf
-
-* Thu Aug 13 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.3
-- Enforce update of xapi.conf when it's updated in the RPM
-- Add warning on top of xapi.conf to prevent user modification
-- Add additional experimental sm drivers to xapi.conf
-
-* Tue Aug 11 2020 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.3-1.2
-- Add xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-- Fill the new protocol fields of the tunnels if the info is in its network's other_config
-- Add xapi-1.249.3-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
-- Expose a host xen scheduler granularity in XAPI
-- New conf file: /etc/xapi.conf.d/allow-sched-gran.conf
-
-* Fri Jul 03 2020 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.3-1.1
-- Rebase on CH 8.2
+* Wed Aug 31 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.20.0-1.1
+- Rebase on CH 8.3 Preview
 - Remove dependency to non-free packages again
-- Rediff xapi-1.249.3-allow-migrate_send_during-RPU.XCP-ng.patch
-- Adapt other patches (done by Benjamin Reis):
-- Redo xapi-1.249.3-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-- (Open VxLAN port for VxLAN tunnels. Now based on the tunnel's protocol field)
-- Rediff xapi-1.249.3-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
-- (Create plugged vifs and vbds and suspended vms)
-- Rediff xapi-1.249.3-open-openflow-port.XCP-ng.patch
-- (Open OpenFlow port for SDN controller)
+- Remove dependency to new non-free package pvsproxy
+- Remove patches merged upstream
+- Keep other patches still necessary. NOT tested nor rediffed yet.
+- Add patch xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch, migrated from retired repo xenopsd
+- Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
+- Remove ptoken.py and accesstoken.py yum plugins and their configuration
+- Patches NOT rediffed yet and build NOT tested yet
 
-* Thu Jun 11 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.3-1
-- CA-340776: move stunnel disconnection to the end where it was
+* Wed Jun 08 2022 Rob Hoes <rob.hoes@citrix.com> - 22.20.0-1
+- CA-367738: Short-circuit auth of HTTP requests without auth header
+- CA-365905 (XSI-1215): Create a temporary file in the target download folder (...)
+- CA-355432: Fixed generation of method overloads.
+- CP-39884: generalise interface to gzip/zstd-like tools
+- CP-37091: Do not use a loop for only one iteration.
+- CP-36245: Refine merge_livepatches function
+- CP-32574: Apply livepatches
+- CP-38583: add Host.last_software_update field with data/time
+- maintenance: make xapi-xenops-tests more granular
+- maintenance: move tests for platformdata together
+- Use file type for is_raw_image()
+- XenAPI.py: define how to build package in pyproject.toml
+- xapi: avoid spawning processes
+- Added Repository Update Unit Tests
 
-* Wed Jun 10 2020 Konstantina Chremmou <konstantina.chremmou@citrix.com> - 1.249.2-2
-- Added patch with branding for the Stockholm release.
+* Wed May 18 2022 Rob Hoes <rob.hoes@citrix.com> - 22.19.0-1
+- libs/uuid: run tests only in the uuid package
+- CP-39805: Avoid deprecated bindings in mtime
+- Datamodel: replace some recent rel_next entries
+- CA-366801: xsh: fix XAPI blob sync and EBADF
+- CP-38688 introduce Message.destroy_many() API/CLI call
+- Upgrade VM runtime state when xenopsd restarts
+- CA-367120: Missing net new RPMs in picking up metadata from updateinfo
+- CA-367120: Add un-installed packages into accumulative update list
+- CA-367120: Add debug logs for outputs of YUM/RPM command lines
+- CP-38688 make Message.destroy_many() async, too
+- XSI-1246/CA-367232: Daily license re-apply fails is HA is enabled
+- Filter input dns when reconfiguring a pif IP(v6)
+- CA-366309: ignore HA when checking update readiness
 
-* Wed Jun 10 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.2-1
-- CA-340776: disconnect from stunnel cleanly
-- Fix use of close_in/out on Unixfd.with_connection
+* Tue May 10 2022 Christian Lindig <christian.lindig@citrix.com> - 22.18.0-2
+- CP-39640 add zstd dependency for suspend/migration stream compression
 
-* Wed Jun 03 2020 Pau Ruiz Safont <pau.safont@citrix.com> - 1.249.1-1
+* Wed Apr 27 2022 Rob Hoes <rob.hoes@citrix.com> - 22.18.0-1
+- CA-366014: pass -dm qemu to UEFI qemu too
+- CP-39551: avoid warnings in xapi
+- Don't use --force in gzip decompress
+- CP-34028: Replace Uuidm with Uuid wherever possible
+- CP-32574: Life-patch support part 1
+- CA-366098: Raise internal xenopsd error on task timeout
+
+* Wed Apr 20 2022 Rob Hoes <rob.hoes@citrix.com> - 22.17.0-1
+- Add binary xapi_gzip for testing Xapi_compression
+- CA-366430: do not wipe PK.auth/dbx.auth
+
+* Tue Apr 19 2022 Rob Hoes <rob.hoes@citrix.com> - 22.16.0-1
+- CA-366428: Add temporary feature 'Internal_repo_access' to allow update in mix mode
+- Add `9pfs` backend to vbds
+- Sync varstore certificates in XAPI with those on disks
+- CP-39551: avoid warnings
+- Fixes regarding DNS management in IPv6
+- ci: fix testing of xapi-xenstored in newer opam's sandboxes
+
+* Wed Apr 13 2022 Rob Hoes <rob.hoes@citrix.com> - 22.15.0-1
+- CA-364138 XSI-1217: fix FD leak, Unix.EMFILE
+- CA-365900: Clean up remanent stunnel client proxy
+- CA-359978: Flush IP addresses when switching from static to DHCP
+- CA-355588: users in pool admin group which contains # can not ssh into dom0
+- CP-35846: Restrict access to internal yum repo server (members only)
+
+* Fri Apr 01 2022 Rob Hoes <rob.hoes@citrix.com> - 22.14.0-1
+- CA-363700: update xenopsd platformdata if rtc-timeoffset changes
+- CA-365474: Synchronize trust roots at startup
+- Make Xapi_compression.compress more polymorphic
+
+* Mon Mar 28 2022 Rob Hoes <rob.hoes@citrix.com> - 22.13.0-1
+- CA-365130: print exception on backup failure
+- CA-365130: Print the name of signals in FE exceptions
+- CA-365121: pool join: require common xapi versions
+- CA-364021: reload certificates offered after emergency-reset-server-certificate
+- CA-365438: Retrieve updateinfo.xml.gz file path from repomd
+- CA-365438: Retrieve group file path from repomd
+- CA-365516: CLI: protect cmdtable population with mutex
+- CP-33973: disable DMC
+- Fix and extend bugtool plugins
+
+* Wed Mar 23 2022 Rob Hoes <rob.hoes@citrix.com> - 22.12.0-2
+- Add dependency on pvsproxy to xcp-networkd
+
+* Tue Mar 15 2022 Rob Hoes <rob.hoes@citrix.com> - 22.12.0-1
+- CA-364630: Add [post|put]_services_xenops to client auth permission list
+- CA-364450: Fix YUM repo config for repo metadata checking
+- CP-39209: Add new field 'gpgkey_name' in repository object
+- CA-364138: log when about to stop varstored and varstore-guard
+- CA-365279: Client-cert auth: use CAfile
+- CP-39375: Remove RPM gpgcheck in reposync
+- CA-365112: Permit pool admin username with space to ssh login
+- Fist point of cert exchange: keep all operations
+- maintenance(ocaml): remove warnings
+- maintenance: avoid using Cstruct.len
+- maintenance: replace Lwt_unix.yield usages
+- maintenance: dedicate a test binary for repository test_repository_helpers
+- maintenance: remove most usages of Re.Str
+
+* Thu Mar 03 2022 Rob Hoes <rob.hoes@citrix.com> - 22.11.0-1
+- CP-38450: Add pool.set_wlb_enabled permission for client auth
+- REQ-403 add cert checking for clusterd
+
+* Mon Feb 28 2022 Rob Hoes <rob.hoes@citrix.com> - 22.10.0-1
+- CA-363903: Winbind does not rotate keytab file
+- CA-363903: Enable UPN format in hcp_users
+- CA-363903: Rotate machine password on Closest KDC
+- CA-362704: Hide proxy_username and proxy_password for repo proxy
+- CA-362704: Remove credential related info from remote repository conf file
+
+* Mon Feb 21 2022 Rob Hoes <rob.hoes@citrix.com> - 22.9.0-1
+- CP-39031 keep more xapi version details for Host.software_versions
+- CP-38462: Recognise ethtool-advertise on PIFs
+- CP-38763: Enforce kerberos protocol talking with DC
+
+* Tue Feb 15 2022 Rob Hoes <rob.hoes@citrix.com> - 22.8.0-2
+- Bump release and rebuild with OCaml 4.13.1 compiler.
+
+* Mon Feb 14 2022 Rob Hoes <rob.hoes@citrix.com> - 22.8.0-1
+- CP-38610: Automatically record the versions of new datamodel elements
+- Update lifecycles for existing API elements
+- Update version comparison for numbered versions
+- Replace rel_next with actual versions
+- CA-363633: Always take the generation-id directly from xapi
+
+* Wed Feb 09 2022 Rob Hoes <rob.hoes@citrix.com> - 22.7.0-1
+- xenopsd: explicitly clean VM state if VM_restore failed during VM_receive_memory
+- CA-363207: SSH access failing when using AD groups with spaces in name
+- XSI-791/CA-343760: Make reboot equal to shutdown+start for CPUID changes
+- CA-362924: Fix typo when syncing repository fails
+- XSI-1175 make message limit configurable
+- Maintenance: reformat with new ocamlformat version
+- CA-363391: fix wake-on-lan script
+- Use Filename to concat varstore dir and file
+- CA-363154: Use repoquery to get available updates
+- CA-363154: Remove usage of 'yum list updates'
+- CA-363154: Ignore errors in repo update
+- CA-363154: Use repoquery to get installed packages
+
+* Thu Feb 03 2022 Rob Hoes <rob.hoes@citrix.com> - 22.6.0-1
+- CA-361209: When using WoL find the remote physical PIF
+- CA-361209: add vlan references to PIF's cli records
+- REQ-403 Enable TLS verification by default
+- REQ-403 make cron job for cert rotation conditional
+- Fixes to prepare for OCaml upgrade
+
+* Wed Jan 26 2022 Rob Hoes <rob.hoes@citrix.com> - 22.5.0-1
+- CP-38850 add xapi.conf option for cert-expiration-days
+- nbd: include the test binary into xapi-nbd package
+- ocaml/tests: workaround opam's sandbox on db upgrade test
+- use TMPDIR on tests if possible
+- CP-38892: add role.is_internal field
+- Update API version; record yangtze schema version
+
+* Tue Jan 11 2022 Rob Hoes <rob.hoes@citrix.com> - 22.4.0-1
+- Merge varstored-guard
+
+* Mon Jan 10 2022 Rob Hoes <rob.hoes@citrix.com> - 22.3.0-1
+- Merge sm-cli
+
+* Mon Jan 10 2022 Rob Hoes <rob.hoes@citrix.com> - 22.2.0-1
+- Merge xapi-nbd
+
+* Mon Jan 10 2022 Rob Hoes <rob.hoes@citrix.com> - 22.1.0-1
+- Merge wsproxy
+
+* Mon Jan 10 2022 Rob Hoes <rob.hoes@citrix.com> - 22.0.0-1
+- fix (http-svr): allow : in passwords when using basic auth
+- maintenance (http-svr): simplify base64.decode usage
+
+* Fri Dec 17 2021 Rob Hoes <rob.hoes@citrix.com> - 21.4.0-1
+- xapi/import: report duplicate mac seeds on import as such
+- Add `ignore_vdis` to `VM.snapshot` method
+- Fix description of configure_repository_proxy
+- CP-38759: Add pool.disable_repository_proxy
+- CP-38701: Restrict client-cert role
+- CA-361988 execute cluster host_resync always locally
+
+* Fri Dec 10 2021 Edwin Török <edvin.torok@citrix.com> - 21.3.0-3
+- Add coverity macros
+
+* Tue Dec 07 2021 Edwin Török <edvin.torok@citrix.com> - 21.3.0-2
+- CP-38218: obsolete xsi{f,o}stat by installing xapi-rrd2csv
+
+* Fri Dec 03 2021 Rob Hoes <rob.hoes@citrix.com> - 21.3.0-1
+- add setter for `Task.result` & `Task.error_info`
+- Use stunnel proxy to access internal YUM repo
+- Enable to set a `Task`'s `resident_on` field.
+- CA-361151: Ldap does not work for cross domain 1-way trust
+- CA-361151: remove 'winbind offline logon = Yes'
+- CA-361221: utf8_recode: use Uutf.{Buffer.add_utf_8,String.fold_utf_8} instead of Uutf.{encode,decoder}
+- CA-361221: utf8_recode: avoid allocations if string is all utf8
+- CA-361220: Do not leak xsclient thread
+- CA-361220: xenopsd: introduce TASK.destroy_on_finish
+- CA-361220: xenopsd: avoid space leak in VM.import_metadata_async
+- CP-35957: Update datamodel_pool for pool.configure_repository_proxy
+- CP-35957: Add repository proxy configurations in syncing
+
+* Thu Nov 25 2021 Rob Hoes <rob.hoes@citrix.com> - 21.2.0-2
+- Bump release and rebuild
+
+* Thu Nov 25 2021 Rob Hoes <rob.hoes@citrix.com> - 21.2.0-1
+- Introduce session.client_cert field
+- CA-360754: exclude client-cert sessions from revalidation
+- CA-360951: Failed to lookup workgroup from domain as DNS cache
+
+* Wed Nov 24 2021 Edwin Török <edvin.torok@citrix.com> - 21.1.0-2
+- Bump release and rebuild
+
+* Tue Nov 23 2021 Rob Hoes <rob.hoes@citrix.com> - 21.1.0-1
+- Fix typo in message name
+- CA-360997: Don't reject imports if the host's major version is larger
+
+* Fri Nov 19 2021 Rob Hoes <rob.hoes@citrix.com> - 21.0.0-1
+- Import message-switch, xcp-idl, xapi-storage, xapi-storage-script
+
+
+* Tue Nov 16 2021 Rob Hoes <rob.hoes@citrix.com> - 1.331.0-1
+- CA-359869: Make Sysfs.list robust against disappearing devices
+- CA-360634: Change the allowed role of host.apply_updates to pool operator
+- CA-360485: Fix SR-IOV capability detection
+- CA-359714: update-precheck: fix uninitialised variable
+- CA-360577: Add RBAC checking for client cert HTTPs requests
+
+* Wed Nov 10 2021 Rob Hoes <rob.hoes@citrix.com> - 1.330.0-3
+- Bump release and rebuild
+
+* Mon Nov 08 2021 Christian Lindig <christian.lindig@citrix.com> - 1.330.0-1
+- CA-359975: set the IP in /etc/issue on first boot
+- Copied README from last draft, and actually signning the commit this time
+- Making comment start with an uppercase
+- CP-38309 make TLS more explicit in clusterd interface
+
+* Wed Oct 27 2021 Edwin Török <edvin.torok@citrix.com> - 1.329.0-1
+- vhd-tool: stress test compatibility with python3
+- vhd-tool: Adapt stress-test to alcotest 1.0
+- CP-38046: Add token in pool.sync_updates to support repository client authentication
+
+* Thu Oct 21 2021 Rob Hoes <rob.hoes@citrix.com> - 1.328.0-1
+- Merge xcp-networkd
+
+* Thu Oct 21 2021 Rob Hoes <rob.hoes@citrix.com> - 1.327.0-1
+- CA-356541 migration debug msg: ensure host is defined
+- Replace ETCDIR by ETCXENDIR everywhere in scripts/
+
+* Tue Oct 19 2021 Rob Hoes <rob.hoes@citrix.com> - 1.326.0-1
+- Merge xenopsd and squeezed
+
+* Wed Oct 13 2021 Rob Hoes <rob.hoes@citrix.com> - 1.325.0-1
+- stunnel/gencert services: use Wants rather than Requires
+
+* Wed Oct 13 2021 Rob Hoes <rob.hoes@citrix.com> - 1.324.0-1
+- CHCLOUD-109: Remove checking on 'description' field in updateinfo
+- CA-357075: Handle error from get_cluster_config call during RPU
+- CA-359835: Enable 'Updates' feature in rolling pool update
+
+* Mon Oct 11 2021 Rob Hoes <rob.hoes@citrix.com> - 1.323.0-1
+- Maintenance: remove warnings
+- CA-359214: Only restart stunnel if the config file has changed
+
+* Fri Oct 01 2021 Rob Hoes <rob.hoes@citrix.com> - 1.322.0-1
+- XenAPI.Session: raise exception on attempted forwarding of python magic methods
+- CA-358904 REQ-403  cross pool migration must not use cert checking
+- CA-356358: enable clustering daemon before attempting RPC call to fetch pems
+- CA-358326 log cron job for cert refresh in syslog
+- Remove old-style xva import code (finally)
+- xe: remove prefix-match workaround
+- CA-357785: Stop metrics binaries from logging to stdout
+- maintenance: remove option to daemonize metric collectors
+- CA-359226 add fist point to backdate new certs during testing
+
+* Wed Sep 22 2021 Rob Hoes <rob.hoes@citrix.com> - 1.321.0-1
+- Merge tapctl and vhd-tool
+- Upgrade to dune 2.0
+
+* Tue Sep 21 2021 Rob Hoes <rob.hoes@citrix.com> - 1.320.0-1
+- CA-358904 REQ-403  cross pool migration must not use cert checking
+- CA-359076: avoid DB calls when starting management server
+- CP-38206: Merge xen-api-libs-transitional
+
+* Fri Sep 17 2021 Rob Hoes <rob.hoes@citrix.com> - 1.319.0-1
+- CA-358898: handle IPv6 state when management disabled
+
+* Thu Sep 16 2021 Rob Hoes <rob.hoes@citrix.com> - 1.318.0-1
+- CP-35393: Introduce client_certificate_auth
+- CP-34726: Use a separate service and port for the client cert auth
+- CP-34727: configure unix socket for client certificate auth
+- CP-36249: Reconfigure management server when en/disabling client certificate auth
+- CP-37692: Introduce RBAC role for client-auth sessions
+- Use port 443 for client certificate auth (again)
+- Duplicate cipher options in stunnel SNI service
+- Change role for repository-related calls to pool-operator
+- CP-37598: Add feature flag to restrict updates from a repository
+- Fix missing xenopsd diagnostics from bugtools
+- Fix handling of web-dir parameter
+- CA-356959: Decide user account locked out by lockoutTime
+- CA-358568: Password expired could not show on XenCenter
+- CA-358816: Updated subject name in DC does not get updated in pam
+
+* Mon Sep 13 2021 Rob Hoes <rob.hoes@citrix.com> - 1.317.0-4
+- CA-358445: move %pre section to xcp-rrdd subpackage
+
+* Mon Sep 06 2021 Rob Hoes <rob.hoes@citrix.com> - 1.317.0-3
+- CA-358445: add rrdmetrics group (missing in xcp-rrdd merge)
+
+* Fri Sep 03 2021 Rob Hoes <rob.hoes@citrix.com> - 1.317.0-2
+- Bump release and rebuild
+
+* Thu Sep 02 2021 Rob Hoes <rob.hoes@citrix.com> - 1.317.0-1
+- CP-37370 add certificate-refresh to cron.daily
+- CP-37370 revert this for release: use cron.hourly
+
+* Wed Sep 01 2021 Rob Hoes <rob.hoes@citrix.com> - 1.316.0-1
+- Specsavers: merge xcp-rrdd
+- CP-37590: Replaced negative language within `FriendlyErrorNames.resx`
+- CP-37590: Replaced negative language within `datamodel_errors.ml`
+- CP-37590: Remove useless override in C# SDK generation
+- Amend typos in errors datamodel
+- Undo TLS verification change from v1.315.0, which was incomplete
+
+* Thu Aug 26 2021 Christian Lindig <christian.lindig@citrix.com> - 1.315.0-1
+- Enable TLS verification by default
+
+* Wed Aug 25 2021 Christian Lindig <christian.lindig@citrix.com> - 1.314.0-1
+- CA-357025 enable TLS cert checking for pool and WLB together
+
+* Wed Aug 25 2021 Christian Lindig <christian.lindig@citrix.com> - 1.313.0-1
+- Add datamodel option to log Db.X.destroy calls
+- CA-356441: reload-or-restart sshd to apply sshd configuration
+- REQ-403 CA-356724 unix time serial number to xapi-pool-tls.pem
+- Stunnel.reload: wait 5s by default
+- CA-355657 wait before serving refrehed SSL cert
+- Fix issue #4491: USB device reset for Privileged VMs
+  (with PCI device attached) is not working due to bad argument '-r'
+- CP-36863: Expose local YUM repository only on TLS interface
+- CA-357151 REQ-403 add joiner's ca certs to db
+- CA-357151 REQ-403 consistent output about ca certs
+- CA-356854 REQ-403 ejected hosts come back with verification enabled
+- REQ-403 revert me! FIRSTBOOT_ENABLE_TLS_VERIFICATION=false
+- CP-37866 add Host.tls_verification_enabled field
+- CA-354374: Update pool_cpuinfo and pool_features after
+  the ejected host having been destroyed
+- CP-37898: Make winbind encryption types configurable
+- CA-357417 REQ-403 ensure valid cert alerts are not deleted
+
+* Mon Aug 09 2021 Edwin Török <edvin.torok@citrix.com> - 1.312.0-4
+- Re-enable upgrade-pbis-to-winbind
+
+* Mon Aug 02 2021 Rob Hoes <rob.hoes@citrix.com> - 1.312.0-3
+- Temporarily revert upgrade-pbis-to-winbind requirement
+
+* Thu Jul 29 2021 Rob Hoes <rob.hoes@citrix.com> - 1.312.0-1
+- Merge winbind feature branch
+- REQ-403 change type of cert generated during cert refresh
+
+* Thu Jul 29 2021 Rob Hoes <rob.hoes@citrix.com> - 1.311.0-1
+- CP-37571 REQ-403 add fist to Cert_distrib.exchange_certificates_in_pool
+
+* Thu Jul 29 2021 Rob Hoes <rob.hoes@citrix.com> - 1.310.0-1
+- REQ-403: failed_login_alert_freq
+- Add explicit package to dune tests
+- REQ-403 concurrency fixes pt 4
+- Revert "REQ-403 concurrency fixes pt 4"
+- maintenance: add copyright to cert_distrib files
+- REQ-403 use pool ops rather than cert distrib mutex
+- REQ-403 replace exchange_certificates_on_join lock
+- REQ-403 remove exchange_certificates_among_all_members lock
+- REQ-403 replace exchange_ca_certificates_with_joiner lock
+- REQ-403 replace copy_primary_host_certs lock
+- REQ-403 pool ejectees should remove trusted ca certs
+- ci: run format on future feature and lcm branches
+- configure: work around read-only /tmp found in opam's 2.1.0
+- CA-356977 REQ-403 fix broken external auth for Host.reset_server_certificate
+
+* Mon Jul 19 2021 Rob Hoes <rob.hoes@citrix.com> - 1.309.1-1
+- Revert "Remove unused function"
+- qualitygate: expect 1 instance of "=="
+
+* Mon Jul 19 2021 Rob Hoes <rob.hoes@citrix.com> - 1.309.0-1
+- Import xen-api client
+- CP-36098 don't refresh certs if any host offline
+- quality-gate: error if somebody used physical equality
+- REQ-403 define how to generate cluster certificates
+- REQ-403 give cluster daemon pem information
+- CP-36097 REQ-403 write_pem API impl
+- CP-36097 REQ-403 cluster must have a pem file before enabling tls verification
+- CP-36097 REQ-403 cluster pems never expire
+- CP-36097 REQ-403 use result monad rather than exceptions in selfcert
+- CP-36097 REQ-403: maybe restart cluster daemon on cert refresh
+
+* Thu Jul 08 2021 Christian Lindig <christian.lindig@citrix.com> - 1.308.0-1
+- CA-355629 use hostname for CN in host cert
+
+* Mon Jul 05 2021 Rob Hoes <rob.hoes@citrix.com> - 1.307.0-1
+- CP-36098 introduce host-refresh-server-certificates
+- CP-36098 add path argument to Gencertlib.Lib.install_server_certificate
+- CP-36098 new API: host.refresh-host-certficate
+- CP-36098 introduce pool op cert_refresh
+- CA-355657 XSI-1037 reduce load during bugtool
+- Maintenance: fix unixpwd warnings about loosing const qualifier
+- Maintenance: fix indent in unixpwd
+- CA-341715: control-domain-params-init: skip on upgrade
+- CA-355625 reload Stunnel instead of restart after cert change
+- CA-355625 remove dead code
+- CA-341715: fix control-domain-params-init
+- REQ-403 copy_primary_host_certs API call
+- REQ-403 am i missing certs thread
+- REQ-403 only exchange certs between primary and joiner during pool.join
+- REQ-403 best effort distribution of joiner's pool certs to all hosts
+- REQ-403 check for missing certs only when db connection established
+
+* Fri Jun 25 2021 Edwin Török <edvin.torok@citrix.com> - 1.306.0-1
+- REQ-403 update_ca_bundle lock
+- Only add XAPI message for VM when migration is live and intrapool
+
+* Thu Jun 24 2021 Edwin Török <edvin.torok@citrix.com> - 1.305.0-1
+- Remove unnecessary scope restriction Result
+- CA-354414 perform best effort Pool.eject cleanups
+- REQ-403 cert_distrib lock
+- CA-355571: Include accumulative updates for updates description and guidances
+- CA-355571: Refine precedence between guidances
+- CA-355571: Unit Tests: Include accumulative updates for updates description and guidances
+- CA-355571: Unit Tests: Refine precedence between guidances
+- Add more messages to a VM lifecycle
+
+* Fri Jun 11 2021 Rob Hoes <rob.hoes@citrix.com> - 1.304.0-1
+- CA-354260 REQ-403: check certs haven't expired before installing them
+- CA-354834 log ref, uuid when adding CA cert
+- Fix update-ca-bundle.sh hangling of deleted certs
+- CP-37014 verify TLS-based RPC before enabling it
+- CA-354834 log ref, uuid when adding CA cert
+- CA-355179: Support epoch in RPM
+- CA-355179: Support epoch in RPM: Update unit tests
+- CA-355179: Support epoch in RPM: Add unit tests
+- CA-355180: Improve parsing output of 'yum list updates'
+- Added missing release date and restored as yet unreleased versions in the API docs.
+- Build the doc-json target as part of the install target. Restructured output.
+- Remove pool.slave_network_report
+- Audit log: extend suppression to calls with _ separators
+- CP-36178: Add basic precheck function for updates
+- Removed rel_honolulu as it contained no API changes. Updated last_known_schema_hash.
+- fixup! CA-355179: Support epoch in RPM
+- Fix SDK build
+
+* Thu May 27 2021 Rob Hoes <rob.hoes@citrix.com> - 1.303.0-1
+- CA-354689 don't fail if host cert to be removed doesn't exist
+- Maintenance: reformat code
+- xapi_pool_helpers: refactor call_fn_on_hosts
+- C# SDK: Fixes to generated code:
+- CP-35955: Datamodel: Add pending_guidances for host
+- CP-35955: Datamodel: Add pending_guidances for VM
+- CP-35955: Bump up last_known_schema_hash
+- CP-35955: Add absolute guidances in pending_guidances
+- CP-35955: Clean up pending guidances
+- CA-355039: Support single guidance from one update in updateinfo.xml
+- Adapt xe-reset-networking for IPv6
+
+* Thu May 20 2021 Rob Hoes <rob.hoes@citrix.com> - 1.302.0-1
+- CP-35348 cover alerts for internal and CA certificates
+- xapi-cli-protocol: make unit-tests runnable
+- fix: cli protocol tests cannot depend on xapi-cli-server
+- xe-enable-ipv6 edits net.ipv6.conf.{ all | default }.disable_ipv6
+- Maintenance: replace deprecated Listext.assoc
+- Set IPv6 parameters in check_network_reset
+- cert_distrib: refactor go method
+- CP-36866: Generalize code for certificate distribution
+- CP-36866: block pool join when ca certificates might conflict
+- CP-36866: Distribute CA certificates on join
+
+* Mon May 17 2021 Rob Hoes <rob.hoes@citrix.com> - 1.301.0-1
+- Centaurus repository APIs: merge from feature/centaurus/master-1
+
+
+* Mon May 10 2021 Rob Hoes <rob.hoes@citrix.com> - 1.300.0-1
+- CP-35523: Always accept requests from the unix socket
+
+* Fri May 07 2021 Rob Hoes <rob.hoes@citrix.com> - 1.299.0-1
+- CP-35523: Block access to the website on port 80
+
+* Thu May 06 2021 Rob Hoes <rob.hoes@citrix.com> - 1.298.0-1
+- CP-36744: Allow users to reenable tls cert checking
+- CA-329462 Cluster.create should clean up if it fails
+- ci: quality-gate shell script
+- CA-353388: Control debug level by debug_stunnel env variable
+- CP-36658 remove certs of host when it is ejected
+- CA-349123: Tweak previous hotplug fix
+- CA-353553 add API error for when NVidia GPU is misconfigured
+- CA-353747 accept RSA and EC private key headers in PEM
+- CA-353747 add negative test case
+- CP-34467: Exchange certificate when a hosts joins a pool
+- CP-34467: simplify certificate distribution
+
+* Tue Apr 27 2021 Rob Hoes <rob.hoes@citrix.com> - 1.297.0-1
+- CP-34467: Pre-join checks for TLS verification
+- CA-353309: Create correct filters for uninstalling ca certs
+- CP-34467: Avoid Not_found error when getting remote pool
+- CP-36750: Block enabling TLS verification on pool ops
+- Enable to choose a migration network in `VM.pool_migrate`:
+- CA-349123: Fix metadata race in VBD/VIF plug
+
+* Thu Apr 22 2021 Rob Hoes <rob.hoes@citrix.com> - 1.296.0-1
+- REQ-403: Display expiry for certificates on the cli
+- CA-341715: Sync certificates after bringing up mgmnt IF
+- CP-36690 at startup, sync host certs with DB
+- CP-36690 fix update_certificates at startup
+
+* Wed Apr 14 2021 Rob Hoes <rob.hoes@citrix.com> - 1.295.0-2
+- Bump release and rebuild
+
+* Wed Apr 14 2021 Rob Hoes <rob.hoes@citrix.com> - 1.295.0-1
+- CP-36509 update db for xapi_ssl.pem on startup if changed
+- CP-36509 simplify cert decoding
+- CP-36509 add MLI for certificates_sync module
+- fixup! CP-36509 simplify cert decoding
+- CP-36099 REQ-403 add type:host_internal to cert db schema
+- CP-36099 REQ-403 add host_internal cert type to db utils
+- CP-36099 REQ-403 only produce alerts for `host certs
+- fixup! CP-36509 simplify cert decoding
+- REQ-403 file system helpers
+- REQ-403 declare cert related files/folders in xapi_globs
+- CP-36510 REQ-403 distribute certs during Pool.enable_tls_verification
+- CA-353011: Clean up certificates from unknown hosts
+- CP-34469 on pool eject, remove host certificates
+- XSI-995 handle case where pci doesn't exist in VM.power_state_reset
+
+* Thu Apr 01 2021 Rob Hoes <rob.hoes@citrix.com> - 1.294.0-1
+- CP-36100 extend update-ca-bundle to handle pool certs
+- maintenance: reformat
+- REQ-403: remove deprecated host cert (un)install calls
+- CA-36099 REQ-403 add name and type to certificate db record
+- CP-36099 REQ-403 comment about cert locations
+- REQ-403 CP-36099 remove / add certs to db when un / installing them
+- REQ-403 CP-36099 initialize rng
+- CP-36100-3 Use explicit config for TLS Stunnel verification
+- CP-36100-3 set TLS verification default at Xapi startup
+- CP-36100-3 verify VNC connections as a pool-level connection
+- CP-36100-3 change name of Stunnel.verification_config
+- CP-36100-3 make ~verify_cert:None more explicit
+- CP-36100-3 count verify_cert:None in Makefile
+- CP-36100-3 persist TLS emergency flag
+- README file was left out of the package.
+- CP-36100: format code around rrdd commands
+
+* Fri Mar 26 2021 Rob Hoes <rob.hoes@citrix.com> - 1.293.0-2
+- Bump release and rebuild
+
+* Fri Mar 12 2021 Rob Hoes <rob.hoes@citrix.com> - 1.293.0-1
+- Merge xen-api-sdk repo to 'ocaml/sdk-gen/' from commit 'e278e5de021b0f354d2a98810cf77ad3a1b7de40'
+- CP-36113: Added targets for compiling the SDK generator and generating the SDK source code.
+- Keep the java library and samples version in sync.
+- Added the xen-api-sdk package to the tests.
+- Auto-formatted files.
+
+* Wed Mar 10 2021 Konstantina Chremmou <konstantina.chremmou@citrix.com> - 1.292.0-2
+- CP-36113: Merged the SDK into xapi.
+
+* Mon Mar 08 2021 Rob Hoes <rob.hoes@citrix.com> - 1.292.0-1
+- Initialise Mirage RNG on startup
+
+* Fri Mar 05 2021 Rob Hoes <rob.hoes@citrix.com> - 1.291.0-1
+- CP-36096: Generate two certificates at startup
+- CP-36096: serve the new certificate for xapi:pool clients
+- CA-352329: Revert original formatting of lists in xapi-cli-server
+- xapi-cli-server: Consolidate formatting on comma-separated lists
+- xapi-cli-server: consolidate formatting of semicolon-separated lists
+
+* Tue Mar 02 2021 Rob Hoes <rob.hoes@citrix.com> - 1.290.0-1
+- When creating bonds, use primary_member's primary_address_type
+- When creating tunnels, use transport_PIF's primary_address_type
+- When creating vlans, use tagged_PIF's primary_address_type
+- make format
+- When creating sriov networks, use physical_ref's primary_address_type
+- CA-352111: Do not output on cronjobs unless there's an error
+- xapi-cli-server: clean up imports and comments
+- xapi-cli-server: be consistent when showing list of references
+- xapi-cli-server: be consistent when showing lists
+- REQ-403 CP-33822 add IP address as SAN in self-signed certs
+- CP-36096: Move helper_hostname to xapi_aux
+- CP-36096: Move functions that collect hostnames and ip to xapi-aux
+- CP-36096: Hostnames for certificates are gathered consistently
+- CP-36096: Allow any number of IPs in SAN
+- CP-36096: Move format conversion of mgmt IP to the edge
+- CP-36096: generate x509 extensions when the issuer is
+- CP-33822: Use Unix.gethostname instead the hostname binary
+- maintenance: restrict the usage of read_localhost_info
+- Replace gethostbyname by getaddrinfo to support IPv6
+- CA-265116 rename and deprecate Pool cert functions
+- CA-265116 rename and deprecate Host cert funtions
+- CA-265116 use new names for cert functions
+- REQ-403 CP-34468 add Host.reset_server_certificate
+- REQ-403 add module to split PEM files
+- REQ-403 use Pem.parse_file
+- REQ-403 introduce path to CA certificates
+- REQ-403 CP-33822 enable_tls_verification
+- REQ-403 CP-34461 emergency disable tls verification
+- REQ-403 CP-34461 tls verification health check
+- CP-34942: Update pem library for angstrom 0.14.0+
+- REQ-403 CP-35584 deprecate wlb_verify_cert
+- CP-35761: Add feature flag for TLS certificate checking
+- REQ-403: add logging to cert related handlers
+- CA-351391: Make certificate alerts ignore CA certs
+- REQ-403 bump schema version
+- CP-34643: Reduce usage of Listext
+- maintenance: avoid warnings for unused names
+- CP-32669: Remove vendored PCI library
+
+* Tue Feb 23 2021 Rob Hoes <rob.hoes@citrix.com> - 1.289.0-1
+- CP-36094 add SNI to stunnel server config
+- Revert "CA-342527: Avoid traversing lists when possible"
+- CP-34472 expose User-Agent from a context
+- CP-34472 throw the correct error on auth failure
+- CP-34472 ensure auth error is thrown correctly
+- CP-34472 add ability to record login failures
+- CP-34472 actually record login failures
+- CP-34472 generate failed login alerts
+- REQ-403 CP-34472 include IP address in login fail alerts
+- REQ-403 CP-34472 use UTC in failed login alerts
+
+* Tue Feb 16 2021 Rob Hoes <rob.hoes@citrix.com> - 1.288.0-1
+- CA-342527: remove argument logging of VMPP messages
+- CA-342527: Avoid traversing lists when possible
+- xapi: remove unused json module
+- maintenance: detect schema updates which are missing version bumps
+- ci: count usages of List.hd
+- Remove usage of List.hd in gencert
+
+* Fri Feb 05 2021 Rob Hoes <rob.hoes@citrix.com> - 1.287.0-2
+- Bump release and rebuild
+
+* Tue Jan 26 2021 Rob Hoes <rob.hoes@citrix.com> - 1.287.0-1
+- Support IPv6 in vncproxy
+- ci: check whether code in PRs is formatted
+- XSI-804 ensure HVM boot params consistent
+- maintenance: default hvm boot policy constant
+- CA-351323 XSI-828 fix snapshot metadata lookup
+
+* Tue Jan 26 2021 Rob Hoes <rob.hoes@citrix.com> - 1.286.0-1
+- CA-343646: generate certificate alerts
+- CA-343646: Avoid using API when no alerts are going to be modified
+- maintenance: format code with ocamlformat
+- Allow migration on IPv6-only host
+
+* Wed Jan 06 2021 Rob Hoes <rob.hoes@citrix.com> - 1.285.0-2
+- Bump release and rebuild
+
+* Mon Jan 04 2021 Christian Lindig <christian.lindig@citrix.com> - 1.285.0-1
+- CP-34602: test get_server_localtime and message.get_since
+- Add ipv6 addresses to this_is_my_address
+- Wrap IPv6 addresses when creating URLs
+- Continue fixing console location in IPv6
+- CP-34643: Replace deprecated usages of pervasiveext
+
+* Wed Dec 16 2020 Christian Lindig <christian.lindig@citrix.com> - 1.284.0-1
+- CA-350253: cli_operations: use `set []` when clearing if available
+- CA-320523: records: implement setting of the map for `xenstore-data`
+
+* Wed Dec 02 2020 Christian Lindig <christian.lindig@citrix.com> - 1.283.0-1
+- CP-34942: update dmidecode parser for angstrom 0.14
+- CA-348700: Block VDI.copy if on-boot=reset
+
+* Fri Nov 27 2020 Christian Lindig <christian.lindig@citrix.com> - 1.282.0-1
+- Fix IPv6 console location
+
+* Fri Nov 20 2020 Christian Lindig <christian.lindig@citrix.com> - 1.281.0-1
+- ci: unpin packages on cleanup
+
+* Wed Nov 18 2020 Edwin Török <edvin.torok@citrix.com> - 1.280.0-3
+- Re-enabled automatic ocaml dependency generator
+
+* Wed Nov 18 2020 Edwin Török <edvin.torok@citrix.com> - 1.280.0-2
+- CA-349027: be explicit about the choice of sendmail implementation
+
+* Thu Nov 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.280.0-1
+- CA-332779: Update power_state first in force_state_reset_keep_current_ops
+- CA-332779: Avoid VM.remove in maybe_cleanup_vm
+- CA-347560: Call VM.import_metadata_async for MD updates
+
+* Tue Nov 10 2020 Christian Lindig <christian.lindig@citrix.com> - 1.279.0-1
+- CP-35021 VM.suspend - assert support for NVidia cards
+- CP-35021 introduce new API error for vGPU suspend
+
+* Thu Nov 05 2020 Christian Lindig <christian.lindig@citrix.com> - 1.278.0-1
+- CA-347543 use /usr/bin/pool_secret_wrapper only if CC
+
+* Thu Oct 29 2020 Christian Lindig <christian.lindig@citrix.com> - 1.277.0-1
+- CP-35210: log why a private key or certificates failed to validate
+- CP-32138: rely on systemd to have wsproxy available
+- maintenance: update github actions dependency
+- maintenance: Schedule weekly run for 1.249-lcm
+- ci: do not cache unversioned packages, update versiones ones
+- CA-347611 Revert "CA-332779: Update power_state first in
+    force_state_reset_keep_current_operations"
+- CA-347611 Revert "CA-332779: Avoid VM.remove in maybe_cleanup_vm"
+
+* Thu Oct 22 2020 Christian Lindig <christian.lindig@citrix.com> - 1.276.0-1
+- CA-332779: Update power_state first in
+    force_state_reset_keep_current_operations
+- CA-332779: Avoid VM.remove in maybe_cleanup_vm
+- CP-35026 tell stunnel to provide inet address info
+- CP-35026 utils for extracting IP addresses
+- CP-35026 add client field to Context.t
+- CP-35026 pass client info to the debug module
+- maintenance: format
+
+* Wed Oct 21 2020 Christian Lindig <christian.lindig@citrix.com> - 1.275.0-1
+- CA-333441 - restarting ISCSI daemon after setting initiator IQN
+- CA-333441: Do not fail the startup sequence if the iSCSI initiator
+    cannot be set
+- maintenance: allow tests to run in a sandbox
+- fix: update ocamlformat metadata to work with 0.15.0
+- maintenance: format code with ocamlformat
+
+* Thu Oct 15 2020 Christian Lindig <christian.lindig@citrix.com> - 1.274.0-1
+- fix: correctly show add_to_sm_config to logs
+
+* Mon Oct 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.273.0-1
+- Revert "CA-333441 - restarting ISCSI daemon after setting initiator IQN"
+
+* Thu Oct 08 2020 Christian Lindig <christian.lindig@citrix.com> - 1.272.0-1
+- CP-34942: update for rpclib 7 compatibility
+- CP-34942: adapt to message-switch usage of result
+- CP-34942: update for rpclib 8 compatibility
+- CA-333441 - restarting ISCSI daemon after setting initiator IQN
+- opam: add jobs for build and tests for all packages
+
+* Mon Oct 05 2020 Christian Lindig <christian.lindig@citrix.com> - 1.271.0-1
+- CA-333441 - restarting ISCSI daemon after setting initiator IQN
+- Delete unimplemented HTTP action definitions
+- Remove misleading comment on expose_get_all_messages_for
+- CA-262525: add missing parameters to HTTP actions
+- Add 2 new methods to the `Host` object
+
+* Wed Sep 16 2020 Christian Lindig <christian.lindig@citrix.com> - 1.270.0-1
+- Branding for the Stockholm release.
+- CA-332605 Fixed Bad error message for vcpu/cores-per-socket
+- maintenance: make call_script interface cleaner
+- maintenance: reintroduce missing PSR unit tests
+- maintenance: remove @ list concats in suite_alcotest
+- maintenance: remove reference to unused file
+- maintenance: Remove travis CI
+- maintenance: remove unused pool op valid assert from mli
+- define rel_next
+- REQ-819 CA-34357 add PSR feature flag
+- REQ-819 CA-34873 remove genptoken & genptoken.service
+- REQ-819 CP-33774 PSR orchestration
+- REQ-819 CP-33777 expose code to generate ptoken as a library
+- REQ-819 CP-33777 real implementation
+- REQ-819 CP-33777 store list of pool secrets rather than only one
+- REQ-819 CP-33780 add pool secret rotation fistpoints
+- REQ-819 CP-34357 add designate_new_master to pool operations
+- REQ-819 CP-34357 block PSR if any pool operations are in progress
+- REQ-819 CP-34379 don't proceed with rotation if PSR state is inconsistent
+- REQ-819 CP-34873 generate pool secrets optionally via script
+- REQ-819 CP-34936 don't log result from pool_secret_wrapper
+- REQ-819 make PSR and HA mutually exclusive
+- REQ-819 rel_next -> rel_stockholm_psr
+
+* Wed Sep 16 2020 Ben Anson <ben.anson@citrix.com> - 1.269.0-2
+- REQ-819 CP-34873: remove genptoken services
+
+* Mon Sep 14 2020 Christian Lindig <christian.lindig@citrix.com> - 1.269.0-1
+- CA-344268: Fix timing issue in PBIS available check
+- CA-265116 clarify doc for CA Cert Revoc. Lists
+- CP-33823 replace generate_ssl_cert with OCaml code for more control
+
+* Mon Sep 14 2020 Christian Lindig <christian.lindig@citrix.com> - 1.268.0-1
+- CA-322708 - VM must not be allowed to start during storage migration
+
+* Tue Sep 08 2020 Christian Lindig <christian.lindig@citrix.com> - 1.267.0-1
+- XSI-795 CA-343951 fix Nvidia version parsing
+
+* Wed Sep 02 2020 Christian Lindig <christian.lindig@citrix.com> - 1.266.0-1
+- CA-343769 get CC_PREPARATIONS from xs-inventory
+- Do not lose backtrace in RBAC
+
+* Fri Aug 28 2020 Christian Lindig <christian.lindig@citrix.com> - 1.265.0-1
+- XSO-974: add full lifecycle to VM.last_booted_record
+- maintenance: formatting
+- maintenance: remove occurences of !=
+- maintenance: remove occurences of ' == '
+- maintenance: ensure all fistpoints work as expected
+- Remove duplicate line from xapi.service
+- CP-33121: open listext from its own library
+- CP-33121: open xstringext from its own library
+- CP-33121: open unixext from its own library
+- CP-33121: open threadtext from its own library
+- CP-33121: open pervasiveext from its own library
+- CP-33121: open date from its own library
+- CP-33121: Remove all open Stdext
+- CP-33121: Stop depending on stdext
+
+* Mon Aug 17 2020 Christian Lindig <christian.lindig@citrix.com> - 1.264.0-1
+- CA-341155: Fix console refresh when starting management server
+- Remove Xapi_mgmt_iface.rebind
+- CA-342171 fix get_server_localtime
+- CA-343230 improve bewildering HTTP 403 error
+- CA-343230 assert (rather than assume) that update VBDs are attached
+- xapi_mgmt_iface: restructure
+- xapi_mgmt_iface: hide himn_addr ref from the interface
+- Remove Xapi_network.detach call from Xapi_vlan.destroy
+- Clear the HIMN state if the network is detached
+- CA-342551: Avoid replacing certificate alerts
+
+* Wed Aug 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.263.0-1
+- Improve HA parameter derived from timeout (#4169)
+- CA-343117: host-backup: Include /boot/efi in the tarball
+
+* Thu Jul 30 2020 Christian Lindig <christian.lindig@citrix.com> - 1.262.0-1
+- CA-319021 fixed resident_on field update issue
+- maintenance: make format
+- maintenance: do not link to system OCaml when using opam
+
+* Fri Jul 24 2020 Christian Lindig <christian.lindig@citrix.com> - 1.261.0-1
+- merger rrd2cvs into xapi
+- CP-34439: ensure rrd2csv compiles alongside xapi
+- CP-34439: tidy rrd2csv after merging into xapi
+
+* Tue Jul 21 2020 Christian Lindig <christian.lindig@citrix.com> - 1.260.0-1
+- CA-338596: Upload files limit should deal with the dot style
+- CA-338608: Limit xe client to download files specified in the args
+- opam: update dependencies
+- ci: add github actions
+
+* Fri Jul 17 2020 Rob Hoes <rob.hoes@citrix.com> - 1.259.0-2
+- Remove the patches, which have now been upstreamed.
+
+* Thu Jul 16 2020 Christian Lindig <christian.lindig@citrix.com> - 1.259.0-1
+- CP-33121: Remove unused dependency on stdext's fun module
+
+* Fri Jul 10 2020 Christian Lindig <christian.lindig@citrix.com> - 1.258.0-1
+- Increase sharing of strings in database
+- maintenance: remove Listext
+- CA-341988 don't take basename of empty update key
+
+* Fri Jul 03 2020 Christian Lindig <christian.lindig@citrix.com> - 1.257.0-1
+- CA-341149: Ensure a wait happen when the heartbeat connection fails
+- XSO-974: correctly reflect datamodel changes in stockholm
+- pci: fix tests for all distributions
+
+* Tue Jun 30 2020 Christian Lindig <christian.lindig@citrix.com> - 1.256.0-1
+- Branding for the Stockholm release
+
+* Sun Jun 28 2020 Konstantina Chremmou <konstantina.chremmou@citrix.com> - 1.255.0-2
+- Removed patch with branding for the Stockholm release as it has moved to the repo.
+
+* Fri Jun 26 2020 Christian Lindig <christian.lindig@citrix.com> - 1.255.0-1
+- capitalise 'PEM' in English translations of certificate error messages
+
+* Thu Jun 18 2020 Christian Lindig <christian.lindig@citrix.com> - 1.254.0-1
 - CA-340148: Format code with ocamlformat
+- Fix use of close_in/out on Unixfd.with_connection
+- CA-340776: disconnect from stunnel cleanly
+- CA-340776: move stunnel disconnection to the end where it was
+- maintenance: bump schema version
+- CA-335033 avoid idle connections during VDI copy
+
+* Tue Jun 16 2020 Christian Lindig <christian.lindig@citrix.com> - 1.253.0-1
+- maintenance: move tar_helpers to xapi_aux
+- maintenance: format code with ocamlformat
+
+* Tue Jun 16 2020 Christian Lindig <christian.lindig@citrix.com> - 1.252.0-1
+- fix pool config parsing
+
+* Mon Jun 15 2020 Christian Lindig <christian.lindig@citrix.com> - 1.251.0-1
+- CP-33121: remove stdext's hashtbl only usages
+- CP-33121: Remove stdext's range usages
+- CP-33121: remove stdext usages in xapi_vm_helpers
+- CP-33121: Remove stdext's usages from xapi_xenops
+- opam: add fedora depexts
+- maintenance: remove compilation warnings
+- CP-33121: remove stdext usages from xapi
+- CP-33121: remove stdext's usages from xapi-cli-server
+- maintenance: use label to remove warning
+- maintenance: add direct dependencies to dune files
+- CP-33121: remove stdext's usages from xapi-aux
+- maintenance: add missing transitive dependencies to dune files
+- maintenance: drop stringext dependency
+- mainteance: reduce reliaance on sexplib
+- adding sriov_configuration_mode `manual, Net.Sriov.enable return
+    Manual_successful and respective handling
+
+* Fri Jun 12 2020 Christian Lindig <christian.lindig@citrix.com> - 1.250.0-1
+- Revert "Revert "CA-334811 assign xapi version automatically""
+- Enable to create a VM in `Suspended` state with a `suspend_VDI` set
+- Allow migrate_send during RPU
+- Fix use of close_in/out on Unixfd.with_connection
+- CA-340776: disconnect from stunnel cleanly
+- maintenance: removed deprecated UTC assertion
+- restructed Tar to remove warnings
+- Open VxLAN port of VxLAN tunnels:
 
 * Mon Jun 01 2020 Christian Lindig <christian.lindig@citrix.com> - 1.249.0-1
 - maintenance: improve IMPORT_INCOMPATIBLE_VERSION error message
@@ -1173,7 +2619,7 @@ Coverage files from unit tests
 - CA-258385: Improved phrasing for errors thrown by assert_can_migrate.
 - Replace /tmp/network-reset literal with Xapi_globs
 - Travis: remove opam-coverage
-- Modifications to the error messages for better compliance with the 
+- Modifications to the error messages for better compliance with the
   values exposed via the API clients.
 
 * Thu Jun 06 2019 Christian Lindig <christian.lindig@citrix.com> - 1.177.0-1
@@ -1232,7 +2678,7 @@ Coverage files from unit tests
 * Fri May 03 2019 Christian Lindig <christian.lindig@citrix.com> - 1.170.0-1
 - CA-316165: workaround - disable CBT unit tests
 - CA-316165: disable more unit tests that used Thread.delay
-- Changed the checksum algorithm from SHA1 to xxHash, 
+- Changed the checksum algorithm from SHA1 to xxHash,
   backwards compatability is maintained
 - Revert "CP-30614: Use rrd files to gather memory statistics"
 
@@ -1251,11 +2697,11 @@ Coverage files from unit tests
 - Zstd export: Implement Zstd option for disk export
 - Zstd export: Add some helper functions
 - Zstd export: Allow specifying zstd export on the CLI
-- Zstd export: On VM import, autodetect whether gzip or zstd 
+- Zstd export: On VM import, autodetect whether gzip or zstd
   has been used to compress the image
 - Zstd export: Add feature flag for zstd export
 - Add zstd dependency to xapi.opam
-- Zstd export: fall back to gzip in all non-zstd cases, not just 
+- Zstd export: fall back to gzip in all non-zstd cases, not just
   if the gzip magic string is present
 
 * Tue Apr 09 2019 Christian Lindig <christian.lindig@citrix.com> - 1.165.0-1
@@ -1398,7 +2844,7 @@ Coverage files from unit tests
 - CP-29757: Add new VDI_IS_ENCRYPTED exception
 
 * Tue Nov 27 2018 Christian Lindig <christian.lindig@citrix.com> - 1.137.0-1
-- CP-30039: Generate automatically the release and class files for 
+- CP-30039: Generate automatically the release and class files for
   the xapi project docs; added release date to the releases.
 - Use lowercase for class filenames.
 - Improved field doc so we don't need extra doc notes for it i
@@ -1414,11 +2860,11 @@ Coverage files from unit tests
 - New ocaml-rpc
 
 * Fri Nov 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.134.0-1
-- CA-290024: Reject booting pv-iommu VMs on a host where the 
+- CA-290024: Reject booting pv-iommu VMs on a host where the
   premap is yet to complete
 
 * Tue Nov 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.133.0-1
-- Restored mustache in the dependencies of xapi-datamodel as it 
+- Restored mustache in the dependencies of xapi-datamodel as it
   is needed for doc generation.
 - XSO-244/CA-168413: Show minimum role per message in the API reference markdown.
 - CA-294900 remove network_sriov on network reset
@@ -1554,7 +3000,7 @@ Coverage files from unit tests
 - CA-294917: Added branding to the lima release.
 
 * Mon Aug 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.1-1
-- Bumped the minor api version as well as the client min and max version 
+- Bumped the minor api version as well as the client min and max version
   numbers to 2.11.
 - CA-294917: Added branding to the lima release.
 
@@ -1587,7 +3033,7 @@ Coverage files from unit tests
 * Fri Jul 13 2018 Christian Lindig <christian.lindig@citrix.com> - 1.107.0-1
 - CA-289650: Wait for the pidfile from udhcpd before releasing lock
 - CA-289898: GC dangling references from 'Host.updates_requiring_reboot'
-- CA-290840: VM.attached_PCIs field not properly cleanup when reverting 
+- CA-290840: VM.attached_PCIs field not properly cleanup when reverting
              from snapshot
 - CA-291017: Unable to connect server in pool of 64 physical hosts
 - CA-292676: Apply 'VDI missing' logic to picking SRs too
@@ -1667,7 +3113,7 @@ Coverage files from unit tests
 - Remove experimental flag of SRIoV feature
 
 * Mon Jun 11 2018 Christian Lindig <christian.lindig@citrix.com> - 1.99.0-1
-- Merge GFS2 branch: 
+- Merge GFS2 branch:
   CP-24692 CP-25121 CP-26147 CP-25121 CP-25121 CP-25121 CP-25121 CP-26199
   CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-27172
   CP-27172 CP-27466 CP-28213 CP-28213 CP-28406 CP-28406 CP-28406 CP-28406
@@ -1696,7 +3142,7 @@ Coverage files from unit tests
 - Quicktest: check snapshot VDI fields
 - Moved the output of gen_json.ml into the _build folder.
 - Removed obsolete docbook and pdf format of the API Reference.
-- Split API Reference into two files, one for classes and types and 
+- Split API Reference into two files, one for classes and types and
   one for error handling.
 - xapi-database: make safe-string compliant
 - xapi-types: make safe-string compliant
@@ -1759,10 +3205,10 @@ Coverage files from unit tests
 - CA-288635: increase db flush chunk size
 
 * Mon Apr 23 2018 Christian Lindig <christian.lindig@citrix.com> - 1.92.0-1
-- CA-267687: Logs of VBD operation check that inspects operations of 
+- CA-267687: Logs of VBD operation check that inspects operations of
   VBD's VDI do not match returned errors
 - XSI-6: Event class documentation enhancements.
-- CA-287865: Forwarded task calling Message_forwarding.xxx resulting 
+- CA-287865: Forwarded task calling Message_forwarding.xxx resulting
   current task being early marked completed
 - CA-286874: Redundant checks for SR-IOV when implementing VDI migration (#3547)
 - CA-287854: Add cluster stack constants and check cluster stack valid for
@@ -1771,10 +3217,10 @@ Coverage files from unit tests
 - CA-287863: Reorgnize the code
 - CA-287863: xe vm-shutdown complete the task too early
 - CA-287929: fix incorrect log message (11428 > 11428)
-- CA-281638: Set pool.ha_cluster_stacks upon Cluster.create/destroy success, 
+- CA-281638: Set pool.ha_cluster_stacks upon Cluster.create/destroy success,
   not on Cluster_host operations
 - CA-281638: Add tests for Pool.ha_cluster_stack selection
-- CA-287343: Update HA failure tolerance plan for corosync/GFS2 and 
+- CA-287343: Update HA failure tolerance plan for corosync/GFS2 and
   add unit tests
 - CA-244573: Storage migration state lost after xapi restarting
 - CA-244573: XenMotion fails after previously attempted SXM is
@@ -1784,7 +3230,7 @@ Coverage files from unit tests
 - ocp-indent cluster_stack_constraints and test_cluster(ing)
 - xapi_services.ml: use Re.Emacs instead of the deprecated Re_emacs
 - xa_auth_stubs: add missing header file
-- Network_event_loop: make sure no duplicated interfaces are 
+- Network_event_loop: make sure no duplicated interfaces are
   passed to firewall script
 - Improve documentation: Cannot is one word.
 - Remove deleted quicktests from all_tests list
@@ -1941,7 +3387,7 @@ Coverage files from unit tests
 - datamodel_values: remove unused to_xml
 - idl: revert datamodel_values to_rpc change and use to_ocaml_string instead
 - datamodel_values: correctly stringify numbers also when they are negative
-- gen_api: prevent default values for VCustom fields, these may contain 
+- gen_api: prevent default values for VCustom fields, these may contain
   code that break the unmarshaller
 - gen_api, datamodel_values: get defaults for VCustoms suitable for the API generator
 - database: simplify types after removing bigbuffer
@@ -2133,7 +3579,7 @@ Coverage files from unit tests
 - Refactoring: move modules into files
 - Backwards-compatibility: Move api_versions back to datamodel
 - Cleanup: Remove redundant pipe definitions
-- Remove field_has_effect from VBD.mode in favour of explicit declaration 
+- Remove field_has_effect from VBD.mode in favour of explicit declaration
   of setter
 - Remove redundant effectful fields (after CA-11132)
 - Remove effectful 'actions_after_crash' in favour of explicit setter
@@ -2158,7 +3604,7 @@ Coverage files from unit tests
 - Test CA-274152: SR.scan should update VDI.sharable
 - Xapi_sr.update_vdis: correctly set VDI.sharable field
 - CP-26444: static-vdis: need to save/pass uuid to SR.attach with SMAPIv3
-- CA-259369: Make sure we don't return SRmaster in the update 
+- CA-259369: Make sure we don't return SRmaster in the update
   device-config after SR.create
 - CP-20544: initialize coverage for XAPI itself too
 - CA-281002 CA-271406 let XSM+vGPU fail if VM reboots
