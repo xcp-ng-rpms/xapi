@@ -48,7 +48,7 @@ Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
-Patch1004: xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
+Patch1004: xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1211,7 +1211,8 @@ Coverage files from unit tests
 - Remove dependency to non-free packages again
 - Remove dependency to new non-free package pvsproxy
 - Remove patches merged upstream
-- Keep other patches still necessary. NOT tested nor rediffed yet.
+- Keep other patches still necessary.
+- Rediff xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
 - Add patch xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch, migrated from retired repo xenopsd
 - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
 - Remove ptoken.py and accesstoken.py yum plugins and their configuration
