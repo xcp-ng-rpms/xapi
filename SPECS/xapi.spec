@@ -49,6 +49,8 @@ Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
 Patch1004: xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
+# Fix build in koji
+Patch1005: xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1216,7 +1218,7 @@ Coverage files from unit tests
 - Add patch xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch, migrated from retired repo xenopsd
 - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
 - Remove ptoken.py and accesstoken.py yum plugins and their configuration
-- Patches NOT rediffed yet and build NOT tested yet
+- Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
 
 * Wed Jun 08 2022 Rob Hoes <rob.hoes@citrix.com> - 22.20.0-1
 - CA-367738: Short-circuit auth of HTTP requests without auth header
