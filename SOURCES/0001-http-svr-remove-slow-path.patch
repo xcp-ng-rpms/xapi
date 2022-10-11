@@ -1,0 +1,29 @@
+From b89f9242e0f3429fa5ca74e830f881c5e7a89533 Mon Sep 17 00:00:00 2001
+From: Rob Hoes <rob.hoes@citrix.com>
+Date: Thu, 7 Jul 2022 14:00:00 +0000
+Subject: [PATCH 1/5] http-svr: remove "slow path"
+
+Everything except a test already used the "fast path", so the slow
+version was virtually unused (and slow).
+
+Signed-off-by: Rob Hoes <rob.hoes@citrix.com>
+(cherry picked from commit 6628022264e9773cb50e7a58269d2530b71d693c)
+---
+ ocaml/xapi/xapi_http.ml | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/ocaml/xapi/xapi_http.ml b/ocaml/xapi/xapi_http.ml
+index 3c2da61c5..a38fd41c4 100644
+--- a/ocaml/xapi/xapi_http.ml
++++ b/ocaml/xapi/xapi_http.ml
+@@ -245,7 +245,6 @@ let with_context ?(dummy = false) label (req : Request.t) (s : Unix.file_descr)
+ 
+ let server =
+   let server = Http_svr.Server.empty () in
+-  Http_svr.Server.enable_fastpath server ;
+   server
+ 
+ let http_request = Http.Request.make ~user_agent:Constants.xapi_user_agent
+-- 
+2.31.1
+
