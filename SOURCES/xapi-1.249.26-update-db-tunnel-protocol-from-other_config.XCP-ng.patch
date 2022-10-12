@@ -15,12 +15,12 @@ This patch will remain needed as long as we want to support such smooth transiti
 XCP-ng 8.2.
 
 diff --git i/ocaml/xapi/xapi_db_upgrade.ml w/ocaml/xapi/xapi_db_upgrade.ml
-index 8a4292666..912663ebf 100644
+index 76d9858e1..857651f1c 100644
 --- i/ocaml/xapi/xapi_db_upgrade.ml
 +++ w/ocaml/xapi/xapi_db_upgrade.ml
-@@ -94,6 +94,10 @@ let jura =
-   ( Datamodel_common.jura_release_schema_major_vsn
-   , Datamodel_common.jura_release_schema_minor_vsn )
+@@ -107,6 +107,10 @@ let jura =
+   , Datamodel_common.jura_release_schema_minor_vsn
+   )
 
 +let quebec =
 +  ( Datamodel_common.quebec_release_schema_major_vsn
@@ -29,8 +29,8 @@ index 8a4292666..912663ebf 100644
  (* This is to support upgrade from Dundee tech-preview versions *)
  let vsn_with_meaningful_has_vendor_device =
    ( Datamodel_common.meaningful_vm_has_vendor_device_schema_major_vsn
-@@ -829,6 +833,26 @@ let remove_legacy_ssl_support =
-                Db.Host.set_ssl_legacy ~__context ~self ~value:false))
+@@ -903,6 +907,26 @@ let remove_legacy_ssl_support =
+       )
    }
 
 +let fill_tunnel_protocol =
@@ -56,7 +56,7 @@ index 8a4292666..912663ebf 100644
  let rules =
    [
      upgrade_domain_type
-@@ -857,6 +881,7 @@ let rules =
+@@ -931,6 +955,7 @@ let rules =
    ; upgrade_cluster_timeouts
    ; upgrade_secrets
    ; remove_legacy_ssl_support

@@ -85,13 +85,13 @@ index eac0c120c..e969e2ec3 100644
 
  let string_to_vdi_onboot s =
 diff --git i/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
-index 03e8b5510..9bd5bad89 100644
+index c5ec026ef..d5e6b80f2 100644
 --- i/ocaml/xapi/message_forwarding.ml
 +++ w/ocaml/xapi/message_forwarding.ml
-@@ -3396,6 +3396,21 @@ functor
-         let local_fn = Local.Host.cleanup_pool_secret ~host ~old_ps ~new_ps in
+@@ -3665,6 +3665,21 @@ functor
          do_op_on ~__context ~host ~local_fn (fun session_id rpc ->
-             Client.Host.cleanup_pool_secret rpc session_id host old_ps new_ps)
+             Client.Host.cleanup_pool_secret rpc session_id host old_ps new_ps
+         )
 +
 +      let set_sched_gran ~__context ~self ~value =
 +        info "Host.set_sched_gran: host='%s' sched='%s'"
@@ -111,7 +111,7 @@ index 03e8b5510..9bd5bad89 100644
 
      module Host_crashdump = struct
 diff --git i/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
-index 5e5d7bdd0..6e29d4d8a 100644
+index 2a89f2cfa..33a56268f 100644
 --- i/ocaml/xapi/xapi_globs.ml
 +++ w/ocaml/xapi/xapi_globs.ml
 @@ -253,6 +253,8 @@ let tools_sr_pbd_device_config =
@@ -123,10 +123,10 @@ index 5e5d7bdd0..6e29d4d8a 100644
  let default_template_key = "default_template"
 
  let base_template_name_key = "base_template_name"
-@@ -1172,6 +1174,10 @@ let other_options =
-     , Arg.Set_string extauth_ad_backend
+@@ -1240,6 +1242,10 @@ let other_options =
      , (fun () -> !extauth_ad_backend)
-     , "Which AD backend used to talk to DC" )
+     , "Which AD backend used to talk to DC"
+     )
 +  ; ( "allow-host-sched-gran-modification"
 +    , Arg.Set allow_host_sched_gran_modification
 +    , (fun () -> string_of_bool !allow_host_sched_gran_modification)

@@ -111,9 +111,9 @@ index 7334c8cac..18d96a2dd 100644
 
  let make_network ~__context ?(name_label = "net")
      ?(name_description = "description") ?(mTU = 1500L) ?(other_config = [])
-diff --git c/ocaml/tests/test_tunnel.ml w/ocaml/tests/test_tunnel.ml
-index bca5b3db8..fb548f70f 100644
---- c/ocaml/tests/test_tunnel.ml
+diff --git i/ocaml/tests/test_tunnel.ml w/ocaml/tests/test_tunnel.ml
+index 59c880978..19318975f 100644
+--- i/ocaml/tests/test_tunnel.ml
 +++ w/ocaml/tests/test_tunnel.ml
 @@ -21,7 +21,7 @@ let test_create_internal () =
    let transport_PIF = T.make_pif ~__context ~network ~host () in
@@ -124,7 +124,7 @@ index bca5b3db8..fb548f70f 100644
    in
    Alcotest.check
      (Alcotest_comparators.ref ())
-@@ -58,7 +58,7 @@ let test_create_on_unmanaged_pif () =
+@@ -57,7 +57,7 @@ let test_create_on_unmanaged_pif () =
    let network = T.make_network ~__context ~bridge:"xapi0" () in
    Alcotest.check_raises "test_create_on_unmanaged_pif"
      Api_errors.(Server_error (pif_unmanaged, [Ref.string_of transport_PIF]))
@@ -133,69 +133,69 @@ index bca5b3db8..fb548f70f 100644
 
  let test_create_network_already_connected () =
    let __context = T.make_test_database () in
-@@ -72,7 +72,7 @@ let test_create_network_already_connected () =
-       Server_error
-         ( network_already_connected
-         , [Ref.string_of host; Ref.string_of transport_PIF] ))
+@@ -73,7 +73,7 @@ let test_create_network_already_connected () =
+         , [Ref.string_of host; Ref.string_of transport_PIF]
+         )
+     )
 -    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network |> ignore)
 +    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network ~protocol:`gre |> ignore)
 
  let test_create_on_bond_slave () =
    let __context = T.make_test_database () in
-@@ -87,7 +87,7 @@ let test_create_on_bond_slave () =
-     Api_errors.(
+@@ -89,7 +89,7 @@ let test_create_on_bond_slave () =
        Server_error
-         (cannot_add_tunnel_to_bond_slave, [Ref.string_of transport_PIF]))
+         (cannot_add_tunnel_to_bond_slave, [Ref.string_of transport_PIF])
+     )
 -    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network |> ignore)
 +    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network ~protocol:`gre |> ignore)
 
  let test_create_on_tunnel_access () =
    let __context = T.make_test_database () in
-@@ -98,7 +98,7 @@ let test_create_on_tunnel_access () =
+@@ -100,7 +100,7 @@ let test_create_on_tunnel_access () =
    Alcotest.check_raises "test_create_on_tunnel_access"
      Api_errors.(Server_error (is_tunnel_access_pif, [Ref.string_of access_PIF]))
      (fun () ->
--      Xapi_tunnel.create ~__context ~transport_PIF:access_PIF ~network |> ignore)
-+      Xapi_tunnel.create ~__context ~transport_PIF:access_PIF ~network ~protocol:`gre |> ignore)
+-      Xapi_tunnel.create ~__context ~transport_PIF:access_PIF ~network |> ignore
++      Xapi_tunnel.create ~__context ~transport_PIF:access_PIF ~network ~protocol:`gre |> ignore
+     )
 
  let test_create_on_sriov_logical () =
-   let __context = T.make_test_database () in
-@@ -111,7 +111,7 @@ let test_create_on_sriov_logical () =
-       Server_error
-         (cannot_add_tunnel_to_sriov_logical, [Ref.string_of sriov_logical_PIF]))
+@@ -115,7 +115,7 @@ let test_create_on_sriov_logical () =
+         (cannot_add_tunnel_to_sriov_logical, [Ref.string_of sriov_logical_PIF])
+     )
      (fun () ->
 -      Xapi_tunnel.create ~__context ~transport_PIF:sriov_logical_PIF ~network
 +      Xapi_tunnel.create ~__context ~transport_PIF:sriov_logical_PIF ~network ~protocol:`gre
-       |> ignore)
+       |> ignore
+     )
 
- let test_create_on_vlan_on_sriov_logical () =
-@@ -128,7 +128,7 @@ let test_create_on_vlan_on_sriov_logical () =
-       Server_error
-         ( cannot_add_tunnel_to_vlan_on_sriov_logical
-         , [Ref.string_of transport_PIF] ))
+@@ -135,7 +135,7 @@ let test_create_on_vlan_on_sriov_logical () =
+         , [Ref.string_of transport_PIF]
+         )
+     )
 -    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network |> ignore)
 +    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network ~protocol:`gre |> ignore)
 
  let test_create_tunnel_into_sriov_network () =
    let __context = T.make_test_database () in
-@@ -149,7 +149,7 @@ let test_create_tunnel_into_sriov_network () =
-       Server_error
-         (network_incompatible_with_tunnel, [Ref.string_of sriov_network]))
+@@ -157,7 +157,7 @@ let test_create_tunnel_into_sriov_network () =
+         (network_incompatible_with_tunnel, [Ref.string_of sriov_network])
+     )
      (fun () ->
 -      Xapi_tunnel.create ~__context ~transport_PIF:pif ~network:sriov_network
 +      Xapi_tunnel.create ~__context ~transport_PIF:pif ~network:sriov_network ~protocol:`gre
-       |> ignore)
+       |> ignore
+     )
 
- let test_create_tunnel_into_sriov_vlan_network () =
-@@ -175,7 +175,7 @@ let test_create_tunnel_into_sriov_vlan_network () =
-         (network_incompatible_with_tunnel, [Ref.string_of sriov_vlan_network]))
+@@ -185,7 +185,7 @@ let test_create_tunnel_into_sriov_vlan_network () =
+     )
      (fun () ->
        Xapi_tunnel.create ~__context ~transport_PIF:pif
 -        ~network:sriov_vlan_network
 +        ~network:sriov_vlan_network ~protocol:`gre
-       |> ignore)
+       |> ignore
+     )
 
- let test =
 diff --git c/ocaml/xapi-cli-server/cli_frontend.ml w/ocaml/xapi-cli-server/cli_frontend.ml
 index 5c066071d..0e003d44f 100644
 --- c/ocaml/xapi-cli-server/cli_frontend.ml
@@ -246,24 +246,24 @@ index f9c0d3a68..6fe61eabc 100644
  let pif_igmp_status_to_string = function
    | `enabled ->
        "enabled"
-diff --git c/ocaml/xapi-cli-server/records.ml w/ocaml/xapi-cli-server/records.ml
-index 3b449e4f3..eb5e9248e 100644
---- c/ocaml/xapi-cli-server/records.ml
+diff --git i/ocaml/xapi-cli-server/records.ml w/ocaml/xapi-cli-server/records.ml
+index 805e94800..f8c97413a 100644
+--- i/ocaml/xapi-cli-server/records.ml
 +++ w/ocaml/xapi-cli-server/records.ml
-@@ -300,6 +300,8 @@ let tunnel_record rpc session_id tunnel =
-             Client.Tunnel.remove_from_other_config rpc session_id tunnel k)
+@@ -325,6 +325,7 @@ let tunnel_record rpc session_id tunnel =
+           )
            ~get_map:(fun () -> (x ()).API.tunnel_other_config)
            ()
 +      ; make_field ~name:"protocol" ~get:(fun () -> Record_util.tunnel_protocol_to_string (x ()).API.tunnel_protocol) ()
-+
        ]
    }
 
-diff --git c/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
-index e4ecc7921..c49fde6ba 100644
---- c/ocaml/xapi/message_forwarding.ml
+
+diff --git i/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
+index b7a70b767..634bac016 100644
+--- i/ocaml/xapi/message_forwarding.ml
 +++ w/ocaml/xapi/message_forwarding.ml
-@@ -3748,13 +3748,13 @@ functor
+@@ -4073,13 +4073,13 @@ functor
      end
 
      module Tunnel = struct
@@ -275,16 +275,16 @@ index e4ecc7921..c49fde6ba 100644
          do_op_on ~local_fn ~__context
            ~host:(Db.PIF.get_host ~__context ~self:transport_PIF)
            (fun session_id rpc ->
--            Client.Tunnel.create rpc session_id transport_PIF network)
-+            Client.Tunnel.create rpc session_id transport_PIF network protocol)
+-            Client.Tunnel.create rpc session_id transport_PIF network
++            Client.Tunnel.create rpc session_id transport_PIF network protocol
+         )
 
        let destroy ~__context ~self =
-         info "Tunnel.destroy: tunnel = '%s'" (tunnel_uuid ~__context self) ;
-diff --git c/ocaml/xapi/nm.ml w/ocaml/xapi/nm.ml
-index 1638c4a85..bc6a82819 100644
---- c/ocaml/xapi/nm.ml
+diff --git i/ocaml/xapi/nm.ml w/ocaml/xapi/nm.ml
+index c8aefb15e..0faa9c875 100644
+--- i/ocaml/xapi/nm.ml
 +++ w/ocaml/xapi/nm.ml
-@@ -696,6 +696,20 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+@@ -742,6 +742,20 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
              with _ ->
                warn "could not update MTU field on PIF %s" rc.API.pIF_uuid
            ) ;
@@ -305,7 +305,7 @@ index 1638c4a85..bc6a82819 100644
            (* sync igmp_snooping_enabled *)
            if rc.API.pIF_VLAN = -1L then
              let igmp_snooping =
-@@ -713,21 +727,50 @@ let bring_pif_down ~__context ?(force = false) (pif : API.ref_PIF) =
+@@ -760,23 +774,50 @@ let bring_pif_down ~__context ?(force = false) (pif : API.ref_PIF) =
    with_local_lock (fun () ->
        let rc = Db.PIF.get_record ~__context ~self:pif in
        let open Xapi_pif_helpers in
@@ -348,7 +348,8 @@ index 1638c4a85..bc6a82819 100644
 -                (fun (name, force) -> Net.Bridge.destroy dbg force name)
 -                cleanup ;
 -              Net.Interface.set_persistent dbg bridge false ;
--              Db.PIF.set_currently_attached ~__context ~self:pif ~value:false))
+-              Db.PIF.set_currently_attached ~__context ~self:pif ~value:false
+-          )
 +              let tunnels = Db.Tunnel.get_records_where ~__context ~expr in
 +              let still_plugged_on_host (_, tunnel_rec) =
 +                let pif_ref = tunnel_rec.API.tunnel_access_PIF in
@@ -367,7 +368,7 @@ index 1638c4a85..bc6a82819 100644
 +          close_network_interface maybe_close_port ()
 +      | _ ->
 +          close_network_interface (fun () -> ()) ()
-+  )
+   )
 diff --git c/ocaml/xapi/xapi_bond.ml w/ocaml/xapi/xapi_bond.ml
 index 228028593..3a7bef81d 100644
 --- c/ocaml/xapi/xapi_bond.ml
@@ -384,11 +385,11 @@ index 228028593..3a7bef81d 100644
    in
    debug "Created new tunnel %s on bond" (Ref.string_of new_tunnel) ;
    (* Destroy old VLAN and VLAN-master objects *)
-diff --git c/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
-index 969742ce4..b7dda7eb1 100644
---- c/ocaml/xapi/xapi_host.ml
+diff --git i/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
+index 519499b5b..4ef7af20e 100644
+--- i/ocaml/xapi/xapi_host.ml
 +++ w/ocaml/xapi/xapi_host.ml
-@@ -2118,7 +2118,8 @@ let sync_tunnels ~__context ~host =
+@@ -2224,7 +2224,8 @@ let sync_tunnels ~__context ~host =
          let transport_pif =
            Db.Tunnel.get_transport_PIF ~__context ~self:tunnel
          in
@@ -398,7 +399,7 @@ index 969742ce4..b7dda7eb1 100644
      | _ ->
          raise
            Api_errors.(
-@@ -2141,8 +2142,8 @@ let sync_tunnels ~__context ~host =
+@@ -2250,8 +2251,8 @@ let sync_tunnels ~__context ~host =
      in
      (* If the slave doesn't have any such PIF then make one: *)
      if existing_pif = [] then
@@ -409,20 +410,20 @@ index 969742ce4..b7dda7eb1 100644
          get_network_of_transport_pif master_pif_rec
        in
        let pifs =
-@@ -2163,7 +2164,7 @@ let sync_tunnels ~__context ~host =
+@@ -2274,7 +2275,7 @@ let sync_tunnels ~__context ~host =
            (* this is the PIF on which we want as transport PIF; let's make it *)
            ignore
              (Xapi_tunnel.create_internal ~__context ~transport_PIF:pif_ref
--               ~network:master_pif_rec.API.pIF_network ~host)
-+               ~network:master_pif_rec.API.pIF_network ~host ~protocol)
+-               ~network:master_pif_rec.API.pIF_network ~host
++               ~network:master_pif_rec.API.pIF_network ~host ~protocol
+             )
        | _ ->
            (* This should never happen cos we should never have more than one of _our_ pifs
-              					 * on the same nework *)
-diff --git c/ocaml/xapi/xapi_tunnel.ml w/ocaml/xapi/xapi_tunnel.ml
-index 86934e63e..d1b09488c 100644
---- c/ocaml/xapi/xapi_tunnel.ml
+diff --git i/ocaml/xapi/xapi_tunnel.ml w/ocaml/xapi/xapi_tunnel.ml
+index 6faba75be..76e765278 100644
+--- i/ocaml/xapi/xapi_tunnel.ml
 +++ w/ocaml/xapi/xapi_tunnel.ml
-@@ -37,7 +37,7 @@ let choose_tunnel_device_name ~__context ~host =
+@@ -39,7 +39,7 @@ let choose_tunnel_device_name ~__context ~host =
    in
    choose 0
 
@@ -431,7 +432,7 @@ index 86934e63e..d1b09488c 100644
    let tunnel = Ref.make () in
    let access_PIF = Ref.make () in
    let device = choose_tunnel_device_name ~__context ~host in
-@@ -55,11 +55,12 @@ let create_internal ~__context ~transport_PIF ~network ~host =
+@@ -57,11 +57,12 @@ let create_internal ~__context ~transport_PIF ~network ~host =
      ~properties:[] ~capabilities:[] ~pCI:Ref.null ;
    Db.Tunnel.create ~__context ~ref:tunnel
      ~uuid:(Uuid.to_string (Uuid.make_uuid ()))
@@ -446,8 +447,8 @@ index 86934e63e..d1b09488c 100644
    let host = Db.PIF.get_host ~__context ~self:transport_PIF in
    Xapi_pif.assert_no_other_local_pifs ~__context ~host ~network ;
    Xapi_pif_helpers.assert_pif_is_managed ~__context ~self:transport_PIF ;
-@@ -78,7 +79,7 @@ let create ~__context ~transport_PIF ~network =
-         raise (Api_errors.Server_error (Api_errors.openvswitch_not_active, [])))
+@@ -81,7 +82,7 @@ let create ~__context ~transport_PIF ~network =
+     )
      hosts ;
    let tunnel, access_PIF =
 -    create_internal ~__context ~transport_PIF ~network ~host
