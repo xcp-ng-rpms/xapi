@@ -2,16 +2,21 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.25
+Version: 1.249.26
 Release: 2.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
 
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz
+Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz
+Patch1: SOURCES/xapi/0001-http-svr-remove-slow-path.patch
+Patch2: SOURCES/xapi/0002-Limit-concurrent-connections-with-semaphore.patch
+Patch3: SOURCES/xapi/0003-Receive-timeout-for-TCP-connections-when-first-readi.patch
+Patch4: SOURCES/xapi/0004-Total-timeout-for-receiving-HTTP-headers.patch
+Patch5: SOURCES/xapi/0005-Maximum-header-length.patch
 
 
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 
 
 # XCP-ng specific sources and patches
@@ -52,6 +57,7 @@ BuildRequires: xen-dom0-libs-devel
 BuildRequires: xenopsd-devel
 BuildRequires: xxhash-devel
 
+
 %global _use_internal_dependency_generator 0
 %global __requires_exclude *caml*
 AutoReqProv: no
@@ -61,7 +67,7 @@ XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -69,7 +75,7 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -107,7 +113,7 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -115,7 +121,7 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -124,7 +130,7 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -136,7 +142,7 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -148,7 +154,7 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -462,7 +468,7 @@ systemctl preset xapi-wait-init-complete || :
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.25&format=tar.gz&prefix=xapi-1.249.25#/xen-api-1.249.25.tar.gz) = 8cb44ec781f18af0812cb4618595a59c0c96e5e4
+Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -473,6 +479,17 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Oct 12 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.26-2.1
+- Security update (and other fixes), synced from hotfix XS82ECU1019
+- *** Upstream changelog ***
+- * Thu Sep 08 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.26-2
+- - CA-368579: Mitigations against DoS attacks by unauthenticated clients
+- * Thu Sep 08 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.26-1
+- - CA-368910: Allow destruction of PVS_cache_storage if SR is already gone
+- - CA-365946: Block VIF hotplug into dom0
+- - CA-370084: Print PEMs containing DOS endlines
+- - CA-368806: Workaround pbis get wedged
+
 * Tue Aug 16 2022 Gael Duperrey <gduperrey@vates.fr> 1.249.25-2.1
 - Sync to hotfix XS82ECU1011
 - Remove xapi-1.249.9-fix-usb-device-reset.backport.patch

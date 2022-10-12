@@ -1,0 +1,49 @@
+From f8263df4a43d7a9bf8a0d87458e10cdc05cfc127 Mon Sep 17 00:00:00 2001
+From: Rob Hoes <rob.hoes@citrix.com>
+Date: Tue, 26 Jul 2022 16:20:19 +0000
+Subject: [PATCH 5/5] Maximum header length
+
+Signed-off-by: Rob Hoes <rob.hoes@citrix.com>
+(cherry picked from commit 2e436d7d6ddb62da8fbc5d5aebe0101e32bd41bd)
+---
+ ocaml/xapi/xapi_globs.ml      | 4 ++++
+ ocaml/xapi/xapi_mgmt_iface.ml | 1 +
+ 2 files changed, 5 insertions(+)
+
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index 912ac04b8..a1b50369a 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -883,6 +883,9 @@ let header_read_timeout_tcp = ref 10.
+ let header_total_timeout_tcp = ref 60.
+ (* Timeout in seconds to receive all HTTP headers (on TCP only) *)
+ 
++let max_header_length_tcp = ref 1024
++(* Maximum accepted size of HTTP headers in bytes (on TCP only) *)
++
+ let conn_limit_tcp = ref 800
+ 
+ let conn_limit_unix = ref 1024
+@@ -962,6 +965,7 @@ let xapi_globs_spec =
+     )
+   ; ("header_read_timeout_tcp", Float header_read_timeout_tcp)
+   ; ("header_total_timeout_tcp", Float header_total_timeout_tcp)
++  ; ("max_header_length_tcp", Int max_header_length_tcp)
+   ; ("conn_limit_tcp", Int conn_limit_tcp)
+   ; ("conn_limit_unix", Int conn_limit_unix)
+   ]
+diff --git a/ocaml/xapi/xapi_mgmt_iface.ml b/ocaml/xapi/xapi_mgmt_iface.ml
+index 89feccc1e..631b955ae 100644
+--- a/ocaml/xapi/xapi_mgmt_iface.ml
++++ b/ocaml/xapi/xapi_mgmt_iface.ml
+@@ -116,6 +116,7 @@ let start ~__context ?addr () =
+   Http_svr.start
+     ~header_read_timeout:!Xapi_globs.header_read_timeout_tcp
+     ~header_total_timeout:!Xapi_globs.header_total_timeout_tcp
++    ~max_header_length:!Xapi_globs.max_header_length_tcp
+     ~conn_limit:!Xapi_globs.conn_limit_tcp Xapi_http.server socket ;
+   management_interface_server := socket :: !management_interface_server ;
+   restart_stunnel ~__context ~accept ;
+-- 
+2.31.1
+
