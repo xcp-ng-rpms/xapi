@@ -32,7 +32,7 @@ Patch1005: xapi-1.249.26-update-db-tunnel-protocol-from-other_config.XCP-ng.patc
 Patch1006: xapi-1.249.26-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
-Patch1010: xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
+Patch1010: xapi-1.249.26-fix-quicktest-default-sr-param.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
