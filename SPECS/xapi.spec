@@ -29,7 +29,7 @@ Patch1002: xapi-1.249.26-open-vxlan-port-for-sdn-controller.XCP-ng.patch
 Patch1003: xapi-1.249.26-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
 Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 Patch1005: xapi-1.249.26-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1006: xapi-1.249.19-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1006: xapi-1.249.26-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
 Patch1010: xapi-1.249.19-fix-quicktest-default-sr-param.backport.patch
