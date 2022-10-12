@@ -15,14 +15,14 @@ Signed-off-by: Samuel Verschelde <stormi@laposte.net>
  ocaml/xapi/xapi_globs.ml                     | 1 +
  2 files changed, 4 insertions(+), 3 deletions(-)
 
-diff --git a/ocaml/tests/test_vm_check_operation_error.ml b/ocaml/tests/test_vm_check_operation_error.ml
-index b592276b7..83c0bb627 100644
---- a/ocaml/tests/test_vm_check_operation_error.ml
-+++ b/ocaml/tests/test_vm_check_operation_error.ml
-@@ -125,14 +125,14 @@ let test_migration_allowed_when_cbt_enabled_vdis_are_not_moved () =
-         (Xapi_vm_lifecycle.check_operation_error ~__context ~ref:vM
-            ~op:`migrate_send ~strict:true))
- 
+diff --git i/ocaml/tests/test_vm_check_operation_error.ml w/ocaml/tests/test_vm_check_operation_error.ml
+index 32755f970..33808b240 100644
+--- i/ocaml/tests/test_vm_check_operation_error.ml
++++ w/ocaml/tests/test_vm_check_operation_error.ml
+@@ -137,14 +137,14 @@ let test_migration_allowed_when_cbt_enabled_vdis_are_not_moved () =
+         )
+   )
+
 -let test_sxm_disallowed_when_rum () =
 +let test_sxm_allowed_when_rum () =
    with_test_vm (fun __context vm_ref ->
@@ -34,12 +34,12 @@ index b592276b7..83c0bb627 100644
 -        (Some (Api_errors.not_supported_during_upgrade, []))
 +        None
          (Xapi_vm_lifecycle.check_operation_error ~__context ~ref:vm_ref
-            ~op:`migrate_send ~strict:false) ;
-       Db.Pool.remove_from_other_config ~__context ~self:pool
-@@ -148,6 +148,6 @@ let test =
-   ; ( "test_migration_allowed_when_cbt_enabled_vdis_are_not_moved"
+            ~op:`migrate_send ~strict:false
+         ) ;
+@@ -164,6 +164,6 @@ let test =
      , `Quick
-     , test_migration_allowed_when_cbt_enabled_vdis_are_not_moved )
+     , test_migration_allowed_when_cbt_enabled_vdis_are_not_moved
+     )
 -  ; ("test_sxm_disallowed_when_rum", `Quick, test_sxm_disallowed_when_rum)
 +  ; ("test_sxm_allowed_when_rum", `Quick, test_sxm_allowed_when_rum)
    ; ("test_vm_set_nvram when VM is running", `Quick, test_vm_set_nvram_running)
@@ -56,6 +56,6 @@ index 7174f0aab..1962b3fee 100644
    ; `pause
    ; `pool_migrate
    ; `power_state_reset
--- 
+--
 2.13.7
 
