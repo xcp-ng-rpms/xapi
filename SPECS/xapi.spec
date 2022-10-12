@@ -481,6 +481,7 @@ Coverage files from unit tests
 %changelog
 * Wed Oct 12 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.26-2.1
 - Security update (and other fixes), synced from hotfix XS82ECU1019
+- Rediffed patches after upstream formatting changes (actually Benjamin Reis did)
 - *** Upstream changelog ***
 - * Thu Sep 08 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.26-2
 - - CA-368579: Mitigations against DoS attacks by unauthenticated clients
