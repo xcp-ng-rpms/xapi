@@ -1,0 +1,24 @@
+Redirect fileserver towards https
+
+Partial backport of https://github.com/xapi-project/xen-api/pull/4859
+
+diff --git a/ocaml/xapi/fileserver.ml b/ocaml/xapi/fileserver.ml
+index 000cdeda94..a2c8bc56a6 100644
+--- a/ocaml/xapi/fileserver.ml
++++ b/ocaml/xapi/fileserver.ml
+@@ -90,7 +90,14 @@ let send_file (uri_base : string) (dir : string) (req : Request.t)
+   let s = Buf_io.fd_of bio in
+   Buf_io.assert_buffer_empty bio ;
+   if access_forbidden req s then
+-    Http_svr.response_forbidden ~req s
++    match req.Request.host with
++    | Some host ->
++        (* Redirect towards HTTPS *)
++        let path = String.concat "" [uri_base; req.Request.uri] in
++        let dest = Uri.make ~scheme:"https" ~host ~path () |> Uri.to_string in
++        Http_svr.response_redirect ~req s dest
++    | None ->
++        Http_svr.response_forbidden ~req s
+   else
+     let uri = req.Request.uri in
+     try
