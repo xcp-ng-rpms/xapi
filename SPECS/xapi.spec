@@ -52,7 +52,7 @@ Patch1004: xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
 # Fix build in koji
 Patch1005: xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch
 # To remove once we get it from upstream
-Patch1006: xapi-22.20.0-redirect-fileserver-https.patch
+Patch1006: xapi-22.20.0-redirect-fileserver-https.backport.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1211,7 +1211,7 @@ Coverage files from unit tests
 
 %changelog
 * Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.20.0-1.2
-- Add xapi-22.20.0-redirect-fileserver-https.patch
+- Add xapi-22.20.0-redirect-fileserver-https.backport.patch
 
 * Wed Aug 31 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.20.0-1.1
 - Rebase on CH 8.3 Preview
