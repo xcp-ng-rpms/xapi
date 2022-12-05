@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.26
-Release: 2.1%{?dist}
+Release: 2.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -33,6 +33,7 @@ Patch1006: xapi-1.249.26-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.pa
 Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
 Patch1010: xapi-1.249.26-fix-quicktest-default-sr-param.backport.patch
+Patch1011: xapi-1.249.26-redirect-fileserver-https.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -479,6 +480,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.26-2.2
+- Add xapi-1.249.26-redirect-fileserver-https.backport.patch
+
 * Wed Oct 12 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.26-2.1
 - Security update (and other fixes), synced from hotfix XS82ECU1019
 - Rediffed patches after upstream formatting changes (actually Benjamin Reis did)
