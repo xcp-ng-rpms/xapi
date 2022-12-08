@@ -6,7 +6,7 @@ Summary: xapi - xen toolstack for XCP
 Name:    xapi
 
 Version: 22.31.0
-Release: 1%{?xsrel}%{?dist}
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -48,12 +48,8 @@ Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-# Contributed upstream, can be dropped in next version bump
-Patch1004: xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
-# Fix build in koji
-Patch1005: xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch
 # To remove once we get it from upstream
-Patch1006: xapi-22.20.0-redirect-fileserver-https.backport.patch
+Patch1004: xapi-22.20.0-redirect-fileserver-https.backport.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1238,6 +1234,25 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Dec 08 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.31.0-1.1
+- Rebase on latest XS 8.3 prerelease updates
+- Drop two patches merged upstream
+- Sync with upstream changelog because it's too big for embedding, and embed our former changelog instead
+- *** Former changelog ***
+- * Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.20.0-1.2
+- - Add xapi-22.20.0-redirect-fileserver-https.backport.patch
+- * Wed Aug 31 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.20.0-1.1
+- - Rebase on CH 8.3 Preview
+- - Remove dependency to non-free packages again
+- - Remove dependency to new non-free package pvsproxy
+- - Remove patches merged upstream
+- - Keep other patches still necessary.
+- - Rediff xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
+- - Add patch xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch, migrated from retired repo xenopsd
+- - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
+- - Remove ptoken.py and accesstoken.py yum plugins and their configuration
+- - Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
+
 * Tue Nov 01 2022 Rob Hoes <rob.hoes@citrix.com> - 22.31.0-1
 - CA-370575: [XSI-1310] Driver disks / supp packs applied at host
 - CA-370947 increase robustness of with-vdi script
@@ -1410,21 +1425,6 @@ Coverage files from unit tests
 - CA-367979: Return changed guidance from host.apply_updates
 - CA-367979: Bugfix - Remove RebootHostOnLivePatchFailure after a completion of update
 - Refine unit test of eval_guidance_for_one_update
-
-* Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.20.0-1.2
-- Add xapi-22.20.0-redirect-fileserver-https.backport.patch
-
-* Wed Aug 31 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.20.0-1.1
-- Rebase on CH 8.3 Preview
-- Remove dependency to non-free packages again
-- Remove dependency to new non-free package pvsproxy
-- Remove patches merged upstream
-- Keep other patches still necessary.
-- Rediff xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
-- Add patch xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch, migrated from retired repo xenopsd
-- Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
-- Remove ptoken.py and accesstoken.py yum plugins and their configuration
-- Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
 
 * Wed Jun 08 2022 Rob Hoes <rob.hoes@citrix.com> - 22.20.0-1
 - CA-367738: Short-circuit auth of HTTP requests without auth header
