@@ -1,15 +1,16 @@
-%global package_speccommit 29a7ecd7bf86ff0ec27cccfa829497e5a8c7a4a8
-%global package_srccommit v22.20.0
+%global package_speccommit dc9b0535f788a0be8b54c0377e104039e92acb3f
+%global package_srccommit v22.31.0
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 22.20.0
-Release: 1.2%{?xsrel}%{?dist}
+
+Version: 22.31.0
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
-Source0: xen-api-22.20.0.tar.gz
+Source0: xen-api-22.31.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -65,6 +66,7 @@ BuildRequires: gmp-devel
 BuildRequires: libuuid-devel
 BuildRequires: make
 BuildRequires: python2-devel
+BuildRequires: python3-devel
 BuildRequires: xs-opam-repo >= 6.54.0-2
 BuildRequires: libnl3-devel
 BuildRequires: systemd-devel
@@ -104,6 +106,7 @@ Requires: m2crypto
 Requires: net-tools
 Requires: vmss
 Requires: python-six
+Requires: python3-six
 Requires: python-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -211,6 +214,8 @@ Requires:       xen-dom0-tools
 Requires:       xen-dom0-libs >= 4.13.3-10.10
 Requires:       python2-scapy
 Requires:       jemalloc
+Requires:       swtpm
+Requires:       swtpm-tools
 
 %description -n xenopsd
 Simple VM manager for the xapi toolstack.
@@ -416,14 +421,14 @@ It is responsible for giving access only to a specific VM to varstored.
 %{?_cov_prepare}
 
 %build
-./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --prefix %{_prefix} --libdir %{ocaml_libdir}
-ulimit -s 16384 && COMPILE_JAVA=no XAPI_VERSION=%{version} %{?_cov_wrap} %{__make}
-XAPI_VERSION=%{version} %{__make} doc
-XAPI_VERSION=%{version} %{__make} sdk
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir}
+ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
+%{__make} doc
+%{__make} sdk
 sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
 
 %check
-XAPI_VERSION=%{version} COMPILE_JAVA=no %{__make} test
+COMPILE_JAVA=no %{__make} test
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
 ls %{buildroot}/testresults/
@@ -431,20 +436,24 @@ ls %{buildroot}/testresults/
 %install
 rm -rf %{buildroot}
 
-XAPI_VERSION=%{version} DESTDIR=$RPM_BUILD_ROOT %{__make} install
+DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
 SITEDIR=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
+SITE3DIR=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 for f in XenAPI XenAPIPlugin inventory; do
     for e in py pyc pyo; do
         echo $SITEDIR/$f.$e
     done
 done > core-files
+echo "$SITE3DIR/*" >> core-files
 
 ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
 mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+echo 0 > %{buildroot}/etc/xenserver/features.d/vtpm
+
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/xcp-rrdd.service
@@ -475,10 +484,10 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE21} %{buildroot}%{_unitdir}/forkexecd.service
 %{__install} -D -m 0644 %{SOURCE22} %{buildroot}%{_sysconfdir}/sysconfig/forkexecd
 
+rm %{buildroot}%{_bindir}/gen_lifecycle
+
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/volume
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/datapath
-mkdir -p %{buildroot}%{_sbindir}
-mkdir -p %{buildroot}%{_mandir}/man8
 %{__install} -D -m 0644 xapi-storage-script.conf %{buildroot}%{_sysconfdir}/xapi-storage-script.conf
 %{__install} -D -m 0644 %{SOURCE23} %{buildroot}%{_unitdir}/xapi-storage-script.service
 %{__install} -D -m 0644 %{SOURCE24} %{buildroot}%{_sysconfdir}/sysconfig/xapi-storage-script
@@ -511,6 +520,14 @@ rm -rf $RPM_BUILD_ROOT
     -d / \
     -u 65535 \
     qemu_base >/dev/null 2>&1 || :
+# add swtpm_base with uid 65536 after vncterm_base uuid (131072), defined in vncterm.spec
+/usr/bin/getent passwd swtpm_base >/dev/null 2>&1 || /usr/sbin/useradd \
+    -M -U -r \
+    -s /sbin/nologin \
+    -d / \
+    -u 196608 \
+    swtpm_base >/dev/null 2>&1 || :
+
 
 %pre -n xcp-rrdd
 getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
@@ -739,6 +756,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 # BTW users are NOT supposed to modify those files!
 /etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
 /etc/xapi.conf.d/00-XCP-ng-create-tools-sr.conf
+/etc/xenserver/features.d
+%config(noreplace) /etc/xenserver/features.d/vtpm
+/etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/DRAC.py
 /etc/xapi.d/plugins/DRAC.pyo
@@ -988,6 +1008,14 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %exclude %{ocaml_libdir}/xapi-compression/*.cmt
 %exclude %{ocaml_libdir}/xapi-compression/*.cmti
 
+%{ocaml_libdir}/xapi-log/*
+%exclude %{ocaml_libdir}/xapi-log/*.cmt
+%exclude %{ocaml_libdir}/xapi-log/*.cmti
+
+%{ocaml_libdir}/xapi-open-uri/*
+%exclude %{ocaml_libdir}/xapi-open-uri/*.cmt
+%exclude %{ocaml_libdir}/xapi-open-uri/*.cmti
+
 %{ocaml_libdir}/safe-resources/*
 %exclude %{ocaml_libdir}/safe-resources/*.cmt
 %exclude %{ocaml_libdir}/safe-resources/*.cmti
@@ -995,11 +1023,11 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %files -n xenopsd
 %{_sysconfdir}/udev/rules.d/xen-backend.rules
 %{_libdir}/xen/bin/qemu-wrapper
+%{_libdir}/xen/bin/swtpm-wrapper
 %{_libexecdir}/xenopsd/vif
 %{_libexecdir}/xenopsd/vif-real
 %{_libexecdir}/xenopsd/block
 %{_libexecdir}/xenopsd/tap
-%{_libexecdir}/xenopsd/qemu-dm-wrapper
 %{_libexecdir}/xenopsd/qemu-vif-script
 %{_libexecdir}/xenopsd/setup-vif-rules
 %{_libexecdir}/xenopsd/setup-pvs-proxy-rules
@@ -1210,6 +1238,179 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Nov 01 2022 Rob Hoes <rob.hoes@citrix.com> - 22.31.0-1
+- CA-370575: [XSI-1310] Driver disks / supp packs applied at host
+- CA-370947 increase robustness of with-vdi script
+- CA-364194: Add a comment on static-vdis for a timeout enhancement
+- CA-364194: add timeout parameter to script callers in xapi
+- CA-364194: Allow creation of statefiles to time out
+- CA-370578 use subsystemId in NVidia GPU matching
+- maintenance: explicitely declare direct dependencies
+- ci: add xapi-log and xapi-open-uri
+- idl/json_backend: Process unreleased versioned releases
+- ocaml/idl: make gen_lifecycle compatible with gitless spec building
+- idl/json_backend: order releases from latest to oldest
+- CA-370082: Block multiple definitions of certificate-chain in xe cli
+- maintenance: avoid traversing lists twice when reading cli params
+- exit with error if add_vswitch_port fails
+- Revert `uuidx` rename in `gen_powershell_binding.ml`
+- xapi-idl: make storage-test be part of a package
+- opam: update metadata
+- xenopsd/dbgring: don't mention xenmmap dependency
+- CA-371759: check certificates in xsh
+- CP-40490: Require --force parameter to destroy VTPMs
+- xapi-cli-server/cli_ops: reuse --force message
+- xapi: group import error and cause into the same line
+- CP-39134: xapi-guard: do not hardcode rpc function - allow for unit testing
+- CP-39134: xapi-guard: separate code into own library for testability
+- CP-39134: basic unit test for xapi-guard
+- CP-39134: xapi-guard: add unit tests for bad values
+- CP-39134: varstore-guard: use inotify to wait for the apperance of the socket
+- Maintenance: xapi-guard: use Lwt.Syntax instead of Lwt.Infix
+- CP-39134: add shutdown unit test
+- CP-39134: quality gate fixups
+- xapi-guard/test: Count file descriptors
+- CP-41033: install XenAPI to Python 3
+- CP-41033: update XenAPIPlugin for Python3
+- idl/ocaml_backend: do not generate empty docstrings
+- idl/gen_server: Remove custom functions
+- CA-352073: gen_server: Serialize lists in [ ... ] form
+- CA-352073: Prepare to reuse defaults unmarshalling code
+- CA-352073: Ensure all serialized calls can pass rbac checks
+- CP-41033: further updates to XenAPIPlugin for Python3
+
+* Wed Oct 12 2022 Rob Hoes <rob.hoes@citrix.com> - 22.30.0-1
+- CP-40402: Move C# and Powershell SDK Generation to .NET
+- opam: Update Alpine deps for xapi
+- CP-40754: Sync host.https_only fields on startup
+- CA-370140: shut down swtpm after qemu
+- CP-40755: Allow memory+storage+vGPU migrate to use HTTPS only
+- Update JSON backend for modern xapi releases
+- CA-368579: Mitigations against DoS attacks by unauthenticated clients
+  (now upstream, replacing patch queue)
+
+* Wed Oct 12 2022 Rob Hoes <rob.hoes@citrix.com> - 22.29.0-1
+- CP-40753 host.set_https_only updates firewall using firewall_port_config_script helper
+- CP-40753 Added change to the firewall-port script to modify the RH-Firewall-1-INPUT chain
+- Update Makefile (un)install targets
+
+* Wed Oct 12 2022 Rob Hoes <rob.hoes@citrix.com> - 22.28.0-1
+- Revert "Add a fallback system for auth files belonging to RPMs"
+- Rename Uuid module to Uuidx
+- Move good_ciphersuites from Xcp_consts to Constants
+- Move logging lib from xapi-idl to its own package
+- Move Open_uri from xapi-idl to its own package
+- Add HTTPS support to open-uri
+- idl: update datamodel_lifecycle after tag
+- xenopsd/xc: Print all information in Service_failed exceptions
+- CP-39744: simplify vm_platform.sanity_check parameters
+- CP-39744: Block BIOS VMs with vTPM attached from booting
+- CP-40775: share function raising not done for vtpm exceptions
+- CA-370858: disallow VM exports with VTPMs attached
+
+* Wed Oct 12 2022 Rob Hoes <rob.hoes@citrix.com> - 22.27.0-1
+- Add a fallback system for auth files belonging to RPMs
+- CA-370084: Test pem with DOS line endings
+- Update lifecycle for VTPM datamodel
+- xapi-cli-server: change vm record to show "vtpms"
+- CA-370731: remove obsoleted copies of ca certs in the db
+- CA-370731: Allow pool to recover from duplicate ca certs
+- CP-33973 disable DMC; fix unit test
+- CP-40767 CP-40429 Migration Compression - define Zstd.Fast, more
+- CP-40749 Added https_only field
+- CP-40750 Added set_https_only function
+- CP-40751 Added and implemented Pool.set_https_only
+- CP-40752 Added CLI functionality for a pool level getter and setter
+- configure.ml: inject version number here
+- xapi-xenopsd.opam: declare zstd as dependency
+- maintenance: Remove obsolete version-gathering methods
+
+* Fri Oct 07 2022 Rob Hoes <rob.hoes@citrix.com> - 22.26.0-2
+- CA-368579: Mitigations against DoS attacks by unauthenticated clients
+
+* Fri Sep 09 2022 Rob Hoes <rob.hoes@citrix.com> - 22.26.0-1
+- Introduce vTPM
+
+* Mon Aug 22 2022 Rob Hoes <rob.hoes@citrix.com> - 22.25.0-1
+- XenAPI.py: Simplify and fix UDSTransport implementation
+- CP-40375: Allow cert clients to perform VM.shutdown and VM.start_on
+- CP-37225: Added unmarshalling code for Ocaml's Set(Set string) for C.
+- Fix quicktest's -default-sr parameter
+- CP-40392 compress vGPU migration stream
+- CA-369599: ignore invalid references on eject
+- maintenance: factor out Ref.to_option and Helpers.ignore_invalid_ref
+
+* Mon Aug 08 2022 Pau Ruiz Safont <pau.safont@citrix.com> - 22.24.0-2
+- Bump release and rebuild
+
+* Fri Jul 29 2022 Rob Hoes <rob.hoes@citrix.com> - 22.24.0-1
+- CP-39894: move xenopsd's daemon modules from device to service
+- xenopsd/xc/service: add licensing header
+- CP-39894: move all varstored starting code to service module
+- CP-39894: move vgpu starting code to service module
+- CP-39894: Replace is_pidfile and pid_path with pid_location
+- CP-39894: tweak Service.Qemu interface
+- CP-39894: Use pid_location for file and xenstore cleanups
+- CA-366479: Remove Qemu's pidfile on domain shutdown
+- Factor out Throttle module
+- Update datamodel_lifecycle.ml only when changed
+- ci: generate releases from tags, upload XenAPI python lib
+- CHCLOUD-717: Spawn a thread to run xe-toolstack-restart
+- CP-40155 Parallelize Host.evacuate
+- CP-37091: Updated samples and fixed some code issues in the Java SDK.
+- CP-37225: Added unmarshalling code for Ocaml's Set(Set string) for C# and PS.
+- Removed dependency on 3rd party libraries from the PS module project.
+- CP-37091: Fixed some code issues in the PowerShell SDK.
+- CA-368910: Allow destruction of PVS_cache_storage if SR is already gone
+- CA-368437 remove duplicate keys from SM.features
+- CA-368806: Workaround pbis get wedged
+- CP-40175: Strip metadata of non-applicable livepatches
+- CA-347473: Minor memory leak from unloaded Xen livepatches (#4762)
+- CA-367236 replace Ezjsonm with Yojson
+
+* Wed Jul 06 2022 Rob Hoes <rob.hoes@citrix.com> - 22.23.0-1
+- CP-40027 VM migration introduce /services/xenops/migrate-mem
+- CP-39640/CP-39157 Add stream compression for VM migration
+- Add matching Synchronisation point 1-mem ACK log on receiver
+- Allow VBD.plug to dom0 again
+
+* Tue Jul 05 2022 Pau Ruiz Safont <pau.safont@citrix.com> - 22.22.0-1
+- CA-365946: Block VIF and VBD hotplug into dom0
+- Update datamodel lifecycle
+- CP-39805: Adapt xenopsd's cli to new cmdliner
+- CP-39805: Adapt rrd tools to new cmdliner interface
+- CP-39805: Adapt xapi-storage-cli to new cmdliner
+- CP-39805: Adapt vhd-tool to new cmdliner
+- CP-39805: Adapt xcp_service to new cmdliner interface
+- CP-39805: Adapt xapi-guard to new cmdliner
+- CP-39805: Adapt message-switch to new cmdliner
+- CP-39805: Adapt xapi-gzip to new cmdliner
+- CP-39805: Adapt nbd to new cmdliner
+- CP-39805: Adapt idl clis to new cmdliner and rpclib
+- CP-39805: Adapt xcp_service to new cmdliner
+- CP-39805: Adapt xapi-idl binaries to new cmdliner
+- CP-39805: Adapt xapi-storage(-script) to new cmdliner
+- maintenance: consolidate idl's cli client argument parsing
+- CP-39805: update tests to be compatible with rpclib +8.1.2
+- xapi-idl: clients now better report cli errors
+- maintenance: make gzip rules compatible with the dune cache
+
+* Mon Jun 27 2022 Rob Hoes <rob.hoes@citrix.com> - 22.21.0-1
+- xenopsd/xc: do not log error when querying for migrability
+- CP-39996: Generate and push docs to xapi-storage
+- CP-39806: remove code without a stable formatting
+- CP-39806: avoid opening Threadext modules
+- CA-365604: Support external user ssh into dom0 with name in unicode
+- CA-367979: Bugfix - Wrong format of livepatch in returned updateinfo
+- CA-368069: Got wrong kernel base build_id
+- CP-39877: define activate_readonly method for SMAPIv3
+- Remove unused xenopsd/Makefile and qemu-dm-wrapper
+- CA-367979: Bugfix - Add RebootHost guidance wrongly when a livepatch failed
+- CA-367979: Bugfix - Add new unit test for livepatch failure case
+- CA-367979: Return changed guidance from host.apply_updates
+- CA-367979: Bugfix - Remove RebootHostOnLivePatchFailure after a completion of update
+- Refine unit test of eval_guidance_for_one_update
+
 * Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.20.0-1.2
 - Add xapi-22.20.0-redirect-fileserver-https.backport.patch
 
