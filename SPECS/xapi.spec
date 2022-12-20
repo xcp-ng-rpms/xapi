@@ -1,16 +1,16 @@
-%global package_speccommit dc9b0535f788a0be8b54c0377e104039e92acb3f
-%global package_srccommit v22.31.0
+%global package_speccommit e812466f29361fecb9f4f2ebcbf3fc223027c48f
+%global package_srccommit v22.32.0
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 
-Version: 22.31.0
+Version: 22.32.0
 Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
-Source0: xen-api-22.31.0.tar.gz
+Source0: xen-api-22.32.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -1114,6 +1114,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_unitdir}/message-switch.service
 %{_sbindir}/message-switch
 %{_sbindir}/message-cli
+/usr/bin/gpumon-cli
 %config(noreplace) /etc/message-switch.conf
 /etc/xensource/bugtool/message-switch/stuff.xml
 /etc/xensource/bugtool/message-switch.xml
@@ -1234,6 +1235,37 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Dec 20 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.32.0-1.1
+- Update to 22.32.0-1
+- *** Upstream changelog ***
+- * Fri Nov 18 2022 Rob Hoes <rob.hoes@citrix.com> - 22.32.0-1
+- - CA-342527: Remove unnecessary list traversals on rbac.check
+- - xapi/rbac: Remove the non-"efficient" code path
+- - xapi/rbac_audit: do not audit rrd_updates
+- - CA-371780: Reduce cost of merge_new_dss
+- - rbac_audit: refactor module
+- - CA-372128: DB performance optimisations
+- - CA-140252: fix flag handling
+- - CP-40190: vTPM - Fix xenopsd to indicate correct state file format to swtpm-wrapper.
+- - CP-40747: Add certificate checking options to sparse_dd and vhd-tool
+- - CP-33044 define attach/detach IDL calls for gpumon
+- - CA-371780: Port xcp-rrdd tests to alcotest
+- - CA-371780: Reduce overheads in update_rrdds
+- - CP-40823 Edited Vdi.t in xapi/storage_impl.ml to record vm
+- - CP-40823 Created tests to the modules in storage_impl
+- - CP-41028: enable certificate checking for storage migrations
+- - CP-40190: Prevent SWTPM from filling dom0 root partition
+- - xenopsd: define uncaught-exception handler
+- - CA-369444: Ensure xenopsd still starts if VM state upgrade fails
+- - CA-371419: Always log exceptions when responding with 500 Internal Error
+- - CA-369690: Prioritize loglines when backing up RRDs
+- - CA-369690: Reduce logging produced by xmlrpc_client
+- - Debug: remember previous log names per thread in a stack
+- - Do not log out session in xapi events loop to re-register VMs
+- - Enable HTTPS for storage migration on the source
+- * Thu Nov 17 2022 Christian Lindig <christian.lindig@citrix.com> - 22.31.0-2
+- - CP-33044 install gpumon-cli
+
 * Thu Dec 08 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.31.0-1.1
 - Rebase on latest XS 8.3 prerelease updates
 - Drop two patches merged upstream
