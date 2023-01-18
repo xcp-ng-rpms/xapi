@@ -1,16 +1,15 @@
-%global package_speccommit e812466f29361fecb9f4f2ebcbf3fc223027c48f
-%global package_srccommit v22.32.0
+%global package_speccommit d9cf6fea2f21555d2f5c2b0dba819dfd068f7aad
+%global package_srccommit v22.34.0
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-
-Version: 22.32.0
-Release: 1.1%{?xsrel}%{?dist}
+Version: 22.34.0
+Release: 2.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
-Source0: xen-api-22.32.0.tar.gz
+Source0: xen-api-22.34.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -48,8 +47,6 @@ Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-# To remove once we get it from upstream
-Patch1004: xapi-22.20.0-redirect-fileserver-https.backport.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1235,6 +1232,33 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jan 18 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.34.0-2.1
+- Update to 22.34.0-2
+- Drop xapi-22.20.0-redirect-fileserver-https.backport.patch, included in 22.34
+- *** Upstream changelog ***
+- * Tue Dec 13 2022 Rob Hoes <rob.hoes@citrix.com> - 22.34.0-2
+- - Bump release and rebuild
+- * Mon Dec 12 2022 Rob Hoes <rob.hoes@citrix.com> - 22.34.0-1
+- - Update lifecycle for pool.migration_compression
+- - CA-373551: register for host events rather than task in events_from_xapi
+- * Thu Dec 08 2022 Rob Hoes <rob.hoes@citrix.com> - 22.33.0-1
+- - CP-40404: Add C# NuGet specs in its csproj
+- - CP-40404: Move C# SDK samples to .NET 6.0
+- - CP-41213: swtpm-wrapper should not fiddle with cgroups
+- - CP-40404: Do not specify assembly info in `AssemblyInfo.cs`
+- - CP-40404: Build C# SDK to .NET Framework 4.5
+- - CA-372785 make with-vdi more robust
+- - CP-40404: Replace deprecated module manifest member with `RootModule`
+- - Fix missing `Reference` value in PS SDK cmdlets output
+- - Modify Xenctrlext to use its own libxc handle
+- - CP-40404: Do not specify PS SDK assembly info in `AssemblyInfo.cs`
+- - CP-40404: Update Powershell and C# SDK READMEs
+- - CP-41348: Convert swtpm-wrapper to Python 3
+- - Redirect fileserver towards https
+- - CA-371790: Restrict the permissions on pool tokens
+- - Xenctrl: drop interface_close
+- - CP-41279: add migration_compression pool option
+
 * Tue Dec 20 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.32.0-1.1
 - Update to 22.32.0-1
 - *** Upstream changelog ***
