@@ -1,15 +1,15 @@
-%global package_speccommit d9cf6fea2f21555d2f5c2b0dba819dfd068f7aad
-%global package_srccommit v22.34.0
+%global package_speccommit 4d205a8368c105465eb84cb2c0637ad45ac4cd43
+%global package_srccommit v23.3.0
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 22.34.0
-Release: 2.1%{?xsrel}%{?dist}
+Version: 23.3.0
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
-Source0: xen-api-22.34.0.tar.gz
+Source0: xen-api-23.3.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -133,7 +133,7 @@ The command-line interface for controlling XCP hosts.
 %package rrd2csv
 Summary: A tool to output RRD values in CSV format
 Group: System/Hypervisor
-Obsoletes: rrd2csv
+Obsoletes: rrd2csv < 21.0.0-1
 Obsoletes: xsiostat < 1.0.1-3
 Obsoletes: xsifstat < 1.0.1-3
 
@@ -152,8 +152,8 @@ This package contains a series of simple regression tests.
 %package client-devel
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
-Obsoletes: ocaml-xen-api-client
-Obsoletes: ocaml-xen-api-client-devel
+Obsoletes: ocaml-xen-api-client < 21.0.0-1
+Obsoletes: ocaml-xen-api-client-devel < 21.0.0-1
 Requires: xapi-idl-devel = %{version}-%{release}
 Requires: xs-opam-repo
 
@@ -190,7 +190,7 @@ This package contains Xen-API documentation in html format.
 Summary: Development files for
 Group:   Development/Libraries
 Obsoletes: ocaml-xen-api-libs-transitional-devel < 2.40
-Obsoletes: ocaml-xen-api-libs-transitional
+Obsoletes: ocaml-xen-api-libs-transitional < 21.0.0-1
 Requires:  xs-opam-repo
 Requires:  forkexecd-devel = %{version}-%{release}
 Requires:  xapi-idl-devel = %{version}-%{release}
@@ -225,7 +225,7 @@ Requires:       emu-manager
 # compatible then we just have to update this line and bump the minor for xenopsd
 Requires:       qemu >= 2:4.2.1-5.0.0
 Conflicts:      qemu >= 2:4.2.1-6.0.0
-Obsoletes:      ocaml-xenops-tools
+Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 
 %description -n xenopsd-xc
 Simple VM manager for Xen using libxc.
@@ -240,7 +240,7 @@ A synthetic VM manager for testing.
 %package -n xenopsd-cli
 Summary:        CLI for xenopsd, the xapi toolstack domain manager
 Requires:       xenopsd = %{version}-%{release}
-Obsoletes:      xenops-cli
+Obsoletes:      xenops-cli < 21.0.0-1
 
 %description -n xenopsd-cli
 Command-line interface for xenopsd, the xapi toolstack domain manager.
@@ -265,8 +265,8 @@ Requires:       xs-opam-repo
 Requires:       forkexecd-devel%{?_isa} = %{version}-%{release}
 Requires:       xapi-idl-devel%{?_isa} = %{version}-%{release}
 Requires:       xen-ocaml-devel
-Obsoletes:      ocaml-rrd-transport-devel
-Obsoletes:      ocaml-rrdd-plugin-devel
+Obsoletes:      ocaml-rrd-transport-devel < 21.0.0-1
+Obsoletes:      ocaml-rrdd-plugin-devel < 21.0.0-1
 
 %description -n xcp-rrdd-devel
 The xcp-rrdd-devel package contains libraries and signature files for
@@ -944,6 +944,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{ocaml_libdir}/xapi-datamodel/*
 %exclude %{ocaml_libdir}/xapi-datamodel/*.cmt
 %exclude %{ocaml_libdir}/xapi-datamodel/*.cmti
+%{ocaml_libdir}/xapi-schema/*
+%exclude %{ocaml_libdir}/xapi-schema/*.cmt
+%exclude %{ocaml_libdir}/xapi-schema/*.cmti
 
 %files rrd2csv
 %defattr(-,root,root,-)
@@ -1232,69 +1235,18 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Jan 18 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.34.0-2.1
-- Update to 22.34.0-2
-- Drop xapi-22.20.0-redirect-fileserver-https.backport.patch, included in 22.34
-- *** Upstream changelog ***
-- * Tue Dec 13 2022 Rob Hoes <rob.hoes@citrix.com> - 22.34.0-2
-- - Bump release and rebuild
-- * Mon Dec 12 2022 Rob Hoes <rob.hoes@citrix.com> - 22.34.0-1
-- - Update lifecycle for pool.migration_compression
-- - CA-373551: register for host events rather than task in events_from_xapi
-- * Thu Dec 08 2022 Rob Hoes <rob.hoes@citrix.com> - 22.33.0-1
-- - CP-40404: Add C# NuGet specs in its csproj
-- - CP-40404: Move C# SDK samples to .NET 6.0
-- - CP-41213: swtpm-wrapper should not fiddle with cgroups
-- - CP-40404: Do not specify assembly info in `AssemblyInfo.cs`
-- - CP-40404: Build C# SDK to .NET Framework 4.5
-- - CA-372785 make with-vdi more robust
-- - CP-40404: Replace deprecated module manifest member with `RootModule`
-- - Fix missing `Reference` value in PS SDK cmdlets output
-- - Modify Xenctrlext to use its own libxc handle
-- - CP-40404: Do not specify PS SDK assembly info in `AssemblyInfo.cs`
-- - CP-40404: Update Powershell and C# SDK READMEs
-- - CP-41348: Convert swtpm-wrapper to Python 3
-- - Redirect fileserver towards https
-- - CA-371790: Restrict the permissions on pool tokens
-- - Xenctrl: drop interface_close
-- - CP-41279: add migration_compression pool option
-
-* Tue Dec 20 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.32.0-1.1
-- Update to 22.32.0-1
-- *** Upstream changelog ***
-- * Fri Nov 18 2022 Rob Hoes <rob.hoes@citrix.com> - 22.32.0-1
-- - CA-342527: Remove unnecessary list traversals on rbac.check
-- - xapi/rbac: Remove the non-"efficient" code path
-- - xapi/rbac_audit: do not audit rrd_updates
-- - CA-371780: Reduce cost of merge_new_dss
-- - rbac_audit: refactor module
-- - CA-372128: DB performance optimisations
-- - CA-140252: fix flag handling
-- - CP-40190: vTPM - Fix xenopsd to indicate correct state file format to swtpm-wrapper.
-- - CP-40747: Add certificate checking options to sparse_dd and vhd-tool
-- - CP-33044 define attach/detach IDL calls for gpumon
-- - CA-371780: Port xcp-rrdd tests to alcotest
-- - CA-371780: Reduce overheads in update_rrdds
-- - CP-40823 Edited Vdi.t in xapi/storage_impl.ml to record vm
-- - CP-40823 Created tests to the modules in storage_impl
-- - CP-41028: enable certificate checking for storage migrations
-- - CP-40190: Prevent SWTPM from filling dom0 root partition
-- - xenopsd: define uncaught-exception handler
-- - CA-369444: Ensure xenopsd still starts if VM state upgrade fails
-- - CA-371419: Always log exceptions when responding with 500 Internal Error
-- - CA-369690: Prioritize loglines when backing up RRDs
-- - CA-369690: Reduce logging produced by xmlrpc_client
-- - Debug: remember previous log names per thread in a stack
-- - Do not log out session in xapi events loop to re-register VMs
-- - Enable HTTPS for storage migration on the source
-- * Thu Nov 17 2022 Christian Lindig <christian.lindig@citrix.com> - 22.31.0-2
-- - CP-33044 install gpumon-cli
-
-* Thu Dec 08 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.31.0-1.1
-- Rebase on latest XS 8.3 prerelease updates
-- Drop two patches merged upstream
-- Sync with upstream changelog because it's too big for embedding, and embed our former changelog instead
-- *** Former changelog ***
+* Tue Feb 21 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.1
+- Update to 23.3.0-1
+- Rebase changelog on upstream changelog
+- *** Former XCP-ng changelog ***
+- * Wed Jan 18 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.34.0-2.1
+- - Update to 22.34.0-2
+- - Drop xapi-22.20.0-redirect-fileserver-https.backport.patch, included in 22.34
+- * Tue Dec 20 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.32.0-1.1
+- - Update to 22.32.0-1
+- * Thu Dec 08 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.31.0-1.1
+- - Rebase on latest XS 8.3 prerelease updates
+- - Drop two patches merged upstream
 - * Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.20.0-1.2
 - - Add xapi-22.20.0-redirect-fileserver-https.backport.patch
 - * Wed Aug 31 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.20.0-1.1
@@ -1308,6 +1260,137 @@ Coverage files from unit tests
 - - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
 - - Remove ptoken.py and accesstoken.py yum plugins and their configuration
 - - Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
+
+* Wed Feb 08 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.3.0-1
+- CA-374989: add default values for removed fields
+- CA-374989: Revert "CP-40357: Purge all removed fields from the database and clients"
+- CA-374989: Bump datamodel version
+
+* Thu Feb 02 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.2.0-1
+- Stop generating classes for the XmlRpcProxy.
+- CP-33338: write physical-device-path to xenstore for nbd devices
+- maintenance: commit calculated changes for datamodel_lifecycle
+- CP-39806: use updated C function names for ocaml 4.14
+- CP-40065: Delete VTPM contents when VM is deleted
+- CP-40065: Add VTPMs to the database garbage collector
+- CP-41812: Add total_sessions_count RRD
+- CP-41818: Branding and copyright updates for the SDK
+
+* Mon Jan 30 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.1.0-2
+- Bump release and rebuild
+
+* Mon Jan 30 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.1.0-1
+- CA-374872: error when `BOND_MEMBERS` is not in `management.conf`
+
+* Fri Jan 27 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.0.0-1
+- xcp-rrdd: add interface for rrdd_server
+- CA-374274: Provide more information when datasource is not found
+- CA-362358: Filter out new files when refreshing directory of certificates
+- Filter out new.pem in cert_distrib
+- Support bond at firstboot
+- CP-41444 Added actions_after_softreboot field to VM for Xenopsd soft_reboot
+- xenopsd: use uuid instead of deprecated uuidm functions
+- message-switch: conform to new APIs in jst libs
+- xapi-storage-script: conform to new APIs in jst libs
+- xen-api-client: conform to new APIs in jst libs
+- stream_vdi, import: conform to new APIs in tar
+- gencert: conform to new APIs in x509
+- xapi-guard, xen-api-client: conform to new APIs in conduit
+- message-switch, vhd-tool: drop io-page-unix
+- nbd: change ocaml-nbd usage
+- session_check: add action name in the error returned
+- datamodel_lifecycle: update latest APIs
+
+* Thu Jan 26 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 22.37.0-1
+- CA-374238: prevent copying of removed fields when reverting snapshots
+
+* Mon Jan 23 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 22.36.0-1
+- Makefile: install and uninstall xapi-schema using dune
+- install xapi-schema libraries as part of xapi-datamodel-devel
+
+* Thu Jan 19 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 22.35.0-1
+- CP-40357: Enable computation of correct API lifecycles
+- CP-40357: Patch invalid lifecycles
+- CP-40357: Statically parse all the datamodel lifecycles
+- CP-40357: separate schema modules into xapi-schema package
+- database / idl: reduce code complexity
+- CP-40357: Change comment on failure to load db row
+- CP-40357: Avoid loading removed fields into the database
+- xapi_version: extract "git_id" from version
+- CP-40357: Remove oss_deprecation_since:None
+- CP-40357: Integrate state into the datamodel's lifecycle
+- CP-40357: Purge all removed fields from the database and clients
+- CP-40357 (idl/json): Only show latest entity change in a release
+- CP-41450: The SDK sample code has moved to a different repo.
+- Stop installing internal headers. Create dll symlink for cygwin.
+- opam: synchronize opam metadata with xs-opam
+- xapi-storage{,-script}: explicitely use python2 instead of python
+- Add new bias_enabled field to pool datamodel
+- Make bias against scheduling vms on pool master configurable
+- Switch from Xenctrl.hvm_check_pvdriver to Xenctrl.hvm_param_get
+- Corrected repo link in the README.
+- ci: avoid github API deprecation warnings
+- xenctrlext_stubs: fix xfm_open parameter mismatch
+- CP-40946 Make ATTACH_READONLY consistent with other features
+- CA-373776 Added unhandled exception handler to nbd to log errors instead of the messages being printed to the host console
+- CP-41366: Rename Citrix Hypervisor to XenServer
+- Fix extra `/` in https redirection
+- CA-373785: Deny HTTP requests on website_https_only
+- maintenance: use generated datamodel_lifecycle
+
+* Tue Dec 13 2022 Rob Hoes <rob.hoes@citrix.com> - 22.34.0-2
+- Bump release and rebuild
+
+* Mon Dec 12 2022 Rob Hoes <rob.hoes@citrix.com> - 22.34.0-1
+- Update lifecycle for pool.migration_compression
+- CA-373551: register for host events rather than task in events_from_xapi
+
+* Thu Dec 08 2022 Rob Hoes <rob.hoes@citrix.com> - 22.33.0-1
+- CP-40404: Add C# NuGet specs in its csproj
+- CP-40404: Move C# SDK samples to .NET 6.0
+- CP-41213: swtpm-wrapper should not fiddle with cgroups
+- CP-40404: Do not specify assembly info in `AssemblyInfo.cs`
+- CP-40404: Build C# SDK to .NET Framework 4.5
+- CA-372785 make with-vdi more robust
+- CP-40404: Replace deprecated module manifest member with `RootModule`
+- Fix missing `Reference` value in PS SDK cmdlets output
+- Modify Xenctrlext to use its own libxc handle
+- CP-40404: Do not specify PS SDK assembly info in `AssemblyInfo.cs`
+- CP-40404: Update Powershell and C# SDK READMEs
+- CP-41348: Convert swtpm-wrapper to Python 3
+- Redirect fileserver towards https
+- CA-371790: Restrict the permissions on pool tokens
+- Xenctrl: drop interface_close
+- CP-41279: add migration_compression pool option
+
+* Fri Nov 18 2022 Rob Hoes <rob.hoes@citrix.com> - 22.32.0-1
+- CA-342527: Remove unnecessary list traversals on rbac.check
+- xapi/rbac: Remove the non-"efficient" code path
+- xapi/rbac_audit: do not audit rrd_updates
+- CA-371780: Reduce cost of merge_new_dss
+- rbac_audit: refactor module
+- CA-372128: DB performance optimisations
+- CA-140252: fix flag handling
+- CP-40190: vTPM - Fix xenopsd to indicate correct state file format to swtpm-wrapper.
+- CP-40747: Add certificate checking options to sparse_dd and vhd-tool
+- CP-33044 define attach/detach IDL calls for gpumon
+- CA-371780: Port xcp-rrdd tests to alcotest
+- CA-371780: Reduce overheads in update_rrdds
+- CP-40823 Edited Vdi.t in xapi/storage_impl.ml to record vm
+- CP-40823 Created tests to the modules in storage_impl
+- CP-41028: enable certificate checking for storage migrations
+- CP-40190: Prevent SWTPM from filling dom0 root partition
+- xenopsd: define uncaught-exception handler
+- CA-369444: Ensure xenopsd still starts if VM state upgrade fails
+- CA-371419: Always log exceptions when responding with 500 Internal Error
+- CA-369690: Prioritize loglines when backing up RRDs
+- CA-369690: Reduce logging produced by xmlrpc_client
+- Debug: remember previous log names per thread in a stack
+- Do not log out session in xapi events loop to re-register VMs
+- Enable HTTPS for storage migration on the source
+
+* Thu Nov 17 2022 Christian Lindig <christian.lindig@citrix.com> - 22.31.0-2
+- CP-33044 install gpumon-cli
 
 * Tue Nov 01 2022 Rob Hoes <rob.hoes@citrix.com> - 22.31.0-1
 - CA-370575: [XSI-1310] Driver disks / supp packs applied at host
