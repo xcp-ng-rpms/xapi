@@ -3,7 +3,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.26
-Release: 2.2%{?dist}
+Release: 2.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL+linking exception
 URL:  http://www.xen.org
@@ -480,6 +480,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Feb 21 2023 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.26-2.3
+- Rework xapi-1.249.26-redirect-fileserver-https.backport.patch to reflect upstream changes
+- Update xapi-1.249.26-update-xapi-conf.XCP-ng.patch to re-enable HTTP (prerequisite for HTTP to HTTPS redirect)
+
 * Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.26-2.2
 - Add xapi-1.249.26-redirect-fileserver-https.backport.patch
 

@@ -1,24 +1,41 @@
-Redirect fileserver towards https
+Redirect HTTP request on fileserver to HTTPS when `website_https_only = false`.
+Combination of https://github.com/xapi-project/xen-api/pull/4859 and https://github.com/xapi-project/xen-api/pull/4890
 
-Partial backport of https://github.com/xapi-project/xen-api/pull/4859
+Also needs: https://github.com/xcp-ng-rpms/ocaml-xen-api-libs-transitional/pull/4
 
-diff --git a/ocaml/xapi/fileserver.ml b/ocaml/xapi/fileserver.ml
-index 000cdeda94..a2c8bc56a6 100644
---- a/ocaml/xapi/fileserver.ml
-+++ b/ocaml/xapi/fileserver.ml
-@@ -90,7 +90,14 @@ let send_file (uri_base : string) (dir : string) (req : Request.t)
+diff --git i/ocaml/xapi/fileserver.ml w/ocaml/xapi/fileserver.ml
+index c1f7833aa..49b871e31 100644
+--- i/ocaml/xapi/fileserver.ml
++++ w/ocaml/xapi/fileserver.ml
+@@ -81,19 +81,27 @@ let response_file s file_path =
+   in
+   Http_svr.response_file ~mime_content_type s file_path
+
++let is_external_http req s =
++  (not (Context.is_unix_socket s)) && Context._client_of_rq req = None
++
+ let access_forbidden req s =
+   (* Reject external non-TLS requests (depending on config) *)
+-  !Xapi_globs.website_https_only
+-  && (not (Context.is_unix_socket s))
+-  && Context._client_of_rq req = None
++  !Xapi_globs.website_https_only && is_external_http req s
+
+ let send_file (uri_base : string) (dir : string) (req : Request.t)
+     (bio : Buf_io.t) _ =
+   let uri_base_len = String.length uri_base in
    let s = Buf_io.fd_of bio in
    Buf_io.assert_buffer_empty bio ;
-   if access_forbidden req s then
--    Http_svr.response_forbidden ~req s
-+    match req.Request.host with
-+    | Some host ->
-+        (* Redirect towards HTTPS *)
-+        let path = String.concat "" [uri_base; req.Request.uri] in
-+        let dest = Uri.make ~scheme:"https" ~host ~path () |> Uri.to_string in
-+        Http_svr.response_redirect ~req s dest
-+    | None ->
-+        Http_svr.response_forbidden ~req s
+-  if access_forbidden req s then
++  let is_external_http = is_external_http req s in
++  if is_external_http && !Xapi_globs.website_https_only then
+     Http_svr.response_forbidden ~req s
++  else if is_external_http && Option.is_some req.Request.host then
++    (* Redirect towards HTTPS *)
++    let host = Option.get req.Request.host in
++    let path = req.Request.uri in
++    let dest = Uri.make ~scheme:"https" ~host ~path () |> Uri.to_string in
++    Http_svr.response_redirect ~req s dest
    else
      let uri = req.Request.uri in
      try
