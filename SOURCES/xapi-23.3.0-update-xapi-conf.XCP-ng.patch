@@ -20,3 +20,10 @@ Index: xapi-1.249.3/scripts/xapi.conf
  
  # Directory containing tools ISO
  # tools-sr-dir = @OPTDIR@/packages/iso
+@@ -377,3 +377,6 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
+
+ # The command to query current kernel patch list
+ kpatch_list = "/usr/sbin/kpatch list"
++
++# true = forbid HTTP requests to website (403); false = allow HTTP to HTTPS redirection
++website-https-only = false

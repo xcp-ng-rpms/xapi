@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.3.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -40,7 +40,7 @@ Source25: xapi-storage-script-conf.in
 Source100: 00-XCP-ng-allow-sched-gran.conf
 Source101: 00-XCP-ng-create-tools-sr.conf
 # Enables our additional sm drivers
-Patch1000: xapi-1.249.3-update-xapi-conf.XCP-ng.patch
+Patch1000: xapi-23.3.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
 Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
@@ -1235,6 +1235,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Mar 06 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.2
+- Update xapi-23.3.0-update-xapi-conf.XCP-ng.patch to re-enable HTTP (prerequisite for HTTP to HTTPS redirect)
+
 * Tue Feb 21 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.1
 - Update to 23.3.0-1
 - Rebase changelog on upstream changelog
