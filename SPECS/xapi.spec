@@ -22,7 +22,7 @@ Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos
 # XCP-ng specific sources and patches
 Source1: 00-XCP-ng-allow-sched-gran.conf
 Source2: 00-XCP-ng-create-tools-sr.conf
-Patch1000: xapi-1.249.3-update-xapi-conf.XCP-ng.patch
+Patch1000: xapi-1.249.26-update-xapi-conf.XCP-ng.patch
 # Patches 1001, 1002 and 1003 merged in xen-api 1.250.0
 Patch1001: xapi-1.249.26-allow-migrate_send-during-RPU.XCP-ng.patch
 Patch1002: xapi-1.249.26-open-vxlan-port-for-sdn-controller.XCP-ng.patch
