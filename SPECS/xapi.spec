@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.3.0
-Release: 1.2%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -1235,6 +1235,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Mar 16 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.3
+- Rebuild for xs-opam-repo-6.66.0-1.1
+
 * Mon Mar 06 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.2
 - Update xapi-23.3.0-update-xapi-conf.XCP-ng.patch to re-enable HTTP (prerequisite for HTTP to HTTPS redirect)
 
