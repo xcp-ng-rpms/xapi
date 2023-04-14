@@ -1,23 +1,15 @@
+%global package_speccommit f4fa78439d1ac5319976feac37e1c9a220709c1f
+%global package_srccommit v1.249.28
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.26
-Release: 2.3%{?dist}
+Version: 1.249.28
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
-License: LGPL+linking exception
+License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-
-Source0: https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz
-Patch1: SOURCES/xapi/0001-http-svr-remove-slow-path.patch
-Patch2: SOURCES/xapi/0002-Limit-concurrent-connections-with-semaphore.patch
-Patch3: SOURCES/xapi/0003-Receive-timeout-for-TCP-connections-when-first-readi.patch
-Patch4: SOURCES/xapi/0004-Total-timeout-for-receiving-HTTP-headers.patch
-Patch5: SOURCES/xapi/0005-Maximum-header-length.patch
-
-
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
-
+Source0: xen-api-1.249.28.tar.gz
 
 # XCP-ng specific sources and patches
 Source1: 00-XCP-ng-allow-sched-gran.conf
@@ -54,21 +46,15 @@ BuildRequires: ocaml-rrdd-plugin-devel
 BuildRequires: ocaml-tapctl-devel
 BuildRequires: systemd-devel
 BuildRequires: pciutils-devel
-BuildRequires: xen-dom0-libs-devel
+BuildRequires: xen-ocaml-devel
 BuildRequires: xenopsd-devel
 BuildRequires: xxhash-devel
-
-
-%global _use_internal_dependency_generator 0
-%global __requires_exclude *caml*
-AutoReqProv: no
 
 %description
 XCP toolstack.
 
 %if 0%{?coverage:1}
 %package        cov
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: XAPI is built with coverage enabled
 %description    cov
 XAPI is built with coverage enabled
@@ -76,7 +62,6 @@ XAPI is built with coverage enabled
 %endif
 
 %package core
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: The xapi toolstack
 Group: System/Hypervisor
 %if 0%{?coverage:1}
@@ -114,7 +99,6 @@ BuildRequires: systemd
 This package contains the xapi toolstack.
 
 %package xe
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: The xapi toolstack CLI
 Group: System/Hypervisor
 
@@ -122,7 +106,6 @@ Group: System/Hypervisor
 The command-line interface for controlling XCP hosts.
 
 %package tests
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: Toolstack test programs
 Group: System/Hypervisor
 Requires: net-tools
@@ -131,7 +114,6 @@ Requires: net-tools
 This package contains a series of simple regression tests.
 
 %package client-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: xapi Development Headers and Libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -143,7 +125,6 @@ This package contains the xapi development libraries and header files
 for building addon tools.
 
 %package datamodel-devel
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: xapi Datamodel headers and libraries
 Group:   Development/Libraries
 Requires: ocaml-xen-api-libs-transitional-devel
@@ -155,7 +136,6 @@ for writing additional code generators.
 
 
 %package doc
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: Xen-API documentation
 Group:   Development/Documentation
 
@@ -183,9 +163,9 @@ DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
 SITEDIR=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
 for f in XenAPI XenAPIPlugin inventory; do
-	for e in py pyc pyo; do
-		echo $SITEDIR/$f.$e
-	done
+    for e in py pyc pyo; do
+        echo $SITEDIR/$f.$e
+    done
 done > core-files
 
 ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
@@ -469,7 +449,6 @@ systemctl preset xapi-wait-init-complete || :
 
 %if 0%{?coverage:1}
 %package testresults
-Provides: gitsha(https://code.citrite.net/rest/archive/latest/projects/XSU/repos/xen-api/archive?at=v1.249.26&format=tar.gz&prefix=xapi-1.249.26#/xen-api-1.249.26.tar.gz) = 230ad644723289d48c57bbe5504b46183c398683
 Summary: Coverage files from unit tests
 %description testresults
 Coverage files from unit tests
@@ -480,6 +459,20 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Apr 14 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.28-1.1
+- Rebase on hotfix XS82ECU1027
+- *** Upstream changelog ***
+- * Tue Feb 28 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 1.249.28-1
+- - CA-372128: Avoid extra comparisons in db_cache_types
+- - CA-342527: Remove unnecessary list traversals on rbac.check
+- - CA-352073: Ensure all serialized calls can pass rbac checks
+- - CA-370578 use subsystemId in NVidia GPU matching
+- - Change license to match the one in the source repo
+- - Fix xen BuildReqs
+- - Remove macro for dependency generator
+- * Thu Oct 13 2022 Rob Hoes <rob.hoes@citrix.com> - 1.249.27-1
+- - CA-368579: Patches upstreamed
+
 * Tue Feb 21 2023 Benjamin Reis <benjamin.reis@vates.fr> - 1.249.26-2.3
 - Rework xapi-1.249.26-redirect-fileserver-https.backport.patch to reflect upstream changes
 - Update xapi-1.249.26-update-xapi-conf.XCP-ng.patch to re-enable HTTP (prerequisite for HTTP to HTTPS redirect)
@@ -1199,7 +1192,7 @@ Coverage files from unit tests
 - CA-258385: Improved phrasing for errors thrown by assert_can_migrate.
 - Replace /tmp/network-reset literal with Xapi_globs
 - Travis: remove opam-coverage
-- Modifications to the error messages for better compliance with the 
+- Modifications to the error messages for better compliance with the
   values exposed via the API clients.
 
 * Thu Jun 06 2019 Christian Lindig <christian.lindig@citrix.com> - 1.177.0-1
@@ -1258,7 +1251,7 @@ Coverage files from unit tests
 * Fri May 03 2019 Christian Lindig <christian.lindig@citrix.com> - 1.170.0-1
 - CA-316165: workaround - disable CBT unit tests
 - CA-316165: disable more unit tests that used Thread.delay
-- Changed the checksum algorithm from SHA1 to xxHash, 
+- Changed the checksum algorithm from SHA1 to xxHash,
   backwards compatability is maintained
 - Revert "CP-30614: Use rrd files to gather memory statistics"
 
@@ -1277,11 +1270,11 @@ Coverage files from unit tests
 - Zstd export: Implement Zstd option for disk export
 - Zstd export: Add some helper functions
 - Zstd export: Allow specifying zstd export on the CLI
-- Zstd export: On VM import, autodetect whether gzip or zstd 
+- Zstd export: On VM import, autodetect whether gzip or zstd
   has been used to compress the image
 - Zstd export: Add feature flag for zstd export
 - Add zstd dependency to xapi.opam
-- Zstd export: fall back to gzip in all non-zstd cases, not just 
+- Zstd export: fall back to gzip in all non-zstd cases, not just
   if the gzip magic string is present
 
 * Tue Apr 09 2019 Christian Lindig <christian.lindig@citrix.com> - 1.165.0-1
@@ -1424,7 +1417,7 @@ Coverage files from unit tests
 - CP-29757: Add new VDI_IS_ENCRYPTED exception
 
 * Tue Nov 27 2018 Christian Lindig <christian.lindig@citrix.com> - 1.137.0-1
-- CP-30039: Generate automatically the release and class files for 
+- CP-30039: Generate automatically the release and class files for
   the xapi project docs; added release date to the releases.
 - Use lowercase for class filenames.
 - Improved field doc so we don't need extra doc notes for it i
@@ -1440,11 +1433,11 @@ Coverage files from unit tests
 - New ocaml-rpc
 
 * Fri Nov 09 2018 Christian Lindig <christian.lindig@citrix.com> - 1.134.0-1
-- CA-290024: Reject booting pv-iommu VMs on a host where the 
+- CA-290024: Reject booting pv-iommu VMs on a host where the
   premap is yet to complete
 
 * Tue Nov 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.133.0-1
-- Restored mustache in the dependencies of xapi-datamodel as it 
+- Restored mustache in the dependencies of xapi-datamodel as it
   is needed for doc generation.
 - XSO-244/CA-168413: Show minimum role per message in the API reference markdown.
 - CA-294900 remove network_sriov on network reset
@@ -1580,7 +1573,7 @@ Coverage files from unit tests
 - CA-294917: Added branding to the lima release.
 
 * Mon Aug 06 2018 Christian Lindig <christian.lindig@citrix.com> - 1.110.1-1
-- Bumped the minor api version as well as the client min and max version 
+- Bumped the minor api version as well as the client min and max version
   numbers to 2.11.
 - CA-294917: Added branding to the lima release.
 
@@ -1613,7 +1606,7 @@ Coverage files from unit tests
 * Fri Jul 13 2018 Christian Lindig <christian.lindig@citrix.com> - 1.107.0-1
 - CA-289650: Wait for the pidfile from udhcpd before releasing lock
 - CA-289898: GC dangling references from 'Host.updates_requiring_reboot'
-- CA-290840: VM.attached_PCIs field not properly cleanup when reverting 
+- CA-290840: VM.attached_PCIs field not properly cleanup when reverting
              from snapshot
 - CA-291017: Unable to connect server in pool of 64 physical hosts
 - CA-292676: Apply 'VDI missing' logic to picking SRs too
@@ -1693,7 +1686,7 @@ Coverage files from unit tests
 - Remove experimental flag of SRIoV feature
 
 * Mon Jun 11 2018 Christian Lindig <christian.lindig@citrix.com> - 1.99.0-1
-- Merge GFS2 branch: 
+- Merge GFS2 branch:
   CP-24692 CP-25121 CP-26147 CP-25121 CP-25121 CP-25121 CP-25121 CP-26199
   CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-26912 CP-27172
   CP-27172 CP-27466 CP-28213 CP-28213 CP-28406 CP-28406 CP-28406 CP-28406
@@ -1722,7 +1715,7 @@ Coverage files from unit tests
 - Quicktest: check snapshot VDI fields
 - Moved the output of gen_json.ml into the _build folder.
 - Removed obsolete docbook and pdf format of the API Reference.
-- Split API Reference into two files, one for classes and types and 
+- Split API Reference into two files, one for classes and types and
   one for error handling.
 - xapi-database: make safe-string compliant
 - xapi-types: make safe-string compliant
@@ -1785,10 +1778,10 @@ Coverage files from unit tests
 - CA-288635: increase db flush chunk size
 
 * Mon Apr 23 2018 Christian Lindig <christian.lindig@citrix.com> - 1.92.0-1
-- CA-267687: Logs of VBD operation check that inspects operations of 
+- CA-267687: Logs of VBD operation check that inspects operations of
   VBD's VDI do not match returned errors
 - XSI-6: Event class documentation enhancements.
-- CA-287865: Forwarded task calling Message_forwarding.xxx resulting 
+- CA-287865: Forwarded task calling Message_forwarding.xxx resulting
   current task being early marked completed
 - CA-286874: Redundant checks for SR-IOV when implementing VDI migration (#3547)
 - CA-287854: Add cluster stack constants and check cluster stack valid for
@@ -1797,10 +1790,10 @@ Coverage files from unit tests
 - CA-287863: Reorgnize the code
 - CA-287863: xe vm-shutdown complete the task too early
 - CA-287929: fix incorrect log message (11428 > 11428)
-- CA-281638: Set pool.ha_cluster_stacks upon Cluster.create/destroy success, 
+- CA-281638: Set pool.ha_cluster_stacks upon Cluster.create/destroy success,
   not on Cluster_host operations
 - CA-281638: Add tests for Pool.ha_cluster_stack selection
-- CA-287343: Update HA failure tolerance plan for corosync/GFS2 and 
+- CA-287343: Update HA failure tolerance plan for corosync/GFS2 and
   add unit tests
 - CA-244573: Storage migration state lost after xapi restarting
 - CA-244573: XenMotion fails after previously attempted SXM is
@@ -1810,7 +1803,7 @@ Coverage files from unit tests
 - ocp-indent cluster_stack_constraints and test_cluster(ing)
 - xapi_services.ml: use Re.Emacs instead of the deprecated Re_emacs
 - xa_auth_stubs: add missing header file
-- Network_event_loop: make sure no duplicated interfaces are 
+- Network_event_loop: make sure no duplicated interfaces are
   passed to firewall script
 - Improve documentation: Cannot is one word.
 - Remove deleted quicktests from all_tests list
@@ -1967,7 +1960,7 @@ Coverage files from unit tests
 - datamodel_values: remove unused to_xml
 - idl: revert datamodel_values to_rpc change and use to_ocaml_string instead
 - datamodel_values: correctly stringify numbers also when they are negative
-- gen_api: prevent default values for VCustom fields, these may contain 
+- gen_api: prevent default values for VCustom fields, these may contain
   code that break the unmarshaller
 - gen_api, datamodel_values: get defaults for VCustoms suitable for the API generator
 - database: simplify types after removing bigbuffer
@@ -2159,7 +2152,7 @@ Coverage files from unit tests
 - Refactoring: move modules into files
 - Backwards-compatibility: Move api_versions back to datamodel
 - Cleanup: Remove redundant pipe definitions
-- Remove field_has_effect from VBD.mode in favour of explicit declaration 
+- Remove field_has_effect from VBD.mode in favour of explicit declaration
   of setter
 - Remove redundant effectful fields (after CA-11132)
 - Remove effectful 'actions_after_crash' in favour of explicit setter
@@ -2184,7 +2177,7 @@ Coverage files from unit tests
 - Test CA-274152: SR.scan should update VDI.sharable
 - Xapi_sr.update_vdis: correctly set VDI.sharable field
 - CP-26444: static-vdis: need to save/pass uuid to SR.attach with SMAPIv3
-- CA-259369: Make sure we don't return SRmaster in the update 
+- CA-259369: Make sure we don't return SRmaster in the update
   device-config after SR.create
 - CP-20544: initialize coverage for XAPI itself too
 - CA-281002 CA-271406 let XSM+vGPU fail if VM reboots
