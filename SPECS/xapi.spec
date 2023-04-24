@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.3.0
-Release: 1.3%{?xsrel}%{?dist}
+Release: 1.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -36,9 +36,6 @@ Source23: xapi-storage-script.service
 Source24: xapi-storage-script-sysconfig
 Source25: xapi-storage-script-conf.in
 
-# XCP-ng specific sources and patches
-Source100: 00-XCP-ng-allow-sched-gran.conf
-Source101: 00-XCP-ng-create-tools-sr.conf
 # Enables our additional sm drivers
 Patch1000: xapi-23.3.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
@@ -488,10 +485,6 @@ rm %{buildroot}%{ocaml_libdir}/xapi-storage-script -rf
 rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %{?_cov_install}
 
-# XCP-ng: add specific configuration files
-install -m 0755 %{SOURCE100} %{buildroot}/etc/xapi.conf.d/
-install -m 0755 %{SOURCE101} %{buildroot}/etc/xapi.conf.d/
-
 # XCP-ng: remove the ptoken and accesstoken yum plugins
 rm -f %{buildroot}/etc/yum/pluginconf.d/accesstoken.conf
 rm -f %{buildroot}/etc/yum/pluginconf.d/ptoken.conf
@@ -743,12 +736,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) /etc/sysconfig/perfmon
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
-%dir /etc/xapi.conf.d
-# We're not using %%config for those files, in /etc/xapi.conf.d/, to avoid issues if users modify them
-# (creation of .rpmsave or .rpmnew files that may confuse xapi)
-# BTW users are NOT supposed to modify those files!
-/etc/xapi.conf.d/00-XCP-ng-allow-sched-gran.conf
-/etc/xapi.conf.d/00-XCP-ng-create-tools-sr.conf
 /etc/xenserver/features.d
 %config(noreplace) /etc/xenserver/features.d/vtpm
 /etc/xapi.conf.d
@@ -1235,6 +1222,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Apr 24 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.4
+- Remove `/etc/xapi.conf.d` files, patch `xapi.conf` instead
+
 * Thu Mar 16 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.3
 - Rebuild for xs-opam-repo-6.66.0-1.1
 
