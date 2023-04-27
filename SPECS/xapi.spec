@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.28
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -459,6 +459,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Apr 27 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.28-1.2
+- Rebuild for ocaml-rrdd-plugin-1.9.1-2.2.xcpng8.2
+
 * Fri Apr 14 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 1.249.28-1.1
 - Rebase on hotfix XS82ECU1027
 - *** Upstream changelog ***
