@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.3.0
-Release: 1.4%{?xsrel}%{?dist}
+Release: 1.5%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -1222,6 +1222,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu May 04 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.5
+- Rebuild for blktap-3.53.0-1.xcpng8.3 and sm-3.0.3-1.1.xcpng8.3
+
 * Mon Apr 24 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.4
 - Remove `/etc/xapi.conf.d` files, patch `xapi.conf` instead
 
