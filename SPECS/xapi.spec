@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.3.0
-Release: 1.5%{?xsrel}%{?dist}
+Release: 1.6%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -44,6 +44,7 @@ Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+Patch1004: xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1222,6 +1223,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 21 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.6
+- Rebuild for xs-opam-repo-6.66.0-1.2.xcpng8.3
+- Add xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
+
 * Thu May 04 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.5
 - Rebuild for blktap-3.53.0-1.xcpng8.3 and sm-3.0.3-1.1.xcpng8.3
 
