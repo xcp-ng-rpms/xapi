@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.3.0
-Release: 1.6%{?xsrel}%{?dist}
+Release: 1.7%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -1223,6 +1223,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Jul 31 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.7
+- Drop `ext4` from `sm-plugins` in `xapi.conf`
+
 * Fri Jul 21 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.6
 - Rebuild for xs-opam-repo-6.66.0-1.2.xcpng8.3
 - Add xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
