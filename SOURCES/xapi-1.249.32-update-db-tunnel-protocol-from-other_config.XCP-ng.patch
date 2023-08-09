@@ -14,14 +14,14 @@ the network's `other_config` field where XO used to put it before the change.
 This patch will remain needed as long as we want to support such smooth transition for tunnels created before
 XCP-ng 8.2.
 
-diff --git i/ocaml/xapi/xapi_db_upgrade.ml w/ocaml/xapi/xapi_db_upgrade.ml
-index 76d9858e1..857651f1c 100644
---- i/ocaml/xapi/xapi_db_upgrade.ml
-+++ w/ocaml/xapi/xapi_db_upgrade.ml
+diff --git a/ocaml/xapi/xapi_db_upgrade.ml b/ocaml/xapi/xapi_db_upgrade.ml
+index 76d9858e1..b050e21b6 100644
+--- a/ocaml/xapi/xapi_db_upgrade.ml
++++ b/ocaml/xapi/xapi_db_upgrade.ml
 @@ -107,6 +107,10 @@ let jura =
    , Datamodel_common.jura_release_schema_minor_vsn
    )
-
+ 
 +let quebec =
 +  ( Datamodel_common.quebec_release_schema_major_vsn
 +  , Datamodel_common.quebec_release_schema_minor_vsn )
@@ -32,7 +32,7 @@ index 76d9858e1..857651f1c 100644
 @@ -903,6 +907,26 @@ let remove_legacy_ssl_support =
        )
    }
-
+ 
 +let fill_tunnel_protocol =
 +  {
 +    description=
@@ -62,5 +62,8 @@ index 76d9858e1..857651f1c 100644
    ; remove_legacy_ssl_support
 +  ; fill_tunnel_protocol
    ]
-
+ 
  (* Maybe upgrade most recent db *)
+-- 
+2.40.1
+

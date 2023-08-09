@@ -15,14 +15,14 @@ Signed-off-by: Samuel Verschelde <stormi@laposte.net>
  ocaml/xapi/xapi_globs.ml                     | 1 +
  2 files changed, 4 insertions(+), 3 deletions(-)
 
-diff --git i/ocaml/tests/test_vm_check_operation_error.ml w/ocaml/tests/test_vm_check_operation_error.ml
+diff --git a/ocaml/tests/test_vm_check_operation_error.ml b/ocaml/tests/test_vm_check_operation_error.ml
 index 32755f970..33808b240 100644
---- i/ocaml/tests/test_vm_check_operation_error.ml
-+++ w/ocaml/tests/test_vm_check_operation_error.ml
+--- a/ocaml/tests/test_vm_check_operation_error.ml
++++ b/ocaml/tests/test_vm_check_operation_error.ml
 @@ -137,14 +137,14 @@ let test_migration_allowed_when_cbt_enabled_vdis_are_not_moved () =
          )
    )
-
+ 
 -let test_sxm_disallowed_when_rum () =
 +let test_sxm_allowed_when_rum () =
    with_test_vm (fun __context vm_ref ->
@@ -45,10 +45,10 @@ index 32755f970..33808b240 100644
    ; ("test_vm_set_nvram when VM is running", `Quick, test_vm_set_nvram_running)
    ]
 diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
-index 7174f0aab..1962b3fee 100644
+index 46afb2421..588a612f0 100644
 --- a/ocaml/xapi/xapi_globs.ml
 +++ b/ocaml/xapi/xapi_globs.ml
-@@ -441,6 +441,7 @@ let rpu_allowed_vm_operations =
+@@ -460,6 +460,7 @@ let rpu_allowed_vm_operations =
    ; `hard_shutdown
    ; `import
    ; `make_into_template
@@ -56,6 +56,6 @@ index 7174f0aab..1962b3fee 100644
    ; `pause
    ; `pool_migrate
    ; `power_state_reset
---
-2.13.7
+-- 
+2.40.1
 

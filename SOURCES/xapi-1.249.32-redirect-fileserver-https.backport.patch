@@ -3,14 +3,14 @@ Combination of https://github.com/xapi-project/xen-api/pull/4859 and https://git
 
 Also needs: https://github.com/xcp-ng-rpms/ocaml-xen-api-libs-transitional/pull/4
 
-diff --git i/ocaml/xapi/fileserver.ml w/ocaml/xapi/fileserver.ml
+diff --git a/ocaml/xapi/fileserver.ml b/ocaml/xapi/fileserver.ml
 index c1f7833aa..49b871e31 100644
---- i/ocaml/xapi/fileserver.ml
-+++ w/ocaml/xapi/fileserver.ml
+--- a/ocaml/xapi/fileserver.ml
++++ b/ocaml/xapi/fileserver.ml
 @@ -81,19 +81,27 @@ let response_file s file_path =
    in
    Http_svr.response_file ~mime_content_type s file_path
-
+ 
 +let is_external_http req s =
 +  (not (Context.is_unix_socket s)) && Context._client_of_rq req = None
 +
@@ -20,7 +20,7 @@ index c1f7833aa..49b871e31 100644
 -  && (not (Context.is_unix_socket s))
 -  && Context._client_of_rq req = None
 +  !Xapi_globs.website_https_only && is_external_http req s
-
+ 
  let send_file (uri_base : string) (dir : string) (req : Request.t)
      (bio : Buf_io.t) _ =
    let uri_base_len = String.length uri_base in
@@ -39,3 +39,6 @@ index c1f7833aa..49b871e31 100644
    else
      let uri = req.Request.uri in
      try
+-- 
+2.40.1
+

@@ -1,7 +1,8 @@
-Index: xapi-1.249.3/scripts/xapi.conf
-===================================================================
---- xapi-1.249.3/scripts/xapi.conf
-+++ xapi-1.249.3/scripts/xapi.conf	2020-08-13 18:14:48.476451774 +0200
+---
+diff --git a/scripts/xapi.conf b/scripts/xapi.conf
+index 797aff1a3..615a488b1 100644
+--- a/scripts/xapi.conf
++++ b/scripts/xapi.conf
 @@ -1,3 +1,8 @@
 +# WARNING: any changes made to this file may be overwritten by future
 +# updates of the xapi-core RPM.
@@ -11,7 +12,7 @@ Index: xapi-1.249.3/scripts/xapi.conf
  # The xapi config file has 3 sections: a global policy section;
  # a section for paths to helper utilities; and a timeout tweak section.
  
-@@ -153,7 +158,7 @@
+@@ -153,7 +158,7 @@ sparse_dd = /usr/libexec/xapi/sparse_dd
  # sm-dir =  @OPTDIR@/sm
  
  # Whitelist of SM plugins
@@ -20,10 +21,13 @@ Index: xapi-1.249.3/scripts/xapi.conf
  
  # Directory containing tools ISO
  # tools-sr-dir = @OPTDIR@/packages/iso
-@@ -377,3 +377,6 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
-
+@@ -377,3 +382,6 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
+ 
  # The command to query current kernel patch list
  kpatch_list = "/usr/sbin/kpatch list"
 +
 +# true = forbid HTTP requests to website (403); false = allow HTTP to HTTPS redirection
 +website-https-only = false
+-- 
+2.40.1
+

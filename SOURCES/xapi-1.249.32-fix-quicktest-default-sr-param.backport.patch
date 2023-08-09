@@ -1,11 +1,11 @@
 diff --git i/ocaml/quicktest/qt_filter.ml w/ocaml/quicktest/qt_filter.ml
 index 6d11a3252..91fcd7221 100644
---- i/ocaml/quicktest/qt_filter.ml
-+++ w/ocaml/quicktest/qt_filter.ml
+--- a/ocaml/quicktest/qt_filter.ml
++++ b/ocaml/quicktest/qt_filter.ml
 @@ -170,15 +170,15 @@ module SR = struct
-
+ 
    let all_srs = lazy (list_srs_connected_to_localhost !A.rpc !session_id)
-
+ 
 -  let all =
 +  let all () =
      if !A.use_default_sr then
@@ -18,6 +18,9 @@ index 6d11a3252..91fcd7221 100644
      else
 -      fun () -> Lazy.force all_srs
 +      Lazy.force all_srs
-
+ 
    let random srs () =
      let srs = srs () in
+-- 
+2.40.1
+

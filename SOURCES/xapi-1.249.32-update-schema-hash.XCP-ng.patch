@@ -6,10 +6,13 @@ index 23abb0c21..b8e66e087 100644
 +++ w/ocaml/idl/schematest.ml
 @@ -1,7 +1,7 @@
  let hash x = Digest.string x |> Digest.to_hex
-
+ 
  (* BEWARE: if this changes, check that schema has been bumped accordingly *)
--let last_known_schema_hash = "0aa4a3589b8f91858b268617871d9dc9"
-+let last_known_schema_hash = "588a25804b8f0be7e35d1069b7ac192d"
-
+-let last_known_schema_hash = "61f913df730ae846efa35ae474a64e1d"
++let last_known_schema_hash = "6b17da8c2a6983266eb3c8d9b9190299"
+ 
  let current_schema_hash : string =
    let open Datamodel_types in
+-- 
+2.40.1
+

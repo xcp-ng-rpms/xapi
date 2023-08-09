@@ -2,8 +2,8 @@ Open OpenFlow port (TCP 6653) when a SDN controller is set and close it when SDN
 
 diff --git i/scripts/plugins/openvswitch-config-update w/scripts/plugins/openvswitch-config-update
 index 5b1da7168..3a1a69133 100755
---- i/scripts/plugins/openvswitch-config-update
-+++ w/scripts/plugins/openvswitch-config-update
+--- a/scripts/plugins/openvswitch-config-update
++++ b/scripts/plugins/openvswitch-config-update
 @@ -74,6 +74,8 @@ def update(session, args):
          delete_cacert()
          cmd = [iptablectl, 'close', '6640']
@@ -16,9 +16,12 @@ index 5b1da7168..3a1a69133 100755
 @@ -247,6 +249,8 @@ def setControllerCfg(bootstrap, controller):
                         preinstalled_cacert,
                         '--', 'set-manager', controller])
-
+ 
 +    cmd = [iptablectl, 'open', '6653']
 +    output = subprocess.Popen(cmd, stdout=subprocess.PIPE).communicate()
-
+ 
  def composeController(protocol, controllerIP, tcpport):
      bootstrap = False
+-- 
+2.40.1
+

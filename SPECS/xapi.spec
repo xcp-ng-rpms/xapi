@@ -14,18 +14,18 @@ Source0: xen-api-1.249.32.tar.gz
 # XCP-ng specific sources and patches
 Source1: 00-XCP-ng-allow-sched-gran.conf
 Source2: 00-XCP-ng-create-tools-sr.conf
-Patch1000: xapi-1.249.26-update-xapi-conf.XCP-ng.patch
+Patch1000: xapi-1.249.32-update-xapi-conf.XCP-ng.patch
 # Patches 1001, 1002 and 1003 merged in xen-api 1.250.0
-Patch1001: xapi-1.249.26-allow-migrate_send-during-RPU.XCP-ng.patch
-Patch1002: xapi-1.249.26-open-vxlan-port-for-sdn-controller.XCP-ng.patch
-Patch1003: xapi-1.249.26-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
-Patch1004: xapi-1.249.3-open-openflow-port.XCP-ng.patch
-Patch1005: xapi-1.249.26-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1006: xapi-1.249.26-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
-Patch1007: xapi-1.249.9-update-schema-hash.XCP-ng.patch
+Patch1001: xapi-1.249.32-allow-migrate_send-during-RPU.XCP-ng.patch
+Patch1002: xapi-1.249.32-open-vxlan-port-for-sdn-controller.XCP-ng.patch
+Patch1003: xapi-1.249.32-create-plugged-vif-and-vbd-and-suspended-vm.XCP-ng.patch
+Patch1004: xapi-1.249.32-open-openflow-port.XCP-ng.patch
+Patch1005: xapi-1.249.32-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+Patch1006: xapi-1.249.32-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
+Patch1007: xapi-1.249.32-update-schema-hash.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
-Patch1010: xapi-1.249.26-fix-quicktest-default-sr-param.backport.patch
-Patch1011: xapi-1.249.26-redirect-fileserver-https.backport.patch
+Patch1010: xapi-1.249.32-fix-quicktest-default-sr-param.backport.patch
+Patch1011: xapi-1.249.32-redirect-fileserver-https.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -461,6 +461,7 @@ Coverage files from unit tests
 %changelog
 * Wed Aug 09 2023 Gael Duperrey <gduperrey@vates.fr> - 1.249.32-1.1
 - Sync with hotfix XS82ECU1040
+- Remove and rebase XCP-ng patches to adapt them
 - *** Upstream changelog ***
 - * Thu Jul 20 2023 Rob Hoes <rob.hoes@citrix.com> - 1.249.32-1
 - - CA-378837 log results from Host.get_vms_which_prevent_evacuation

@@ -5,17 +5,17 @@ Open VxLAN port for VxLAN tunnels:
 
 diff --git c/ocaml/idl/datamodel.ml w/ocaml/idl/datamodel.ml
 index 98621e56e..a8a1503ce 100644
---- c/ocaml/idl/datamodel.ml
-+++ w/ocaml/idl/datamodel.ml
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
 @@ -1388,12 +1388,19 @@ module VLAN = struct
  end
-
+ 
  module Tunnel = struct
 +  let tunnel_protocol = Enum ("tunnel_protocol", [
 +      "gre", "GRE protocol";
 +      "vxlan", "VxLAN Protocol";
 +    ])
-
+ 
    let create = call
        ~name:"create"
        ~doc:"Create a tunnel"
@@ -31,7 +31,7 @@ index 98621e56e..a8a1503ce 100644
        ~allowed_roles:_R_POOL_OP
 @@ -1409,7 +1416,8 @@ module Tunnel = struct
        ()
-
+ 
    let t =
 -    create_obj ~in_db:true ~lifecycle:[Published, rel_cowley, "A tunnel for network traffic"] ~in_oss_since:None ~persist:PersistEverything ~gen_constructor_destructor:false ~name:_tunnel ~descr:"A tunnel for network traffic" ~gen_events:true
 +    create_obj ~in_db:true ~lifecycle:[Published, rel_cowley, "A tunnel for network traffic"]
@@ -47,10 +47,10 @@ index 98621e56e..a8a1503ce 100644
          ])
        ()
  end
-diff --git c/ocaml/idl/datamodel_common.ml w/ocaml/idl/datamodel_common.ml
-index 7d4821d75..46f08b45e 100644
---- c/ocaml/idl/datamodel_common.ml
-+++ w/ocaml/idl/datamodel_common.ml
+diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
+index 900098215..548fb3668 100644
+--- a/ocaml/idl/datamodel_common.ml
++++ b/ocaml/idl/datamodel_common.ml
 @@ -106,7 +106,7 @@ let tech_preview_releases = [
  (* Normally xencenter_min_verstring and xencenter_max_verstring in the xapi_globs should be set to the same value,
   * but there are exceptions: please consult the XenCenter maintainers if in doubt. *)
@@ -63,7 +63,7 @@ index 7d4821d75..46f08b45e 100644
 @@ -201,6 +201,12 @@ let get_product_releases in_product_since =
      | x::xs -> go_through_release_order xs
    in go_through_release_order release_order
-
+ 
 +let next_release =
 +  { internal = get_product_releases rel_next
 +  ; opensource=get_oss_releases None
@@ -73,21 +73,21 @@ index 7d4821d75..46f08b45e 100644
  let stockholm_release =
    { internal = get_product_releases rel_stockholm
    ; opensource = get_oss_releases None
-diff --git i/ocaml/idl/datamodel_types.ml w/ocaml/idl/datamodel_types.ml
-index 6bbf5f2e3..93f7ad793 100644
---- i/ocaml/idl/datamodel_types.ml
-+++ w/ocaml/idl/datamodel_types.ml
-@@ -65,6 +65,7 @@ let rel_oslo = "oslo"
- let rel_quebec = "quebec"
+diff --git a/ocaml/idl/datamodel_types.ml b/ocaml/idl/datamodel_types.ml
+index 8fe578e15..3b4ea2279 100644
+--- a/ocaml/idl/datamodel_types.ml
++++ b/ocaml/idl/datamodel_types.ml
+@@ -66,6 +66,7 @@ let rel_quebec = "quebec"
  let rel_stockholm = "stockholm"
  let rel_stockholm_psr = "stockholm_psr"
+ let rel_yangtze_https = "yangtze_https"
 +let rel_next = "rel_next"
-
+ 
  type api_release = {
    code_name: string option;
-@@ -275,6 +276,12 @@ let release_order_full = [{
-      version_minor = 15;
-      branding      = "Citrix Hypervisor 8.2 Hotfix 2";
+@@ -282,6 +283,12 @@ let release_order_full = [{
+      version_minor = 16;
+      branding      = "Citrix Hypervisor 8.2 CU1 Hotfix";
       release_date  = None;
 +   }; {
 +     code_name     = Some rel_next;
@@ -96,25 +96,25 @@ index 6bbf5f2e3..93f7ad793 100644
 +     branding      = "Unreleased";
 +    release_date  = None;
     }
+ 
    ]
- (* When you add a new release, use the version number of the latest release, "Unreleased"
-diff --git c/ocaml/tests/test_common.ml w/ocaml/tests/test_common.ml
-index 7334c8cac..18d96a2dd 100644
---- c/ocaml/tests/test_common.ml
-+++ w/ocaml/tests/test_common.ml
-@@ -227,7 +227,7 @@ let make_bond ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ()) ~master
+diff --git a/ocaml/tests/test_common.ml b/ocaml/tests/test_common.ml
+index dc9178cb4..3dff7602b 100644
+--- a/ocaml/tests/test_common.ml
++++ b/ocaml/tests/test_common.ml
+@@ -231,7 +231,7 @@ let make_bond ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ()) ~master
      ~mode ~properties ~links_up:0L ~auto_update_mac ;
    ref
-
+ 
 -let make_tunnel = Xapi_tunnel.create_internal
 +let make_tunnel = Xapi_tunnel.create_internal ~protocol:`gre
-
+ 
  let make_network ~__context ?(name_label = "net")
      ?(name_description = "description") ?(mTU = 1500L) ?(other_config = [])
-diff --git i/ocaml/tests/test_tunnel.ml w/ocaml/tests/test_tunnel.ml
+diff --git a/ocaml/tests/test_tunnel.ml b/ocaml/tests/test_tunnel.ml
 index 59c880978..19318975f 100644
---- i/ocaml/tests/test_tunnel.ml
-+++ w/ocaml/tests/test_tunnel.ml
+--- a/ocaml/tests/test_tunnel.ml
++++ b/ocaml/tests/test_tunnel.ml
 @@ -21,7 +21,7 @@ let test_create_internal () =
    let transport_PIF = T.make_pif ~__context ~network ~host () in
    let network = T.make_network ~__context ~bridge:"xapi0" () in
@@ -130,7 +130,7 @@ index 59c880978..19318975f 100644
      Api_errors.(Server_error (pif_unmanaged, [Ref.string_of transport_PIF]))
 -    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network |> ignore)
 +    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network ~protocol:`gre |> ignore)
-
+ 
  let test_create_network_already_connected () =
    let __context = T.make_test_database () in
 @@ -73,7 +73,7 @@ let test_create_network_already_connected () =
@@ -139,7 +139,7 @@ index 59c880978..19318975f 100644
      )
 -    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network |> ignore)
 +    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network ~protocol:`gre |> ignore)
-
+ 
  let test_create_on_bond_slave () =
    let __context = T.make_test_database () in
 @@ -89,7 +89,7 @@ let test_create_on_bond_slave () =
@@ -148,7 +148,7 @@ index 59c880978..19318975f 100644
      )
 -    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network |> ignore)
 +    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network ~protocol:`gre |> ignore)
-
+ 
  let test_create_on_tunnel_access () =
    let __context = T.make_test_database () in
 @@ -100,7 +100,7 @@ let test_create_on_tunnel_access () =
@@ -158,7 +158,7 @@ index 59c880978..19318975f 100644
 -      Xapi_tunnel.create ~__context ~transport_PIF:access_PIF ~network |> ignore
 +      Xapi_tunnel.create ~__context ~transport_PIF:access_PIF ~network ~protocol:`gre |> ignore
      )
-
+ 
  let test_create_on_sriov_logical () =
 @@ -115,7 +115,7 @@ let test_create_on_sriov_logical () =
          (cannot_add_tunnel_to_sriov_logical, [Ref.string_of sriov_logical_PIF])
@@ -168,14 +168,14 @@ index 59c880978..19318975f 100644
 +      Xapi_tunnel.create ~__context ~transport_PIF:sriov_logical_PIF ~network ~protocol:`gre
        |> ignore
      )
-
+ 
 @@ -135,7 +135,7 @@ let test_create_on_vlan_on_sriov_logical () =
          , [Ref.string_of transport_PIF]
          )
      )
 -    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network |> ignore)
 +    (fun () -> Xapi_tunnel.create ~__context ~transport_PIF ~network ~protocol:`gre |> ignore)
-
+ 
  let test_create_tunnel_into_sriov_network () =
    let __context = T.make_test_database () in
 @@ -157,7 +157,7 @@ let test_create_tunnel_into_sriov_network () =
@@ -186,7 +186,7 @@ index 59c880978..19318975f 100644
 +      Xapi_tunnel.create ~__context ~transport_PIF:pif ~network:sriov_network ~protocol:`gre
        |> ignore
      )
-
+ 
 @@ -185,7 +185,7 @@ let test_create_tunnel_into_sriov_vlan_network () =
      )
      (fun () ->
@@ -195,12 +195,12 @@ index 59c880978..19318975f 100644
 +        ~network:sriov_vlan_network ~protocol:`gre
        |> ignore
      )
-
-diff --git c/ocaml/xapi-cli-server/cli_frontend.ml w/ocaml/xapi-cli-server/cli_frontend.ml
-index 5c066071d..0e003d44f 100644
---- c/ocaml/xapi-cli-server/cli_frontend.ml
-+++ w/ocaml/xapi-cli-server/cli_frontend.ml
-@@ -1596,7 +1596,7 @@ let rec cmdtable_data : (string * cmd_spec) list =
+ 
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index 2dc9b9090..ad0079fe7 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -1765,7 +1765,7 @@ let rec cmdtable_data : (string * cmd_spec) list =
    ; ( "tunnel-create"
      , {
          reqd= ["pif-uuid"; "network-uuid"]
@@ -209,11 +209,11 @@ index 5c066071d..0e003d44f 100644
        ; help= "Create a new tunnel on a host."
        ; implementation= No_fd Cli_operations.tunnel_create
        ; flags= []
-diff --git c/ocaml/xapi-cli-server/cli_operations.ml w/ocaml/xapi-cli-server/cli_operations.ml
-index 477cfad5b..fb8fc626c 100644
---- c/ocaml/xapi-cli-server/cli_operations.ml
-+++ w/ocaml/xapi-cli-server/cli_operations.ml
-@@ -5756,7 +5756,10 @@ let tunnel_create printer rpc session_id params =
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index d698e847d..0d51fbd5d 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -6063,7 +6063,10 @@ let tunnel_create printer rpc session_id params =
    let pif =
      Client.PIF.get_by_uuid rpc session_id (List.assoc "pif-uuid" params)
    in
@@ -225,14 +225,14 @@ index 477cfad5b..fb8fc626c 100644
    let pif' = Client.Tunnel.get_access_PIF rpc session_id tunnel in
    let uuid = Client.PIF.get_uuid rpc session_id pif' in
    printer (Cli_printer.PList [uuid])
-diff --git c/ocaml/xapi-cli-server/record_util.ml w/ocaml/xapi-cli-server/record_util.ml
-index f9c0d3a68..6fe61eabc 100644
---- c/ocaml/xapi-cli-server/record_util.ml
-+++ w/ocaml/xapi-cli-server/record_util.ml
-@@ -826,6 +826,16 @@ let sdn_protocol_of_string s =
-
+diff --git a/ocaml/xapi-cli-server/record_util.ml b/ocaml/xapi-cli-server/record_util.ml
+index 4d5f36976..3da43fc76 100644
+--- a/ocaml/xapi-cli-server/record_util.ml
++++ b/ocaml/xapi-cli-server/record_util.ml
+@@ -833,6 +833,16 @@ let sdn_protocol_of_string s =
+ 
  let sdn_protocol_to_string = function `ssl -> "ssl" | `pssl -> "pssl"
-
+ 
 +let tunnel_protocol_of_string s =
 +  match String.lowercase_ascii s with
 +  | "gre" -> `gre
@@ -246,10 +246,10 @@ index f9c0d3a68..6fe61eabc 100644
  let pif_igmp_status_to_string = function
    | `enabled ->
        "enabled"
-diff --git i/ocaml/xapi-cli-server/records.ml w/ocaml/xapi-cli-server/records.ml
-index 805e94800..f8c97413a 100644
---- i/ocaml/xapi-cli-server/records.ml
-+++ w/ocaml/xapi-cli-server/records.ml
+diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
+index ec8a54b6d..6aac41fed 100644
+--- a/ocaml/xapi-cli-server/records.ml
++++ b/ocaml/xapi-cli-server/records.ml
 @@ -325,6 +325,7 @@ let tunnel_record rpc session_id tunnel =
            )
            ~get_map:(fun () -> (x ()).API.tunnel_other_config)
@@ -257,15 +257,14 @@ index 805e94800..f8c97413a 100644
 +      ; make_field ~name:"protocol" ~get:(fun () -> Record_util.tunnel_protocol_to_string (x ()).API.tunnel_protocol) ()
        ]
    }
-
-
-diff --git i/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
-index b7a70b767..634bac016 100644
---- i/ocaml/xapi/message_forwarding.ml
-+++ w/ocaml/xapi/message_forwarding.ml
-@@ -4073,13 +4073,13 @@ functor
+ 
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index cb237a340..d708bb29a 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -4087,13 +4087,13 @@ functor
      end
-
+ 
      module Tunnel = struct
 -      let create ~__context ~transport_PIF ~network =
 +      let create ~__context ~transport_PIF ~network ~protocol =
@@ -278,12 +277,12 @@ index b7a70b767..634bac016 100644
 -            Client.Tunnel.create rpc session_id transport_PIF network
 +            Client.Tunnel.create rpc session_id transport_PIF network protocol
          )
-
+ 
        let destroy ~__context ~self =
-diff --git i/ocaml/xapi/nm.ml w/ocaml/xapi/nm.ml
+diff --git a/ocaml/xapi/nm.ml b/ocaml/xapi/nm.ml
 index c8aefb15e..0faa9c875 100644
---- i/ocaml/xapi/nm.ml
-+++ w/ocaml/xapi/nm.ml
+--- a/ocaml/xapi/nm.ml
++++ b/ocaml/xapi/nm.ml
 @@ -742,6 +742,20 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
              with _ ->
                warn "could not update MTU field on PIF %s" rc.API.pIF_uuid
@@ -369,11 +368,11 @@ index c8aefb15e..0faa9c875 100644
 +      | _ ->
 +          close_network_interface (fun () -> ()) ()
    )
-diff --git c/ocaml/xapi/xapi_bond.ml w/ocaml/xapi/xapi_bond.ml
-index 228028593..3a7bef81d 100644
---- c/ocaml/xapi/xapi_bond.ml
-+++ w/ocaml/xapi/xapi_bond.ml
-@@ -188,9 +188,10 @@ let move_tunnel ~__context host new_transport_PIF old_tunnel =
+diff --git a/ocaml/xapi/xapi_bond.ml b/ocaml/xapi/xapi_bond.ml
+index beb351abd..406feb39a 100644
+--- a/ocaml/xapi/xapi_bond.ml
++++ b/ocaml/xapi/xapi_bond.ml
+@@ -195,9 +195,10 @@ let move_tunnel ~__context host new_transport_PIF old_tunnel =
    let network = Db.PIF.get_network ~__context ~self:old_access_PIF in
    let plugged = Db.PIF.get_currently_attached ~__context ~self:old_access_PIF in
    (* Create new tunnel object and access PIF *)
@@ -385,11 +384,11 @@ index 228028593..3a7bef81d 100644
    in
    debug "Created new tunnel %s on bond" (Ref.string_of new_tunnel) ;
    (* Destroy old VLAN and VLAN-master objects *)
-diff --git i/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
-index 519499b5b..4ef7af20e 100644
---- i/ocaml/xapi/xapi_host.ml
-+++ w/ocaml/xapi/xapi_host.ml
-@@ -2224,7 +2224,8 @@ let sync_tunnels ~__context ~host =
+diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
+index f61658018..1c6848015 100644
+--- a/ocaml/xapi/xapi_host.ml
++++ b/ocaml/xapi/xapi_host.ml
+@@ -2234,7 +2234,8 @@ let sync_tunnels ~__context ~host =
          let transport_pif =
            Db.Tunnel.get_transport_PIF ~__context ~self:tunnel
          in
@@ -399,7 +398,7 @@ index 519499b5b..4ef7af20e 100644
      | _ ->
          raise
            Api_errors.(
-@@ -2250,8 +2251,8 @@ let sync_tunnels ~__context ~host =
+@@ -2260,8 +2261,8 @@ let sync_tunnels ~__context ~host =
      in
      (* If the slave doesn't have any such PIF then make one: *)
      if existing_pif = [] then
@@ -410,7 +409,7 @@ index 519499b5b..4ef7af20e 100644
          get_network_of_transport_pif master_pif_rec
        in
        let pifs =
-@@ -2274,7 +2275,7 @@ let sync_tunnels ~__context ~host =
+@@ -2284,7 +2285,7 @@ let sync_tunnels ~__context ~host =
            (* this is the PIF on which we want as transport PIF; let's make it *)
            ignore
              (Xapi_tunnel.create_internal ~__context ~transport_PIF:pif_ref
@@ -419,14 +418,14 @@ index 519499b5b..4ef7af20e 100644
              )
        | _ ->
            (* This should never happen cos we should never have more than one of _our_ pifs
-diff --git i/ocaml/xapi/xapi_tunnel.ml w/ocaml/xapi/xapi_tunnel.ml
+diff --git a/ocaml/xapi/xapi_tunnel.ml b/ocaml/xapi/xapi_tunnel.ml
 index 6faba75be..76e765278 100644
---- i/ocaml/xapi/xapi_tunnel.ml
-+++ w/ocaml/xapi/xapi_tunnel.ml
+--- a/ocaml/xapi/xapi_tunnel.ml
++++ b/ocaml/xapi/xapi_tunnel.ml
 @@ -39,7 +39,7 @@ let choose_tunnel_device_name ~__context ~host =
    in
    choose 0
-
+ 
 -let create_internal ~__context ~transport_PIF ~network ~host =
 +let create_internal ~__context ~transport_PIF ~network ~host ~protocol =
    let tunnel = Ref.make () in
@@ -439,7 +438,7 @@ index 6faba75be..76e765278 100644
 -    ~access_PIF ~transport_PIF ~status:[("active", "false")] ~other_config:[] ;
 +    ~access_PIF ~transport_PIF ~status:[("active", "false")] ~other_config:[] ~protocol ;
    (tunnel, access_PIF)
-
+ 
 -let create ~__context ~transport_PIF ~network =
 +let create ~__context ~transport_PIF ~network ~protocol =
    Xapi_network.assert_network_is_managed ~__context ~self:network ;
@@ -456,10 +455,10 @@ index 6faba75be..76e765278 100644
    in
    Xapi_pif.plug ~__context ~self:access_PIF ;
    tunnel
-diff --git c/ocaml/xapi/xapi_tunnel.mli w/ocaml/xapi/xapi_tunnel.mli
+diff --git a/ocaml/xapi/xapi_tunnel.mli b/ocaml/xapi/xapi_tunnel.mli
 index a195629d3..560139217 100644
---- c/ocaml/xapi/xapi_tunnel.mli
-+++ w/ocaml/xapi/xapi_tunnel.mli
+--- a/ocaml/xapi/xapi_tunnel.mli
++++ b/ocaml/xapi/xapi_tunnel.mli
 @@ -19,6 +19,7 @@ val create :
       __context:Context.t
    -> transport_PIF:[`PIF] Ref.t
@@ -467,7 +466,7 @@ index a195629d3..560139217 100644
 +  -> protocol: API.tunnel_protocol
    -> [`tunnel] Ref.t
  (** Create a tunnel for a given transport PIF and network *)
-
+ 
 @@ -27,6 +28,7 @@ val create_internal :
    -> transport_PIF:[`PIF] Ref.t
    -> network:[`network] Ref.t
@@ -475,14 +474,14 @@ index a195629d3..560139217 100644
 +  -> protocol: API.tunnel_protocol
    -> [`tunnel] Ref.t * [`PIF] Ref.t
  (** Internal version of [create] without checks/exceptions and auto-plugging *)
-
-diff --git c/ocaml/xe-cli/bash-completion w/ocaml/xe-cli/bash-completion
+ 
+diff --git a/ocaml/xe-cli/bash-completion b/ocaml/xe-cli/bash-completion
 index 8669705d0..0948c3e6a 100644
---- c/ocaml/xe-cli/bash-completion
-+++ w/ocaml/xe-cli/bash-completion
+--- a/ocaml/xe-cli/bash-completion
++++ b/ocaml/xe-cli/bash-completion
 @@ -360,8 +360,16 @@ _xe()
                  ;;
-
+ 
              protocol) # for sdn-controller
 -                IFS=$'\n,'
 -                set_completions 'ssl' "$value"
@@ -498,4 +497,7 @@ index 8669705d0..0948c3e6a 100644
 +                esac
                  return 0
                  ;;
+ 
+-- 
+2.40.1
 

@@ -6,14 +6,14 @@ It uses `/opt/xensource/libexec/xen-cmdline`
 
 New entry in `/etc/xapi.conf` to allow the feature: `allow-host-sched-gran-modification: true`
 
-diff --git i/ocaml/idl/datamodel_host.ml w/ocaml/idl/datamodel_host.ml
-index 3bb2288d1..69299177e 100644
---- i/ocaml/idl/datamodel_host.ml
-+++ w/ocaml/idl/datamodel_host.ml
-@@ -1364,6 +1364,34 @@ let host_query_ha = call ~flags:[`Session]
-     ~hide_from_docs:true
-     ()
-
+diff --git a/ocaml/idl/datamodel_host.ml b/ocaml/idl/datamodel_host.ml
+index 3676cda33..68b52c7be 100644
+--- a/ocaml/idl/datamodel_host.ml
++++ b/ocaml/idl/datamodel_host.ml
+@@ -1382,6 +1382,34 @@ let set_https_only =
+     ~allowed_roles:_R_POOL_OP ()
+ 
+ 
 +  let host_sched_gran = Enum("host_sched_gran", [
 +    "core", "core scheduling";
 +    "cpu", "CPU scheduling";
@@ -45,23 +45,23 @@ index 3bb2288d1..69299177e 100644
    (** Hosts *)
    let t =
      create_obj ~in_db:true ~in_product_since:rel_rio ~in_oss_since:oss_since_303 ~internal_deprecated_since:None ~persist:PersistEverything ~gen_constructor_destructor:false ~name:_host ~descr:"A physical host" ~gen_events:true
-@@ -1485,6 +1513,8 @@ let host_query_ha = call ~flags:[`Session]
-         notify_accept_new_pool_secret;
+@@ -1504,6 +1532,8 @@ let set_https_only =
          notify_send_new_pool_secret;
          cleanup_pool_secret;
+         set_https_only;
 +        set_sched_gran;
 +        get_sched_gran;
        ]
        ~contents:
          ([ uid _host;
-diff --git i/ocaml/xapi-cli-server/record_util.ml w/ocaml/xapi-cli-server/record_util.ml
-index eac0c120c..e969e2ec3 100644
---- i/ocaml/xapi-cli-server/record_util.ml
-+++ w/ocaml/xapi-cli-server/record_util.ml
-@@ -595,6 +595,25 @@ let host_display_to_string h =
+diff --git a/ocaml/xapi-cli-server/record_util.ml b/ocaml/xapi-cli-server/record_util.ml
+index 3da43fc76..9197f46d6 100644
+--- a/ocaml/xapi-cli-server/record_util.ml
++++ b/ocaml/xapi-cli-server/record_util.ml
+@@ -599,6 +599,25 @@ let host_display_to_string h =
    | `disable_on_reboot ->
        "disable_on_reboot"
-
+ 
 +let host_sched_gran_of_string s =
 +  match String.lowercase_ascii s with
 +  | "core" ->
@@ -82,15 +82,15 @@ index eac0c120c..e969e2ec3 100644
 +      "socket"
 +
  let pgpu_dom0_access_to_string x = host_display_to_string x
-
+ 
  let string_to_vdi_onboot s =
-diff --git i/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
-index c5ec026ef..d5e6b80f2 100644
---- i/ocaml/xapi/message_forwarding.ml
-+++ w/ocaml/xapi/message_forwarding.ml
-@@ -3665,6 +3665,21 @@ functor
-         do_op_on ~__context ~host ~local_fn (fun session_id rpc ->
-             Client.Host.cleanup_pool_secret rpc session_id host old_ps new_ps
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index c2d334f71..4f2f5de76 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -3679,6 +3679,21 @@ functor
+         do_op_on ~local_fn ~__context ~host:self (fun session_id rpc ->
+             Client.Host.set_https_only ~rpc ~session_id ~self ~value
          )
 +
 +      let set_sched_gran ~__context ~self ~value =
@@ -108,22 +108,22 @@ index c5ec026ef..d5e6b80f2 100644
 +            Client.Host.get_sched_gran rpc session_id self)
 +
      end
-
+ 
      module Host_crashdump = struct
-diff --git i/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
-index 2a89f2cfa..33a56268f 100644
---- i/ocaml/xapi/xapi_globs.ml
-+++ w/ocaml/xapi/xapi_globs.ml
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index 588a612f0..e3db67fe4 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
 @@ -253,6 +253,8 @@ let tools_sr_pbd_device_config =
-
+ 
  let create_tools_sr = ref false
-
+ 
 +let allow_host_sched_gran_modification = ref false
 +
  let default_template_key = "default_template"
-
+ 
  let base_template_name_key = "base_template_name"
-@@ -1240,6 +1242,10 @@ let other_options =
+@@ -1251,6 +1253,10 @@ let other_options =
      , (fun () -> !extauth_ad_backend)
      , "Which AD backend used to talk to DC"
      )
@@ -132,16 +132,16 @@ index 2a89f2cfa..33a56268f 100644
 +    , (fun () -> string_of_bool !allow_host_sched_gran_modification)
 +    , "Allows to modify the host's scheduler granularity" )
    ]
-
+ 
  let all_options = options_of_xapi_globs_spec @ other_options
-diff --git i/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
-index cc7c2f7db..e833f8d67 100644
---- i/ocaml/xapi/xapi_host.ml
-+++ w/ocaml/xapi/xapi_host.ml
-@@ -2385,3 +2385,42 @@ let notify_send_new_pool_secret ~__context ~host ~old_ps ~new_ps =
-
- let cleanup_pool_secret ~__context ~host ~old_ps ~new_ps =
-   Xapi_psr.cleanup ~__context ~old_ps ~new_ps
+diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
+index 1c6848015..160db2d09 100644
+--- a/ocaml/xapi/xapi_host.ml
++++ b/ocaml/xapi/xapi_host.ml
+@@ -2554,3 +2554,42 @@ let set_https_only ~__context ~self ~value =
+   | true ->
+       (* it is illegal changing the firewall/https config in CC/FIPS mode *)
+       raise (Api_errors.Server_error (Api_errors.illegal_in_fips_mode, []))
 +
 +let set_sched_gran ~__context ~self ~value =
 +  if Helpers.get_localhost ~__context <> self then
@@ -181,17 +181,20 @@ index cc7c2f7db..e833f8d67 100644
 +    error "Failed to get sched-gran: %s" (Printexc.to_string e) ;
 +    raise
 +      Api_errors.(Server_error (internal_error, ["Failed to get sched-gran"]))
-diff --git i/ocaml/xapi/xapi_host.mli w/ocaml/xapi/xapi_host.mli
-index 54ce124f9..d6b942241 100644
---- i/ocaml/xapi/xapi_host.mli
-+++ w/ocaml/xapi/xapi_host.mli
-@@ -499,3 +499,9 @@ val cleanup_pool_secret :
-   -> old_ps:SecretString.t
-   -> new_ps:SecretString.t
-   -> unit
+diff --git a/ocaml/xapi/xapi_host.mli b/ocaml/xapi/xapi_host.mli
+index ffa7e4753..818f2d726 100644
+--- a/ocaml/xapi/xapi_host.mli
++++ b/ocaml/xapi/xapi_host.mli
+@@ -502,3 +502,9 @@ val cleanup_pool_secret :
+ 
+ val set_https_only :
+   __context:Context.t -> self:API.ref_host -> value:bool -> unit
 +
 +val set_sched_gran :
 +  __context:Context.t -> self:API.ref_host -> value:API.host_sched_gran -> unit
 +
 +val get_sched_gran :
 +  __context:Context.t -> self:API.ref_host -> API.host_sched_gran
+-- 
+2.40.1
+
