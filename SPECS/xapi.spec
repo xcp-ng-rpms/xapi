@@ -1,15 +1,15 @@
-%global package_speccommit f4fa78439d1ac5319976feac37e1c9a220709c1f
-%global package_srccommit v1.249.28
+%global package_speccommit 990698f46b4567f0f000d0b17980808978596051
+%global package_srccommit v1.249.32
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.28
+Version: 1.249.32
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-1.249.28.tar.gz
+Source0: xen-api-1.249.32.tar.gz
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -431,6 +431,39 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Jul 20 2023 Rob Hoes <rob.hoes@citrix.com> - 1.249.32-1
+- CA-378837 log results from Host.get_vms_which_prevent_evacuation
+- xapi: switch CPU feature sets to the abstract type and don't interpret them
+- Remove CPUID tests from xapi and add to xenopsd
+
+* Mon Jun 19 2023 Christian Lindig <christian.lindig@citrix.com> - 1.249.31-2
+- Bump release and rebuild
+
+* Thu Jun 08 2023 Christian Lindig <christian.lindig@citrix.com> - 1.249.31-1
+- CA-377824 fix FD leak in xapi
+
+* Mon May 22 2023 Christian Lindig <christian.lindig@citrix.com> - 1.249.30-1
+- CA-333441, CA-377454 create /var/lock/sm/iscsiadm
+
+* Mon May 15 2023 Christian Lindig <christian.lindig@citrix.com> - 1.249.29-1
+- CP-41796 Close Port 80 (Encrypt Data Transfer During VM Migrations) 1/6
+- CP-41796 Close Port 80 (Encrypt Data Transfer During VM Migrations) 2/6
+- CP-41796 Close Port 80 (Encrypt Data Transfer During VM Migrations) 3/6
+- CP-41796 Close Port 80 (Encrypt Data Transfer During VM Migrations) 4/6
+- CP-41796 Close Port 80 (Encrypt Data Transfer During VM Migrations) 5/6
+- CP-41796 Close Port 80 (Encrypt Data Transfer During VM Migrations) 6/6
+- CP-41796 enable HTTPS migration by default
+- CP-41796 prevent changes to https_only in CC_PREPARATIONS=true
+- CA-376297: Test that mirage-crypto accepts all valid RSA keys
+- CA-376448: explicitly validate refs in PVS_cache_storage.create
+- CA-333441 - restarting ISCSI daemon after setting initiator IQN
+- CA-333441: Do not fail the startup sequence if the iSCSI initiator cannot be set
+- CP-42835: Allow changing DNS servers when HA or clustering enabled
+- maintenance: fix formatting
+
+* Fri May 12 2023 Christian Lindig <christian.lindig@citrix.com> - 1.249.28-2
+- Bump release and rebuild
+
 * Tue Feb 28 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 1.249.28-1
 - CA-372128: Avoid extra comparisons in db_cache_types
 - CA-342527: Remove unnecessary list traversals on rbac.check
