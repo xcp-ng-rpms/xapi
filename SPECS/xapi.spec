@@ -28,7 +28,7 @@ Patch1010: xapi-1.249.32-fix-quicktest-default-sr-param.backport.patch
 Patch1011: xapi-1.249.32-redirect-fileserver-https.backport.patch
 
 # "Evacnet" patch
-Patch1020: xapi-1.249.26-add-network-to-host-evacuate.XCP-ng.patch
+Patch1020: xapi-1.249.32-add-network-to-host-evacuate.XCP-ng.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
