@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.32
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -24,7 +24,7 @@ Patch1005: xapi-1.249.32-update-db-tunnel-protocol-from-other_config.XCP-ng.patc
 Patch1006: xapi-1.249.32-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.patch
 Patch1007: xapi-1.249.32-update-schema-hash.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
-Patch1010: xapi-1.249.32-fix-quicktest-default-sr-param.backport.patch
+Patch1010: xapi-1.249.32-allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
 Patch1011: xapi-1.249.32-redirect-fileserver-https.backport.patch
 
 BuildRequires: ocaml-ocamldoc
@@ -459,6 +459,10 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Aug 24 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 1.249.32-1.2
+- Add xapi-1.249.32-allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
+- Remove xapi-1.249.32-fix-quicktest-default-sr-param.backport.patch
+
 * Wed Aug 09 2023 Gael Duperrey <gduperrey@vates.fr> - 1.249.32-1.1
 - Sync with hotfix XS82ECU1040
 - Remove and rebase XCP-ng patches to adapt them
