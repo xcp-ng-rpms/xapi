@@ -1,0 +1,95 @@
+From 5a07265ef43a3d50b586ca029759ca0638705bcb Mon Sep 17 00:00:00 2001
+From: BenjiReis <benjamin.reis@vates.fr>
+Date: Tue, 18 Jul 2023 13:24:18 +0200
+Subject: [PATCH] Allow a user to select on which SR to run quicktest
+
+- New `-sr` option which takes a SR uuid to run the tests on
+the option is mutually exclusive with `-default-sr`
+
+- If the SR provided is not available on the host, fails
+
+Signed-off-by: BenjiReis <benjamin.reis@vates.fr>
+---
+ ocaml/quicktest/qt_filter.ml      | 20 +++++++++++++++++---
+ ocaml/quicktest/quicktest_args.ml | 12 +++++++++++-
+ 2 files changed, 28 insertions(+), 4 deletions(-)
+
+diff --git a/ocaml/quicktest/qt_filter.ml b/ocaml/quicktest/qt_filter.ml
+index 6d11a3252..469221bbb 100644
+--- a/ocaml/quicktest/qt_filter.ml
++++ b/ocaml/quicktest/qt_filter.ml
+@@ -170,15 +170,29 @@ module SR = struct
+ 
+   let all_srs = lazy (list_srs_connected_to_localhost !A.rpc !session_id)
+ 
+-  let all =
++  let all () =
+     if !A.use_default_sr then
+       let pool = Qt.get_pool !A.rpc !session_id in
+       only
+         (Client.Client.Pool.get_default_SR ~rpc:!A.rpc ~session_id:!session_id
+            ~self:pool
+         )
+-    else
+-      fun () -> Lazy.force all_srs
++        ()
++    else if !A.sr <> "" then (
++      let sr =
++        Client.Client.SR.get_by_uuid ~rpc:!A.rpc ~session_id:!session_id
++          ~uuid:!A.sr
++      in
++      let local_srs =
++        list_srs_connected_to_localhost !A.rpc !session_id
++        |> List.map (fun sr_info -> sr_info.Qt.sr)
++      in
++      if not (List.mem sr local_srs) then
++        failwith
++          (Printf.sprintf "Specified sr %s is not available on the host" !A.sr) ;
++      only sr ()
++    ) else
++      Lazy.force all_srs
+ 
+   let random srs () =
+     let srs = srs () in
+diff --git a/ocaml/quicktest/quicktest_args.ml b/ocaml/quicktest/quicktest_args.ml
+index 90575e259..412a0c54c 100644
+--- a/ocaml/quicktest/quicktest_args.ml
++++ b/ocaml/quicktest/quicktest_args.ml
+@@ -12,6 +12,8 @@ let password = ref ""
+ 
+ let host = ref ""
+ 
++let sr = ref ""
++
+ let using_unix_domain_socket = ref true
+ 
+ let http = Xmlrpc_client.xmlrpc ~version:"1.1" "/"
+@@ -39,9 +41,15 @@ let parse () =
+       )
+     ; ( "-default-sr"
+       , Arg.Unit (fun () -> use_default_sr := true)
+-      , "Only run SR tests on the pool's default SR"
++      , "Only run SR tests on the pool's default SR, mutually exclusive with \
++         -sr"
+       )
+     ; ("-nocolour", Arg.Clear use_colour, "Don't use colour in the output")
++    ; ( "-sr"
++      , Arg.String (fun x -> sr := x)
++      , "Only run SR tests on the specified SR, mutually exclusive with \
++         -default-sr"
++      )
+     ]
+     (fun x ->
+       match (!host, !username, !password) with
+@@ -59,6 +67,8 @@ let parse () =
+     "Perform some quick functional tests. The default is to test localhost \
+      over a Unix socket. For remote server supply <hostname> <username> and \
+      <password> arguments." ;
++  if !use_default_sr && !sr <> "" then
++    raise (Arg.Bad "-default-sr and -sr are mutually exclusive") ;
+   if !host = "" then host := "localhost" ;
+   if !username = "" then username := "root"
+ 
+-- 
+2.39.2
+
