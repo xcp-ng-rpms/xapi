@@ -25,7 +25,8 @@ Patch1006: xapi-1.249.32-expose-host-xen-scheduler-granularity-in-xapi.XCP-ng.pa
 Patch1007: xapi-1.249.32-update-schema-hash.XCP-ng.patch
 # Contributed upstream, can be dropped in next version bump
 Patch1010: xapi-1.249.32-allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
-Patch1011: xapi-1.249.32-redirect-fileserver-https.backport.patch
+Patch1011: xapi-1.249.32-add-vdi_update-filter-to-some-tests.backport.patch
+Patch1012: xapi-1.249.32-redirect-fileserver-https.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -461,6 +462,7 @@ Coverage files from unit tests
 %changelog
 * Thu Aug 24 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 1.249.32-1.2
 - Add xapi-1.249.32-allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
+- Add xapi-1.249.32-add-vdi_update-filter-to-some-tests.backport.patch
 - Remove xapi-1.249.32-fix-quicktest-default-sr-param.backport.patch
 
 * Wed Aug 09 2023 Gael Duperrey <gduperrey@vates.fr> - 1.249.32-1.1
