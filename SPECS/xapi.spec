@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.3.0
-Release: 1.8%{?xsrel}%{?dist}
+Release: 1.9%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL2.1 + linking exception
 URL:  http://www.xen.org
@@ -47,6 +47,7 @@ Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1004: xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
 # Backport from XAPI v23.21.0 and above
 Patch1005: xapi-23.3.0-Allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
+Patch1006: xapi-23.3.0-Add-vdi_update-filter-to-some-tests.backport.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1225,6 +1226,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Aug 28 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.9
+- Add xapi-23.3.0-Add-vdi_update-filter-to-some-tests.backport.patch
+
 * Wed Aug 23 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.8
 - Add xapi-23.3.0-Allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
 
