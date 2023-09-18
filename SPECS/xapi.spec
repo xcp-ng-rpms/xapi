@@ -1,15 +1,19 @@
-%global package_speccommit 4d205a8368c105465eb84cb2c0637ad45ac4cd43
-%global package_srccommit v23.3.0
+%global package_speccommit a638f281777a4dc769e1cfa6c191256a6f0f0a67
+%global package_srccommit v23.24.0
+
+# This matches the location where xen installs the ocaml libraries
+%global _ocamlpath %{_libdir}/ocaml
+
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 23.3.0
+Version: 23.24.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
-License: LGPL2.1 + linking exception
+License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-23.3.0.tar.gz
+Source0: xen-api-23.24.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -35,6 +39,7 @@ Source22: forkexecd-sysconfig
 Source23: xapi-storage-script.service
 Source24: xapi-storage-script-sysconfig
 Source25: xapi-storage-script-conf.in
+Source26: tracing-conf
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -90,7 +95,7 @@ Requires: python-six
 Requires: python3-six
 Requires: python-pyudev
 Requires: gmp
-Requires: xapi-storage-plugins
+Requires: xapi-storage-plugins >= 2.0.0
 Requires: xapi-clusterd >= 0.64.0
 Requires: xxhash-libs
 Requires: jemalloc
@@ -100,9 +105,12 @@ Requires: createrepo_c >= 0.10.0
 Requires: tdb-tools >= 1.3.18
 Requires: samba-winbind >= 4.10.16
 Requires: upgrade-pbis-to-winbind
+Requires: setup >= 2.8.74
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
+Conflicts: secureboot-certificates < 1.0.0-1
+Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
 
@@ -193,7 +201,7 @@ Requires:       xen-dom0-tools
 Requires:       xen-dom0-libs >= 4.13.3-10.10
 Requires:       python2-scapy
 Requires:       jemalloc
-Requires:       swtpm
+Requires:       swtpm >= 0.7.3-4
 Requires:       swtpm-tools
 
 %description -n xenopsd
@@ -283,15 +291,17 @@ Requires: pvsproxy
 Simple host networking management service for the xapi toolstack.
 
 %package -n message-switch
-Summary:        A store and forward message switch
+Summary: A store and forward message switch
+License: ISC
 
 %description -n message-switch
 A store and forward message switch for OCaml.
 
 %package -n message-switch-devel
-Summary:        Development files for message-switch
-Requires:       message-switch = %{version}-%{release}
-Requires:       xs-opam-repo
+Summary: Development files for message-switch
+License: ISC
+Requires: message-switch = %{version}-%{release}
+Requires: xs-opam-repo
 
 %description -n message-switch-devel
 The message-switch-devel package contains libraries and signature files for
@@ -309,7 +319,6 @@ developing applications that the XAPI IDL interface.
 
 %package -n forkexecd
 Summary:        A subprocess management service
-License:        LGPL
 BuildRequires:  xs-opam-repo
 BuildRequires:  systemd-devel
 Requires:       jemalloc
@@ -332,8 +341,7 @@ The forkexecd-devel package contains libraries and signature files for
 developing applications that use forkexecd.
 
 %package storage
-Summary:       Xapi storage interface
-License:       LGPL+linking exception
+Summary: Xapi storage interface
 
 %description storage
 Xapi storage inteface libraries
@@ -357,7 +365,6 @@ developing applications that use xapi-storage.
 
 %package storage-script
 Summary: Xapi storage script plugin server
-License: LGPL+linking exception
 Requires:	jemalloc
 
 %description storage-script
@@ -400,12 +407,14 @@ It is responsible for giving access only to a specific VM to varstored.
 
 %build
 ./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir}
+export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
 %{__make} sdk
 sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
 
 %check
+export OCAMLPATH=%{_ocamlpath}
 COMPILE_JAVA=no %{__make} test
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
@@ -414,6 +423,7 @@ ls %{buildroot}/testresults/
 %install
 rm -rf %{buildroot}
 
+export OCAMLPATH=%{_ocamlpath}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
 SITEDIR=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
@@ -430,7 +440,7 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-echo 0 > %{buildroot}/etc/xenserver/features.d/vtpm
+echo 1 > %{buildroot}/etc/xenserver/features.d/vtpm
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -462,7 +472,13 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE21} %{buildroot}%{_unitdir}/forkexecd.service
 %{__install} -D -m 0644 %{SOURCE22} %{buildroot}%{_sysconfdir}/sysconfig/forkexecd
 
+# Set server certificate file gid 204 (certusers)
+sed -i -E 's#(ExecStart=.+/xapi-ssl.pem) +-1 #\1 204 #g' %{buildroot}%{_unitdir}/gencert.service
+
 rm %{buildroot}%{_bindir}/gen_lifecycle
+rm %{buildroot}/opt/xensource/bin/xe*-metadata
+rm %{buildroot}/opt/xensource/libexec/backup-metadata-cron
+rm %{buildroot}/opt/xensource/libexec/*-sr-metadata.py*
 
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/volume
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/datapath
@@ -472,6 +488,8 @@ mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/datapath
 rm %{buildroot}%{ocaml_libdir}/xapi-storage-script -rf
 rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %{?_cov_install}
+
+%{__install} -D -m 0644 %{SOURCE26} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -707,6 +725,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/logrotate.d/audit
 /etc/pam.d/xapi
 /etc/cron.d/xapi-logrotate.cron
+/etc/cron.d/xapi-tracing-log-trim.cron
 /etc/cron.daily/license-check
 /etc/cron.daily/certificate-check
 /etc/cron.hourly/certificate-refresh
@@ -761,11 +780,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/bin/xapi-autostart-vms
 /opt/xensource/bin/xapi-db-process
 /opt/xensource/bin/xapi-wait-init-complete
-/opt/xensource/bin/xe-backup-metadata
 /opt/xensource/bin/xe-edit-bootloader
 /opt/xensource/bin/xe-get-network-backend
 /opt/xensource/bin/xe-mount-iso-sr
-/opt/xensource/bin/xe-restore-metadata
 /opt/xensource/bin/xe-reset-networking
 /opt/xensource/bin/xe-scsi-dev-map
 /opt/xensource/bin/xe-toolstack-restart
@@ -788,10 +805,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/sm_diagnostics
 /opt/xensource/libexec/xn_diagnostics
 /opt/xensource/libexec/thread_diagnostics
-/opt/xensource/libexec/backup-metadata-cron
-/opt/xensource/libexec/backup-sr-metadata.py
-/opt/xensource/libexec/backup-sr-metadata.pyo
-/opt/xensource/libexec/backup-sr-metadata.pyc
 /opt/xensource/libexec/block_device_io
 /opt/xensource/libexec/cdrommon
 /opt/xensource/libexec/alert-certificate-check
@@ -818,9 +831,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/print-custom-templates
 /opt/xensource/libexec/probe-device-for-file
 /opt/xensource/libexec/reset-and-reboot
-/opt/xensource/libexec/restore-sr-metadata.py
-/opt/xensource/libexec/restore-sr-metadata.pyo
-/opt/xensource/libexec/restore-sr-metadata.pyc
 /opt/xensource/libexec/set-hostname
 /opt/xensource/libexec/shell.py
 /opt/xensource/libexec/shell.pyo
@@ -829,6 +839,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/upload-wrapper
 /opt/xensource/libexec/xapi-health-check
 /opt/xensource/libexec/xapi-logrotate.sh
+/opt/xensource/libexec/xapi-tracing-log-trim.sh
 /opt/xensource/libexec/xapi-rolling-upgrade
 /opt/xensource/libexec/xha-lc
 /opt/xensource/libexec/xe-syslog-reconfigure
@@ -869,6 +880,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_unitdir}/generate-iscsi-iqn.service
 %{_unitdir}/control-domain-params-init.service
 %{_unitdir}/network-init.service
+%config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 
 %files xe
 %defattr(-,root,root,-)
@@ -903,9 +915,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 
 %files datamodel-devel
 %defattr(-,root,root,-)
-%{ocaml_libdir}/xapi-database/*
-%exclude %{ocaml_libdir}/xapi-database/*.cmt
-%exclude %{ocaml_libdir}/xapi-database/*.cmti
 %{ocaml_libdir}/xapi-datamodel/*
 %exclude %{ocaml_libdir}/xapi-datamodel/*.cmt
 %exclude %{ocaml_libdir}/xapi-datamodel/*.cmti
@@ -937,9 +946,13 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %exclude %{ocaml_libdir}/gzip/*.cmt
 %exclude %{ocaml_libdir}/gzip/*.cmti
 
-%{ocaml_libdir}/http-svr/*
-%exclude %{ocaml_libdir}/http-svr/*.cmt
-%exclude %{ocaml_libdir}/http-svr/*.cmti
+%{ocaml_libdir}/http-lib/*
+%exclude %{ocaml_libdir}/http-lib/*.cmt
+%exclude %{ocaml_libdir}/http-lib/*.cmti
+
+%{ocaml_libdir}/xapi-tracing/*
+%exclude %{ocaml_libdir}/xapi-tracing/*.cmt
+%exclude %{ocaml_libdir}/xapi-tracing/*.cmti
 
 %{ocaml_libdir}/pciutil/*
 %exclude %{ocaml_libdir}/pciutil/*.cmt
@@ -980,6 +993,14 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{ocaml_libdir}/safe-resources/*
 %exclude %{ocaml_libdir}/safe-resources/*.cmt
 %exclude %{ocaml_libdir}/safe-resources/*.cmti
+
+%{ocaml_libdir}/cohttp-posix/*
+%exclude %{ocaml_libdir}/cohttp-posix/*.cmt
+%exclude %{ocaml_libdir}/cohttp-posix/*.cmti
+
+%{ocaml_libdir}/xapi-expiry-alerts/*
+%exclude %{ocaml_libdir}/xapi-expiry-alerts/*.cmt
+%exclude %{ocaml_libdir}/xapi-expiry-alerts/*.cmti
 
 %files -n xenopsd
 %{_sysconfdir}/udev/rules.d/xen-backend.rules
@@ -1029,9 +1050,11 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %files -n xcp-rrdd
 %{_sbindir}/xcp-rrdd
 %{_unitdir}/xcp-rrdd.service
+%{_bindir}/rrd-cli
 %config(noreplace) %{_sysconfdir}/sysconfig/xcp-rrdd
 %config(noreplace) %{_sysconfdir}/xcp-rrdd.conf
 %{_tmpfilesdir}/xcp-rrdd.conf
+%{python_sitelib}/rrdd.py*
 
 %files -n xcp-rrdd-devel
 %{ocaml_docdir}/rrd-transport/*
@@ -1185,6 +1208,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %license LICENSE
 %{_sbindir}/varstored-guard
 %{_unitdir}/varstored-guard.service
+%{_bindir}/xapiguard_cli
 
 %if 0%{?coverage:1}
 %package testresults
@@ -1200,6 +1224,437 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Aug 18 2023 Rob Hoes <rob.hoes@citrix.com> - 23.24.0-1
+- CA-379459 make shutdown mutex per redo_log
+- CA-381133: Set pending_guidances based on recommended guidance
+- CA-381133: Make {host;VM}.recommended_guidances internal-only
+- CA-381133: Remove usage of host|VM.recommended_guidances
+- CA-381133: Remove now-unused recommended_guidances fields
+- Change argument of resort_guidances
+
+* Tue Aug 15 2023 Rob Hoes <rob.hoes@citrix.com> - 23.23.0-1
+- CA-381503: bump qemu filesize limit
+
+* Tue Aug 15 2023 Rob Hoes <rob.hoes@citrix.com> - 23.22.0-1
+- Removed class which became obsolete after the removal of the Proxy_* classes.
+- Corrections to the unmarshalling of raw API hashtables.
+- Removed code generating methods and parameters for XML RPC.
+- Fixed a couple of code smells. Renamed internal method to reflect removal of proxy classes.
+- Added message override (preserving it for the cases where DMC has been switched off via a feature flag).
+- Further corrections to Marshalling so the Powershell module can create API objects from hashtables.
+- CA-379112 make PBD.plug wait for scan results
+- CA-379112 add logging
+- CA-379112 update comments in message_forwarding.ml
+- CA-380789: Not get power_state from snapshots with suspend VDIs
+- Revert "CA-380580: cross-pool migration: no CPU checks for halted VMs"
+- Revert "Cross-pool live migration: move CPU check to the target host"
+- Revert "Add VM_metrics to metadata export"
+- Revert "Add VM_metrics to metadata import"
+- CA-380581: Remove lock on downloading updates from remote repos
+- CA-379459 protect redo_log.shutdown with a lock
+
+* Thu Aug 03 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.21.0-1
+- Allow a user to select on which SR to run quicktest
+- Added messages raised by v6 and SM.
+- CA-380368: Replaced &lt; ad &gt; with < and >. Improved the type description.
+- CA-380389: Version of deprecation/removal for repository.up_to_date not documented correctly
+- Add option to redirect stderr to stdout to execute_command_get_output*
+- CA-380178: xenopsd: Fix vTPM manufacture logging
+- CA-380178: Increase swtpm startup timeout
+- Add `vdi_update` filter to some tests
+- CA-379472 log more block_device_io messages to info
+- CA-379472 increase startup timeout for block_device_io
+- CA-379112 log details of insufficient SR size
+
+* Wed Aug 02 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.20.0-1
+- CA-375992 remove stale swtpm chroots after boot
+- CA-379472 more redo_log debugging
+- CA-379350: Use up-to-date vTPM UUIDs when creating device models
+- maintenance: make code easier to follow with aesthetic changes
+
+* Thu Jul 27 2023 Rob Hoes <rob.hoes@citrix.com> - 23.19.0-1
+- CA-379472 add debugging to redo_log
+- Fix logging of CPU pool-level changes
+- CA-380580: cross-pool migration: no CPU checks for halted VMs
+
+* Thu Jul 20 2023 Rob Hoes <rob.hoes@citrix.com> - 23.18.0-1
+- CP-42016: Add parameter "--newest-only" to "reposync" command
+- CP-42014: Add last_update_sync to pool datamodel
+- CP-42013: Do not apply recommended guidances automatically
+- CA-376144: handle host.apply_recommended_guidances first on pool coordinator
+- CA-375147: UPDATES_REQUIRE_SYNC when toolstack restarted on coordinator
+- CP-42810: Periodic update sync
+- CP-40204, CA-366396: Add "host.latest_synced_updates_applied", remove "repository.up_to_date"
+- CA-376145: Reset pool.last_update_sync on pool coordinator change
+- CA-378757: remove "EvacuateHost" from recommended guidance
+- CP-43545: expose `issued` and `severity` from updateinfo
+- CA-378778: Calculate host guidance correctly
+- CA-380043: VM recommended guidances is not set correctly
+
+* Thu Jul 20 2023 Rob Hoes <rob.hoes@citrix.com> - 23.17.0-1
+- CP-43942 Remove "Portable SR" pseudo-feature
+- opam: update metadata from xs-opam
+- xapi_pgpu: make update_pgpus less scary
+- vhd: use supported ocaml runtime function names
+- xapi_guest_agent: use infix function for path concatenation
+- maintenance(xapi_message): don't log scary messages
+- Add VM_metrics to metadata export
+- Add VM_metrics to metadata import
+- opam: sync with latest metadata
+- ci: update main workflow to setup-ocaml v2
+- Cross-pool live migration: move CPU check to the target host
+- Document parameters in Stunnel_cache API
+- ci: try to reuse dune cache as much as possible
+- CP-27910: factor out reposnse behaviour from host rrd handler
+- CP-27910: allow exporting vm rrds and unarchives in json
+- CP-27910: set content type headers for rrd endpoints
+- maintenance(http-lib): Disallow invalid values in accept datatype
+- http-lib: port tests to alcotest
+- http-lib(fix): Prefer more specific mimetypes in Accept
+- http-lib(feature): Make API more ergonomic
+- IH-393: Use Accept header in xcp-rrdd endpoints
+- http-lib: make all tests belong to the package
+- CA-379928: enable more logging for redo_log_usage
+- [maintenance]: reformat redolog_usage following logging change
+- CA-377945: toolstack restart: ensure xapi is stopped first, started last
+- Offload VM CPU Policy checks to Xen
+
+* Mon Jul 17 2023 Edwin Török <edwin.torok@cloud.com> - 23.16.2-2
+- Bump release and rebuild
+
+* Wed Jul 12 2023 Rob Hoes <rob.hoes@citrix.com> - 23.16.2-1
+- CA-379929: move json dump out of the rrdd plugin directory
+- xcp-rrdd: remove hardcoded version on http requests
+- Revert "CA-375992: clean up previous sandbox when creating one"
+
+* Tue Jul 11 2023 Rob Hoes <rob.hoes@citrix.com> - 23.16.1-1
+- Install cohttp-posix
+
+* Tue Jul 11 2023 Rob Hoes <rob.hoes@citrix.com> - 23.16.0-1
+- CA-373074 Added contents of update_getty script to run after Gencert is started
+- CP-43551: Dump host_rrd latest data to /dev/shm/metrics/host-dss
+- CA-378837 log results from Host.get_vms_which_prevent_evacuation
+- Disable Python 2.7 on Github CI
+- CP-40214: **/*.py: raise (AnyException()): Remove optional parentheses
+- CA-379173 handle race condition in stunnel_cache
+- CP-40214: ocaml/xapi-storage/python/xapi/**.py: modernize -f except,print
+- Add HTTP Strict Transport Security header
+- CP-43574: Add host load data source
+- CP-40214: ocaml/xapi-storage/python/examples/**.py: Update except
+- .gitignore: Ignore the *.bak backup files of the Python modernize tool
+- CP-40214: xapi-storage/python/xapi/storage/api/volume.py: use long()
+- Make tracing library independent of xapi-idl
+- Add a debuginfo library
+- Context: use Debuginfo library
+- Task_server: use Tracing type and Debuginfo
+- Tracing debuginfo: use newline separator for XML-RPC to work
+- VM.migrate_send: properly pass on tracing data
+- Storage_mux: wrap all calls with Debug.with_thread_associated
+- Set up tracing and logging for SXM operations
+- Set up logging and tracing for SMAPIv1
+- scripts/plugins/extauth-hook-AD.py: Skip init logging on import
+- CP-43565: xapi-expiry-alerts: a new library to generate expiry alerts
+- CP-43777: Install xapi-expiry-alerts and ezxenstore
+- ci: Break long line in yaml
+- Add cpuid library
+- Introduce functions in CPU feature sets in xenopsd
+- xenopsd: change type of reported CPU feature-sets to an abstract type
+- xapi: switch CPU feature sets to the abstract type and don't interpret them
+- Remove CPUID tests from xapi and add to xenopsd
+- Update quality gate
+- CA-378931: usb_reset: Fix mount call parameters
+- CA-375992: clean up previous sandbox when creating one
+- CP-42019: Update wording for expiry message
+- CA-379472 add debugging to redo_log
+
+* Mon Jun 19 2023 Rob Hoes <rob.hoes@citrix.com> - 23.15.0-1
+- xenops_sandbox: separate chroot instantiation from fs creation
+- xenops_sandbox: expose less of chroot module
+- xenops_sandbox: fix mistake in guard's parameter name
+- xapi-idl: rename varstore interfaces
+- xapi-guard: do not use a static version
+- git: ignore another formatting commit for blames
+- xapiguard_cli: run its tests as part of varstored package
+- Tidy up class members in the file.
+- Removed cyclical assignment. Reordered assignments.
+- CP-43400: Expose ServerCertificateValidationCallback in the Session.
+- Deprecated the Session constructors requesting the 'timeout' parameter. Added Property to set this instead.
+- CA-354436: pool.is_slave took a long time to respond
+- Update lifecycle
+- CA-378222: assert_sr_can_host_statefile has to take available space into consideration
+- CA-378229: flush database immediately on redo log enable
+- [maintenance]: drop redundant 'true' and factor out anonymous function
+- [maintenance]: use phantom type parameter to enforce RO operation on redo logs
+- [maintenance]: simplify Redo_log.flush_db_exn
+- [maintenance]: split Redo_log.enable on whether it is RO or not
+- [maintenance]: redo_log hide redo log type
+- [maintenance]: drop internal functions from interface
+- CA-378304: check max_file_size limit after writing to tracing file
+- CA-378035: set nbd client timeout to 60 seconds
+- CA-378323: prevent find writing to stderr if /var/log/dt not present
+- CA-378455: Ensure TPM contents are base64-encoded on migration
+- maintenance (suspend_image_viewer): avoid duplication
+
+* Fri Jun 09 2023 Rob Hoes <rob.hoes@citrix.com> - 23.14.0-1
+- CP-41837: Create tracing library
+- CP-41839 Added TracerProvider modules to tracing
+- CP-41840: Add function to convert span to zipkin json
+- CP-41841: Export trace json files to http
+- CP-41841: Export trace json files to dom0 log endpoints
+- CP-42362: Only export finished spans and implement span garbage collector
+- CP-42361: Use XenAPI configuration list in TraceProvider to switch between HTTP/dom0 log export
+- CP-42441 Added SpanKind to Spans
+- CP-41841 Added conversion between Spans and W3C Traceparent headers
+- CP-42441: Capture exceptions from failed operations in span tag
+- CP-42609 Service name is set dynamically depending on the service
+- CP-42607 Created set, create, destroy functions for TracerProviders
+- CP-42854 Add Unit Tests for Tracing Library
+- CP-41842 Created Observer class with IDL functions to manage Open Telemetry providers
+- CP-41842 Added CLI for Observer commands
+- CP-41842 Added initialisation of Tracing library for Xapi
+- CP-41842 Added Tracing Library calls to Xapi_observer to link to the library
+- CP-41842 Added Attribute validator in library and in xapi_observer
+- Instrument tracing in Xapi
+- CP-41841 Added traceparent header to http_svr
+- CP-41841 Populate traceparent header in rpc and retreive it in context.ml
+- Nested tasks in startup sequence
+- Trace xenopsd operations
+- Xenopsd: nest parallel tasks
+- Xenopsd: always use task for import_metadata
+- Trace SM ops and link from xenopsd
+- CP-42606 Add Management interface to Xenopsd
+- CP-42608 Added mechanism to manage components in other Daemons
+- CP-42608 Added set_components to register and unregister changed components
+- Fix errors in message forwarding
+- CP-41843: Add /var/log/dt to bugreport
+- Link up xapi/xenopsd tracing for live migration
+- xenopsd: include traceparent header in requests to a remote xenopsd
+- xenopsd: add received traceparent header to task
+- Remove unused module definitions
+- CP-42553: Periodically delete old files and files beyond a size limit
+- Add error identifier to attributes to mark a span as having an error
+- Add more endpoint valdiation for URLs
+- Added tracing to rpc calls using make_remote_rpc
+- Remove filters and processors from TracerProvider and rename tags to attributes
+- Remove service_name as a TracerProvider and Span field and set it as a library level constant
+-  Added SpanLink to spans
+- Added SpanEvent to spans
+- Use w3c format to serialise spans going into xenopsd to avoid bloat
+- Moved Attribute fields on Spans and TracerProviders to being a StringMap
+- Updating Zipkin to export events (annotations) and to include remoteEndpoint
+- Fixing Quality gate
+- CP-42825: Add XAPI Alcotest unit tests
+- CP-42553 Write spans in files up to 1mb then flush to logs
+- Trace Export operations in the library
+- Add Attributes to Tracing in the library
+- Batch all Traces in one export call to improve perfomrance
+- CP-42999: Return new "preview" in return of v6 "get_version"
+- CA-377824 fix FD leak in xenopsd
+- CP-43518: tap-ctl stats: treat `tap` key as optional in returned object
+
+* Thu Jun 08 2023 Rob Hoes <rob.hoes@citrix.com> - 23.13.0-2
+- Bump release and rebuild
+
+* Wed Jun 07 2023 Rob Hoes <rob.hoes@citrix.com> - 23.13.0-1
+- xenopsd: use HVM memory model for PVH guest not using shim
+- maintenance: small simplifications and reformattings
+- squeezed: Be aware of PVH domains
+- CP-42739: Bump Java SDK to JDK 11 (LTS)
+- opam: move vhd-format metadata to root directory
+- [maintenance]: delete xen-gnt-unix dependency
+- [maintenance]: avoid building bytecode versions of executables
+- libs/vhd: run make format
+- squeezed: fix link to architectural drawing
+- CA-376879: VLAN PIF created in pool.join is shown as disconnected (#5026)
+- CP-40775 remove VTPM check from VM.clone
+- CP-40775 remove VTPM check from VM cross-pool migration
+- CP-40775 remove VTPM check from VM.checkpoint
+- CP-40775 update quality gate
+- CP-40775 remove VTPM check VTPM.create wrt HA
+- CA-376864: prefer use of NBD path for static VDIs on SMAPIv1
+- redo-log: bump default size to 4GiB
+- xapi-guard: initialize Logs
+- xapi-guard: do not use a static version
+- xapi-guard: refactor serve_forever_lwt
+- xapiguard_cli: install
+- xenopsd: plumb through vtpm uuid to suspend/restore
+- swtpm-wrapper: do not spawn additional logger
+- swtpm-wrapper: be explicit on when to manufacture a new vTPM
+- swtpm-wrapper: unix+http scheme support
+- xapi-guard: add minimal REST interface for swtpm
+- CP-42726: Create socket whenever swtpm starts up
+- swtpm_guard: spawn with correct gid
+- xenopsd: drop reading/writing of vTPM state through the file
+- vTPM smoke test
+- CP-40775 remove assert_ha_vtpms_compatible
+- CP-40775 remove assert_ha_vtpms_compatible - update quality gate
+
+* Tue Jun 06 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.12.0-2
+- Bump release and rebuild
+
+* Thu May 25 2023 Rob Hoes <rob.hoes@citrix.com> - 23.12.0-1
+- Check if user if root before continuing with test
+- CA-377169 block VM.checkpoint of running VM with VTPM
+- Update quality-gate
+- ocaml-vhd: fix unit tests
+- ocaml-vhd: Cstruct.len -> Cstruct.length
+- ocaml-vhd: Split off function for VHD creation from Raw_input.vhd
+- ocaml-vhd: Add Hybrid_raw_input to VHD
+- vhd-tool: Remove unnecessary values from match
+- vhd-tool: Remove unnecessary parameter from write_stream
+- vhd-tool: Extend documentation in impl.ml
+- vhd-tool: fix progress bar
+- Make NBD disconnect robust to the device being gone
+- CP-43131: Make gvt-g support configurable
+- CA-333441, CA-377454 create /var/lock/sm/iscsiadm
+- CP-31856: Option to use NBD to attach disks to the control domain
+- CP-33338: call vhd-tool with source-format nbdhybrid for NBD sources
+- Install rrdd.py into the build output
+- Make session errors look less scary in the logs
+- Update rrdd to send v2 protocol data
+- CA-377456 unblock cross-pool migration with VTPM when halted
+- Set PIF's IPv6 Gateway when in DHCP/Autconf
+- CP-42182 Set Makefile to install rrd-cli
+- xapi-rrdd: test rrd_cli
+- editorconfig: correct setting for Makefile is tab, not tabs
+- database: document values of exceptions
+- maintennce: avoid future warnings
+- maintenance: add reformat commit to ignored revs
+- CP-42533: vhd-tool: add hybrid NBD-to-VHD exporter
+- CP-42533: vhd-tool: add nbdhybrid as a supported source format
+- CP-42533: vhd-tool: wire up nbdhybrid to vhd
+- CP-43387: Fix VDI delta copy with NBD datapath connection
+- CP-42064: Move NbdClient module from Xapi_vbd to Attach_helpers
+- CP-42064: Fix storage migration for NBD-backed storage
+
+* Tue May 09 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.11.0-1
+- CA-376297: Test that mirage-crypto accepts all valid RSA keys
+- CP-42642: Support share server certificate file to group users
+- CP-42835: Allow changing DNS servers when HA or clustering enabled
+- CA-375358: Parse output of yum upgrade to get RPMs to be updated/installed
+- Add comments for RPM version comparison functions
+- CA-375358: Add redundancy in getting latest updates/installations
+- xapi_blob: don't verify connection when sending between pools
+- ocamlformat: reformat using ocamlformat 0.22.4
+- ci: publish XenAPI releases to PyPI
+- ci: reduce code run with permissions to release to PyPI
+- xapi-cli: Have a consistent interface for vtpms's vm
+- Move writing init complete to the end of startup sequence
+- CA-374989: Avoid using get_record on cross-pool migration
+- `rrdd-plugin`: do not write payload if page count is 0
+- CA-376894 update VM allowed ops after deleting VTPM
+- Fix a few auto formatting differences
+- [maintenance]: varstored-guard depends on alcotest-lwt for tests
+- [maintenance]: remove xapi-types to http-svr dependency
+- [maintenance]: xapi-guard: drop inotify dependency
+- [maintenance]: xapi-guard: make unit tests run on Mac OS
+- [maintenance]: allow building some libraries on macOS
+- [maintenance]: repeat test errors at the end
+- [maintenance]: xen-api-client: avoid name clash on Util module
+- xen-api-client: add http+unix URI
+- xen-api-client-lwt: introduce a SessionCache
+- [maintenance]: update xen-api-client-lwt examples to use the SessionCache
+- [maintenance]: tweak xen-api-client-lwt examples
+- maintenance: add undeclared dune dependencies
+- CP-40528 VTPM snapshot, revert, clone
+- CA-376993 disable test_clustering (revert this!)
+- ci: do not attempt to install xapi-database
+- Revert "CA-376993 disable test_clustering (revert this!)"
+- spec: specify SPDX licenses
+- spec: changes in library files packaged
+
+* Wed Apr 19 2023 Rob Hoes <rob.hoes@citrix.com> - 23.10.0-1
+- Xen libraries are are now taken straight from the xen package instead of through xs-opam
+- Import ezxenstore into the xen-api repo
+- CP-39863 add allowed VTPM ops for VMs
+- CP-42455 Revert disable DMC
+- CA-376319: Ensure that nbd_client_manager cannot block forever.
+- CA-376326: rrdd_proxy: compare the localhost uuid with a uuid instead of a ref
+- CA-376326: rrdd: return 404 instead of just failing
+- ezxenstore: make tests exclusive to it
+- CA-376294: Extract hostname from FQDN
+- CA-376294: Update log message about compressed netbios name
+- CP-39935 catch and log unexpected exceptions during import
+- CA-376448: explicitly validate refs in PVS_cache_storage.create
+
+* Fri Mar 24 2023 Rob Hoes <rob.hoes@citrix.com> - 23.9.0-2
+- Bump release and rebuild
+
+* Fri Mar 24 2023 Rob Hoes <rob.hoes@citrix.com> - 23.9.0-1
+- CA-343683 Added lock to disk writing in Networkd to avoid writing to disk with incomplete configuration details
+- ci: nosetests are only located in scripts
+- python: port tests to pytest
+- ci: setup python tests in the yml definition
+- CA-375705: fix total order on Ref.compare
+- CA-375705: unit test for total order on Ref.compare
+- CP-39935 implement VTPM export
+- CP-39935 Implement VTPM import
+- CP-39935 Update quality-gate.sh for VTPM
+- CP-39935 improve full restore
+- xapi_vtpm: do not reuse name for get_contents
+- CP-41574: Add telemetry configuration data
+- CP-41574: Expose repository proxy password access to API
+- CP-41574: Update DB schema
+- CP-41574: Updated datamodel_lifecycle.ml for new added fields
+- CA-375359 improve "pool_total_session_count" RRD description
+- CP-30367: xenopsd: add support for PVH
+- CP-30367: XAPI: allow PV and PVH kernels in /var/lib/xcp/guest too
+- CA-375359 & CP-42286: Rename `sessions per second` to `sessions/s`
+- CP-41796 enable HTTPS migration by default
+- CP-41796 prevent changes to https_only in CC_PREPARATIONS=true
+
+* Wed Mar 08 2023 Rob Hoes <rob.hoes@citrix.com> - 23.8.0-1
+- CA-375427: Make DP.destroy idempotent again
+- CA-364049: Tell external auth plugins to use python3
+- CA-375634: Move probe-device-for-file to Python 3
+
+* Fri Mar 03 2023 Rob Hoes <rob.hoes@citrix.com> - 23.7.0-1
+- CP-40847: synchronize read-only uefi-certificates field for both host & pool
+
+* Thu Mar 02 2023 Rob Hoes <rob.hoes@citrix.com> - 23.6.0-1
+- [maintenance] Makefile: add a rule to write out a compile_flags.txt
+- CA-375274: xenctrlext: fix wrong number of arguments to interface_open and unshadow
+- CA-375273: xenctrlext: fix race conditions
+- [maintenance] direct_copy_stubs.c: uerror is available in caml/unixsupport.h
+- [maintenance] vhd-tool/direct_copy_stubs: fix setting of O_DIRECT flag
+- [maintenance] add .editorconfig: use spaces instead of tabs in C files
+- CA-375106: tuntap_stubs.c: raise Unix.error instead of failwith
+- CA-375276: xenctrlext_stubs.c: xc_get_last_error is not thread safe, use just errno which is
+- [maintenance] xa_auth_stubs.c: move free inside the blocking section
+- CA-375280: xe-toolstack-restart: stop and start all services at once
+- python/XenAPI: Replace import six.moves with stdlib imports
+- Allow to use a CIDR for VIFs IPv4 and IPv6 allowed IPs
+- CP-41730: Limit ldap query timeout for subject information
+- python/setup.cfg: Fix deprecated dash-separated key
+- python: Use xapi's versioning scheme for XenAPI package
+- ci: use official gh cli for release workflow
+- CP-40388: Rename SMAPIv3 feature VDI_ATTACH_READONLY
+- CP-40388: define VDI_ACTIVATE_READONLY in Smint
+- CP-40388: store SR feature table upon mux registration
+- CP-40388: store attach mode (rw/ro) with datapath in mux
+- CP-40388: Add VDI.activate_readonly to the storage interface
+- CP-41675: add new field override_uefi_certs to xapi.conf
+- CP-41675: xapi-start behaves according to field override-uefi-certs in xapi.conf
+- CP-41672: wipe the contents of the pool.uefi_certificates during upgrade
+- CP-40847: CP-42007: make pool.uefi-certificates field read-only
+- CP-41675: fix idempotent behaviour of Helpers.FileSys.rmrf
+- CP-42007: platform:secureboot=auto means platform:secureboot=true always
+- CP-42007: separate error msg from exception generation
+
+* Fri Feb 17 2023 Rob Hoes <rob.hoes@citrix.com> - 23.5.0-1
+- ci: fix docs upload of xapi-storage
+- CP-42173: xenctrlext: stop using xentoolog bindings
+- Remove log spam about leaked VDI locks at startup
+- Fix storage_smapiv1_wrapper log name
+- Storage mux: filter out duplicates in SR.list
+- CA-375256: Fix storage initialisation on xapi startup
+
+* Fri Feb 10 2023 Christian Lindig <christian.lindig@citrix.com> - 23.4.0-2
+- CP-40650 Remove vtpm feature restriction (i.e., enable feature)
+
+* Fri Feb 10 2023 Rob Hoes <rob.hoes@citrix.com> - 23.4.0-1
+- Reorganise the storage API layer in xapi and xapi-storage-script
+
 * Wed Feb 08 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.3.0-1
 - CA-374989: add default values for removed fields
 - CA-374989: Revert "CP-40357: Purge all removed fields from the database and clients"
