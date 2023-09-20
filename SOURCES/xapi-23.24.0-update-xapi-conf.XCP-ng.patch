@@ -1,7 +1,7 @@
-Index: xapi-1.249.3/scripts/xapi.conf
-===================================================================
---- xapi-1.249.3/scripts/xapi.conf
-+++ xapi-1.249.3/scripts/xapi.conf	2020-08-13 18:14:48.476451774 +0200
+diff --git i/scripts/xapi.conf w/scripts/xapi.conf
+index c727b071c..71ac1fde3 100644
+--- i/scripts/xapi.conf
++++ w/scripts/xapi.conf
 @@ -1,3 +1,8 @@
 +# WARNING: any changes made to this file may be overwritten by future
 +# updates of the xapi-core RPM.
@@ -10,27 +10,23 @@ Index: xapi-1.249.3/scripts/xapi.conf
 +
  # The xapi config file has 3 sections: a global policy section;
  # a section for paths to helper utilities; and a timeout tweak section.
- 
-@@ -153,7 +158,7 @@
+
+@@ -164,7 +169,7 @@ sparse_dd = /usr/libexec/xapi/sparse_dd
  # sm-dir =  @OPTDIR@/sm
- 
+
  # Whitelist of SM plugins
 -sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb
 +sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb cephfs glusterfs xfs zfs
- 
+
  # Directory containing tools ISO
  # tools-sr-dir = @OPTDIR@/packages/iso
-@@ -377,3 +377,6 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
+@@ -397,3 +402,12 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
 
  # The command to query current kernel patch list
  kpatch_list = "/usr/sbin/kpatch list"
 +
 +# true = forbid HTTP requests to website (403); false = allow HTTP to HTTPS redirection
 +website-https-only = false
-@@ -383,3 +383,9 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
-
- # The command to query current kernel patch list
- kpatch_list = "/usr/sbin/kpatch list"
 +
 +# Indicates whether to create an SR for Tools ISOs
 +create-tools-sr = true

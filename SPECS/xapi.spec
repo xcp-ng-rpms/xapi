@@ -42,13 +42,13 @@ Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 
 # Enables our additional sm drivers
-Patch1000: xapi-23.3.0-update-xapi-conf.XCP-ng.patch
+Patch1000: xapi-23.24.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
 Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
 Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1003: xapi-1.249.3-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+Patch1003: xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Needed for IPv6 support. Upstream wants a better fix. Drop when upstream fixed it.
 Patch1004: xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
 
@@ -1248,10 +1248,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* TO BE UPDATED - Samuel Verschelde <stormi-xcp@ylix.fr> - 23.24.0-1.1
+* Wed Sep 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.24.0-1.1
 - Update to 23.24.0-1
 - Remove patches merged upstream.
-- TODO rediff failing patch
+- Rework xapi-23.24.0-update-xapi-conf.XCP-ng.patch
+- Rework xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 - Rebase changelog on upstream changelog
 - *** Former XCP-ng 8.3 changelog ***
 - * Mon Aug 28 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.9
