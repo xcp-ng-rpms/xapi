@@ -1,19 +1,23 @@
-%global package_speccommit a638f281777a4dc769e1cfa6c191256a6f0f0a67
-%global package_srccommit v23.24.0
+%global package_speccommit ff2ccce0f66862085068c4c951acf9efcfc72aa6
+%global package_srccommit v23.25.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
+
+%if 0%{?xenserver} < 9
+%global build_python2 1
+%endif
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 23.24.0
+Version: 23.25.0
 Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-23.24.0.tar.gz
+Source0: xen-api-23.25.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -62,7 +66,11 @@ BuildRequires: git
 BuildRequires: gmp-devel
 BuildRequires: libuuid-devel
 BuildRequires: make
+
+%if 0%{?build_python2}
 BuildRequires: python2-devel
+%endif
+
 BuildRequires: python3-devel
 BuildRequires: xs-opam-repo >= 6.54.0-2
 BuildRequires: libnl3-devel
@@ -212,7 +220,13 @@ Summary:        Simple VM manager
 Requires:       message-switch >= 12.21.0
 Requires:       xen-dom0-tools
 Requires:       xen-dom0-libs >= 4.13.3-10.10
+
+%if 0%{?build_python2}
 Requires:       python2-scapy
+%else
+Requires:       python3-scapy
+%endif
+
 Requires:       jemalloc
 Requires:       swtpm >= 0.7.3-4
 Requires:       swtpm-tools
@@ -354,11 +368,41 @@ Obsoletes:      xapi-forkexecd-devel <= 1.31.0-2
 The forkexecd-devel package contains libraries and signature files for
 developing applications that use forkexecd.
 
-%package storage
-Summary: Xapi storage interface
+%if 0%{?build_python2}
+%package -n python2-xapi-storage
+Summary: Xapi storage interface (Python2)
+Provides: xapi-storage = %{version}-%{release}
+Obsoletes: xapi-storage < %{version}-%{release}
+Requires: python2-future
+Requires: python-six
+BuildRequires: python2-devel
+BuildRequires: python2-setuptools
 
-%description storage
-Xapi storage inteface libraries
+%description -n python2-xapi-storage
+Xapi storage interface libraries for python2
+
+%files -n python2-xapi-storage
+%defattr(-,root,root,-)
+%{python2_sitelib}/xapi/__init__.py*
+%{python2_sitelib}/xapi/storage/*
+%exclude %{python2_sitelib}/*.egg-info
+
+%endif
+
+%package -n python%{python3_pkgversion}-xapi-storage
+Summary: Xapi storage interface (Python3)
+Requires: python3-six
+BuildRequires: python3-devel
+BuildRequires: python3-rpm-macros
+BuildRequires: python3-setuptools
+
+%description -n python%{python3_pkgversion}-xapi-storage
+Xapi storage interface libraries for %{python3_pkgversion}
+
+%files -n python%{python3_pkgversion}-xapi-storage
+%defattr(-,root,root,-)
+%{python3_sitelib}/xapi/__init__.py*
+%{python3_sitelib}/xapi/storage/*
 
 %package storage-ocaml-plugin-runtime
 Summary:        Development files for xapi-storage
@@ -413,7 +457,11 @@ It is responsible for giving access only to a specific VM to varstored.
 %global ocaml_libdir %{ocaml_dir}/lib
 %global ocaml_docdir %{_prefix}/doc
 
+%if 0%{?build_python2}
 %global __python     /usr/bin/python2
+%else
+%global __python     /usr/bin/python3
+%endif
 
 %prep
 %autosetup -p1
@@ -426,6 +474,12 @@ ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
 %{__make} sdk
 sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
+
+%if 0%{?build_python2}
+(cd ocaml/xapi-storage/python && %{py2_build})
+%endif
+
+(cd ocaml/xapi-storage/python && %{py3_build})
 
 %check
 export OCAMLPATH=%{_ocamlpath}
@@ -448,6 +502,12 @@ for f in XenAPI XenAPIPlugin inventory; do
     done
 done > core-files
 echo "$SITE3DIR/*" >> core-files
+
+%if 0%{?build_python2}
+(cd ocaml/xapi-storage/python && %{py2_install})
+%endif
+
+(cd ocaml/xapi-storage/python && %{py3_install})
 
 ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
 mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
@@ -1171,23 +1231,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 # part of the main package
 %exclude %{ocaml_docdir}/xapi-forkexecd/LICENSE
 
-%files storage
-%defattr(-,root,root,-)
-%{python_sitelib}/xapi/__init__.py*
-%{python_sitelib}/xapi/storage/__init__.py*
-%{python_sitelib}/xapi/storage/common.py*
-%{python_sitelib}/xapi/storage/log.py*
-%{python_sitelib}/xapi/storage/api/datapath.py*
-%{python_sitelib}/xapi/storage/api/volume.py*
-%{python_sitelib}/xapi/storage/api/plugin.py*
-%{python_sitelib}/xapi/storage/api/__init__.py*
-%{python_sitelib}/xapi/storage/api/v5/datapath.py*
-%{python_sitelib}/xapi/storage/api/v5/volume.py*
-%{python_sitelib}/xapi/storage/api/v5/plugin.py*
-%{python_sitelib}/xapi/storage/api/v5/task.py*
-%{python_sitelib}/xapi/storage/api/v5/__init__.py*
-%exclude %{python_sitelib}/*.egg-info
-
 %files storage-ocaml-plugin-runtime
 %defattr(-,root,root,-)
 %{ocaml_libdir}/xapi-storage/*
@@ -1248,6 +1291,29 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Sep 27 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.1
+- Update to 23.25.0-1
+- *** Upstream changelog ***
+- * Thu Aug 31 2023 Rob Hoes <rob.hoes@citrix.com> - 23.25.0-1
+- - CP-43977: Fallback un-recognized guidance as RebootHost
+- - xapi-aux: log error when reading ip type in inventory
+- - xapi-aux: filter out all link-local addresses
+- - CA-378966: Prepare ip monitor watcher to read more lines
+- - CA-378966: Detect state network interface changes
+- - network_monitor_thread: reuse named parameters
+- - xxhash(maintenance): add dependency to ctype stubs
+- - maintenance: use ounit2 instead of ounit
+- - maintenance: prepare mtime usage for 2.0
+- - CA-381856: preserve host.last_software_update on pool join
+- - CP-44988: remove API: host.apply_recommended_guidances
+- - fixup: update lifecycle for "host.apply_recommended_guidances"
+- - Move helpers to determine the client of a call from Context to Http_svr
+- - Improve logging at start of HTTP handler
+- - CA-381587: log when HTTP Basic auth is used, and by who
+- - CP-33044 replace gpumon shutdown with NVML detach/attach
+- - CP-42949: Ensure storage RRDs are created without tapdev in kernel
+- - Install python3 variant of xapi-storage alongside python2
+
 * Wed Sep 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.24.0-1.1
 - Update to 23.24.0-1
 - Remove patches merged upstream.
