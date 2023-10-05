@@ -13,7 +13,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.25.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -134,6 +134,9 @@ Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
+
+# XCP-ng: add missing requires towards nbd
+Requires: nbd
 
 %description core
 This package contains the xapi toolstack.
@@ -1291,6 +1294,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Oct 05 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.2
+- Add missing Requires towards nbd
+
 * Wed Sep 27 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.1
 - Update to 23.25.0-1
 - *** Upstream changelog ***
