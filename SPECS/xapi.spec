@@ -1,15 +1,16 @@
-%global package_speccommit 990698f46b4567f0f000d0b17980808978596051
+%global package_speccommit c4dd15ea0cefb27d7bc2d92318b874d0cd55f999
 %global package_srccommit v1.249.32
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.32
-Release: 1%{?xsrel}%{?dist}
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
 Source0: xen-api-1.249.32.tar.gz
+Patch0: xe-restore-metadata.use.debugfs.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -71,6 +72,7 @@ Requires: jemalloc
 Requires: tdb-tools >= 1.3.18
 Requires: samba-winbind >= 4.10.16
 Requires: upgrade-pbis-to-winbind
+Requires: e2fsprogs
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -328,7 +330,6 @@ systemctl preset xapi-wait-init-complete || :
 /opt/xensource/libexec/nbd_client_manager.pyc
 /opt/xensource/libexec/network-init
 /opt/xensource/libexec/print-custom-templates
-/opt/xensource/libexec/probe-device-for-file
 /opt/xensource/libexec/reset-and-reboot
 /opt/xensource/libexec/restore-sr-metadata.py
 /opt/xensource/libexec/restore-sr-metadata.pyo
@@ -431,6 +432,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue Sep 26 2023 Alejandro Vallejo <alejandro.vallejo@cloud.com> - 1.249.32-2
+- CP-45072 Use debugfs instead of libfsimage on xe-restore-metadata probes
+
 * Thu Jul 20 2023 Rob Hoes <rob.hoes@citrix.com> - 1.249.32-1
 - CA-378837 log results from Host.get_vms_which_prevent_evacuation
 - xapi: switch CPU feature sets to the abstract type and don't interpret them
