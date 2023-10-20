@@ -13,7 +13,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.25.0
-Release: 1.2%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -126,7 +126,8 @@ Requires: tdb-tools >= 1.3.18
 Requires: samba-winbind >= 4.10.16
 # XCP-ng: remove Requires for proprietary component
 # Requires: upgrade-pbis-to-winbind
-Requires: setup >= 2.8.74
+# XCP-ng: don't require XS's fork of the setup RPM
+#Requires: setup >= 2.8.74
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -1294,6 +1295,12 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Oct 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.3
+- Don't require XS's fork of the setup RPM
+- We chose to revert to CentOS' version, as we don't share XenServer's view
+  regarding where to do changes to add users and groups, and we don't need
+  the added users and groups they put there yet.
+
 * Thu Oct 05 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.2
 - Add missing Requires towards nbd
 
