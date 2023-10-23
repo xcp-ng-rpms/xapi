@@ -1,0 +1,19 @@
+See: https://github.com/xapi-project/xen-api/commit/84fad4e00ab09971781bb38d685e98c3a4d8449d
+
+diff --git a/ocaml/quicktest/qt_filter.ml b/ocaml/quicktest/qt_filter.ml
+index 7d5a11e9aa..57fad7ef98 100644
+--- a/ocaml/quicktest/qt_filter.ml
++++ b/ocaml/quicktest/qt_filter.ml
+@@ -198,8 +198,11 @@ module SR = struct
+
+   let random srs () =
+     let srs = srs () in
+-    let index = Random.int @@ List.length srs in
+-    [List.nth srs index]
++    if srs = [] then
++      []
++    else
++      let index = Random.int @@ List.length srs in
++      [List.nth srs index]
+
+   let sr_filter f srs () = List.filter f (srs ())
