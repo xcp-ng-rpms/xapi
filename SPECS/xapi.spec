@@ -13,7 +13,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.25.0
-Release: 1.3%{?xsrel}%{?dist}
+Release: 1.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -46,7 +46,7 @@ Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 
 # Enables our additional sm drivers
-Patch1000: xapi-23.24.0-update-xapi-conf.XCP-ng.patch
+Patch1000: xapi-23.25.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
 Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
@@ -1295,6 +1295,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Oct 25 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.4
+- Set override-uefi-certs=true in xapi.conf
+- Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
+
 * Fri Oct 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.3
 - Don't require XS's fork of the setup RPM
 - We chose to revert to CentOS' version, as we don't share XenServer's view
