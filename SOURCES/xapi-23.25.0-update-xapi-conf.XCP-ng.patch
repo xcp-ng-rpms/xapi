@@ -14,7 +14,7 @@
  # Override the default location of RPM-provided certificates in default_auth_dir (/usr/share/varstored)
  # to force use of customised UEFI certificates in varstore_dir (/var/lib/varstored)
 -# override-uefi-certs = true
-+override-uefi-certs = true
++allow-custom-uefi-certs = true
  
  # Paths to utilities: ############################################
  
