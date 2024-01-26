@@ -1,23 +1,28 @@
-%global package_speccommit ff2ccce0f66862085068c4c951acf9efcfc72aa6
-%global package_srccommit v23.25.0
+%global package_speccommit d74284ef8e62057fcbba9ea119e822df5accd4e9
+%global package_srccommit v23.31.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
 
 %if 0%{?xenserver} < 9
 %global build_python2 1
+%global include_pyc_pyo 1
+%else
+# There are still some shebangs for python2, we skip this check
+%global __brp_mangle_shebangs %nil
+%global include_pyc_pyo 0
 %endif
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 23.25.0
-Release: 1.6%{?xsrel}%{?dist}
+Version: 23.31.0
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-23.25.0.tar.gz
+Source0: xen-api-23.31.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -46,16 +51,16 @@ Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 
 # Enables our additional sm drivers
-Patch1000: xapi-23.25.0-update-xapi-conf.XCP-ng.patch
+Patch1000: xapi-23.31.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
 Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
-Patch1002: xapi-1.249.3-open-openflow-port.XCP-ng.patch
+Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Needed for IPv6 support. Upstream wants a better fix. Drop when upstream fixed it.
 Patch1004: xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
-Patch1005: xapi-23.25.0-extend-uefi-cert-api.patch
+Patch1005: xapi-23.31.0-extend-uefi-cert-api.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -113,6 +118,11 @@ Requires: net-tools
 Requires: vmss
 Requires: python-six
 Requires: python3-six
+# This is necessary during py2->py3 transition
+%if 0%{?xenserver} < 9
+Requires: xcp-python-libs
+%endif
+Requires: python3-xcp-libs
 Requires: python-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -129,6 +139,8 @@ Requires: samba-winbind >= 4.10.16
 # Requires: upgrade-pbis-to-winbind
 # XCP-ng: don't require XS's fork of the setup RPM
 #Requires: setup >= 2.8.74
+Requires: xcp-ng-release-config
+Requires: python3-fasteners
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -223,8 +235,12 @@ developing applications that use xapi-libs.
 %package -n xenopsd
 Summary:        Simple VM manager
 Requires:       message-switch >= 12.21.0
-Requires:       xen-dom0-tools
-Requires:       xen-dom0-libs >= 4.13.3-10.10
+Requires:       xen-dom0-tools >= 4.13.5-10.53
+Requires:       xen-dom0-libs >= 4.13.5-10.13
+
+# This dependency is required exclusively to ensure /dev/sm/* disks have
+# +r g=disk permissions
+Requires:       sm >= 3.0.12-2
 
 %if 0%{?build_python2}
 Requires:       python2-scapy
@@ -280,6 +296,10 @@ Memory ballooning daemon for the xapi toolstack.
 %package -n xcp-rrdd
 Summary:        Statistics gathering daemon for the xapi toolstack
 Requires(pre):  shadow-utils
+%if 0%{?build_python2}
+Requires:       python2-future
+%endif
+Requires:       python3-future
 
 %description -n xcp-rrdd
 Statistics gathering daemon for the xapi toolstack.
@@ -319,6 +339,7 @@ Requires: ethtool
 Requires: libnl3
 # XCP-ng: remove Requires to proprietary component
 # Requires: pvsproxy
+Requires: bridge-utils
 
 %description -n xcp-networkd
 Simple host networking management service for the xapi toolstack.
@@ -488,38 +509,42 @@ sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
 
 %check
 export OCAMLPATH=%{_ocamlpath}
-COMPILE_JAVA=no %{__make} test
+COMPILE_JAVA=no %{__make} test %{!?build_python2:PY_TEST=NO}
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
 ls %{buildroot}/testresults/
 
 %install
 rm -rf %{buildroot}
-
+%global xapi_storage_path _build/default/ocaml/xapi-storage/python/
 export OCAMLPATH=%{_ocamlpath}
-DESTDIR=$RPM_BUILD_ROOT %{__make} install
-
-SITEDIR=$(python -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-SITE3DIR=$(python3 -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")
-for f in XenAPI XenAPIPlugin inventory; do
-    for e in py pyc pyo; do
-        echo $SITEDIR/$f.$e
-    done
-done > core-files
-echo "$SITE3DIR/*" >> core-files
+DESTDIR=$RPM_BUILD_ROOT %{__make} install %{!?build_python2:BUILD_PY2=NO}
 
 %if 0%{?build_python2}
-(cd ocaml/xapi-storage/python && %{py2_install})
+(cd %{xapi_storage_path} && (%{py2_build}) && (%{py2_install}))
+for f in XenAPI XenAPIPlugin inventory; do
+    for e in py pyc pyo; do
+        echo %{python2_sitelib}/$f.$e
+    done
+done > core-files
+%{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python2_sitelib}/
 %endif
 
-(cd ocaml/xapi-storage/python && %{py3_install})
+(cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
+for f in XenAPI XenAPIPlugin inventory; do
+    echo %{python3_sitelib}/$f.py
+    echo %{python3_sitelib}/__pycache__/$f.*
+done >> core-files
+echo "%{python3_sitelib}/xapi/__pycache__/__init__*.pyc" >> core-files
+echo "%{python3_sitelib}/xapi_storage*.egg-info" >> core-files
+
+%{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python3_sitelib}/
 
 ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
 mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-echo 1 > %{buildroot}/etc/xenserver/features.d/vtpm
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -823,25 +848,18 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 /etc/xenserver/features.d
-%config(noreplace) /etc/xenserver/features.d/vtpm
 /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/DRAC.py
-/etc/xapi.d/plugins/DRAC.pyo
-/etc/xapi.d/plugins/DRAC.pyc
 /etc/xapi.d/plugins/echo
 /etc/xapi.d/plugins/extauth-hook
 /etc/xapi.d/plugins/extauth-hook-AD.py
-/etc/xapi.d/plugins/extauth-hook-AD.pyo
-/etc/xapi.d/plugins/extauth-hook-AD.pyc
 /etc/xapi.d/plugins/firewall-port
 /etc/xapi.d/plugins/openvswitch-config-update
 /etc/xapi.d/plugins/perfmon
 /etc/xapi.d/plugins/power-on-host
 /etc/xapi.d/plugins/wake-on-lan
 /etc/xapi.d/plugins/wlan.py
-/etc/xapi.d/plugins/wlan.pyo
-/etc/xapi.d/plugins/wlan.pyc
 /etc/xapi.d/plugins/iovirt
 /etc/xapi.d/plugins/install-supp-pack
 /etc/xapi.d/plugins/disk-space
@@ -889,6 +907,8 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xensource/bugtool/xapi/stuff.xml
 /etc/xensource/bugtool/xenopsd.xml
 /etc/xensource/bugtool/xenopsd/stuff.xml
+/etc/xensource/bugtool/observer.xml
+/etc/xensource/bugtool/observer/stuff.xml
 /opt/xensource/libexec/list_plugins
 /opt/xensource/libexec/sm_diagnostics
 /opt/xensource/libexec/xn_diagnostics
@@ -906,23 +926,17 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/host-display
 /opt/xensource/libexec/host-restore
 /opt/xensource/libexec/link-vms-by-sr.py
-/opt/xensource/libexec/link-vms-by-sr.pyo
-/opt/xensource/libexec/link-vms-by-sr.pyc
 /opt/xensource/libexec/logs-download
 /opt/xensource/libexec/pbis-force-domain-leave
 /opt/xensource/libexec/mail-alarm
 /opt/xensource/libexec/nbd-firewall-config.sh
 /opt/xensource/libexec/nbd_client_manager.py
-/opt/xensource/libexec/nbd_client_manager.pyo
-/opt/xensource/libexec/nbd_client_manager.pyc
 /opt/xensource/libexec/network-init
 /opt/xensource/libexec/print-custom-templates
 /opt/xensource/libexec/probe-device-for-file
 /opt/xensource/libexec/reset-and-reboot
 /opt/xensource/libexec/set-hostname
 /opt/xensource/libexec/shell.py
-/opt/xensource/libexec/shell.pyo
-/opt/xensource/libexec/shell.pyc
 /opt/xensource/libexec/update-mh-info
 /opt/xensource/libexec/upload-wrapper
 /opt/xensource/libexec/xapi-health-check
@@ -932,11 +946,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/xha-lc
 /opt/xensource/libexec/xe-syslog-reconfigure
 /opt/xensource/libexec/usb_reset.py
-/opt/xensource/libexec/usb_reset.pyo
-/opt/xensource/libexec/usb_reset.pyc
 /opt/xensource/libexec/usb_scan.py
-/opt/xensource/libexec/usb_scan.pyo
-/opt/xensource/libexec/usb_scan.pyc
 /etc/xensource/usb-policy.conf
 /opt/xensource/packages/post-install-scripts/debian-etch
 /opt/xensource/packages/post-install-scripts/debug
@@ -951,11 +961,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/debug/with-vdi
 # XCP-ng: we don't need these plugins that are specific to CH8C's update process
 #/usr/lib/yum-plugins/accesstoken.py
-#/usr/lib/yum-plugins/accesstoken.pyo
-#/usr/lib/yum-plugins/accesstoken.pyc
 #/usr/lib/yum-plugins/ptoken.py
-#/usr/lib/yum-plugins/ptoken.pyo
-#/usr/lib/yum-plugins/ptoken.pyc
 %{_unitdir}/cdrommon@.service
 %{_unitdir}/gencert.service
 %{_unitdir}/xapi-domains.service
@@ -970,6 +976,32 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_unitdir}/control-domain-params-init.service
 %{_unitdir}/network-init.service
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
+%{_bindir}/xs-trace
+
+%if 0%{include_pyc_pyo}
+/etc/xapi.d/plugins/DRAC.pyo
+/etc/xapi.d/plugins/DRAC.pyc
+/etc/xapi.d/plugins/extauth-hook-AD.pyo
+/etc/xapi.d/plugins/extauth-hook-AD.pyc
+/etc/xapi.d/plugins/wlan.pyo
+/etc/xapi.d/plugins/wlan.pyc
+/opt/xensource/libexec/link-vms-by-sr.pyo
+/opt/xensource/libexec/link-vms-by-sr.pyc
+/opt/xensource/libexec/nbd_client_manager.pyo
+/opt/xensource/libexec/nbd_client_manager.pyc
+/opt/xensource/libexec/shell.pyo
+/opt/xensource/libexec/shell.pyc
+/opt/xensource/libexec/usb_reset.pyo
+/opt/xensource/libexec/usb_reset.pyc
+/opt/xensource/libexec/usb_scan.pyo
+/opt/xensource/libexec/usb_scan.pyc
+# XCP-ng: we don't need these plugins that are specific to CH8C's update process
+#/usr/lib/yum-plugins/accesstoken.pyo
+#/usr/lib/yum-plugins/accesstoken.pyc
+#/usr/lib/yum-plugins/ptoken.pyo
+#/usr/lib/yum-plugins/ptoken.pyc
+%endif
+
 
 %files xe
 %defattr(-,root,root,-)
@@ -1024,10 +1056,12 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %files sdk
 %{_datarootdir}/xapi/sdk/*
 %exclude %{_datarootdir}/xapi/sdk/*/dune
+%if 0%{include_pyc_pyo}
 %exclude %{_datarootdir}/xapi/sdk/python/*.pyc
 %exclude %{_datarootdir}/xapi/sdk/python/*.pyo
 %exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyc
 %exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyo
+%endif
 
 %files libs-devel
 %defattr(-,root,root,-)
@@ -1094,6 +1128,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %files -n xenopsd
 %{_sysconfdir}/udev/rules.d/xen-backend.rules
 %{_libdir}/xen/bin/qemu-wrapper
+%{_libdir}/xen/bin/pygrub-wrapper
 %{_libdir}/xen/bin/swtpm-wrapper
 %{_libexecdir}/xenopsd/vif
 %{_libexecdir}/xenopsd/vif-real
@@ -1103,13 +1138,15 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_libexecdir}/xenopsd/setup-vif-rules
 %{_libexecdir}/xenopsd/setup-pvs-proxy-rules
 %{_libexecdir}/xenopsd/common.py
-%{_libexecdir}/xenopsd/common.pyo
-%{_libexecdir}/xenopsd/common.pyc
 %{_libexecdir}/xenopsd/igmp_query_injector.py
-%{_libexecdir}/xenopsd/igmp_query_injector.pyo
-%{_libexecdir}/xenopsd/igmp_query_injector.pyc
 %config(noreplace) %{_sysconfdir}/sysconfig/xenopsd
 %config(noreplace) %{_sysconfdir}/xenopsd.conf
+%if 0%{include_pyc_pyo}
+%{_libexecdir}/xenopsd/common.pyo
+%{_libexecdir}/xenopsd/common.pyc
+%{_libexecdir}/xenopsd/igmp_query_injector.pyo
+%{_libexecdir}/xenopsd/igmp_query_injector.pyc
+%endif
 
 %exclude %{ocaml_dir}
 
@@ -1119,6 +1156,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_mandir}/man1/xenopsd-xc.1.gz
 %{_libexecdir}/xenopsd/set-domain-uuid
 /opt/xensource/libexec/fence.bin
+/opt/xensource/debug/suspend-image-viewer
 %{_bindir}/list_domains
 
 %files -n xenopsd-cli
@@ -1143,7 +1181,11 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) %{_sysconfdir}/sysconfig/xcp-rrdd
 %config(noreplace) %{_sysconfdir}/xcp-rrdd.conf
 %{_tmpfilesdir}/xcp-rrdd.conf
-%{python_sitelib}/rrdd.py*
+%if 0%{?build_python2}
+%{python2_sitelib}/rrdd.py*
+%endif
+%{python3_sitelib}/rrdd.py*
+%{python3_sitelib}/__pycache__/rrdd.*.pyc
 
 %files -n xcp-rrdd-devel
 %{ocaml_docdir}/rrd-transport/*
@@ -1172,11 +1214,13 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /usr/libexec/xapi/sparse_dd
 /usr/libexec/xapi/get_vhd_vsize
 /opt/xensource/libexec/get_nbd_extents.py
+/opt/xensource/libexec/python_nbd_client.py
+%if 0%{include_pyc_pyo}
 /opt/xensource/libexec/get_nbd_extents.pyc
 /opt/xensource/libexec/get_nbd_extents.pyo
-/opt/xensource/libexec/python_nbd_client.py
 /opt/xensource/libexec/python_nbd_client.pyc
 /opt/xensource/libexec/python_nbd_client.pyo
+%endif
 
 %files -n xcp-networkd
 %{_sbindir}/xcp-networkd
@@ -1296,53 +1340,31 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Dec 12 2023 Benjamin Reis <benjamin.reis@vates.tech> - 23.25.0-1.6
-- Add xapi-23.25.0-extend-uefi-cert-api.patch
-- Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
-
-* Wed Oct 25 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.4
-- Set override-uefi-certs=true in xapi.conf
-- Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
-
-* Fri Oct 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.3
-- Don't require XS's fork of the setup RPM
-- We chose to revert to CentOS' version, as we don't share XenServer's view
-  regarding where to do changes to add users and groups, and we don't need
-  the added users and groups they put there yet.
-
-* Thu Oct 05 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.2
-- Add missing Requires towards nbd
-
-* Wed Sep 27 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.1
-- Update to 23.25.0-1
-- *** Upstream changelog ***
-- * Thu Aug 31 2023 Rob Hoes <rob.hoes@citrix.com> - 23.25.0-1
-- - CP-43977: Fallback un-recognized guidance as RebootHost
-- - xapi-aux: log error when reading ip type in inventory
-- - xapi-aux: filter out all link-local addresses
-- - CA-378966: Prepare ip monitor watcher to read more lines
-- - CA-378966: Detect state network interface changes
-- - network_monitor_thread: reuse named parameters
-- - xxhash(maintenance): add dependency to ctype stubs
-- - maintenance: use ounit2 instead of ounit
-- - maintenance: prepare mtime usage for 2.0
-- - CA-381856: preserve host.last_software_update on pool join
-- - CP-44988: remove API: host.apply_recommended_guidances
-- - fixup: update lifecycle for "host.apply_recommended_guidances"
-- - Move helpers to determine the client of a call from Context to Http_svr
-- - Improve logging at start of HTTP handler
-- - CA-381587: log when HTTP Basic auth is used, and by who
-- - CP-33044 replace gpumon shutdown with NVML detach/attach
-- - CP-42949: Ensure storage RRDs are created without tapdev in kernel
-- - Install python3 variant of xapi-storage alongside python2
-
-* Wed Sep 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.24.0-1.1
-- Update to 23.24.0-1
-- Remove patches merged upstream.
-- Rework xapi-23.24.0-update-xapi-conf.XCP-ng.patch
-- Rework xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+* Mon Jan 22 2024 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.31.0-1.1
+- Rebase on 23.31.0-1
+- Rediff patches (Benjamin Reis)
 - Rebase changelog on upstream changelog
 - *** Former XCP-ng 8.3 changelog ***
+- * Tue Dec 12 2023 Benjamin Reis <benjamin.reis@vates.tech> - 23.25.0-1.6
+- - Add xapi-23.25.0-extend-uefi-cert-api.patch
+- - Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
+- * Wed Oct 25 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.4
+- - Set override-uefi-certs=true in xapi.conf
+- - Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
+- * Fri Oct 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.3
+- - Don't require XS's fork of the setup RPM
+- - We chose to revert to CentOS' version, as we don't share XenServer's view
+-  regarding where to do changes to add users and groups, and we don't need
+-  the added users and groups they put there yet.
+- * Thu Oct 05 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.2
+- - Add missing Requires towards nbd
+- * Wed Sep 27 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.1
+- - Update to 23.25.0-1
+- * Wed Sep 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.24.0-1.1
+- - Update to 23.24.0-1
+- - Remove patches merged upstream.
+- - Rework xapi-23.24.0-update-xapi-conf.XCP-ng.patch
+- - Rework xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 - * Mon Aug 28 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.9
 - - Add xapi-23.3.0-Add-vdi_update-filter-to-some-tests.backport.patch
 - * Wed Aug 23 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.8
@@ -1381,6 +1403,180 @@ Coverage files from unit tests
 - - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
 - - Remove ptoken.py and accesstoken.py yum plugins and their configuration
 - - Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
+
+* Mon Dec 04 2023 Rob Hoes <rob.hoes@citrix.com> - 23.31.0-1
+- maintenance: update opam metadata from xs-opam
+- CP-45847: Allow any value of trace flag for traceparent
+- CA-384936 attach static VDIs for redo-log (#5235)
+- CP-43578: Raise Error in tracing export when HTTP error occurs (#5230)
+- CA-385080: Finish trace locally for forwarded tasks
+- Add space between header name and value (#5238)
+- CP-45921: Make yum commands nonessential
+- CA-378591: Clear span tables when all observers are disabled
+- CP-46004: Finish eventgen span to remove spans table clutter
+- Add span table lengths to export span to help catch future issues.
+- Add tracing for xe calls in the CLI server
+- Update datamodel lifecycle
+- CP-45978 update /etc/xapi.d/plugins/power-on-host
+- CP-45978 update /etc/xapi.d/plugins/disk-space
+- CA-365486: repository-domain-name-allowlist could accept a full hostname
+- using xcp.cmd instead of popen
+- CA-384537 add logging to quemu_media_change
+- CA-384537 simplify qemu_media_change
+- CP-46168: Some py2->py3 update for xapi startup
+- Update DRAC.py for replacing subprocess.popen
+- CP-45981: Update xenopsd from python2 to python3
+- Revert "CA-379472 increase startup timeout for block_device_io"
+- CA-384148 enable logging for redo_log_alert
+- CA-384148 remove lock in Redo_log.startup
+- CA-385315: document the certificates' fingerprints hash algorithm
+- formatting with black
+- using the shared lib xcp.cmd instead of subprocess.popen
+- CP-45977: Update scripts/extensions from python2 to python3
+- CP-42559: Add RBAC info to C# SDK XML docs
+- CP-42559: Add RBAC info to Java SDK docs
+- CP-42559: Add RBAC info to C SDK docs
+- CP-42559: Hide internal roles from SDK docs
+- Remove special handling for `get_all_records` messages in C# SDK
+- xe pif-list: include host-uuid (#5263)
+- xe pif-list: fix displaying of MAC
+- CP-45978 update /etc/xapi.d/plugins to python3 for xs9
+- format with black
+- ci: create final releases
+- ci: Simplify release workflow
+- ci: set up configure appropriately on release
+- ci: Avoid unnecessary workaround
+- Advanced changes for python3 syntax:
+- Improves Code Readability
+- Change type of observer components to use variant
+- Enhance debug message in tracing module
+- Expose `flush_spans` from tracing.ml
+- Refactor typeCombinator as a single module
+- Add xapi-clusterd as an observer component
+- CP-45469: Distributed tracing for xapi-clusterd
+- Add xenopsd docs from old site
+- Add live-migration diagram for xenopsd
+- Remove old xenopsd docs from ocaml/xenopsd/doc
+- Adjust quality gate for List.hd from 320 to 318
+- Simplify scanning /sys/block/<dev>/ stats for iostat
+- CA-365059: Clear source pool messages after migrating VM
+- Revert "CP-45981: Update xenopsd from python2 to python3"
+
+* Fri Nov 10 2023 Rob Hoes <rob.hoes@citrix.com> - 23.30.0-1
+- Use .ndjson extension for tracing files to denote newline-delimited JSON
+- CP-41844: Add xs-trace, an executable to submit trace files to an endpoint
+- CP-41844: Add support for compressed files to xs-trace
+- CP-41844: Add unit tests to xs-trace
+- Replace duplicate functions rmrf and rmtree with rm_rec from Xapi_stdext_unix.Unixext
+- CP-41844: Address PR comments and fix xs-trace tests by ensuring server is ready
+- xapi-types/ref: add pretty-printer
+- xapi-types/ref: optimize of_string for real references
+- CP-45571: Add VM.restart_device_model function (API/CLI)
+- CP-45741 VCS support, adjust args for qemu, demu
+- CA-380551: bump minimum HA SR size to 4GiB
+- CA-380551: xha_statefile: factor out checking for a VDI of given size or available free space
+- CP-44561: When setting attributes on an Observer, preserve defaults
+- CP-43901: Block pool member startup if it has a higher xapi version
+- Update datamodel lifecycle
+- CP-45304: Remove UUID from span name system.isAlive:<UUID>
+- CP-46045 define VTPM feature
+- CA-380551: HA: assert that the HA SR is big enough for BOTH the statefile AND the redo log
+- [maintenance]: mark warning 5: ignored partial application as an error in release mode
+- Add timeout to gpumon client
+- CP-27910: expose json flag for /vm_rrd in the datamodel
+- CA-384967: Fixup xcp-networkd service name
+- CA-384979 replace XenMotion with storage live migration (#5237)
+- CA-384882: Revert "CA-365059: Clear source pool messages after migrating VM"
+
+* Tue Oct 31 2023 Rob Hoes <rob.hoes@citrix.com> - 23.29.0-1
+- CA-375396: Ignore removed fields when redoing writes
+
+* Mon Oct 30 2023 Rob Hoes <rob.hoes@citrix.com> - 23.28.0-1
+- Only count VDIs on tested SRs
+- CA-371002: Reformat checking template with match/with
+- CA-371002: Do a usual import when a default template cannot be found
+- Remove old and unused script
+- CA-381044: Raise error when pool.set_update_sync_enabled is called with true and empty repos
+- Choose size of batch VM evacuation
+- xapi.conf: match the default value for override-uefi-certs
+- CP-40123: encode the dumped JSON in rrdd as utf-8
+- CP-43652: Remove tracing debug lines generated by xenopsd
+- CA-383987: Ensure tracing request Host header is correct by not using a fixed host name
+- Fix suspend-image-viewer binary
+- CP-44367 - Allow SDK Consumers to create a custom implementation for JsonRpcClient
+- CA-383987: Only include valid Hosts and Ports in tracing Host header
+- CA-365059: Clear source pool messages after migrating VM
+- CP-45938: Fixup xs9 failure due to python2 stuff
+- XSI-1457: Limit number of sectors to coalesce
+
+* Mon Oct 16 2023 Rob Hoes <rob.hoes@citrix.com> - 23.27.0-1
+- Python's XenAPI: Update metadata
+- CA-382596: Updated initialization script to work with PS 7 paths on Windows, and PS paths on Linux.
+- CP-45579: Restored support for building the PowerShell module against .NET Framework 4.5 or above.
+- Add some more documents from xapi-project.github.io
+- Do not attempt to start snapshots or templates
+- jemalloc: avoid bottlenecks with C threads
+- [maintenance]: commit lifecycle changes
+- CP-43755: Pam: avoid sleep(1) call when multithreaded
+- CP-43755: Split internal and external auth locks
+- CP-43755: Locking_helpers: introduce Semaphore
+- CP-43755: xapi_session: switch to using Semaphore instead of Mutex
+- CP-43755: Datamodel_pool: introduce local_auth_max_threads and ext_auth_max_threads
+- CP-43755: Increase default max threads for PAM from 1 to 8
+- fix(dune): gen_lifecycle depends on git describe output, which is outside of the normal source and build dependencies
+- CP-43755: commit lifecycle changes
+- CP-44320 scaffolding for NVidia Virtual Compute Service (VCS)
+
+* Wed Oct 11 2023 Rob Hoes <rob.hoes@citrix.com> - 23.26.0-1
+- Install suspend_image_viewer
+- CA-379459 protect Redo_log.startup, shutdown with a lock
+- CA-379459 use database lock, add logging
+- Updated the PowerShell Readme.
+- CP-45006: Define volume.compose API for SMAPIv3.
+- forkexecd: handle invalid rpc messages more gracefully
+- maintenance: relax message-switch's bounds on mtime
+- CP-44271: Remove python build/install from source code
+- CP-44271: Conditionally run python test
+- Initial hugo config
+- Hugo theme basics
+- Docs: initial content
+- Rename suspend_image_image_viewer -> suspend-image-viewer
+- Updated docs links.
+- CP-45175: Enable the OVMF debugging port by default
+- [maintenance]: use full cmdline for vhd unit test runner
+- fix(runtest): clean up after unit test
+- Fix indentation issues in rrdd.py before py3
+- CP-45338: futurize rrdd.py
+- Publish new Hugo-based docs
+- CA-381047: Add observer capability to bugtool
+- CP-44563: Add compress_file function and compress tracing files with zstd when compress_tracing_files flag set
+- CP-45214: Fix tracing HTTP request not working with Jaegers FQDN by flushing instead of closing the sending stream
+- Do not fetch random SR in empty list
+- CA-383491: Run pygrub in deprivileged mode when invoked from XAPI (upstreamed patch from 23.25.0-2)
+
+* Thu Sep 28 2023 Alejandro Vallejo <alejandro.vallejo@cloud.com> - 23.25.0-2
+- CA-383491: Addresses XSA-443 - CVE-2023-34325
+- Run pygrub in depriv mode to protect against priv escalation
+
+* Thu Aug 31 2023 Rob Hoes <rob.hoes@citrix.com> - 23.25.0-1
+- CP-43977: Fallback un-recognized guidance as RebootHost
+- xapi-aux: log error when reading ip type in inventory
+- xapi-aux: filter out all link-local addresses
+- CA-378966: Prepare ip monitor watcher to read more lines
+- CA-378966: Detect state network interface changes
+- network_monitor_thread: reuse named parameters
+- xxhash(maintenance): add dependency to ctype stubs
+- maintenance: use ounit2 instead of ounit
+- maintenance: prepare mtime usage for 2.0
+- CA-381856: preserve host.last_software_update on pool join
+- CP-44988: remove API: host.apply_recommended_guidances
+- fixup: update lifecycle for "host.apply_recommended_guidances"
+- Move helpers to determine the client of a call from Context to Http_svr
+- Improve logging at start of HTTP handler
+- CA-381587: log when HTTP Basic auth is used, and by who
+- CP-33044 replace gpumon shutdown with NVML detach/attach
+- CP-42949: Ensure storage RRDs are created without tapdev in kernel
+- Install python3 variant of xapi-storage alongside python2
 
 * Fri Aug 18 2023 Rob Hoes <rob.hoes@citrix.com> - 23.24.0-1
 - CA-379459 make shutdown mutex per redo_log
@@ -5110,3 +5306,4 @@ Coverage files from unit tests
 
 * Fri Jul 22 2016 Jon Ludlam <jonathan.ludlam@citrix.com> - 1.9.90-1
 - First transformer package
+

@@ -55,15 +55,15 @@ index f0dab069e..56d180c9b 100644
              ~default_value:(Some (VBool false)) "is_psr_pending"
              "True if either a PSR is running or we are waiting for a PSR to be \
 diff --git i/ocaml/idl/schematest.ml w/ocaml/idl/schematest.ml
-index 9ed36bb29..e4133736b 100644
+index 58f772f09..5642e51cc 100644
 --- i/ocaml/idl/schematest.ml
 +++ w/ocaml/idl/schematest.ml
 @@ -2,7 +2,7 @@ let hash x = Digest.string x |> Digest.to_hex
 
  (* BEWARE: if this changes, check that schema has been bumped accordingly in
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
--let last_known_schema_hash = "f4d0ee4f27d7fc0377add334197f6cd8"
-+let last_known_schema_hash = "afaa869649348f420f60b0ec4a86cc4c"
+-let last_known_schema_hash = "8ff8c73b261e332b889583c8b2df5ecc"
++let last_known_schema_hash = "96da2c136aa13d4f8e71dd40fe2b84af"
 
  let current_schema_hash : string =
    let open Datamodel_types in
@@ -146,10 +146,10 @@ index 3bfd8af9a..f694a2d63 100644
         certificates"
      )
 diff --git i/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
-index 2e67e99fd..981c833df 100644
+index 65884883c..c8fc7951e 100644
 --- i/ocaml/xapi/xapi_host.ml
 +++ w/ocaml/xapi/xapi_host.ml
-@@ -2665,12 +2665,17 @@ let allocate_resources_for_vm ~__context ~self:_ ~vm:_ ~live:_ =
+@@ -2672,12 +2672,17 @@ let allocate_resources_for_vm ~__context ~self:_ ~vm:_ ~live:_ =
    (* Implemented entirely in Message_forwarding *)
    ()
 
@@ -172,7 +172,7 @@ index 2e67e99fd..981c833df 100644
    Helpers.touch_file path ; path
 
  let with_temp_file_contents ~contents f =
-@@ -2686,8 +2691,6 @@ let with_temp_file_contents ~contents f =
+@@ -2693,8 +2698,6 @@ let with_temp_file_contents ~contents f =
 
  let ( let@ ) f x = f x
 
@@ -181,7 +181,7 @@ index 2e67e99fd..981c833df 100644
  let really_read_uefi_certificates_from_disk ~__context ~host:_ from_path =
    let certs_files = Sys.readdir from_path |> Array.map (( // ) from_path) in
    let@ temp_file, with_temp_out_ch =
-@@ -2718,7 +2721,7 @@ let really_write_uefi_certificates_to_disk ~__context ~host:_ ~value =
+@@ -2725,7 +2728,7 @@ let really_write_uefi_certificates_to_disk ~__context ~host:_ ~value =
                   [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC]
                   0o644
               in
@@ -190,25 +190,25 @@ index 2e67e99fd..981c833df 100644
               ignore (Unixext.copy_file src_fd dst_fd)
           )
    | base64_value -> (
-@@ -2739,7 +2742,7 @@ let really_write_uefi_certificates_to_disk ~__context ~host:_ ~value =
+@@ -2746,7 +2749,7 @@ let really_write_uefi_certificates_to_disk ~__context ~host:_ ~value =
 
  let write_uefi_certificates_to_disk ~__context ~host =
    let with_valid_symlink ~from_path ~to_path fn =
 -    debug "override_uefi_certs: with_valid_symlink %s->%s" from_path to_path ;
 +    debug "allow_custom_uefi_certs: with_valid_symlink %s->%s" from_path to_path ;
      if Helpers.FileSys.realpathm from_path <> to_path then (
-       Helpers.FileSys.rmrf ~rm_top:true from_path ;
+       Xapi_stdext_unix.Unixext.rm_rec ~rm_top:true from_path ;
        Unix.symlink to_path from_path
-@@ -2747,7 +2750,7 @@ let write_uefi_certificates_to_disk ~__context ~host =
+@@ -2754,7 +2757,7 @@ let write_uefi_certificates_to_disk ~__context ~host =
      fn from_path
    in
    let with_empty_dir path fn =
 -    debug "override_uefi_certs: with_empty_dir %s" path ;
 +    debug "allow_custom_uefi_certs: with_empty_dir %s" path ;
-     Helpers.FileSys.rmrf ~rm_top:false path ;
+     Xapi_stdext_unix.Unixext.rm_rec ~rm_top:false path ;
      Unixext.mkdir_rec path 0o755 ;
      fn path
-@@ -2766,8 +2769,12 @@ let write_uefi_certificates_to_disk ~__context ~host =
+@@ -2773,8 +2776,12 @@ let write_uefi_certificates_to_disk ~__context ~host =
             uefi_certs_in_disk |> Array.mem cert |> log_of
         )
    in
@@ -223,7 +223,7 @@ index 2e67e99fd..981c833df 100644
        let@ path =
          with_valid_symlink ~from_path:!Xapi_globs.varstore_dir
            ~to_path:!Xapi_globs.default_auth_dir
-@@ -2784,28 +2791,26 @@ let write_uefi_certificates_to_disk ~__context ~host =
+@@ -2791,28 +2798,25 @@ let write_uefi_certificates_to_disk ~__context ~host =
          Db.Pool.set_uefi_certificates ~__context
            ~self:(Helpers.get_pool ~__context)
            ~value:disk_uefi_certs_tar
@@ -243,7 +243,6 @@ index 2e67e99fd..981c833df 100644
 +      check_valid_uefi_certs_in path
 +  | true, _ ->
 +      let@ path = with_empty_dir !Xapi_globs.varstore_dir in
-+
        really_write_uefi_certificates_to_disk ~__context ~host
          ~value:pool_uefi_certs ;
        check_valid_uefi_certs_in path

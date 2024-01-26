@@ -1,5 +1,7 @@
---- xapi-23.25.0/scripts/xapi.conf.orig	2023-08-31 16:29:02.000000000 +0000
-+++ xapi-23.25.0/scripts/xapi.conf	2023-10-25 16:46:03.764253301 +0000
+diff --git i/scripts/xapi.conf w/scripts/xapi.conf
+index 2f708e798..1084f025e 100644
+--- i/scripts/xapi.conf
++++ w/scripts/xapi.conf
 @@ -1,3 +1,8 @@
 +# WARNING: any changes made to this file may be overwritten by future
 +# updates of the xapi-core RPM.
@@ -8,27 +10,27 @@
 +
  # The xapi config file has 3 sections: a global policy section;
  # a section for paths to helper utilities; and a timeout tweak section.
- 
-@@ -83,7 +88,7 @@
- 
+
+@@ -83,7 +88,7 @@ igd-passthru-vendor-whitelist = 8086
+
  # Override the default location of RPM-provided certificates in default_auth_dir (/usr/share/varstored)
  # to force use of customised UEFI certificates in varstore_dir (/var/lib/varstored)
--# override-uefi-certs = true
+-# override-uefi-certs = false
 +allow-custom-uefi-certs = true
- 
+
  # Paths to utilities: ############################################
- 
-@@ -164,7 +169,7 @@
+
+@@ -164,7 +169,7 @@ sparse_dd = /usr/libexec/xapi/sparse_dd
  # sm-dir =  @OPTDIR@/sm
- 
+
  # Whitelist of SM plugins
 -sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb
 +sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb cephfs glusterfs xfs zfs
- 
+
  # Directory containing tools ISO
  # tools-sr-dir = @OPTDIR@/packages/iso
-@@ -397,3 +402,12 @@
- 
+@@ -397,3 +402,12 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
+
  # The command to query current kernel patch list
  kpatch_list = "/usr/sbin/kpatch list"
 +

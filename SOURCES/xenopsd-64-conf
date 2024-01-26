@@ -8,7 +8,7 @@ search-path=/usr/libexec/xen/bin:/usr/libexec/xen/boot:/usr/lib64/xen/bin:/usr/l
 worker-pool-size=16
 
 # Omit some sources of log-spam by default
-disable-logging-for=http
+disable-logging-for=http tracing
 
 # We don't run the hotplug scripts ourself until the netback is fixed (breaks windows PV drivers)
 run_hotplug_scripts=false
@@ -21,7 +21,6 @@ vbd-script=block
 vbd-xl-script=block
 qemu-system-i386=/bin/false
 
-pygrub=/usr/bin/pygrub
 sockets-group=wheel
 
 eliloader=/usr/bin/eliloader
