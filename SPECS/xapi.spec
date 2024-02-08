@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.31.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -61,6 +61,7 @@ Patch1003: xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Needed for IPv6 support. Upstream wants a better fix. Drop when upstream fixed it.
 Patch1004: xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
 Patch1005: xapi-23.31.0-extend-uefi-cert-api.patch
+Patch1006: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1340,6 +1341,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Feb 08 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.3
+- Add xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
+
 * Mon Jan 22 2024 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.31.0-1.1
 - Rebase on 23.31.0-1
 - Rediff patches (Benjamin Reis)
