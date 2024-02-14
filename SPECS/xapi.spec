@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.31.0
-Release: 1.3%{?xsrel}%{?dist}
+Release: 1.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -79,7 +79,7 @@ BuildRequires: python2-devel
 %endif
 
 BuildRequires: python3-devel
-BuildRequires: xs-opam-repo >= 6.54.0-2
+BuildRequires: xs-opam-repo >= 6.74.0-1.2
 BuildRequires: libnl3-devel
 BuildRequires: systemd-devel
 BuildRequires: pciutils-devel
@@ -1341,6 +1341,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Feb 14 2024 Yann Dirson <yann.dirson@vates.tech> - 23.31.0-1.4
+- Rebuild with xs-opam-repo-6.74.0-1.2
+
 * Thu Feb 08 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.3
 - Add xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 
