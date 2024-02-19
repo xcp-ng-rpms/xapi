@@ -1,0 +1,19 @@
+See https://github.com/xapi-project/xen-api/pull/5457
+
+diff --git i/ocaml/xapi/xapi_pif_helpers.ml w/ocaml/xapi/xapi_pif_helpers.ml
+index 2a9ebf900..c4c588128 100644
+--- i/ocaml/xapi/xapi_pif_helpers.ml
++++ w/ocaml/xapi/xapi_pif_helpers.ml
+@@ -267,4 +267,11 @@ let get_primary_address ~__context ~pif =
+           (fun ipv6 -> not (String.starts_with ~prefix:"fe80::" ipv6))
+           (Db.PIF.get_IPv6 ~__context ~self:pif)
+       in
+-      List.nth_opt valid_ipv6s 0
++      match valid_ipv6s with
++      | [] | [""] -> None
++      |  ipv6 :: _ -> (
++        (* The CIDR is also stored in the IPv6 field of a PIF. *)
++        match (String.split_on_char '/' ipv6) with
++        | hd :: _ -> Some hd
++        | _ -> None
++      )
