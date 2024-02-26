@@ -1,0 +1,25 @@
+From fc18cdba6f4a6e814c2f7c27e17ae5a2cc2df8f1 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Mon, 26 Feb 2024 15:45:12 +0100
+Subject: [PATCH] Xapi service depends on systemd-tmpfiles-setup
+
+---
+ scripts/xapi.service | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/scripts/xapi.service b/scripts/xapi.service
+index e08cbff..58923c0 100644
+--- a/scripts/xapi.service
++++ b/scripts/xapi.service
+@@ -1,6 +1,8 @@
+ [Unit]
+ Description=XenAPI server (XAPI)
+ 
++Requires=systemd-tmpfiles-setup.service
++After=systemd-tmpfiles-setup.service
+ After=attach-static-vdis.service
+ After=forkexecd.service
+ After=message-switch.service
+-- 
+2.43.0
+
