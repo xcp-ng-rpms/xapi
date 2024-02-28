@@ -1,0 +1,73 @@
+From 7498407f90a5e7858df43bc65f50c753beaf8564 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Edwin=20T=C3=B6r=C3=B6k?= <edwin.torok@cloud.com>
+Date: Wed, 3 Jan 2024 17:51:54 +0000
+Subject: [PATCH 1/7] add helper function for checking platform field
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+Content-Type: text/plain; charset = "utf-8"
+Content-Transfert-Encoding: 8bit
+
+This will be useful for checking some new fields introduced in Xen-4.15+
+
+Signed-off-by: Edwin Török <edwin.torok@cloud.com>
+---
+ ocaml/xenopsd/xc/domain.ml | 35 ++++++++++++++++++++++++-----------
+ 1 file changed, 24 insertions(+), 11 deletions(-)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 96aa10371..72e1c5183 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -288,6 +288,27 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+       sprintf "Guest type %s unavailable" (if hvm then "HVM" else "PV")
+     ) ;
+ 
++  let get_platform_key ~key ~default check =
++    let platformdata = vm_info.platformdata in
++    let unknown = List.assoc_opt key platformdata |> Option.value ~default:"" in
++    let on_error msg =
++      error "VM = %s; %s platform/%s=\"%s\"." (Uuidx.to_string uuid) msg key
++        unknown ;
++      invalid_arg (Printf.sprintf "platform/%s=%s" key unknown)
++    in
++    if not @@ Platform.is_valid ~key ~platformdata then
++      on_error "Unrecognized value" ;
++    let wants = Platform.is_true ~key ~platformdata ~default in
++    match check wants with Ok () -> wants | Error msg -> on_error msg
++  in
++
++  let require_hvm wants : (_, _) result =
++    if wants && not hvm then
++      Error "HVM required for"
++    else
++      Ok ()
++  in
++
+   (* HVM guests must select a paging mode of either HAP "Hardware Assisted
+      Paging" or Shadow. *)
+   let hap =
+@@ -298,17 +319,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+          unconditionally and raise an error if unavailable.  Otherwise, use
+          HAP if available, falling back to Shadow if not. *)
+       let hap =
+-        match List.assoc_opt "hap" vm_info.platformdata with
+-        | Some "true" ->
+-            true
+-        | Some "false" ->
+-            false
+-        | Some unknown ->
+-            error "VM = %s; Unrecognized value platform/hap=\"%s\"."
+-              (Uuidx.to_string uuid) unknown ;
+-            invalid_arg ("platform/hap=" ^ unknown)
+-        | None ->
+-            List.mem CAP_HAP host_info.capabilities
++        get_platform_key ~key:"hap"
++          (fun _ -> Ok ())
++          ~default:(List.mem CAP_HAP host_info.capabilities)
+       in
+ 
+       (* HAP depends on 2nd Gen VT-x/SVM, or firmware/Xen settings.  Shadow
+-- 
+2.43.0
+

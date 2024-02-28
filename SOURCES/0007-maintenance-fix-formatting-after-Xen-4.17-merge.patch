@@ -1,0 +1,35 @@
+From 96d012a1e1941ec505f81944fd5f611f9e9ea4b5 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Edwin=20T=C3=B6r=C3=B6k?= <edwin.torok@cloud.com>
+Date: Thu, 1 Feb 2024 10:48:59 +0000
+Subject: [PATCH 7/7] [maintenance]: fix formatting after Xen-4.17 merge
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+Content-Type: text/plain; charset = "utf-8"
+Content-Transfert-Encoding: 8bit
+
+Signed-off-by: Edwin Török <edwin.torok@cloud.com>
+---
+ ocaml/xenopsd/xc/domain.ml | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 205ba9794..bd17e5d28 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -350,8 +350,10 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+   let iommu = vm_info.pci_passthrough in
+   if iommu then
+     assert_capability CAP_DirectIO ~on_error:(fun () -> "IOMMU unavailable") ;
+-  let nested_virt = get_platform_key ~key:"nested_virt" ~default:false require_hvm in
+-  let vpmu = get_platform_key ~key:"vpmu" ~default:false (fun _ -> Ok()) in
++  let nested_virt =
++    get_platform_key ~key:"nested_virt" ~default:false require_hvm
++  in
++  let vpmu = get_platform_key ~key:"vpmu" ~default:false (fun _ -> Ok ()) in
+ 
+   info "VM = %s; Creating %s%s%s%s%s" (Uuidx.to_string uuid)
+     (if hvm then "HVM" else "PV")
+-- 
+2.43.0
+

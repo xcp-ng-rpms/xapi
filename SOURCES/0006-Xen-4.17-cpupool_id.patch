@@ -1,0 +1,41 @@
+From bcc44277034e705cfef4dc9566dc86ab84422996 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Edwin=20T=C3=B6r=C3=B6k?= <edwin.torok@cloud.com>
+Date: Wed, 3 Jan 2024 17:30:47 +0000
+Subject: [PATCH 6/7] Xen-4.17+: cpupool_id
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+Content-Type: text/plain; charset = "utf-8"
+Content-Transfert-Encoding: 8bit
+
+Always set to 0.
+
+Signed-off-by: Andrew Cooper <andrew.cooper3@citrix.com>
+Signed-off-by: Edwin Török <edwin.torok@cloud.com>
+---
+ ocaml/xenopsd/xc/domain.ml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 7e29ab4e8..205ba9794 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -106,6 +106,7 @@ type domctl_create_config = Xenctrl.domctl_create_config = {
+   ; max_grant_frames: int
+   ; max_maptrack_frames: int
+   ; max_grant_version: int
++  ; cpupool_id: int32
+   ; arch: arch_domainconfig
+ }
+ [@@deriving rpcty]
+@@ -393,6 +394,7 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+         )
+     ; max_grant_version=
+         (if List.mem CAP_Gnttab_v2 host_info.capabilities then 2 else 1)
++    ; cpupool_id= 0l
+     ; arch= domain_config
+     }
+   in
+-- 
+2.43.0
+

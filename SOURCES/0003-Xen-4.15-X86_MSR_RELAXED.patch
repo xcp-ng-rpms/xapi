@@ -1,0 +1,89 @@
+From 7c969cfc59a32ef0bb265aea8d179c9db8df9dea Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Edwin=20T=C3=B6r=C3=B6k?= <edwin.torok@cloud.com>
+Date: Wed, 3 Jan 2024 18:03:55 +0000
+Subject: [PATCH 3/7] Xen 4.15+: X86_MSR_RELAXED
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+Content-Type: text/plain; charset = "utf-8"
+Content-Transfert-Encoding: 8bit
+
+`platform:msr-relaxed=true`
+
+Signed-off-by: Andrew Cooper <andrew.cooper3@citrix.com>
+Signed-off-by: Edwin Török <edwin.torok@cloud.com>
+---
+ ocaml/xenopsd/xc/domain.ml            |  6 ++++++
+ ocaml/xenopsd/xc/domain.mli           |  3 +++
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 15 ++++++++++++---
+ 3 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index c39d66980..affb6ddc4 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -49,8 +49,14 @@ type x86_arch_emulation_flags = Xenctrl.x86_arch_emulation_flags =
+   | X86_EMU_VPCI
+ [@@deriving rpcty]
+ 
++type x86_arch_misc_flags = Xenctrl.x86_arch_misc_flags = X86_MSR_RELAXED
++[@@deriving rpcty]
++
+ type xen_x86_arch_domainconfig = Xenctrl.xen_x86_arch_domainconfig = {
+     emulation_flags: x86_arch_emulation_flags list
++  ; misc_flags: x86_arch_misc_flags list [@default [X86_MSR_RELAXED]]
++        (* misc_flags is missing when migrating from old version.
++           set the default to relaxed MSR for backwards compatibility *)
+ }
+ [@@deriving rpcty]
+ 
+diff --git a/ocaml/xenopsd/xc/domain.mli b/ocaml/xenopsd/xc/domain.mli
+index 0f18579ec..b7b275a6e 100644
+--- a/ocaml/xenopsd/xc/domain.mli
++++ b/ocaml/xenopsd/xc/domain.mli
+@@ -59,9 +59,12 @@ val emulation_flags_pvh : x86_arch_emulation_flags list
+ 
+ val emulation_flags_all : x86_arch_emulation_flags list
+ 
++type x86_arch_misc_flags = X86_MSR_RELAXED
++
+ type xen_x86_arch_domainconfig = {
+     (* Xenctrl.xen_x86_arch_domainconfig = *)
+     emulation_flags: x86_arch_emulation_flags list
++  ; misc_flags: x86_arch_misc_flags list
+ }
+ 
+ type arch_domainconfig =
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index bc1c1c77d..a04dabe98 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -134,13 +134,22 @@ module VmExtra = struct
+   let domain_config_of_vm vm =
+     let open Vm in
+     let open Domain in
++    let misc_flags =
++      if
++        Platform.is_true ~key:"msr-relaxed"
++          ~platformdata:vm.Xenops_interface.Vm.platformdata ~default:false
++      then
++        [X86_MSR_RELAXED]
++      else
++        []
++    in
+     match vm.ty with
+     | PV _ ->
+-        X86 {emulation_flags= []}
++        X86 {emulation_flags= []; misc_flags}
+     | PVinPVH _ | PVH _ ->
+-        X86 {emulation_flags= emulation_flags_pvh}
++        X86 {emulation_flags= emulation_flags_pvh; misc_flags}
+     | HVM _ ->
+-        X86 {emulation_flags= emulation_flags_all}
++        X86 {emulation_flags= emulation_flags_all; misc_flags}
+ 
+   (* Known versions of the VM persistent metadata created by xenopsd *)
+   let persistent_version_pre_lima = 0
+-- 
+2.43.0
+

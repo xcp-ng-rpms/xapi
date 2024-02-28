@@ -1,0 +1,42 @@
+From 4ee7a734e78961580e501b92637cc7b693e38140 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Edwin=20T=C3=B6r=C3=B6k?= <edwin.torok@cloud.com>
+Date: Wed, 3 Jan 2024 17:30:16 +0000
+Subject: [PATCH 5/7] Xen-4.16+: support max_grant_version field
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+Content-Type: text/plain; charset = "utf-8"
+Content-Transfert-Encoding: 8bit
+
+Set to 2 if the host supports it.
+
+Signed-off-by: Andrew Cooper <andrew.cooper3@citrix.com>
+Signed-off-by: Edwin Török <edwin.torok@cloud.com>
+---
+ ocaml/xenopsd/xc/domain.ml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 62ce9d65c..7e29ab4e8 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -105,6 +105,7 @@ type domctl_create_config = Xenctrl.domctl_create_config = {
+   ; max_evtchn_port: int
+   ; max_grant_frames: int
+   ; max_maptrack_frames: int
++  ; max_grant_version: int
+   ; arch: arch_domainconfig
+ }
+ [@@deriving rpcty]
+@@ -390,6 +391,8 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+             int_of_string (List.assoc "max_maptrack_frames" vm_info.platformdata)
+           with _ -> 1024
+         )
++    ; max_grant_version=
++        (if List.mem CAP_Gnttab_v2 host_info.capabilities then 2 else 1)
+     ; arch= domain_config
+     }
+   in
+-- 
+2.43.0
+

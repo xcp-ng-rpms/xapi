@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.31.0
-Release: 1.6%{?xsrel}%{?dist}
+Release: 1.6%{?xsrel}.0.xen417.0%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -66,10 +66,19 @@ Patch1007: xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5471
 Patch1008: xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
 
+# Xen 4.17 patches
+Patch1010: 0001-add-helper-function-for-checking-platform-field.patch
+Patch1011: 0002-Xen-4.15-CDF_NESTED_VIRT.patch
+Patch1012: 0003-Xen-4.15-X86_MSR_RELAXED.patch
+Patch1013: 0004-Xen-4.16-CDF_VPMU.patch
+Patch1014: 0005-Xen-4.16-support-max_grant_version-field.patch
+Patch1015: 0006-Xen-4.17-cpupool_id.patch
+Patch1016: 0007-maintenance-fix-formatting-after-Xen-4.17-merge.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
-BuildRequires: xen-devel
+BuildRequires: xen-devel >= 4.17.3
 BuildRequires: libffi-devel
 BuildRequires: zlib-devel
 BuildRequires: git
@@ -1344,6 +1353,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Feb 28 2024 Thierry Escande <thierry.escande@vates.tech> - 23.31.0-1.6.0.xen417.0
+- Add patches for Xen 4.17 support
+
 * Mon Feb 26 2024 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.31.0-1.6
 - Add xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patches
 
