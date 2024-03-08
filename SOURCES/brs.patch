@@ -1,0 +1,24 @@
+diff --git i/ocaml/xapi/nm.ml w/ocaml/xapi/nm.ml
+index 5129b01b3..df4998f4c 100644
+--- i/ocaml/xapi/nm.ml
++++ w/ocaml/xapi/nm.ml
+@@ -637,15 +637,16 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+                     in
+                     (conf, gateway)
+               in
+-              let static =
++              let write_dns =
+                 match address_type with
+                 | `IPv4 ->
+                     rc.API.pIF_ip_configuration_mode = `Static
+                 | `IPv6 ->
+-                    rc.API.pIF_ipv6_configuration_mode = `Static
++                    rc.API.pIF_ipv6_configuration_mode = `Static ||
++                    rc.API.pIF_ipv6_configuration_mode = `Autoconf
+               in
+               let dns =
+-                match (static, rc.API.pIF_DNS) with
++                match (write_dns, rc.API.pIF_DNS) with
+                 | false, _ | true, "" ->
+                     ([], [])
+                 | true, pif_dns ->
