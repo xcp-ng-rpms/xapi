@@ -87,7 +87,7 @@ index 6e72c366e..59d979dc5 100644
 +  Pciops.unhide_pci ~__context self
 +
 +let is_hidden ~__context  ~self =
-+  Pciops._is_pci_hidden ~__context self
++  Pciops.is_pci_hidden ~__context self
 diff --git c/ocaml/xapi/xapi_pci.mli w/ocaml/xapi/xapi_pci.mli
 index dd71dfffc..8c63ef77a 100644
 --- c/ocaml/xapi/xapi_pci.mli
