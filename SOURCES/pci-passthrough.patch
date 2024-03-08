@@ -1,37 +1,28 @@
-diff --git i/ocaml/idl/datamodel.ml w/ocaml/idl/datamodel.ml
-index f2ea73999..f78293b79 100644
---- i/ocaml/idl/datamodel.ml
+diff --git c/ocaml/idl/datamodel.ml w/ocaml/idl/datamodel.ml
+index 15f1c4c66..a31e015b6 100644
+--- c/ocaml/idl/datamodel.ml
 +++ w/ocaml/idl/datamodel.ml
-@@ -6519,11 +6519,39 @@ end
+@@ -6519,11 +6519,30 @@ end
  (** PCI devices *)
 
  module PCI = struct
 +  let hide =
 +    call ~name:"hide" ~lifecycle:[(Published, rel_vgpu_tech_preview, "")]
-+    ~versioned_params:
-+      [
-+        {
-+          param_type= Ref _pci
-+        ; param_name= "self"
-+        ; param_doc= "The PCI to hide"
-+        ; param_release= next_release
-+        ; param_default= None
-+        }
-+      ]
++    ~doc:"Hide a PCI device from the dom0 kernel. (Takes affect after next boot.)"
++    ~params:[(Ref _pci, "self", "The PCI to hide")]
 +    ~allowed_roles:_R_POOL_OP ()
 +
 +  let unhide =
 +    call ~name:"unhide" ~lifecycle:[(Published, rel_vgpu_tech_preview, "")]
-+    ~versioned_params:
-+      [
-+        {
-+          param_type= Ref _pci
-+        ; param_name= "self"
-+        ; param_doc= "The PCI to unhide"
-+        ; param_release= next_release
-+        ; param_default= None
-+        }
-+      ]
++    ~doc:"Unhide a PCI device from the dom0 kernel. (Takes affect after next boot.)"
++    ~params:[(Ref _pci, "self", "The PCI to unhide")]
++    ~allowed_roles:_R_POOL_OP ()
++
++  let is_hidden =
++    call ~name:"is_hidden" ~lifecycle:[(Published, rel_vgpu_tech_preview, "")]
++    ~doc:"Check whether a PCI device will be hidden from the dom0 kernel on boot."
++    ~params:[(Ref _pci, "self", "The PCI")]
++    ~result:(Bool, "Wether the PCI is hidden from the dom0 kernel")
 +    ~allowed_roles:_R_POOL_OP ()
 +
    let t =
@@ -39,15 +30,15 @@ index f2ea73999..f78293b79 100644
        ~gen_constructor_destructor:false ~gen_events:true ~in_db:true
        ~lifecycle:[(Published, rel_boston, "")]
 -      ~messages:[] ~messages_default_allowed_roles:_R_POOL_OP
-+      ~messages:[hide; unhide] ~messages_default_allowed_roles:_R_POOL_OP
++      ~messages:[hide; unhide; is_hidden] ~messages_default_allowed_roles:_R_POOL_OP
        ~persist:PersistEverything ~in_oss_since:None ~db_logging:Log_destroy
        ~contents:
          [
-diff --git i/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
-index 4d08bb593..0fa61321c 100644
---- i/ocaml/xapi/message_forwarding.ml
+diff --git c/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
+index b2eb86c80..6232ad886 100644
+--- c/ocaml/xapi/message_forwarding.ml
 +++ w/ocaml/xapi/message_forwarding.ml
-@@ -5841,7 +5841,23 @@ functor
+@@ -5867,7 +5867,31 @@ functor
 
      module Secret = Local.Secret
 
@@ -67,16 +58,24 @@ index 4d08bb593..0fa61321c 100644
 +        let local_fn = Local.PCI.unhide ~self in
 +        do_op_on ~__context ~local_fn ~host (fun session_id rpc ->
 +            Client.PCI.unhide ~rpc ~session_id ~self
++        )
++
++    let is_hidden ~__context ~self =
++      info "PCI.is_hidden: pci = '%s'" (pci_uuid ~__context self) ;
++      let host = Db.PCI.get_host ~__context ~self in
++      let local_fn = Local.PCI.is_hidden ~self in
++      do_op_on ~__context ~local_fn ~host (fun session_id rpc ->
++          Client.PCI.is_hidden ~rpc ~session_id ~self
 +      )
 +    end
 
      module VTPM = struct
        let create ~__context ~vM ~is_unique =
-diff --git i/ocaml/xapi/xapi_pci.ml w/ocaml/xapi/xapi_pci.ml
-index 6e72c366e..2ab955e4c 100644
---- i/ocaml/xapi/xapi_pci.ml
+diff --git c/ocaml/xapi/xapi_pci.ml w/ocaml/xapi/xapi_pci.ml
+index 6e72c366e..59d979dc5 100644
+--- c/ocaml/xapi/xapi_pci.ml
 +++ w/ocaml/xapi/xapi_pci.ml
-@@ -319,3 +319,9 @@ let get_system_display_device () =
+@@ -319,3 +319,12 @@ let get_system_display_device () =
        )
        None items
    with _ -> None
@@ -86,17 +85,23 @@ index 6e72c366e..2ab955e4c 100644
 +
 +let unhide ~__context  ~self =
 +  Pciops.unhide_pci ~__context self
-diff --git i/ocaml/xapi/xapi_pci.mli w/ocaml/xapi/xapi_pci.mli
-index dd71dfffc..bc937c8c3 100644
---- i/ocaml/xapi/xapi_pci.mli
++
++let is_hidden ~__context  ~self =
++  Pciops._is_pci_hidden ~__context self
+diff --git c/ocaml/xapi/xapi_pci.mli w/ocaml/xapi/xapi_pci.mli
+index dd71dfffc..8c63ef77a 100644
+--- c/ocaml/xapi/xapi_pci.mli
 +++ w/ocaml/xapi/xapi_pci.mli
-@@ -51,3 +51,9 @@ val disable_system_display_device : unit -> unit
+@@ -51,3 +51,12 @@ val disable_system_display_device : unit -> unit
 
  val dequarantine : __context:Context.t -> Xenops_interface.Pci.address -> unit
  (** dequarantine a PCI device. This is idempotent. *)
 +
 +val hide : __context:Context.t -> self:API.ref_PCI -> unit
-+(** hide a PCI device. *)
++(** Hide a PCI device from the dom0 kernel. (Takes affect after next boot.) *)
 +
 +val unhide : __context:Context.t -> self:API.ref_PCI -> unit
-+(** unhide a PCI device. *)
++(** Unhide a PCI device from the dom0 kernel. (Takes affect after next boot.) *)
++
++val is_hidden : __context:Context.t -> self:API.ref_PCI -> bool
++(** Check whether a PCI device will be hidden from the dom0 kernel on boot. *)
