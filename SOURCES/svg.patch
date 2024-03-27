@@ -7,6 +7,6 @@ index 1c4cf9520..45ff680b0 100644
    | "rpm" ->
        "application/x-rpm"
 +  | "svg" ->
-+      "svg+xml"
++      "image/svg+xml"
    | _ ->
        application_octet_stream
