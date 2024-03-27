@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 23.31.0
-Release: 1.6%{?xsrel}%{?dist}
+Release: 1.6.0.svg.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -65,6 +65,7 @@ Patch1006: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 Patch1007: xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5471
 Patch1008: xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
+Patch1009: svg.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

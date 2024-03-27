@@ -1,0 +1,12 @@
+diff --git i/ocaml/xapi/fileserver.ml w/ocaml/xapi/fileserver.ml
+index 1c4cf9520..45ff680b0 100644
+--- i/ocaml/xapi/fileserver.ml
++++ w/ocaml/xapi/fileserver.ml
+@@ -68,6 +68,8 @@ let mime_of_extension = function
+       "application/xml"
+   | "rpm" ->
+       "application/x-rpm"
++  | "svg" ->
++      "svg+xml"
+   | _ ->
+       application_octet_stream
