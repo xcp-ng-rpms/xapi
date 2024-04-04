@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.32
-Release: 2.2%{?xsrel}%{?dist}
+Release: 2.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -29,6 +29,7 @@ Patch1010: xapi-1.249.32-allow-a-user-to-select-on-which-SR-to-run-quicktest.bac
 Patch1011: xapi-1.249.32-add-vdi_update-filter-to-some-tests.backport.patch
 Patch1012: xapi-1.249.32-redirect-fileserver-https.backport.patch
 Patch1013: xapi-1.249.32-quicktest-handle-empty-sr-list.backport.patch
+Patch1014: xapi-1.249.32-use-lib-guess-content-type.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -462,6 +463,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Apr 03 2024 Benjamin Reis <benjamin.reis@vates.tech> - 1.249.32-2.3
+- Add xapi-1.249.32-use-lib-guess-content-type.backport.patch
+
 * Fri Oct 20 2023 Benjamin Reis <benjamin.reis@vates.tech> - 1.249.32-2.2
 - Add xapi-1.249.32-quicktest-handle-empty-sr-list.backport.patch
 
