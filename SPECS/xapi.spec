@@ -1,5 +1,5 @@
-%global package_speccommit d74284ef8e62057fcbba9ea119e822df5accd4e9
-%global package_srccommit v23.31.0
+%global package_speccommit 97c73ec88bd81481cecd660f944f28bb2186c10e
+%global package_srccommit v24.11.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -17,12 +17,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 23.31.0
+Version: 24.11.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-23.31.0.tar.gz
+Source0: xen-api-24.11.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -50,6 +50,10 @@ Source24: xapi-storage-script-sysconfig
 Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 
+%if "%{dist}" == ".xsu" || "%{dist}" == ".xsx"
+Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
+%endif
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -66,7 +70,7 @@ BuildRequires: python2-devel
 %endif
 
 BuildRequires: python3-devel
-BuildRequires: xs-opam-repo >= 6.54.0-2
+BuildRequires: xs-opam-repo >= 6.77.0-1
 BuildRequires: libnl3-devel
 BuildRequires: systemd-devel
 BuildRequires: pciutils-devel
@@ -109,6 +113,10 @@ Requires: python3-six
 # This is necessary during py2->py3 transition
 %if 0%{?xenserver} < 9
 Requires: xcp-python-libs
+# Requires yum as package manager
+Requires: yum-utils >= 1.1.31
+%else
+Requires: dnf
 %endif
 Requires: python3-xcp-libs
 Requires: python-pyudev
@@ -118,7 +126,6 @@ Requires: xapi-clusterd >= 0.64.0
 Requires: xxhash-libs
 Requires: jemalloc
 Requires: zstd
-Requires: yum-utils >= 1.1.31
 Requires: createrepo_c >= 0.10.0
 Requires: tdb-tools >= 1.3.18
 Requires: samba-winbind >= 4.10.16
@@ -126,6 +133,7 @@ Requires: upgrade-pbis-to-winbind
 Requires: setup >= 2.8.74
 Requires: xenserver-release-config
 Requires: python3-fasteners
+Requires: sm
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -224,12 +232,7 @@ Requires:       xen-dom0-libs >= 4.13.5-10.13
 # +r g=disk permissions
 Requires:       sm >= 3.0.12-2
 
-%if 0%{?build_python2}
-Requires:       python2-scapy
-%else
 Requires:       python3-scapy
-%endif
-
 Requires:       jemalloc
 Requires:       swtpm >= 0.7.3-4
 Requires:       swtpm-tools
@@ -512,7 +515,7 @@ done > core-files
 %endif
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
-for f in XenAPI XenAPIPlugin inventory; do
+for f in XenAPI XenAPIPlugin inventory observer; do
     echo %{python3_sitelib}/$f.py
     echo %{python3_sitelib}/__pycache__/$f.*
 done >> core-files
@@ -867,7 +870,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/bin/xe-xentrace
 /opt/xensource/bin/xe-switch-network-backend
 /opt/xensource/bin/xe-enable-all-plugin-metrics
-/opt/xensource/bin/xva-rewrite-scsiid
 /opt/xensource/bin/xe-install-supplemental-pack
 /opt/xensource/bin/hfx_filename
 /opt/xensource/bin/pv2hvm
@@ -1095,6 +1097,42 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %exclude %{ocaml_libdir}/xapi-expiry-alerts/*.cmt
 %exclude %{ocaml_libdir}/xapi-expiry-alerts/*.cmti
 
+%{ocaml_libdir}/xapi-inventory/*
+%exclude %{ocaml_libdir}/xapi-inventory/*.cmt
+%exclude %{ocaml_libdir}/xapi-inventory/*.cmti
+
+%{ocaml_libdir}/xapi-stdext-date/*
+%exclude %{ocaml_libdir}/xapi-stdext-date/*.cmt
+%exclude %{ocaml_libdir}/xapi-stdext-date/*.cmti
+
+%{ocaml_libdir}/xapi-stdext-encodings/*
+%exclude %{ocaml_libdir}/xapi-stdext-encodings/*.cmt
+%exclude %{ocaml_libdir}/xapi-stdext-encodings/*.cmti
+
+%{ocaml_libdir}/xapi-stdext-pervasives/*
+%exclude %{ocaml_libdir}/xapi-stdext-pervasives/*.cmt
+%exclude %{ocaml_libdir}/xapi-stdext-pervasives/*.cmti
+
+%{ocaml_libdir}/xapi-stdext-std/*
+%exclude %{ocaml_libdir}/xapi-stdext-std/*.cmt
+%exclude %{ocaml_libdir}/xapi-stdext-std/*.cmti
+
+%{ocaml_libdir}/xapi-stdext-threads/*
+%exclude %{ocaml_libdir}/xapi-stdext-threads/*.cmt
+%exclude %{ocaml_libdir}/xapi-stdext-threads/*.cmti
+
+%{ocaml_libdir}/xapi-stdext-unix/*
+%exclude %{ocaml_libdir}/xapi-stdext-unix/*.cmt
+%exclude %{ocaml_libdir}/xapi-stdext-unix/*.cmti
+
+%{ocaml_libdir}/xapi-stdext-zerocheck/*
+%exclude %{ocaml_libdir}/xapi-stdext-zerocheck/*.cmt
+%exclude %{ocaml_libdir}/xapi-stdext-zerocheck/*.cmti
+
+%{ocaml_libdir}/xapi-rrd/*
+%exclude %{ocaml_libdir}/xapi-rrd/*.cmt
+%exclude %{ocaml_libdir}/xapi-rrd/*.cmti
+
 %files -n xenopsd
 %{_sysconfdir}/udev/rules.d/xen-backend.rules
 %{_libdir}/xen/bin/qemu-wrapper
@@ -1107,6 +1145,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_libexecdir}/xenopsd/qemu-vif-script
 %{_libexecdir}/xenopsd/setup-vif-rules
 %{_libexecdir}/xenopsd/setup-pvs-proxy-rules
+%{_libexecdir}/xenopsd/pvs-proxy-ovs-setup
 %{_libexecdir}/xenopsd/common.py
 %{_libexecdir}/xenopsd/igmp_query_injector.py
 %config(noreplace) %{_sysconfdir}/sysconfig/xenopsd
@@ -1310,6 +1349,239 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Feb 29 2024 Rob Hoes <rob.hoes@citrix.com> - 24.11.0-1
+- rrd_updates: output JSON in the same structure as XML
+- Exposed GFS2_CAPACITY in the known message types (for the purpose of providing user friendlier messages on the client side).
+- CA-389206: Revert incompatible CLI protocol changes for update calls
+- CA-383867: xapi-guard cache
+
+* Thu Feb 15 2024 Rob Hoes <rob.hoes@citrix.com> - 24.10.0-1
+- Improvements to the handling of update guidance:
+- CP-45565: Add new guidance fields to API and CLI
+- CP-45568: Do not enable host if its mandatory host guidance is pending
+- CP-45566: [1/4] Change to use new guidance format in updateinfo.xml
+- CP-45566: [2/4] Update evaluating guidances from new data structures
+- CP-45566: [3/4] Fixup handling pending mandatory guidances
+- CP-45566: [4/4] Update unit tests
+- CP-46747: Expose 'title' field in updateinfo.xml to HTTP /updates
+- CP-45567: Set recommended and full pending guidance lists
+- CP-45567: Unit tests for livepatch failures
+- CP-45567: Add safety check in host.apply_updates
+- CP-45567: Set pending RestartVM for all VMs in the pool
+- CA-387034: RestartVM is added to pending guidances of shutdown VMs
+- CA-387033: Update xapi error document
+- CP-43875: Record the repository hash on the host object when updating
+- CP-45569: Add API Host.emergency_clear_mandatory_guidance
+- CA-387201: Pool.last_sync_date not reset if the user changes the update channel
+- CP-45570: Clear host update guidance
+- CP-45570: Clear VM update guidance
+- CP-45572,CP-45573: Split 'check_task_status' function out
+- CP-45572,CP-45573: Split 'do_http_get' function out
+- CP-44324: Block "host.enable" during "host.apply_updates"
+- CA-388107: Make sure VM is running when starting restart_device_models
+- CA-388351: Always apply livepatches even if host will reboot
+- CP-45573: Add 'xe host-updates-show-available' CLI
+- CP-45572: Print update guidance in xe host-apply-updates
+- CP-45572,CP-45573: Refine to use 'command_in_task' more
+- CP-46946: Bumped API version to 2.21 for update guidance improvement
+- CP-47012: change pending guidance in old xapi to recommended ones in new xapi
+- CA-388699: No async support on VM.restart_device_models
+- CP-47509: Expose RequestHeaders and ResponseHeaders in C# SDK.
+- Add Nile release
+
+* Mon Feb 12 2024 Rob Hoes <rob.hoes@citrix.com> - 24.5.0-1
+- Import xapi-project/stdext
+- CA-372059: refactor the type of host in `squeeze.ml`
+- CA-372059: delete the unused code
+- CA-372059: use `Opt.value` instead of `match` and use `find_opt` to find a domain
+- CP-46939: Add config options to disable http and https endpoints
+- GitHub CI: Enable Codecov for Python, add pytype and other CI checks
+- CA-372059: add an interface for squeeze.ml
+- CA-382640: open SHM with os.open to allow for RW/Creat
+- CP-46377: Splitting `xapi_observer.ml` in separete files
+- CP-46477: Add helper function `is_component_enabled`
+- CP-46377: Add env vars `TRACEPARENT` and `OBSERVER_CONFIG_DIR` to `sm_exec` calls
+- CP-46377: Define default env var path in `forkhelpers.ml`
+- CP-46377: Improve maintainabilty of `Dom0ObserverConfig`
+- CP-46377: Refactor `env_vars_of_observer`
+- Python2 os.fdopen() does not take keyword arguments, doh!
+- xapi-rrd: attach tests to package
+- add helper function for checking platform field
+- Xen-4.15+: CDF_NESTED_VIRT
+- Xen 4.15+: X86_MSR_RELAXED
+- Xen 4.16+: CDF_VPMU
+- Xen-4.16+: support max_grant_version field
+- Xen-4.17+: cpupool_id
+- [maintenance]: fix formatting after Xen-4.17 merge
+- ci: delete needless files from base image
+- fix(ci): use $TMPDIR instead of hardcoding /tmp in ocaml/libs/vhd
+- fix(ci): use /mnt for temporary files and dune cache
+- CA-388437: fix bond status reporting
+- datamodel_lifecycle: update cluster forum introduction versions
+- CA-388295: Revert the python3 changes for perfmon and hfx_filename
+- Refactor cluster_health flag checking
+- ci: remove action lint
+- CP-46155: Call smapi scripts via observer.py when smapi observer is enabled
+- Add support for Reverting changes to pytype_reporter.py
+- Update API doc for cluster_host
+- CP-46324: Send alert when a host leaves/joins the cluster
+- rrdd.py: Python3: Fix crash on failure contacting xcp-rrdd
+- CI: Unit-Test the crash-fix for rrdd.API.wait_until_next_reading()
+- Actually get the traceparent from debuginfo instead of trace_id
+- CA-385323: do not try to connect to xapi when creating sockets
+- CP-46631: Improved list of span attributes.
+- CP-46631: Remove code duplication
+- CP:46157: Add `observer_experimental_components` flag
+- xapi-guard: separate base types to its own module
+- doc: Add some information about xapi-guard
+- CA-388625: fix build of the Xen-API Java SDK
+- build: add sdk-build-java Makefile target
+- Make clear which drivers list we are getting
+
+* Wed Jan 31 2024 Andrew Cooper <andrew.cooper3@citrix.com> - 24.4.0-2
+- Rebuild against Xen 4.17
+
+* Tue Jan 30 2024 Rob Hoes <rob.hoes@citrix.com> - 24.4.0-1
+- CA-388180 Correcting Domain CPU Usage Values
+- CP-46200 CP-45741 pass -std-vga to QEMU in the case of compute GPU
+- Added unit in the description of PIF_metrics.speed and bumped last_known_schema_hash.
+- xapi.conf: fix setting name for custom UEFI certs
+- CA-388318: usb_reset.py: fixed byte issue
+
+* Thu Jan 25 2024 Rob Hoes <rob.hoes@citrix.com> - 24.3.0-1
+- xenopsd: avoid log message about vmdesc
+- CA-387456 serialise Pool.eject
+- fix(test): kill child process on test failure too
+- fix(test): use SO_REUSEADDR to rebind port when run in a loop
+- test: reduce sleep time
+- CA-387588: test(forkexecd): fix off by one in test resulting in MSG_CTRUNC
+- build: set a timeout for the tests
+- CP-46264 deprecate host.bios_strings[hp-rombios] entry
+- Refine the description and units of 'running_vcpus' and 'running_domains'
+- Update datamodel_lifecycle
+- Update API doc for cluster_host
+- CA-387560 add support for more systemd execution types
+- fixup! CA-387560 add support for more systemd execution types
+- fix(ci): remove 1024 fd limit for now
+- [maintenance]: enable generate_opam_files in dune-project
+- CA-386920 destroy VTPM at the end of a migration directly (#5379)
+- CA-387560 swtpm-wrapper: create PID file after socket
+- CP-45970 remove qemu_trad_image.py
+- CP-47043: Port usb_reset.py to python3
+- Add API fields for quorum info from clusterd
+- CP-46323: Expose quorum and cluster membership through the API
+- CP-46374: Add a minimal observer.py
+- CA-387698: datamodel: eliminate next_release
+- Revert "Add mutex for concurrent processing of messages"
+- CA-388064: Revert "Protocol_{lwt,async}: process requests concurrently"
+- Only start cluster watcher if cluster_health feature enabled
+
+* Tue Jan 16 2024 Rob Hoes <rob.hoes@citrix.com> - 24.2.1-1
+- Revert "update mail-alarm and usb_scan to python3"
+- CP-46238: Conditionally apply patch on xen-upstream only
+
+* Tue Jan 16 2024 Rob Hoes <rob.hoes@citrix.com> - 24.2.0-1
+- CP-45979 update link-vms-by-sr.py to python3
+- Fixed markdown links (brackets=>parentheses).
+- update mail-alarm and usb_scan to python3
+- Allow passing extra headers into the HTTP calls (useful for CP-33676). Renamed a couple of local parameters.
+- format with black
+- refactory doexec with xcp.cmd
+- CP-46122: Support PAX/POSIX tar on import
+- CP-47075 Toolstack: Dumping VM RRDD Data to an Accessible JSON File for Regular User
+- CP-45985: Update hfx_filename from python2 to python3
+- CP-45985: Update perfmon to python3
+- CP-45985: Update static-vdis to python3
+- CP-45985: Update xe-scsi-dev-map to python3
+- CP-45985: Remove unnecessary "list()" in loop
+- CP-45985: Add some unit tests for perfmon/static-vdis
+- CA-382035: Verify commandline items for service process in "pid"
+- CA-387699: Fix Protocol_async.with_lock bug spotted by Vincent
+
+* Wed Jan 10 2024 Rob Hoes <rob.hoes@citrix.com> - 24.1.0-1
+- CP-46804: Add function to get master's external certificate thumbprint
+- CP-46806: Add master's cert thumbprint to header when host_is_slave
+- fix(NUMA): 'default' is a keyword in some SDK languages
+- build: add command to check that the C# SDK compiles
+- build: add SDK sanity test to CI
+
+* Wed Jan 10 2024 Rob Hoes <rob.hoes@citrix.com> - 24.0.0-1
+- CP-45974: Porting examples to python3
+- update print-custom-templates to python3
+- CA-386865: External auth plugin logs are not saved
+- CA-386866: Invalid cross-device link during extauth configure update
+- CA-385278: Add interface for flush spans and exit the export thread
+- CP-45981: Update xenopsd from python2 to python3
+- CP-46379: Set correct traceparent for `storage_smapiv1*.ml` functions
+- ci(main): add a make install smoketest
+- CP-46378: Propagate `dbg` to `Sm_exec.exec_xmlrpc`
+- Rename 'override_uefi_certs' with 'allow_custom_uefi_certs'
+- Introduce new methods for custom uefi certs
+- Do not break symlink when no custom certificates are set
+- Do not fail when fullpath is given to extract certificates
+- Check for used UEFI certificates when updating vm platform
+- Always set pool.uefi_certificates
+- CP-46917 wait for DEMU "running" before unpausing
+- CP-46917 improve error handling
+- CP-47046 optimise rule emitter for xenopsd PVS Proxy setup
+- Protocol_{lwt,async}: process requests concurrently
+- Add mutex for concurrent processing of messages
+- CP-46379: Propagate `dbg` to `sr_*` functions in `sm.ml`
+- CP-44533 Add running vCPU and running domain of host into rrdd
+- CA-384537 simplify reporting internal error (1/2)
+- CA-384537 simplify reporting internal error (2/2)
+- CA-384537 support NBD for CD device
+- CP-46149: Execute observer db_fn before the forwarders.
+- CP-46149: Add W3CBaggage module
+- CP-46149: Create Dom0ObserverConfig and SMObserverConfig
+- CP-46149: Use EnvRecord to format the env variables
+- Avoid using a hardcoded value for Tracing Bugtool
+- CA-385065 VM import with VTPM, don't block on power state
+- OIL: introduce internal_error(fmt) for error reporting
+- CP-44174: Add cpu_usage and memory_internal_free alarms for dom0 VM
+- CA-386457: fix environment variable loading of `$PERFMON_FLAGS` in perfmon.service
+- CP-46379: `Sm.vdi_generate_config` missing `dbg`
+- CP-46378: Propagate `traceparent` from `Sm.register`
+- CP-47153 add task list to bugtool
+- CP-38020: always initialize NUMA information on startup
+- CP-38020: drop numa-placement-strict
+- CP-38020: add HOST.set_numa_affinity_policy
+- CP-38020: introduce Host.numa_affinity_policy
+- CP-38020: add CLI interface for NUMA policy host field
+- doc(NUMA): move large comment to separate Hugo doc and update design
+- doc(NUMA): Dom0 and IONUMA are out of scope
+
+* Tue Dec 19 2023 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 23.32.0-1
+- CP-46677: Decrease the cardinality of "Export of VM" span name.
+- CP-46677: Remove repeated code when creating a new span.
+- CP-46677: Improve function performance
+- Add VM migration walkthrough
+- Remove unused code for getting dom0 memory
+- CP-46379: Pass unchaged dbg to underlying function.
+- CA-384457: Add special case for End_of_file to sparse_dd_wrapper
+- Move squeezed docs from xapi-project.github.io
+- Moving Event handling docs from xapi-project.github.io
+- Add CLI architecture doc
+- Add storage docs
+- Add xcp-rrdd docs
+- Add redo-log doc
+- Update generated cluster test_data
+- Update doc on how to update generated test data
+- CP-44531 Toolstack: Add Dom0 CPU usage, total and free memory into rrdd
+- CP-46085: Add quorum info to `xcli diagnostics dbg`
+- CP-46379: Refactor 'with_dbg' to handle exceptions.
+- CP-46379: Instrument 'storage_smapiv1.ml' to create spans.
+- CA-386552 XSI-1534 Failed to disable pool HA after missing HA statefile
+- Make sure observer exporter is only created once
+- CA-386582: Always create exporting thread for observers
+- CA-386676: Start clusterd observer when it is already enabled
+- CP-46140 PVS IPv6 accept both IPv4, IPv6 for PVS Server
+- CP-46140 add pvs-setup, replacing setup-pvs-proxy-rules
+- CP-46379: Propagate 'traceparent' to 'Sm.*' functions
+- Add an overview of how XAPI handles a migration request
+- maintenance: reformat using ocamlformat 0.26.1
+- maintenance: ignore latest reformat commit in git blames
+
 * Mon Dec 04 2023 Rob Hoes <rob.hoes@citrix.com> - 23.31.0-1
 - maintenance: update opam metadata from xs-opam
 - CP-45847: Allow any value of trace flag for traceparent
