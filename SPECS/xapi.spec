@@ -57,21 +57,20 @@ Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 
 # XCP-ng patches
 # Enables our additional sm drivers
-Patch1000: xapi-23.31.0-update-xapi-conf.XCP-ng.patch
+Patch1000: xapi-24.11.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
 Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
 Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1003: xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Needed for IPv6 support. Upstream wants a better fix. Drop when upstream fixed it.
 Patch1004: xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
-Patch1005: xapi-23.31.0-extend-uefi-cert-api.patch
-Patch1006: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
-Patch1007: xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
+Patch1005: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
+Patch1006: xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5471
-Patch1008: xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
-Patch1009: xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
+Patch1007: xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
+Patch1008: xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1386,9 +1385,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* next - 24.11.0-1.1
+* Wed Apr 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.1
 - Rebase on 24.11.0-1
-- TODO: Rediff patches
+- Drop xapi-23.31.0-extend-uefi-cert-api.patch
+- Rework xapi-24.11.0-update-xapi-conf.XCP-ng.patch
+- Rework xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 - Rebase changelog on upstream changelog
 - *** Former XCP-ng 8.3 changelog ***
 - * Wed Apr 03 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.7
