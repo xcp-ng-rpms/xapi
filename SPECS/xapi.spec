@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.11.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1385,6 +1385,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Apr 18 2024 Damien Thenot <damien.thenot@vates.tech> - 24.11.0-1.2
+- Add largeblock to sm-plugins in xapi.conf
+
 * Wed Apr 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.1
 - Rebase on 24.11.0-1
 - Drop xapi-23.31.0-extend-uefi-cert-api.patch
