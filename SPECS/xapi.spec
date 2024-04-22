@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.11.0
-Release: 1.2%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -71,6 +71,8 @@ Patch1006: xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5471
 Patch1007: xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
 Patch1008: xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
+# Remove when we get 24.14.0 release
+Patch1009: xapi-24.11.0-pci-passthrough.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1385,6 +1387,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Apr 22 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.3
+- Add xapi-24.11.0-pci-passthrough.XCP-ng.patch
+
 * Thu Apr 18 2024 Damien Thenot <damien.thenot@vates.tech> - 24.11.0-1.2
 - Add largeblock to sm-plugins in xapi.conf
 
