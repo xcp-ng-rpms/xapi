@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.32
-Release: 2.3%{?xsrel}%{?dist}
+Release: 2.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -463,6 +463,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Tue May 07 2024 Damien Thenot <damien.thenot@vates.tech> - 1.249.32-2.4
+- Update xapi-1.249.32-update-xapi-conf.XCP-ng.patch to add largeblock
+
 * Wed Apr 03 2024 Benjamin Reis <benjamin.reis@vates.tech> - 1.249.32-2.3
 - Add xapi-1.249.32-use-lib-guess-content-type.backport.patch
 
