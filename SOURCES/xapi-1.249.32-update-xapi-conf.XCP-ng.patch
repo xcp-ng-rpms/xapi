@@ -17,7 +17,7 @@ index 797aff1a3..615a488b1 100644
  
  # Whitelist of SM plugins
 -sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb
-+sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb cephfs glusterfs xfs zfs ext4
++sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb cephfs glusterfs xfs zfs ext4 largeblock
  
  # Directory containing tools ISO
  # tools-sr-dir = @OPTDIR@/packages/iso
