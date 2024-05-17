@@ -1,0 +1,435 @@
+https://github.com/xapi-project/xen-api/pull/5566
+
+diff --git c/ocaml/idl/datamodel_pool.ml w/ocaml/idl/datamodel_pool.ml
+index f556cf564..11d84ce22 100644
+--- c/ocaml/idl/datamodel_pool.ml
++++ w/ocaml/idl/datamodel_pool.ml
+@@ -1133,6 +1133,26 @@ let set_ext_auth_max_threads =
+     ~params:[(Ref _pool, "self", "The pool"); (Int, "value", "The new maximum")]
+     ~allowed_roles:_R_POOL_OP ()
+
++let pool_guest_secureboot_readiness =
++  Enum
++    ( "pool_guest_secureboot_readiness"
++    , [
++        ("ready", "Pool is ready for SecureBoot, all auth files are present")
++      ; ( "ready_no_dbx"
++        , "Pool is ready for SecureBoot, but there is no dbx auth file"
++        )
++      ; ( "not_ready"
++        , "Pool is not ready for SecureBoot, mandatory auth files are missing"
++        )
++      ]
++    )
++
++let get_guest_secureboot_readiness =
++  call ~flags:[`Session] ~name:"get_guest_secureboot_readiness" ~lifecycle:[]
++    ~params:[(Ref _pool, "self", "The pool")]
++    ~result:(pool_guest_secureboot_readiness, "The readiness of the pool")
++    ~allowed_roles:_R_POOL_OP ()
++
+ (** A pool class *)
+ let t =
+   create_obj ~in_db:true ~in_product_since:rel_rio ~in_oss_since:None
+@@ -1222,6 +1242,7 @@ let t =
+       ; set_update_sync_enabled
+       ; set_local_auth_max_threads
+       ; set_ext_auth_max_threads
++      ; get_guest_secureboot_readiness
+       ]
+     ~contents:
+       ([uid ~in_oss_since:None _pool]
+diff --git c/ocaml/idl/datamodel_vm.ml w/ocaml/idl/datamodel_vm.ml
+index f6236540b..67037dce1 100644
+--- c/ocaml/idl/datamodel_vm.ml
++++ w/ocaml/idl/datamodel_vm.ml
+@@ -1701,6 +1701,67 @@ let restart_device_models =
+     ~allowed_roles:(_R_VM_POWER_ADMIN ++ _R_CLIENT_CERT)
+     ()
+
++let vm_uefi_mode =
++  Enum
++    ( "vm_uefi_mode"
++    , [
++        ( "setup"
++        , "clears a VM's EFI variables related to Secure Boot and places it \
++           into Setup Mode"
++        )
++      ; ( "user"
++        , "resets a VM's EFI variables related to Secure Boot to the defaults, \
++           placing it into User Mode"
++        )
++      ]
++    )
++
++let set_uefi_mode =
++  call ~name:"set_uefi_mode" ~lifecycle:[]
++    ~params:
++      [
++        (Ref _vm, "self", "The VM")
++      ; (vm_uefi_mode, "mode", "The UEFI mode to set")
++      ]
++    ~result:(String, "Result from the varstore-sb-state call")
++    ~doc:"Set the UEFI mode of a VM" ~allowed_roles:_R_POOL_ADMIN ()
++
++let vm_secureboot_readiness =
++  Enum
++    ( "vm_secureboot_readiness"
++    , [
++        ("not_supported", "VM's firmware is not UEFI")
++      ; ("disabled", "Secureboot is disabled on this VM")
++      ; ( "first_boot"
++        , "Secured boot is enabled on this VM and its NVRAM.EFI-variables are \
++           empty"
++        )
++      ; ( "ready"
++        , "Secured boot is enabled on this VM and PK, KEK, db and dbx are \
++           defined in its EFI variables"
++        )
++      ; ( "ready_no_dbx"
++        , "Secured boot is enabled on this VM and PK, KEK, db but not dbx are \
++           defined in its EFI variables"
++        )
++      ; ( "setup_mode"
++        , "Secured boot is enabled on this VM and PK is not defined in its EFI \
++           variables"
++        )
++      ; ( "certs_incomplete"
++        , "Secured boot is enabled on this VM and the certificates defined in \
++           its EFI variables are incomplete"
++        )
++      ]
++    )
++
++let get_secureboot_readiness =
++  call ~name:"get_secureboot_readiness" ~lifecycle:[]
++    ~params:[(Ref _vm, "self", "The VM")]
++    ~result:(vm_secureboot_readiness, "The secureboot readiness of the VM")
++    ~doc:"Return the secureboot readiness of the VM"
++    ~allowed_roles:_R_POOL_ADMIN ()
++
+ (** VM (or 'guest') configuration: *)
+ let t =
+   create_obj ~in_db:true ~in_product_since:rel_rio ~in_oss_since:oss_since_303
+@@ -1835,6 +1896,8 @@ let t =
+       ; set_HVM_boot_policy
+       ; set_NVRAM_EFI_variables
+       ; restart_device_models
++      ; set_uefi_mode
++      ; get_secureboot_readiness
+       ]
+     ~contents:
+       ([uid _vm]
+diff --git c/ocaml/xapi-cli-server/cli_frontend.ml w/ocaml/xapi-cli-server/cli_frontend.ml
+index 72f34e3ac..13c695da5 100644
+--- c/ocaml/xapi-cli-server/cli_frontend.ml
++++ w/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -523,6 +523,15 @@ let rec cmdtable_data : (string * cmd_spec) list =
+       ; flags= []
+       }
+     )
++  ; ( "pool-get-guest-secureboot-readiness"
++    , {
++        reqd= []
++      ; optn= []
++      ; help= "Return the readiness of a pool for guest SecureBoot."
++      ; implementation= No_fd Cli_operations.pool_get_guest_secureboot_readiness
++      ; flags= []
++      }
++    )
+   ; ( "host-is-in-emergency-mode"
+     , {
+         reqd= []
+@@ -2659,6 +2668,24 @@ let rec cmdtable_data : (string * cmd_spec) list =
+       ; flags= []
+       }
+     )
++  ; ( "vm-set-uefi-mode"
++    , {
++        reqd= ["uuid"; "mode"]
++      ; optn= []
++      ; help= "Set a VM in UEFI 'setup' or 'user' mode."
++      ; implementation= No_fd Cli_operations.vm_set_uefi_mode
++      ; flags= []
++      }
++    )
++  ; ( "vm-get-secureboot-readiness"
++    , {
++        reqd= ["uuid"]
++      ; optn= []
++      ; help= "Return the secureboot readiness of the VM."
++      ; implementation= No_fd Cli_operations.vm_get_secureboot_readiness
++      ; flags= []
++      }
++    )
+   ; ( "diagnostic-vm-status"
+     , {
+         reqd= ["uuid"]
+diff --git c/ocaml/xapi-cli-server/cli_operations.ml w/ocaml/xapi-cli-server/cli_operations.ml
+index 3303bd920..4208a8a06 100644
+--- c/ocaml/xapi-cli-server/cli_operations.ml
++++ w/ocaml/xapi-cli-server/cli_operations.ml
+@@ -6068,6 +6068,20 @@ let vm_assert_can_be_recovered _printer rpc session_id params =
+         ~self:vm ~session_to:session_id
+   )
+
++let vm_set_uefi_mode printer rpc session_id params =
++  let uuid = List.assoc "uuid" params in
++  let mode = Record_util.vm_uefi_mode_of_string (List.assoc "mode" params) in
++  let vm = Client.VM.get_by_uuid ~rpc ~session_id ~uuid in
++  let result = Client.VM.set_uefi_mode ~rpc ~session_id ~self:vm ~mode in
++  printer (Cli_printer.PMsg result)
++
++let vm_get_secureboot_readiness printer rpc session_id params =
++  let uuid = List.assoc "uuid" params in
++  let vm = Client.VM.get_by_uuid ~rpc ~session_id ~uuid in
++  let result = Client.VM.get_secureboot_readiness ~rpc ~session_id ~self:vm in
++  printer
++    (Cli_printer.PMsg (Record_util.vm_secureboot_readiness_to_string result))
++
+ let cd_list printer rpc session_id params =
+   let srs = Client.SR.get_all_records_where ~rpc ~session_id ~expr:"true" in
+   let cd_srs =
+@@ -6752,6 +6766,16 @@ let pool_disable_external_auth _printer rpc session_id params =
+   let config = read_map_params "config" params in
+   Client.Pool.disable_external_auth ~rpc ~session_id ~pool ~config
+
++let pool_get_guest_secureboot_readiness printer rpc session_id params =
++  let pool = get_pool_with_default rpc session_id params "uuid" in
++  let result =
++    Client.Pool.get_guest_secureboot_readiness ~rpc ~session_id ~self:pool
++  in
++  printer
++    (Cli_printer.PMsg
++       (Record_util.pool_guest_secureboot_readiness_to_string result)
++    )
++
+ let host_restore fd _printer rpc session_id params =
+   let filename = List.assoc "file-name" params in
+   let op _ host =
+diff --git c/ocaml/xapi-cli-server/record_util.ml w/ocaml/xapi-cli-server/record_util.ml
+index 7c5e93ff2..5469e0226 100644
+--- c/ocaml/xapi-cli-server/record_util.ml
++++ w/ocaml/xapi-cli-server/record_util.ml
+@@ -150,6 +150,38 @@ let string_to_vm_operation x =
+   else
+     List.assoc x table
+
++let vm_uefi_mode_of_string = function
++  | "setup" ->
++      `setup
++  | "user" ->
++      `user
++  | s ->
++      raise (Record_failure ("Expected 'user','setup', got " ^ s))
++
++let vm_secureboot_readiness_to_string = function
++  | `not_supported ->
++      "not_supported"
++  | `disabled ->
++      "disabled"
++  | `first_boot ->
++      "first_boot"
++  | `ready ->
++      "ready"
++  | `ready_no_dbx ->
++      "ready_no_dbx"
++  | `setup_mode ->
++      "setup_mode"
++  | `certs_incomplete ->
++      "certs_incomplete"
++
++let pool_guest_secureboot_readiness_to_string = function
++  | `ready ->
++      "ready"
++  | `ready_no_dbx ->
++      "ready_no_dbx"
++  | `not_ready ->
++      "not_ready"
++
+ let pool_operation_to_string = function
+   | `ha_enable ->
+       "ha_enable"
+diff --git c/ocaml/xapi/helpers.ml w/ocaml/xapi/helpers.ml
+index d8366e00a..ba58ddd7b 100644
+--- c/ocaml/xapi/helpers.ml
++++ w/ocaml/xapi/helpers.ml
+@@ -2084,3 +2084,5 @@ let get_active_uefi_certificates ~__context ~self =
+       Db.Pool.get_uefi_certificates ~__context ~self
+   | true, _ ->
+       custom_uefi_certs
++
++let uefi_mode_to_string = function `setup -> "setup" | `user -> "user"
+diff --git c/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
+index d55d3ee0e..856b91304 100644
+--- c/ocaml/xapi/message_forwarding.ml
++++ w/ocaml/xapi/message_forwarding.ml
+@@ -1152,6 +1152,10 @@ functor
+           (pool_uuid ~__context self)
+           value ;
+         Local.Pool.set_ext_auth_max_threads ~__context ~self ~value
++
++      let get_guest_secureboot_readiness ~__context ~self =
++        info "%s: pool='%s'" __FUNCTION__ (pool_uuid ~__context self) ;
++        Local.Pool.get_guest_secureboot_readiness ~__context ~self
+     end
+
+     module VM = struct
+@@ -3053,6 +3057,16 @@ functor
+       let restart_device_models ~__context ~self =
+         info "VM.restart_device_models: self = '%s'" (vm_uuid ~__context self) ;
+         Local.VM.restart_device_models ~__context ~self
++
++      let set_uefi_mode ~__context ~self ~mode =
++        info "VM.set_uefi_mode: self = '%s'; mode = '%s'"
++          (vm_uuid ~__context self)
++          (Helpers.uefi_mode_to_string mode) ;
++        Local.VM.set_uefi_mode ~__context ~self ~mode
++
++      let get_secureboot_readiness ~__context ~self =
++        info "VM.get_secureboot_readiness: self = '%s'" (vm_uuid ~__context self) ;
++        Local.VM.get_secureboot_readiness ~__context ~self
+     end
+
+     module VM_metrics = struct end
+diff --git c/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
+index f58cb3575..959d2aebe 100644
+--- c/ocaml/xapi/xapi_globs.ml
++++ w/ocaml/xapi/xapi_globs.ml
+@@ -857,6 +857,10 @@ let nbd_client_manager_script =
+
+ let varstore_rm = ref "/usr/bin/varstore-rm"
+
++let varstore_sb_state = ref "/usr/bin/varstore-sb-state"
++
++let varstore_ls = ref "/usr/bin/varstore-ls"
++
+ let varstore_dir = ref "/var/lib/varstored"
+
+ let default_auth_dir = ref "/usr/share/varstored"
+@@ -1693,6 +1697,11 @@ module Resources = struct
+       , varstore_rm
+       , "Executed to clear certain UEFI variables during clone"
+       )
++    ; ( "varstore-sb-state"
++      , varstore_sb_state
++      , "Executed to edit the SecureBoot state of a VM"
++      )
++    ; ("varstore-ls", varstore_ls, "Executed to list the UEFI variables of a VM")
+     ; ("varstore_dir", varstore_dir, "Path to local varstored directory")
+     ; ( "nvidia-sriov-manage"
+       , nvidia_sriov_manage_script
+diff --git c/ocaml/xapi/xapi_pool.ml w/ocaml/xapi/xapi_pool.ml
+index acb7bdfa7..2d3a13304 100644
+--- c/ocaml/xapi/xapi_pool.ml
++++ w/ocaml/xapi/xapi_pool.ml
+@@ -3703,3 +3703,17 @@ let set_local_auth_max_threads ~__context:_ ~self:_ ~value =
+
+ let set_ext_auth_max_threads ~__context:_ ~self:_ ~value =
+   Xapi_session.set_ext_auth_max_threads value
++
++let get_guest_secureboot_readiness ~__context ~self:_ =
++  let auth_files = Sys.readdir !Xapi_globs.varstore_dir in
++  let pk_present = Array.mem "PK.auth" auth_files in
++  let kek_present = Array.mem "KEK.auth" auth_files in
++  let db_present = Array.mem "db.auth" auth_files in
++  let dbx_present = Array.mem "dbx.auth" auth_files in
++  match (pk_present, kek_present, db_present, dbx_present) with
++  | true, true, true, true ->
++      `ready
++  | true, true, true, false ->
++      `ready_no_dbx
++  | _, _, _, _ ->
++      `not_ready
+diff --git c/ocaml/xapi/xapi_pool.mli w/ocaml/xapi/xapi_pool.mli
+index ecac160c6..39b023810 100644
+--- c/ocaml/xapi/xapi_pool.mli
++++ w/ocaml/xapi/xapi_pool.mli
+@@ -417,3 +417,8 @@ val set_local_auth_max_threads :
+
+ val set_ext_auth_max_threads :
+   __context:Context.t -> self:API.ref_pool -> value:int64 -> unit
++
++val get_guest_secureboot_readiness :
++     __context:Context.t
++  -> self:API.ref_pool
++  -> API.pool_guest_secureboot_readiness
+diff --git c/ocaml/xapi/xapi_vm.ml w/ocaml/xapi/xapi_vm.ml
+index 8632cc1ca..02d1a5345 100644
+--- c/ocaml/xapi/xapi_vm.ml
++++ w/ocaml/xapi/xapi_vm.ml
+@@ -1620,3 +1620,60 @@ let restart_device_models ~__context ~self =
+       Client.VM.pool_migrate ~rpc ~session_id ~vm:self ~host
+         ~options:[("live", "true")]
+   )
++
++let set_uefi_mode ~__context ~self ~mode =
++  let id = Db.VM.get_uuid ~__context ~self in
++  let args = [id; Helpers.uefi_mode_to_string mode] in
++  Helpers.call_script !Xapi_globs.varstore_sb_state args
++
++let get_secureboot_readiness ~__context ~self =
++  let vmr = Db.VM.get_record ~__context ~self in
++  match Xapi_xenops.firmware_of_vm vmr with
++  | Bios ->
++      (* VM is not UEFI *)
++      `not_supported
++  | Uefi _ -> (
++      let platformdata = Db.VM.get_platform ~__context ~self in
++      match
++        Vm_platform.is_true ~key:"secureboot" ~platformdata ~default:false
++      with
++      | false ->
++          `disabled (* Secure boot is disabled *)
++      | true -> (
++        (* Secureboot is enabled *)
++        match
++          List.assoc_opt "EFI-variables" (Db.VM.get_NVRAM ~__context ~self)
++        with
++        | None ->
++            `first_boot (* TO BE VERIFIED *)
++        | Some _ -> (
++            let varstore_ls =
++              Helpers.call_script !Xapi_globs.varstore_ls
++                [Db.VM.get_uuid ~__context ~self]
++            in
++            let ls_lines = String.split_on_char '\n' varstore_ls in
++            let ls_keys =
++              List.filter_map
++                (fun elem ->
++                  (* Lines follow this pattern: <GUID> <KEY>*)
++                  let splitted = String.split_on_char ' ' elem in
++                  List.nth_opt splitted 1
++                )
++                ls_lines
++            in
++            let pk_present = List.mem "PK" ls_keys in
++            let kek_present = List.mem "KEK" ls_keys in
++            let db_present = List.mem "db" ls_keys in
++            let dbx_present = List.mem "dbx" ls_keys in
++            match (pk_present, kek_present, db_present, dbx_present) with
++            | true, true, true, true ->
++                `ready
++            | true, true, true, false ->
++                `ready_no_dbx
++            | false, _, _, _ ->
++                `setup_mode
++            | _, _, _, _ ->
++                `certs_incomplete
++          )
++      )
++    )
+diff --git c/ocaml/xapi/xapi_vm.mli w/ocaml/xapi/xapi_vm.mli
+index 22ee1aeb3..273d0d6f2 100644
+--- c/ocaml/xapi/xapi_vm.mli
++++ w/ocaml/xapi/xapi_vm.mli
+@@ -419,3 +419,9 @@ val set_NVRAM_EFI_variables :
+   __context:Context.t -> self:API.ref_VM -> value:string -> unit
+
+ val restart_device_models : __context:Context.t -> self:API.ref_VM -> unit
++
++val set_uefi_mode :
++  __context:Context.t -> self:API.ref_VM -> mode:API.vm_uefi_mode -> string
++
++val get_secureboot_readiness :
++  __context:Context.t -> self:API.ref_VM -> API.vm_secureboot_readiness
