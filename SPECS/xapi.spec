@@ -1,16 +1,15 @@
-%global package_speccommit c4dd15ea0cefb27d7bc2d92318b874d0cd55f999
-%global package_srccommit v1.249.32
+%global package_speccommit 00da470e0adcf10bb7e9a118e098672766dbf4f6
+%global package_srccommit v1.249.36
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.32
-Release: 2%{?xsrel}%{?dist}
+Version: 1.249.36
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-1.249.32.tar.gz
-Patch0: xe-restore-metadata.use.debugfs.patch
+Source0: xen-api-1.249.36.tar.gz
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -191,6 +190,9 @@ fi
 
 systemctl preset xapi-wait-init-complete || :
 
+# force rsyslog to reload open files to apply the new configuration
+systemctl kill -s HUP rsyslog 2> /dev/null || true
+
 %preun core
 %systemd_preun cdrommon@.service
 %systemd_preun gencert.service
@@ -223,8 +225,8 @@ systemctl preset xapi-wait-init-complete || :
 /opt/xensource/bin/xapi
 %config(noreplace) /etc/xapi.conf
 /etc/logrotate.d/audit
+/etc/logrotate.d/xapi
 /etc/pam.d/xapi
-/etc/cron.d/xapi-logrotate.cron
 /etc/cron.daily/license-check
 /etc/cron.daily/certificate-check
 /opt/xensource/libexec/xapi-init
@@ -259,7 +261,6 @@ systemctl preset xapi-wait-init-complete || :
 /etc/xapi.d/mail-languages/en-US.json
 /etc/xapi.d/mail-languages/zh-CN.json
 /etc/xapi.d/mail-languages/ja-JP.json
-%config(noreplace) /etc/xensource/xapi-logrotate.conf
 %config(noreplace) /etc/xensource/db.conf
 %config(noreplace) /etc/xensource/db.conf.rio
 /etc/xensource/master.d/01-example
@@ -341,7 +342,6 @@ systemctl preset xapi-wait-init-complete || :
 /opt/xensource/libexec/update-mh-info
 /opt/xensource/libexec/upload-wrapper
 /opt/xensource/libexec/xapi-health-check
-/opt/xensource/libexec/xapi-logrotate.sh
 /opt/xensource/libexec/xapi-rolling-upgrade
 /opt/xensource/libexec/xha-lc
 /opt/xensource/libexec/xe-syslog-reconfigure
@@ -432,6 +432,43 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Mar 13 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.36-1
+- CA-389496: Avoid configuration conflicts for rotating xapi logs
+
+* Fri Mar 08 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.35-1
+- CA-368437 remove duplicate keys from SM.features
+
+* Wed Mar 06 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.34-2
+- Bump release and rebuild
+
+* Tue Mar 05 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.34-1
+- CP-45703 jemalloc: avoid bottlenecks with C threads
+- CP-43755 Pam: avoid sleep(1) call when multithreaded
+- CP-43755 Split internal and external auth locks
+- CP-43755 Locking_helpers: introduce Semaphore
+- CP-43755 xapi_session: switch to using Semaphore instead of Mutex
+- CP-43755 Increase threads for PAM logins
+
+* Fri Nov 03 2023 Christian Lindig <christian.lindig@cloud.com> - 1.249.33-6
+- Bump release and rebuild
+
+* Tue Oct 24 2023 Christian Lindig <christian.lindig@cloud.com> - 1.249.33-5
+- Bump release and rebuild
+
+* Tue Oct 24 2023 Christian Lindig <christian.lindig@cloud.com> - 1.249.33-4
+- Bump release and rebuild
+
+* Mon Oct 23 2023 Christian Lindig <christian.lindig@citrix.com> - 1.249.33-3
+- remove xe-restore-metadata.use.debugfs.patch after merging it
+
+* Wed Oct 18 2023 Christian Lindig <christian.lindig@cloud.com> - 1.249.33-1
+- Leave the API version for Yangtze/hotfixes as 2.15
+- CA-376879: VLAN PIF created in pool.join is shown as disconnected
+- CA-374989: Avoid using get_record on cross-pool migration
+- CP-42182 call "rrd-cli save_rrds" in bugtool - backport
+- CA-383491: [Security fix] Use debugfs on xe-restore-metadata probes
+- ci: update apt repositories on every run
+
 * Tue Sep 26 2023 Alejandro Vallejo <alejandro.vallejo@cloud.com> - 1.249.32-2
 - CP-45072 Use debugfs instead of libfsimage on xe-restore-metadata probes
 
