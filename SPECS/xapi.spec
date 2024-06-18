@@ -1,5 +1,5 @@
-%global package_speccommit 97c73ec88bd81481cecd660f944f28bb2186c10e
-%global package_srccommit v24.11.0
+%global package_speccommit 2496f2db8feee43a754006b2e097d17071c71a5d
+%global package_srccommit v24.14.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -17,12 +17,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.11.0
+Version: 24.14.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.11.0.tar.gz
+Source0: xen-api-24.14.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -120,6 +120,7 @@ Requires: dnf
 %endif
 Requires: python3-xcp-libs
 Requires: python-pyudev
+Requires: python3-pyudev
 Requires: gmp
 Requires: xapi-storage-plugins >= 2.0.0
 Requires: xapi-clusterd >= 0.64.0
@@ -134,6 +135,9 @@ Requires: setup >= 2.8.74
 Requires: xenserver-release-config
 Requires: python3-fasteners
 Requires: sm
+# firewall-port needs iptables-service to perform
+# `service iptables save`
+Requires: iptables-services
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -529,6 +533,7 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+echo 0 > %{buildroot}/etc/xenserver/features.d/cluster_health
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -635,6 +640,9 @@ fi
 # recent services are enabled by default
 
 systemctl preset xapi-wait-init-complete || :
+
+# force rsyslog to reload open files to apply the new configuration
+systemctl kill -s HUP rsyslog 2> /dev/null || true
 
 %post -n xenopsd-xc
 %systemd_post xenopsd-xc.service
@@ -812,7 +820,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) /etc/xapi.conf
 /etc/logrotate.d/audit
 /etc/pam.d/xapi
-/etc/cron.d/xapi-logrotate.cron
 /etc/cron.d/xapi-tracing-log-trim.cron
 /etc/cron.daily/license-check
 /etc/cron.daily/certificate-check
@@ -844,7 +851,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xapi.d/mail-languages/en-US.json
 /etc/xapi.d/mail-languages/zh-CN.json
 /etc/xapi.d/mail-languages/ja-JP.json
-%config(noreplace) /etc/xensource/xapi-logrotate.conf
+/etc/logrotate.d/xapi
 %config(noreplace) /etc/xensource/db.conf
 %config(noreplace) /etc/xensource/db.conf.rio
 /etc/xensource/master.d/01-example
@@ -914,7 +921,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/update-mh-info
 /opt/xensource/libexec/upload-wrapper
 /opt/xensource/libexec/xapi-health-check
-/opt/xensource/libexec/xapi-logrotate.sh
 /opt/xensource/libexec/xapi-tracing-log-trim.sh
 /opt/xensource/libexec/xapi-rolling-upgrade
 /opt/xensource/libexec/xha-lc
@@ -1048,6 +1054,10 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{ocaml_libdir}/xapi-tracing/*
 %exclude %{ocaml_libdir}/xapi-tracing/*.cmt
 %exclude %{ocaml_libdir}/xapi-tracing/*.cmti
+
+%{ocaml_libdir}/xapi-tracing-export/*
+%exclude %{ocaml_libdir}/xapi-tracing-export/*.cmt
+%exclude %{ocaml_libdir}/xapi-tracing-export/*.cmti
 
 %{ocaml_libdir}/pciutil/*
 %exclude %{ocaml_libdir}/pciutil/*.cmt
@@ -1349,6 +1359,127 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Apr 30 2024 Rob Hoes <rob.hoes@citrix.com> - 24.14.0-1
+- CP-46576: Add standard http attributes
+- CP-47660 define anti-affinity feature
+- Detect automatically whether we are on cygwin.
+- Use templates to generate all the C files. CA-387885 (do not call internal headers from the public ones).
+- Removed erroneously ported recipe.
+- CP-47033: Protocol_{lwt,async}: process requests concurrently (optional)
+- CP-47033: Make message switch concurrent processing optional
+- CP-47033: Add test for concurrent message switch server
+- Remove mention of `dotnet-packages` in `sdk-gen`'s README
+- CP-48768: Update Folder Structure section in PS SDK's READMEs
+- CA-391485: Avoid InterpolationSyntaxError by turning off interpolation
+- opam: add xapi-log to message-switch-core dependencies
+- Remove _t suffix for syslog_stdout_t type
+- CA-389929: xenopsd: fix Xen version comparison. 4.17 is > 4.2, not lower!
+- Add test for lock implementation in message_switch
+- Check elapsed time for timeout test
+- CP-47991: add CBT fields to the volume struct
+- CP-46576: Add standard network attributes
+- ocaml/idl: generate enum{_to_string,__all} functions
+- test: add tests for allowed VM operations
+- ocaml/xapi: use generated enum list instead of hand-maintained ones
+- Added github workflow to build and release the C SDK.
+- xenopsd: add mli to cli/xn and remove unused code
+- CP-48195: Split tracing library
+- CP-48195: Improvements to `tracing_export`
+- CP-48195: Add `with_tracing` helper function
+- PCI passthrough API
+- IH-553: Optimize Sexpr.escape
+- IH-553: Sexpr.escape should be a noop when nothing to escape
+- IH-553: Optimise SExpr.unescape
+- ci: remove warnings about outdated node versions
+- pyproject.toml update settings for pytest etc for running CI locally
+- pyproject.toml: Migrate pytype_reporter from scripts to python3
+- ci: do not comment on PRs after merging
+- ci: ignore pylint and pyflakes checks
+- test_observer.py: Add setUp() and tearDown() of mock modules
+- observer.py: Update error handling
+- ci: install observer.py dependencies
+- opam: delete xapi-stdext package
+- opam: fix xapi-squeezed metadata
+- opam: create package xapi-tracing-export
+- datamodel_lifecycle: bump
+- CA-391859: Failed to stop varstord-guard
+- Exposed methods to fetch the methods available in the API.
+- The github workflow artifacts for C contained unnecessary files.
+- CI: update to Ubuntu 22.04
+- ci(nopin): pinning is very slow and not necessary
+- ci(opam-dune-cache): cache dune builds from opam
+- ci(norm): we have enough space now
+- ci: separate workflows
+- Update README with different build instructions
+- ci: trim dune cache
+- Removed header because it does not look good on github.
+- Install xapi-tracing-export library
+- CA-392163 clear scheduled assignments on startup
+- tests: Allow the alcotest_suite to run
+- CA-371529 XSI-1329 remove license check for has-vendor-device
+- CA-371529 remote VCustom IDL data type
+- CA-371529 expunge create_from_record_without_checking_licence ...
+- CA-371529 Update quality-gate.sh
+- CA-371529 document changes in datamodel
+
+* Mon Apr 15 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.13.0-2
+- Bump release and rebuild
+
+* Tue Apr 09 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.13.0-1
+- Cleanup some unused code in forkexecd
+- Fix vm_lifecycle quicktest to use specified SR
+- message-switch: Print more complete time info in diagnostics
+- CA-390570: Py3 socket.sendto needs bytes instead of a string
+- CP-46179 Deterministic UUID for Back-Up VDI
+- CP-48385: Enhancements for xapi-guard cache
+- CA-378317 fix EBADF in waitpid_nohang
+- CA-384483: Can't export VDI to VHD file with base VDI
+- fileserver: use library to guess served files' mimetype
+- CA-388624: Fix C SDK build on Fedora39
+- Minor forkexecd test changes
+- CA-390988: Prevent varstored-guard from shutting down while domains run
+- CP-46851: add parameter to skip device types on get_export_metadata
+
+* Mon Mar 18 2024 Rob Hoes <rob.hoes@citrix.com> - 24.12.0-1
+- xenopsd: fix config to match install location (#5444)
+- CP-47754: Do not report errors attempting to read PCI vendor:product
+- CP-47431: Replace patched `Newtonsoft.Json.CH` with `Newtonsoft.Json` in C# SDK
+- Add `.gitignore` to C# SDK source
+- Use correct naming in `FriendlyErrorNames.resx`
+- Generate `FriendlyErrorNames.Designer.cs` with templates
+- Add 'threads_per_core' in 'Host.cpu_info'
+- Filter out link IPv6 when migrating VMs
+- Xapi service depends on systemd-tmpfiles-setup
+- CP-47431: Use NuGet references in PowerShell SDK project
+- Add reusable workflow for generating and building all SDKs
+- Remove unused logic in `gen_powershell_binding.ml`
+- Store trace_log_dir in XS_EXPORTER_BUGTOOL_ENDPOINT of the observer.conf
+- Set traceparent trace flag to 01
+- Add service.name attribute as a default observer attribute.
+- Add the default_attributes to Dom0ObserverConfig Observers
+- Create a new python3 directory for python3-only scripts
+- fix: typo in doc
+- Update xapi-idl unittest data for cluster interface
+- CP-45496: Xapi writes host name/uuid to corosync.conf
+- Add feature flag
+- Replace use of `sdksanity` with reusable workflow for testing SDKs
+- Build and package C# and PowerShell SDKs when creating a release
+- Add and use `cleanup-xapi-environment` composite action
+- Misc changes to SDK actions
+- Use consistent artefact naming for SDK binaries
+- CP-46151: Productise the observer.py.
+- CP-46157: Add unit test for `observed_components_of`
+- opam: add hex to xapi dependencies
+- CP-45888: Java SDK updates
+- Split the API reference markdown into smaller files and use templates to generate it.
+- CA-389496: Avoid configuration conflicts for rotating xapi logs
+- CA-389840: Bug in parsing output of 'xen-livepatch list'
+- CP-48430 Update the running_domains metrics to count the not paused state domains
+- fix typos: priviledges -> privileges
+- CA-390109: Use `$PROFILE` path to store and read known cert list
+- Fix typo in `XenServerPowerShell.csproj`
+- Github CI updates
+
 * Thu Feb 29 2024 Rob Hoes <rob.hoes@citrix.com> - 24.11.0-1
 - rrd_updates: output JSON in the same structure as XML
 - Exposed GFS2_CAPACITY in the known message types (for the purpose of providing user friendlier messages on the client side).

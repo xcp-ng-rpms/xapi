@@ -1,2 +1,2 @@
 # Omit some sources of log-spam by default
-disable-logging-for=tracing
+disable-logging-for=tracing tracing_export
