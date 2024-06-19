@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.14.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -68,6 +68,8 @@ Patch1004: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 Patch1005: xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
 # Remove when we get 24.16.0 release
 Patch1006: xapi-24.11.0-sb-state-api.XCP-ng.patch
+# Upstream PR: https://github.com/xapi-project/xen-api/pull/5686
+Patch1007: xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1392,6 +1394,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jun 19 2024 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 24.14.0-1.2
+- Add xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
+
 * Wed Jun 19 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.14.0-1.1
 - Rebase on 24.14.0-1
 - Drop xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch

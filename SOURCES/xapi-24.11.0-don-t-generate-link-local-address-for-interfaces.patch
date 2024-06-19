@@ -1,0 +1,57 @@
+From 7e772afed7f214f30a0a33eccf61923f7aa23a4d Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Thu, 13 Jun 2024 09:42:11 +0200
+Subject: [PATCH] Don't generate link-local address for interfaces
+
+When creating the bridge for virtual machines we don't
+want to set link-local address because it will give an
+access to the host for VMs. Required link-local are
+managed by XAPI directly.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ scripts/xe-enable-ipv6 | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/scripts/xe-enable-ipv6 b/scripts/xe-enable-ipv6
+index 776adb926..a2e0ee3c9 100755
+--- a/scripts/xe-enable-ipv6
++++ b/scripts/xe-enable-ipv6
+@@ -30,8 +30,19 @@ if [ $1 = "enable" ]; then
+ 	echo "IPV6_AUTOCONF=NO" >> /etc/sysconfig/network
+ 	chkconfig ip6tables on
+ 
+-	echo "net.ipv6.conf.all.disable_ipv6=0" > /etc/sysctl.d/91-net-ipv6.conf
+-	echo "net.ipv6.conf.default.disable_ipv6=0" >> /etc/sysctl.d/91-net-ipv6.conf
++	{
++		echo "net.ipv6.conf.all.disable_ipv6=0"
++		echo "net.ipv6.conf.default.disable_ipv6=0"
++
++		# Defines how link-local and autoconf addresses are generated.
++		# A value of 1 does the following:
++		#   - do not generate a link-local address
++		#   - use EUI64 for addresses generated from autoconf
++		# "all" only affects the current state of all interfaces
++		# "default" affect all interfaces that are created in the future
++		echo "net.ipv6.conf.all.addr_gen_mode=1"
++		echo "net.ipv6.conf.default.addr_gen_mode=1"
++	} > /etc/sysctl.d/91-net-ipv6.conf
+ 
+ 	echo "IPv6 enabled.  You may now need to reboot the host"
+ elif [ $1 = "disable" ]; then
+@@ -49,8 +60,10 @@ elif [ $1 = "disable" ]; then
+ 	echo "NETWORKING_IPV6=NO" >> /etc/sysconfig/network
+ 	echo "IPV6_AUTOCONF=NO" >> /etc/sysconfig/network
+ 
+-	echo "net.ipv6.conf.all.disable_ipv6=1" > /etc/sysctl.d/91-net-ipv6.conf
+-	echo "net.ipv6.conf.default.disable_ipv6=1" >> /etc/sysctl.d/91-net-ipv6.conf
++	{
++		echo "net.ipv6.conf.all.disable_ipv6=1"
++		echo "net.ipv6.conf.default.disable_ipv6=1"
++	} > /etc/sysctl.d/91-net-ipv6.conf
+ 
+ 	echo "IPv6 disabled.  You may now need to reboot the host"
+ else
+-- 
+2.45.0
+
