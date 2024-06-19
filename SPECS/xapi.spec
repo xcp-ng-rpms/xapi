@@ -1,5 +1,5 @@
-%global package_speccommit 97c73ec88bd81481cecd660f944f28bb2186c10e
-%global package_srccommit v24.11.0
+%global package_speccommit 2496f2db8feee43a754006b2e097d17071c71a5d
+%global package_srccommit v24.14.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -17,12 +17,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.11.0
-Release: 1.5%{?xsrel}%{?dist}
+Version: 24.14.0
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.11.0.tar.gz
+Source0: xen-api-24.14.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -54,7 +54,6 @@ Source26: tracing-conf
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 %endif
 
-
 # XCP-ng patches
 # Enables our additional sm drivers
 Patch1000: xapi-24.11.0-update-xapi-conf.XCP-ng.patch
@@ -65,18 +64,11 @@ Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Needed for IPv6 support. Upstream wants a better fix. Drop when upstream fixed it.
-Patch1004: xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
-Patch1005: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
-Patch1006: xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/5471
-Patch1007: xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
-Patch1008: xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
-# Remove when we get 24.14.0 release
-Patch1009: xapi-24.11.0-pci-passthrough.XCP-ng.patch
+Patch1004: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 # Remove when we get 24.15.0 release
-Patch1010: xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
+Patch1005: xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
 # Remove when we get 24.16.0 release
-Patch1011: xapi-24.11.0-sb-state-api.XCP-ng.patch
+Patch1006: xapi-24.11.0-sb-state-api.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -144,6 +136,7 @@ Requires: dnf
 %endif
 Requires: python3-xcp-libs
 Requires: python-pyudev
+Requires: python3-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
 # Requires: xapi-storage-plugins >= 2.0.0
@@ -161,6 +154,9 @@ Requires: samba-winbind >= 4.10.16
 Requires: xcp-ng-release-config
 Requires: python3-fasteners
 Requires: sm
+# firewall-port needs iptables-service to perform
+# `service iptables save`
+Requires: iptables-services
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -560,6 +556,7 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+echo 0 > %{buildroot}/etc/xenserver/features.d/cluster_health
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -672,6 +669,9 @@ fi
 # recent services are enabled by default
 
 systemctl preset xapi-wait-init-complete || :
+
+# force rsyslog to reload open files to apply the new configuration
+systemctl kill -s HUP rsyslog 2> /dev/null || true
 
 %post -n xenopsd-xc
 %systemd_post xenopsd-xc.service
@@ -851,7 +851,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config /etc/xapi.conf
 /etc/logrotate.d/audit
 /etc/pam.d/xapi
-/etc/cron.d/xapi-logrotate.cron
 /etc/cron.d/xapi-tracing-log-trim.cron
 /etc/cron.daily/license-check
 /etc/cron.daily/certificate-check
@@ -883,7 +882,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xapi.d/mail-languages/en-US.json
 /etc/xapi.d/mail-languages/zh-CN.json
 /etc/xapi.d/mail-languages/ja-JP.json
-%config(noreplace) /etc/xensource/xapi-logrotate.conf
+/etc/logrotate.d/xapi
 %config(noreplace) /etc/xensource/db.conf
 %config(noreplace) /etc/xensource/db.conf.rio
 /etc/xensource/master.d/01-example
@@ -954,7 +953,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/update-mh-info
 /opt/xensource/libexec/upload-wrapper
 /opt/xensource/libexec/xapi-health-check
-/opt/xensource/libexec/xapi-logrotate.sh
 /opt/xensource/libexec/xapi-tracing-log-trim.sh
 /opt/xensource/libexec/xapi-rolling-upgrade
 /opt/xensource/libexec/xha-lc
@@ -1090,6 +1088,10 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{ocaml_libdir}/xapi-tracing/*
 %exclude %{ocaml_libdir}/xapi-tracing/*.cmt
 %exclude %{ocaml_libdir}/xapi-tracing/*.cmti
+
+%{ocaml_libdir}/xapi-tracing-export/*
+%exclude %{ocaml_libdir}/xapi-tracing-export/*.cmt
+%exclude %{ocaml_libdir}/xapi-tracing-export/*.cmti
 
 %{ocaml_libdir}/pciutil/*
 %exclude %{ocaml_libdir}/pciutil/*.cmt
@@ -1391,25 +1393,23 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Fri May 31 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.5
-- Add xapi-24.11.0-sb-state-api.XCP-ng.patch
-
-* Thu May 16 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.4
-- Add xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
-
-* Mon Apr 22 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.3
-- Add xapi-24.11.0-pci-passthrough.XCP-ng.patch
-
-* Thu Apr 18 2024 Damien Thenot <damien.thenot@vates.tech> - 24.11.0-1.2
-- Add largeblock to sm-plugins in xapi.conf
-
-* Wed Apr 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.1
-- Rebase on 24.11.0-1
-- Drop xapi-23.31.0-extend-uefi-cert-api.patch
-- Rework xapi-24.11.0-update-xapi-conf.XCP-ng.patch
-- Rework xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+* Wed Jun 19 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.14.0-1.1
+- Rebase on 24.14.0-1
+- Drop xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
+- Drop xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
+- Drop xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
+- Drop xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
+- Drop xapi-24.11.0-pci-passthrough.XCP-ng.patch
 - Rebase changelog on upstream changelog
 - *** Former XCP-ng 8.3 changelog ***
+- * Fri May 31 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.5
+- - Add xapi-24.11.0-sb-state-api.XCP-ng.patch
+- * Thu May 16 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.4
+- - Add xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
+- * Mon Apr 22 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.3
+- - Add xapi-24.11.0-pci-passthrough.XCP-ng.patch
+- * Thu Apr 18 2024 Damien Thenot <damien.thenot@vates.tech> - 24.11.0-1.2
+- - Add largeblock to sm-plugins in xapi.conf
 - * Wed Apr 03 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.7
 - - Add xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
 - * Mon Feb 26 2024 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.31.0-1.6
@@ -1478,6 +1478,127 @@ Coverage files from unit tests
 - - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
 - - Remove ptoken.py and accesstoken.py yum plugins and their configuration
 - - Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
+
+* Tue Apr 30 2024 Rob Hoes <rob.hoes@citrix.com> - 24.14.0-1
+- CP-46576: Add standard http attributes
+- CP-47660 define anti-affinity feature
+- Detect automatically whether we are on cygwin.
+- Use templates to generate all the C files. CA-387885 (do not call internal headers from the public ones).
+- Removed erroneously ported recipe.
+- CP-47033: Protocol_{lwt,async}: process requests concurrently (optional)
+- CP-47033: Make message switch concurrent processing optional
+- CP-47033: Add test for concurrent message switch server
+- Remove mention of `dotnet-packages` in `sdk-gen`'s README
+- CP-48768: Update Folder Structure section in PS SDK's READMEs
+- CA-391485: Avoid InterpolationSyntaxError by turning off interpolation
+- opam: add xapi-log to message-switch-core dependencies
+- Remove _t suffix for syslog_stdout_t type
+- CA-389929: xenopsd: fix Xen version comparison. 4.17 is > 4.2, not lower!
+- Add test for lock implementation in message_switch
+- Check elapsed time for timeout test
+- CP-47991: add CBT fields to the volume struct
+- CP-46576: Add standard network attributes
+- ocaml/idl: generate enum{_to_string,__all} functions
+- test: add tests for allowed VM operations
+- ocaml/xapi: use generated enum list instead of hand-maintained ones
+- Added github workflow to build and release the C SDK.
+- xenopsd: add mli to cli/xn and remove unused code
+- CP-48195: Split tracing library
+- CP-48195: Improvements to `tracing_export`
+- CP-48195: Add `with_tracing` helper function
+- PCI passthrough API
+- IH-553: Optimize Sexpr.escape
+- IH-553: Sexpr.escape should be a noop when nothing to escape
+- IH-553: Optimise SExpr.unescape
+- ci: remove warnings about outdated node versions
+- pyproject.toml update settings for pytest etc for running CI locally
+- pyproject.toml: Migrate pytype_reporter from scripts to python3
+- ci: do not comment on PRs after merging
+- ci: ignore pylint and pyflakes checks
+- test_observer.py: Add setUp() and tearDown() of mock modules
+- observer.py: Update error handling
+- ci: install observer.py dependencies
+- opam: delete xapi-stdext package
+- opam: fix xapi-squeezed metadata
+- opam: create package xapi-tracing-export
+- datamodel_lifecycle: bump
+- CA-391859: Failed to stop varstord-guard
+- Exposed methods to fetch the methods available in the API.
+- The github workflow artifacts for C contained unnecessary files.
+- CI: update to Ubuntu 22.04
+- ci(nopin): pinning is very slow and not necessary
+- ci(opam-dune-cache): cache dune builds from opam
+- ci(norm): we have enough space now
+- ci: separate workflows
+- Update README with different build instructions
+- ci: trim dune cache
+- Removed header because it does not look good on github.
+- Install xapi-tracing-export library
+- CA-392163 clear scheduled assignments on startup
+- tests: Allow the alcotest_suite to run
+- CA-371529 XSI-1329 remove license check for has-vendor-device
+- CA-371529 remote VCustom IDL data type
+- CA-371529 expunge create_from_record_without_checking_licence ...
+- CA-371529 Update quality-gate.sh
+- CA-371529 document changes in datamodel
+
+* Mon Apr 15 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.13.0-2
+- Bump release and rebuild
+
+* Tue Apr 09 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.13.0-1
+- Cleanup some unused code in forkexecd
+- Fix vm_lifecycle quicktest to use specified SR
+- message-switch: Print more complete time info in diagnostics
+- CA-390570: Py3 socket.sendto needs bytes instead of a string
+- CP-46179 Deterministic UUID for Back-Up VDI
+- CP-48385: Enhancements for xapi-guard cache
+- CA-378317 fix EBADF in waitpid_nohang
+- CA-384483: Can't export VDI to VHD file with base VDI
+- fileserver: use library to guess served files' mimetype
+- CA-388624: Fix C SDK build on Fedora39
+- Minor forkexecd test changes
+- CA-390988: Prevent varstored-guard from shutting down while domains run
+- CP-46851: add parameter to skip device types on get_export_metadata
+
+* Mon Mar 18 2024 Rob Hoes <rob.hoes@citrix.com> - 24.12.0-1
+- xenopsd: fix config to match install location (#5444)
+- CP-47754: Do not report errors attempting to read PCI vendor:product
+- CP-47431: Replace patched `Newtonsoft.Json.CH` with `Newtonsoft.Json` in C# SDK
+- Add `.gitignore` to C# SDK source
+- Use correct naming in `FriendlyErrorNames.resx`
+- Generate `FriendlyErrorNames.Designer.cs` with templates
+- Add 'threads_per_core' in 'Host.cpu_info'
+- Filter out link IPv6 when migrating VMs
+- Xapi service depends on systemd-tmpfiles-setup
+- CP-47431: Use NuGet references in PowerShell SDK project
+- Add reusable workflow for generating and building all SDKs
+- Remove unused logic in `gen_powershell_binding.ml`
+- Store trace_log_dir in XS_EXPORTER_BUGTOOL_ENDPOINT of the observer.conf
+- Set traceparent trace flag to 01
+- Add service.name attribute as a default observer attribute.
+- Add the default_attributes to Dom0ObserverConfig Observers
+- Create a new python3 directory for python3-only scripts
+- fix: typo in doc
+- Update xapi-idl unittest data for cluster interface
+- CP-45496: Xapi writes host name/uuid to corosync.conf
+- Add feature flag
+- Replace use of `sdksanity` with reusable workflow for testing SDKs
+- Build and package C# and PowerShell SDKs when creating a release
+- Add and use `cleanup-xapi-environment` composite action
+- Misc changes to SDK actions
+- Use consistent artefact naming for SDK binaries
+- CP-46151: Productise the observer.py.
+- CP-46157: Add unit test for `observed_components_of`
+- opam: add hex to xapi dependencies
+- CP-45888: Java SDK updates
+- Split the API reference markdown into smaller files and use templates to generate it.
+- CA-389496: Avoid configuration conflicts for rotating xapi logs
+- CA-389840: Bug in parsing output of 'xen-livepatch list'
+- CP-48430 Update the running_domains metrics to count the not paused state domains
+- fix typos: priviledges -> privileges
+- CA-390109: Use `$PROFILE` path to store and read known cert list
+- Fix typo in `XenServerPowerShell.csproj`
+- Github CI updates
 
 * Thu Feb 29 2024 Rob Hoes <rob.hoes@citrix.com> - 24.11.0-1
 - rrd_updates: output JSON in the same structure as XML
