@@ -63,7 +63,6 @@ Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-# Needed for IPv6 support. Upstream wants a better fix. Drop when upstream fixed it.
 Patch1004: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 # Remove when we get 24.15.0 release
 Patch1005: xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
