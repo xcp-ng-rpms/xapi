@@ -1,5 +1,5 @@
-%global package_speccommit 2496f2db8feee43a754006b2e097d17071c71a5d
-%global package_srccommit v24.14.0
+%global package_speccommit b233eb3503923aef61d4fc229bc153c29e54f0ff
+%global package_srccommit v24.16.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -17,12 +17,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.14.0
+Version: 24.16.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.14.0.tar.gz
+Source0: xen-api-24.16.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -50,7 +50,11 @@ Source24: xapi-storage-script-sysconfig
 Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 
-%if "%{dist}" == ".xsu" || "%{dist}" == ".xsx"
+%if "%{dist}" == ".xsx"
+# Empty for now
+%endif
+
+%if "%{dist}" == ".xsu"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 %endif
 
@@ -534,6 +538,7 @@ mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
 echo 0 > %{buildroot}/etc/xenserver/features.d/cluster_health
+echo 0 > %{buildroot}/etc/xenserver/features.d/vm_anti_affinity
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -1359,6 +1364,48 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Jun 06 2024 Ming Lu <ming.lu@cloud.com> - 24.16.0-1
+- CA-393507: Default cluster_stack value
+
+* Thu May 23 2024 Ming Lu <ming.lu@cloud.com> - 24.15.0-1
+- Rewrite fail function to support format and argument
+- Use fail instead of failwith if possible
+- Compute exe variable just once
+- Fix file descriptor leak in case safe_close_and_exec fails
+- Use /proc/self instead of /proc/%d and pid if possible
+- CP-48195: Instrument client side of `forkexecd`
+- CP-48195: Comment out `warn`.
+- CA-392453: Misc fixes to Java SDK
+- IH-568, fix(dune): avoid "module unavailable" errors when running dune build @check
+- IH-568, fix (dune utop): conflicting module names with compiler libraries
+- IH-568, fix (dune): allow all packages to be pinned
+- tracing: add missing locks on read
+- tracing: replace global ref with Atomic
+- CP-48195: Set `Tracing.observe` default to `false`
+- CP-48969: Reduce amount of logspam created by iostat
+- opam: update dependencies from the code
+- idl: bump datamodel_lifecycle
+- CA-389319: Wait and retry for GET_UPDATES_IN_PROGRESS
+- CA-392163 on start failure, clear a VM's resource allocations
+- CP-48195: Add unit tests for `tracing` library.
+- CP-48195: Remove code duplication.
+- CP-48195: Tracing -- Move `create`\`set`\`destroy`\...
+- API docs in Hugo
+- xenopsd/scripts: Make pygrub wrapper use the libexec path
+- CP-48027: Corosync upgrade add `cluster_stack_version` datamodel change
+- CP-48027: Unittest file change for cluster_interface
+- CP-48027: Add FIST point to allow Corosync2 cluster
+- CP-48027: Add feature flag for corosync3
+- Add option to disable fileserver in XAPI conf
+- CA-392930: Fixed exception handling which prevents the user from reviewing certificates in PS 5.1 and connecting to the server.
+- Added Debug profiles to the Powershell project.
+- Avoids  calling Unix.readlink twice
+- CA-392836,CA-392847: Lost the power state on suspended VM import
+- CP-49029: Instrument `xapi_session.ml`  with tracing
+- CP-49635: Add FIST point for corosync upgrade
+- CP-49429 add IPv6 support for winbind/KDC
+- CP-49429 store KDC in xapi as URI
+
 * Tue Apr 30 2024 Rob Hoes <rob.hoes@citrix.com> - 24.14.0-1
 - CP-46576: Add standard http attributes
 - CP-47660 define anti-affinity feature
