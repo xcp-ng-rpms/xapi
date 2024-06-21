@@ -1,5 +1,5 @@
-%global package_speccommit 2496f2db8feee43a754006b2e097d17071c71a5d
-%global package_srccommit v24.14.0
+%global package_speccommit b233eb3503923aef61d4fc229bc153c29e54f0ff
+%global package_srccommit v24.16.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -17,12 +17,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.14.0
-Release: 1.2%{?xsrel}%{?dist}
+Version: 24.16.0
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.14.0.tar.gz
+Source0: xen-api-24.16.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -50,7 +50,11 @@ Source24: xapi-storage-script-sysconfig
 Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 
-%if "%{dist}" == ".xsu" || "%{dist}" == ".xsx"
+%if "%{dist}" == ".xsx"
+# Empty for now
+%endif
+
+%if "%{dist}" == ".xsu"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 %endif
 
@@ -558,6 +562,7 @@ mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
 echo 0 > %{buildroot}/etc/xenserver/features.d/cluster_health
+echo 0 > %{buildroot}/etc/xenserver/features.d/vm_anti_affinity
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -1394,94 +1399,47 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Jun 19 2024 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 24.14.0-1.2
-- Add xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
+* Thu Jun 06 2024 Ming Lu <ming.lu@cloud.com> - 24.16.0-1
+- CA-393507: Default cluster_stack value
 
-* Wed Jun 19 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.14.0-1.1
-- Rebase on 24.14.0-1
-- Drop xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
-- Drop xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
-- Drop xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
-- Drop xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
-- Drop xapi-24.11.0-pci-passthrough.XCP-ng.patch
-- Rebase changelog on upstream changelog
-- *** Former XCP-ng 8.3 changelog ***
-- * Fri May 31 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.5
-- - Add xapi-24.11.0-sb-state-api.XCP-ng.patch
-- * Thu May 16 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.4
-- - Add xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
-- * Mon Apr 22 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.3
-- - Add xapi-24.11.0-pci-passthrough.XCP-ng.patch
-- * Thu Apr 18 2024 Damien Thenot <damien.thenot@vates.tech> - 24.11.0-1.2
-- - Add largeblock to sm-plugins in xapi.conf
-- * Wed Apr 03 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.7
-- - Add xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
-- * Mon Feb 26 2024 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.31.0-1.6
-- - Add xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patches
-- * Wed Feb 14 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.5
-- - Add xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
-- * Wed Feb 14 2024 Yann Dirson <yann.dirson@vates.tech> - 23.31.0-1.4
-- - Rebuild with xs-opam-repo-6.74.0-1.2
-- * Thu Feb 08 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.3
-- - Add xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
-- * Tue Dec 12 2023 Benjamin Reis <benjamin.reis@vates.tech> - 23.25.0-1.6
-- - Add xapi-23.25.0-extend-uefi-cert-api.patch
-- - Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
-- * Wed Oct 25 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.4
-- - Set override-uefi-certs=true in xapi.conf
-- - Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
-- * Fri Oct 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.3
-- - Don't require XS's fork of the setup RPM
-- - We chose to revert to CentOS' version, as we don't share XenServer's view
--  regarding where to do changes to add users and groups, and we don't need
--  the added users and groups they put there yet.
-- * Thu Oct 05 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.2
-- - Add missing Requires towards nbd
-- * Wed Sep 27 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.1
-- - Update to 23.25.0-1
-- * Wed Sep 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.24.0-1.1
-- - Update to 23.24.0-1
-- - Remove patches merged upstream.
-- - Rework xapi-23.24.0-update-xapi-conf.XCP-ng.patch
-- - Rework xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-- * Mon Aug 28 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.9
-- - Add xapi-23.3.0-Add-vdi_update-filter-to-some-tests.backport.patch
-- * Wed Aug 23 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.8
-- - Add xapi-23.3.0-Allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
-- * Mon Jul 31 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.7
-- - Drop `ext4` from `sm-plugins` in `xapi.conf`
-- * Fri Jul 21 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.6
-- - Rebuild for xs-opam-repo-6.66.0-1.2.xcpng8.3
-- - Add xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
-- * Thu May 04 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.5
-- - Rebuild for blktap-3.53.0-1.xcpng8.3 and sm-3.0.3-1.1.xcpng8.3
-- * Mon Apr 24 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.4
-- - Remove `/etc/xapi.conf.d` files, patch `xapi.conf` instead
-- * Thu Mar 16 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.3
-- - Rebuild for xs-opam-repo-6.66.0-1.1
-- * Mon Mar 06 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.2
-- - Update xapi-23.3.0-update-xapi-conf.XCP-ng.patch to re-enable HTTP (prerequisite for HTTP to HTTPS redirect)
-- * Wed Jan 18 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.34.0-2.1
-- - Update to 22.34.0-2
-- - Drop xapi-22.20.0-redirect-fileserver-https.backport.patch, included in 22.34
-- * Tue Dec 20 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.32.0-1.1
-- - Update to 22.32.0-1
-- * Thu Dec 08 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.31.0-1.1
-- - Rebase on latest XS 8.3 prerelease updates
-- - Drop two patches merged upstream
-- * Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.20.0-1.2
-- - Add xapi-22.20.0-redirect-fileserver-https.backport.patch
-- * Wed Aug 31 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.20.0-1.1
-- - Rebase on CH 8.3 Preview
-- - Remove dependency to non-free packages again
-- - Remove dependency to new non-free package pvsproxy
-- - Remove patches merged upstream
-- - Keep other patches still necessary.
-- - Rediff xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
-- - Add patch xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch, migrated from retired repo xenopsd
-- - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
-- - Remove ptoken.py and accesstoken.py yum plugins and their configuration
-- - Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
+* Thu May 23 2024 Ming Lu <ming.lu@cloud.com> - 24.15.0-1
+- Rewrite fail function to support format and argument
+- Use fail instead of failwith if possible
+- Compute exe variable just once
+- Fix file descriptor leak in case safe_close_and_exec fails
+- Use /proc/self instead of /proc/%d and pid if possible
+- CP-48195: Instrument client side of `forkexecd`
+- CP-48195: Comment out `warn`.
+- CA-392453: Misc fixes to Java SDK
+- IH-568, fix(dune): avoid "module unavailable" errors when running dune build @check
+- IH-568, fix (dune utop): conflicting module names with compiler libraries
+- IH-568, fix (dune): allow all packages to be pinned
+- tracing: add missing locks on read
+- tracing: replace global ref with Atomic
+- CP-48195: Set `Tracing.observe` default to `false`
+- CP-48969: Reduce amount of logspam created by iostat
+- opam: update dependencies from the code
+- idl: bump datamodel_lifecycle
+- CA-389319: Wait and retry for GET_UPDATES_IN_PROGRESS
+- CA-392163 on start failure, clear a VM's resource allocations
+- CP-48195: Add unit tests for `tracing` library.
+- CP-48195: Remove code duplication.
+- CP-48195: Tracing -- Move `create`\`set`\`destroy`\...
+- API docs in Hugo
+- xenopsd/scripts: Make pygrub wrapper use the libexec path
+- CP-48027: Corosync upgrade add `cluster_stack_version` datamodel change
+- CP-48027: Unittest file change for cluster_interface
+- CP-48027: Add FIST point to allow Corosync2 cluster
+- CP-48027: Add feature flag for corosync3
+- Add option to disable fileserver in XAPI conf
+- CA-392930: Fixed exception handling which prevents the user from reviewing certificates in PS 5.1 and connecting to the server.
+- Added Debug profiles to the Powershell project.
+- Avoids  calling Unix.readlink twice
+- CA-392836,CA-392847: Lost the power state on suspended VM import
+- CP-49029: Instrument `xapi_session.ml`  with tracing
+- CP-49635: Add FIST point for corosync upgrade
+- CP-49429 add IPv6 support for winbind/KDC
+- CP-49429 store KDC in xapi as URI
 
 * Tue Apr 30 2024 Rob Hoes <rob.hoes@citrix.com> - 24.14.0-1
 - CP-46576: Add standard http attributes
