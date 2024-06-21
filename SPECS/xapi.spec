@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.16.0
-Release: 1%{?xsrel}%{?dist}
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -68,12 +68,10 @@ Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1004: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
-# Remove when we get 24.15.0 release
-Patch1005: xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
-# Remove when we get 24.16.0 release
-Patch1006: xapi-24.11.0-sb-state-api.XCP-ng.patch
+# Remove when we get 24.17.0 release
+Patch1005: xapi-24.11.0-sb-state-api.XCP-ng.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5686
-Patch1007: xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
+Patch1006: xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1399,6 +1397,95 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jun 21 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.16.0-1.1
+- Rebase on 24.16.0-1
+- Drop xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
+- Rebase changelog on upstream changelog
+- *** Former XCP-ng 8.3 changelog ***
+- * Wed Jun 19 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.14.0-1.1
+- - Rebase on 24.14.0-1
+- - Drop xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
+- - Drop xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
+- - Drop xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
+- - Drop xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patch
+- - Drop xapi-24.11.0-pci-passthrough.XCP-ng.patch
+- * Fri May 31 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.5
+- - Add xapi-24.11.0-sb-state-api.XCP-ng.patch
+- * Thu May 16 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.4
+- - Add xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
+- * Mon Apr 22 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.11.0-1.3
+- - Add xapi-24.11.0-pci-passthrough.XCP-ng.patch
+- * Thu Apr 18 2024 Damien Thenot <damien.thenot@vates.tech> - 24.11.0-1.2
+- - Add largeblock to sm-plugins in xapi.conf
+- * Wed Apr 03 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.7
+- - Add xapi-23.31.0-use-lib-guess-content-type.XCP-ng.patch
+- * Mon Feb 26 2024 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.31.0-1.6
+- - Add xapi-23.31.0-xapi-service-depends-on-systemd-tmpfiles-setup.patches
+- * Wed Feb 14 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.5
+- - Add xapi-23.31.0-fix-ipv6-get-primary-address.XCP-ng.patch
+- * Wed Feb 14 2024 Yann Dirson <yann.dirson@vates.tech> - 23.31.0-1.4
+- - Rebuild with xs-opam-repo-6.74.0-1.2
+- * Thu Feb 08 2024 Benjamin Reis <benjamin.reis@vates.tech> - 23.31.0-1.3
+- - Add xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
+- * Tue Dec 12 2023 Benjamin Reis <benjamin.reis@vates.tech> - 23.25.0-1.6
+- - Add xapi-23.25.0-extend-uefi-cert-api.patch
+- - Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
+- * Wed Oct 25 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.4
+- - Set override-uefi-certs=true in xapi.conf
+- - Update xapi-23.25.0-update-xapi-conf.XCP-ng.patch
+- * Fri Oct 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.3
+- - Don't require XS's fork of the setup RPM
+- - We chose to revert to CentOS' version, as we don't share XenServer's view
+-  regarding where to do changes to add users and groups, and we don't need
+-  the added users and groups they put there yet.
+- * Thu Oct 05 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.2
+- - Add missing Requires towards nbd
+- * Wed Sep 27 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.25.0-1.1
+- - Update to 23.25.0-1
+- * Wed Sep 20 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.24.0-1.1
+- - Update to 23.24.0-1
+- - Remove patches merged upstream.
+- - Rework xapi-23.24.0-update-xapi-conf.XCP-ng.patch
+- - Rework xapi-23.24.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+- * Mon Aug 28 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.9
+- - Add xapi-23.3.0-Add-vdi_update-filter-to-some-tests.backport.patch
+- * Wed Aug 23 2023 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 23.3.0-1.8
+- - Add xapi-23.3.0-Allow-a-user-to-select-on-which-SR-to-run-quicktest.backport.patch
+- * Mon Jul 31 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.7
+- - Drop `ext4` from `sm-plugins` in `xapi.conf`
+- * Fri Jul 21 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.6
+- - Rebuild for xs-opam-repo-6.66.0-1.2.xcpng8.3
+- - Add xapi-23.3.0-filter-link-local-address-ipv6.XCP-ng.patch
+- * Thu May 04 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.5
+- - Rebuild for blktap-3.53.0-1.xcpng8.3 and sm-3.0.3-1.1.xcpng8.3
+- * Mon Apr 24 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.4
+- - Remove `/etc/xapi.conf.d` files, patch `xapi.conf` instead
+- * Thu Mar 16 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 23.3.0-1.3
+- - Rebuild for xs-opam-repo-6.66.0-1.1
+- * Mon Mar 06 2023 Benjamin Reis <benjamin.reis@vates.fr> - 23.3.0-1.2
+- - Update xapi-23.3.0-update-xapi-conf.XCP-ng.patch to re-enable HTTP (prerequisite for HTTP to HTTPS redirect)
+- * Wed Jan 18 2023 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.34.0-2.1
+- - Update to 22.34.0-2
+- - Drop xapi-22.20.0-redirect-fileserver-https.backport.patch, included in 22.34
+- * Tue Dec 20 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.32.0-1.1
+- - Update to 22.32.0-1
+- * Thu Dec 08 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.31.0-1.1
+- - Rebase on latest XS 8.3 prerelease updates
+- - Drop two patches merged upstream
+- * Thu Dec 01 2022 Benjamin Reis <benjamin.reis@vates.fr> - 22.20.0-1.2
+- - Add xapi-22.20.0-redirect-fileserver-https.backport.patch
+- * Wed Aug 31 2022 Samuel Verschelde <stormi-xcp@ylix.fr> - 22.20.0-1.1
+- - Rebase on CH 8.3 Preview
+- - Remove dependency to non-free packages again
+- - Remove dependency to new non-free package pvsproxy
+- - Remove patches merged upstream
+- - Keep other patches still necessary.
+- - Rediff xapi-22.20.0-fix-quicktest-default-sr-param.backport.patch
+- - Add patch xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch, migrated from retired repo xenopsd
+- - Rediff xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch and adapt paths
+- - Remove ptoken.py and accesstoken.py yum plugins and their configuration
+- - Add xapi-22.20.0-xenospd-dont-run-cancel-utils-test-as-unit-test.backport.patch to fix tests in koji
+
 * Thu Jun 06 2024 Ming Lu <ming.lu@cloud.com> - 24.16.0-1
 - CA-393507: Default cluster_stack value
 
