@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.16.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -138,7 +138,7 @@ Requires: yum-utils >= 1.1.31
 Requires: dnf
 %endif
 Requires: python3-xcp-libs
-Requires: python-pyudev
+Requires: python2-pyudev
 Requires: python3-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -1397,6 +1397,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 05 2024 Samuel Verschelde <stormi-xcp@ylix.fr> - 24.16.0-1.2
+- Require python2-pyudev instead of python-pyudev
+- It's best to require by the actual package name to avoid ambiguities,
+  and we switched from python-pyudev to python2-pyudev in our repos
+
 * Fri Jun 21 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.16.0-1.1
 - Rebase on 24.16.0-1
 - Drop xapi-24.11.0-disable-fileserver-option.XCP-ng.patch
