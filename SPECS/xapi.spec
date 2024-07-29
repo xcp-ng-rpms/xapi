@@ -5,7 +5,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.36
-Release: 1.2%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -30,6 +30,7 @@ Patch1012: xapi-1.249.32-redirect-fileserver-https.backport.patch
 Patch1013: xapi-1.249.32-quicktest-handle-empty-sr-list.backport.patch
 Patch1014: xapi-1.249.32-use-lib-guess-content-type.backport.patch
 Patch1015: xsa459-xen-api.patch
+Patch1016: xapi-1.249.36-only-count-vdis-tested-sr.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -464,6 +465,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Fri Jul 16 2024 Benjamin Reis <benjamin.reis@vates.tech> - 1.249.36-1.3
+- Add xapi-1.249.36-only-count-vdis-tested-sr.backport.patch
+
 * Mon Jul 15 2024 Benjamin Reis <benjamin.reis@vates.tech> - 1.249.36-1.2
 - Add xsa459-xen-api.patch
 
