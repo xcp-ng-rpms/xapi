@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.16.0
-Release: 1.2%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -72,6 +72,8 @@ Patch1004: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 Patch1005: xapi-24.11.0-sb-state-api.XCP-ng.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5686
 Patch1006: xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
+# Upstream PR: https://github.com/xapi-project/xen-api/pull/5918
+Patch1007: xapi-24.16.0-openvswitch-config-update-fix-python2ism-in-python3.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1397,6 +1399,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Aug 07 2024 Yann Dirson <yann.dirson@vates.tech> - 24.16.0-1.3
+- Fix openvswitch-config-update not fully ported to python3
+
 * Fri Jul 05 2024 Samuel Verschelde <stormi-xcp@ylix.fr> - 24.16.0-1.2
 - Require python2-pyudev instead of python-pyudev
 - It's best to require by the actual package name to avoid ambiguities,
