@@ -1,4 +1,4 @@
-%global package_speccommit b233eb3503923aef61d4fc229bc153c29e54f0ff
+%global package_speccommit 5ce6744f9f272b0a8439e154e4f0c9aa267ccbe9
 %global package_srccommit v24.16.0
 
 # This matches the location where xen installs the ocaml libraries
@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.16.0
-Release: 1%{?xsrel}%{?dist}
+Release: 3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -109,7 +109,6 @@ Requires: stunnel >= 5.55
 Requires: vhd-tool
 Requires: libffi
 Requires: busybox
-Requires: m2crypto
 Requires: net-tools
 Requires: vmss
 Requires: python-six
@@ -538,7 +537,6 @@ mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
 echo 0 > %{buildroot}/etc/xenserver/features.d/cluster_health
-echo 0 > %{buildroot}/etc/xenserver/features.d/vm_anti_affinity
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -1364,6 +1362,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Jun 10 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.16.0-3
+- Bump release and rebuild
+- Remove vm_anti_affinity tag and dependency on m2crypto
+
 * Thu Jun 06 2024 Ming Lu <ming.lu@cloud.com> - 24.16.0-1
 - CA-393507: Default cluster_stack value
 
