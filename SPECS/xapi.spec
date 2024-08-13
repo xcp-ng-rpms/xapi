@@ -67,14 +67,9 @@ Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
 Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1004: xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
-# Remove when we get 24.17.0 release
-Patch1005: xapi-24.11.0-sb-state-api.XCP-ng.patch
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/5686
-Patch1006: xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
+Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch 
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5918
-Patch1007: xapi-24.16.0-openvswitch-config-update-fix-python2ism-in-python3.patch
+Patch1004: xapi-24.16.0-openvswitch-config-update-fix-python2ism-in-python3.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -825,7 +820,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_postun xcp-rrdd-xenpm.service
 
 %postun -n xcp-networkd
-
 %systemd_postun xcp-networkd.service
 
 %postun -n message-switch
@@ -1407,9 +1401,12 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Aug 13 2024 Benjamin Reis <benjamin.reis@vates.tech> - WIP - 24.19.2-1.1
+* Tue Aug 13 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.1
 - Rebase on 24.19.2-1
-- *** Former XCP-ng 8.3 changelog ***
+- Drop xapi-24.11.0-sb-state-api.XCP-ng.patch
+- Drop xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
+- Drop xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
+- *** Upstream changelog ***
 - * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
 - - CA-395626: Fix (server status report generation report)
 - * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.1-1
