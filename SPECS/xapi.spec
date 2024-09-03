@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.2%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -71,6 +71,10 @@ Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/5918
 Patch1004: xapi-24.16.0-openvswitch-config-update-fix-python2ism-in-python3.patch
 Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
+# Backport from 24.20
+Patch1006: xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch
+# Fix fingerprints for CA certificates too
+Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1402,6 +1406,12 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Aug 28 2024 Samuel Verschelde <stormi-xcp@ylix.fr> - 24.19.2-1.3
+- Add xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch, backported from XAPI project
+- Add xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch to complement the fix
+- Fixes an issue where new fingerprint fields are not populated, which under
+  some circumstances makes pool join fail.
+
 * Wed Aug 14 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.2
 - Add xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
 
