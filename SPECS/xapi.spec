@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.3%{?xsrel}%{?dist}
+Release: 1.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -75,6 +75,7 @@ Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
 Patch1006: xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch
 # Fix fingerprints for CA certificates too
 Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
+Patch1008: xapi-24.19.2-ipv6-reset-networking.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1406,6 +1407,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Sep 18 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.4
+- Add xapi-24.19.2-ipv6-reset-networking.XCP-ng.patch
+
 * Wed Aug 28 2024 Samuel Verschelde <stormi-xcp@ylix.fr> - 24.19.2-1.3
 - Add xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch, backported from XAPI project
 - Add xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch to complement the fix
