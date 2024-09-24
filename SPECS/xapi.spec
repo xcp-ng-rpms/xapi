@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.5%{?xsrel}%{?dist}
+Release: 1.6%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -77,6 +77,7 @@ Patch1006: xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.pat
 Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
 Patch1008: xapi-24.19.2-ipv6-reset-networking.XCP-ng.patch
 Patch1009: xapi-24.19.2-keep-address-type-network-reset.XCP-ng.patch
+Patch1010: xapi-24.19.2-keep-ipv6-management-disable.XCP-ng.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1408,6 +1409,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Sep 24 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.6
+- Add xapi-24.19.2-keep-ipv6-management-disable.XCP-ng.patch
+
 * Fri Sep 20 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.5
 - Add xapi-24.19.2-keep-address-type-network-reset.XCP-ng.patch
 
