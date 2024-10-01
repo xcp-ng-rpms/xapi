@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.7%{?xsrel}%{?dist}
+Release: 1.8%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -80,6 +80,7 @@ Patch1008: xapi-24.19.2-ipv6-reset-networking.XCP-ng.patch
 Patch1009: xapi-24.19.2-keep-address-type-network-reset.XCP-ng.patch
 Patch1010: xapi-24.19.2-keep-ipv6-management-disable.XCP-ng.patch
 Patch1011: xapi-24.19.2-ipv6-pool-eject.XCP-ng.patch
+Patch1012: xapi-24.19.2-ipv6-virtual-pif.XCP-ng.patch.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1411,6 +1412,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Oct 01 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.8
+- Add xapi-24.19.2-ipv6-virtual-pif.XCP-ng.patch
+
 * Tue Sep 24 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.7
 - Add xapi-24.19.2-ipv6-pool-eject.XCP-ng.patch
 
