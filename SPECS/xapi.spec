@@ -1,15 +1,17 @@
-%global package_speccommit 00da470e0adcf10bb7e9a118e098672766dbf4f6
-%global package_srccommit v1.249.36
+%global package_speccommit de5edecdf88cb9c615c48fedc3ad826ce85dc106
+%{!?xsrel: %global xsrel 1}
+%global package_srccommit v1.249.38
+
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.36
-Release: 1%{?xsrel}%{?dist}
+Version: 1.249.38
+Release: %{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-1.249.36.tar.gz
+Source0: xen-api-1.249.38.tar.gz
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -432,6 +434,34 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Aug 29 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.38-1
+- CA-390277: Stop using host records on CLI cross-pool migrations
+- CP-49228: Updates to Portable SR Functionality
+- CA-393578: Fix vbd cleanup in metadata scripts
+- update-ca-bundle: really avoid failure on missing directory
+- CA-394169: Allow task to have permissions on itself
+- CA-394169: Allow task to have permissions on itself - backport
+- CA-394444: Update task cancellation in `message_forwarding.ml`
+- CA-394444: Update `vm_operation_table`
+- CA-395174: Try to unarchive VM's metrics when they aren't running
+- CA-395174: Try to unarchive VM's metrics when they aren't running
+- CA-395174: rrdd_proxy: Change *_at to specify the IP address
+- CA-395174: rrdd_proxy: Use Option to encode where VMs might be available at
+- CA-386552 XSI-1534 Failed to disable pool HA after missing HA statefile
+- XSI-1706/CP-51295: limit open TCP connections to 250 and increase socket backlog
+
+* Wed Jun 19 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.37-1
+- Quicktest_vm_lifecycle: use requested SR not default SR
+- CP-46179 create backup VDI with determinstic UUID
+- CP-46179 update metadata backup/restore to use deterministic UUID
+- CP-46179 improve quoting in shell code
+- CP-46179 use -y (yes) flag to facilitate scripting
+- ci: remove warnings about outdated node versions
+- CA-392163 clear scheduled assignments on startup
+- CA-392163 on start failure, clear a VM's resource allocations
+- CA-392163 - backport adjustments
+- CA-393199: Disable external auth should clean pbis cache
+
 * Wed Mar 13 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.36-1
 - CA-389496: Avoid configuration conflicts for rotating xapi logs
 
