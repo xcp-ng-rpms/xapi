@@ -1460,6 +1460,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.2
+- Test rebuild for v9
+
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
   * Tue Sep 02 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.30.0-1
