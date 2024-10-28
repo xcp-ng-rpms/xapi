@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.24.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.1.0.ydi.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1428,7 +1428,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1
+* Wed Aug 20 2025 Yann Dirson <yann.dirson@vates.tech> - 25.24.0-1.1.0.ydi.1
+- Test rebuild for v9
+
+* Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
 - Rename 0005-xcp-ng-fix-IPv6-import.patch to 0003-xcp-ng-fix-IPv6-import.patch
 - Rename 0006-xcp-ng-open-close-openflow-port.patch to 0004-xcp-ng-open-close-openflow-port.patch
