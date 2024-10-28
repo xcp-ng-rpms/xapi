@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.9%{?xsrel}%{?dist}
+Release: 1.9.0.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1414,6 +1414,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Oct 23 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.1
+- Test rebuild for v9
+
 * Thu Oct 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.9
 - Add xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
 
