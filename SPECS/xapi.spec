@@ -157,7 +157,9 @@ Requires: libdnf5-plugin-xapitoken
 Requires: dnf5-plugins
 %endif
 Requires: python3-xcp-libs
+%if 0%{?build_python2}
 Requires: python2-pyudev
+%endif
 Requires: python3-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -1430,6 +1432,7 @@ Coverage files from unit tests
 %changelog
 * Wed Aug 20 2025 Yann Dirson <yann.dirson@vates.tech> - 25.24.0-1.1.0.ydi.1
 - Test rebuild for v9
+- Do not require python2-udev on v9+
 
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
