@@ -167,7 +167,9 @@ Requires: dnf5-plugins
 Requires: dmv-utils
 %endif
 Requires: python3-xcp-libs
+%if 0%{?build_python2}
 Requires: python2-pyudev
+%endif
 Requires: python3-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -1478,6 +1480,7 @@ Coverage files from unit tests
 %changelog
 * Mon Dec 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.33.1-2.1.0.ydi.1
 - Rebuild for v9
+- Do not require python2-udev on v9+
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
