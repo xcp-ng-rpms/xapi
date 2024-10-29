@@ -178,7 +178,9 @@ Requires: dnf5-plugins
 Requires: dmv-utils
 %endif
 Requires: python3-xcp-libs
+%if %{with python2_compat}
 Requires: python2-pyudev
+%endif
 Requires: python3-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -1507,6 +1509,7 @@ Coverage files from unit tests
 %changelog
 * Tue Mar 24 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
 - Sync packaging with XS9
+- Do not require python2-udev on v9+
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
