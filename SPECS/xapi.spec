@@ -63,7 +63,7 @@ Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 # Enables our additional sm drivers
 Patch1000: xapi-24.11.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
-Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
+Patch1001: xenopsd-24.19.2-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
 Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
@@ -1414,8 +1414,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Mon Oct 23 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.1
+* Tue Oct 29 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.1
 - Test rebuild for v9
+- refresh use-xcp-clipboardd.XCP-ng.patch
 
 * Thu Oct 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.9
 - Add xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
