@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.9.0.1%{?xsrel}%{?dist}
+Release: 1.9.0.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -148,7 +148,9 @@ Requires: yum-utils >= 1.1.31
 Requires: dnf
 %endif
 Requires: python3-xcp-libs
+%if 0%{?build_python2}
 Requires: python2-pyudev
+%endif
 Requires: python3-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -1417,9 +1419,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Oct 29 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.1
+* Tue Oct 29 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.2
 - Test rebuild for v9
 - refresh use-xcp-clipboardd.XCP-ng.patch
+- Do not require python2-udev on v9+
 - TEMP HACK: disable ocaml/libs/vhd/vhd_format_lwt_test
 
 * Thu Oct 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.9
