@@ -1,0 +1,38 @@
+From 801dd96cdbcdf0f1fc412859aed46005040b0c57 Mon Sep 17 00:00:00 2001
+From: Thierry Escande <thierry.escande@vates.tech>
+Date: Fri, 8 Nov 2024 16:27:26 +0100
+Subject: [PATCH] Increase wait-init-complete timeout
+Content-Type: text/plain; charset = "utf-8"
+Content-Transfert-Encoding: 8bit
+
+When a host starts, the systemd service xapi-wait-init-complete waiting
+on the creation of the xapi init cookie file may fail on timeout for a
+matter of seconds. This patch adds 1 minute (300 seconds total) to the
+timeout passed to the script xapi-wait-init-complete.
+
+Signed-off-by: Thierry Escande <thierry.escande@vates.tech>
+---
+
+XCP-ng notes:
+Upstream commit 801dd96cd
+Modified to apply on top of xapi-1.249.38
+
+ scripts/xapi-wait-init-complete.service | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/scripts/xapi-wait-init-complete.service b/scripts/xapi-wait-init-complete.service
+index 737daad..bbc7780 100644
+--- a/scripts/xapi-wait-init-complete.service
++++ b/scripts/xapi-wait-init-complete.service
+@@ -6,7 +6,7 @@ Before=xapi-init-complete.target
+ 
+ [Service]
+ Type=oneshot
+-ExecStart=@BINDIR@/xapi-wait-init-complete 240
++ExecStart=@BINDIR@/xapi-wait-init-complete 300
+ RemainAfterExit=yes
+ 
+ [Install]
+-- 
+2.45.2
+

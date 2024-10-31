@@ -7,7 +7,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.38
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -32,6 +32,7 @@ Patch1012: xapi-1.249.32-redirect-fileserver-https.backport.patch
 Patch1013: xapi-1.249.32-quicktest-handle-empty-sr-list.backport.patch
 Patch1014: xapi-1.249.32-use-lib-guess-content-type.backport.patch
 Patch1015: xapi-1.249.36-only-count-vdis-tested-sr.backport.patch
+Patch1016: xapi-1.249.38-increase-wait-init-complete-timeout.backport.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -466,6 +467,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Dec 11 2024 Thierry Escande <thierry.escande@vates.tech> - 1.249.38-1.2
+- Add upstream patch to increase xapi-wait-init-complete service timeout
+
 * Thu Oct 24 2024 Gael Duperrey <gduperrey@vates.tech> - 1.249.38-1.1
 - Sync with hotfix XS82ECU1074
 - Removed xsa459-xen-api as it was integrated upstream.
