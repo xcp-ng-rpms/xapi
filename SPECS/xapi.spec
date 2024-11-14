@@ -128,6 +128,12 @@ Group: System/Hypervisor
 %if 0%{?coverage:1}
 Requires:       %{name}-cov = %{version}-%{release}
 %endif
+Requires: xen-hypervisor
+Requires: xenopsd-xc
+Requires: xapi-xe
+Requires: squeezed
+Requires: xcp-featured
+Requires: initscripts
 Requires: hwdata
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
@@ -306,6 +312,7 @@ Simple VM manager for the xapi toolstack.
 Summary:        Xenopsd using xc
 Requires:       xenopsd = %{version}-%{release}
 Requires:       forkexecd
+Requires:       xcp-networkd
 Requires:       xen-libs
 Requires:       emu-manager
 # NVME support requires newer qemu
@@ -400,6 +407,7 @@ Requires: libnl3
 # Requires: pvsproxy
 Requires: bridge-utils
 Requires: dhclient
+Requires: openvswitch
 
 %description -n xcp-networkd
 Simple host networking management service for the xapi toolstack.
@@ -436,6 +444,8 @@ Summary:        A subprocess management service
 BuildRequires:  xs-opam-repo
 BuildRequires:  systemd-devel
 Requires:       jemalloc
+Requires: dmidecode
+Requires: kpatch
 %{?systemd_requires}
 Obsoletes:      xapi-forkexecd <= 1.31.0-2
 
@@ -1465,6 +1475,7 @@ Coverage files from unit tests
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.2
 - Test rebuild for v9
 - Do not require python2-udev on v9+
+- list identified missing Requires
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
