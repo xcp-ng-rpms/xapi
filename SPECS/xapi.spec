@@ -143,6 +143,7 @@ Group: System/Hypervisor
 %if 0%{?coverage:1}
 Requires:       %{name}-cov = %{version}-%{release}
 %endif
+Requires: xen-hypervisor
 Requires: xenopsd-xc
 Requires: xapi-xe
 Requires: squeezed
