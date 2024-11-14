@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.9.0.3%{?xsrel}%{?dist}
+Release: 1.9.0.9%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -84,7 +84,8 @@ Patch1012: xapi-24.19.2-ipv6-virtual-pif.XCP-ng.patch.patch
 # To remove once https://github.com/xapi-project/xen-api/pull/6006 is released
 Patch1013: xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
 
-Patch2000: ydi-debug.patch
+Patch1999: ydi-update_env_end.patch
+#Patch2000: ydi-debug6.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1431,14 +1432,12 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Nov 13 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.3
-- debug domain0 init
-
-* Tue Oct 29 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.2
+* Tue Oct 29 2024 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.9.0.9
 - Test rebuild for v9
 - refresh use-xcp-clipboardd.XCP-ng.patch
 - Do not require python2-udev on v9+
 - list identified missing Requires
+- log end of dbsync update_env
 - TEMP HACK: disable ocaml/libs/vhd/vhd_format_lwt_test
 
 * Thu Oct 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.9

@@ -1,0 +1,14 @@
+only in patch2:
+unchanged:
+--- a/ocaml/xapi/dbsync.ml
++++ b/ocaml/xapi/dbsync.ml
+@@ -70,7 +70,8 @@ let update_env ~__context =
+          	  been set on the pool record before we run it [otherwise we
+          	  try and sync config files from the old master if someone's
+          	  done a pool.designate_new_master!] *)
+-      if not (Pool_role.is_master ()) then resync_dom0_config_files ()
++      if not (Pool_role.is_master ()) then resync_dom0_config_files ();
++      debug "update_env finished"
+   )
+ 
+ let setup ~__context =
