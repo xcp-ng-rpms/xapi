@@ -145,6 +145,12 @@ Group: System/Hypervisor
 %if 0%{?coverage:1}
 Requires:       %{name}-cov = %{version}-%{release}
 %endif
+Requires: xen-hypervisor
+Requires: xenopsd-xc
+Requires: xapi-xe
+Requires: squeezed
+Requires: xcp-featured
+Requires: initscripts
 Requires: hwdata
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
@@ -157,6 +163,8 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
+# Requires c_rehash from openssl-perl
+Requires: openssl-perl
 # XCP-ng: hcp_nss was renamed to nss-override-id. We don't use it at the moment.
 #Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
@@ -328,6 +336,7 @@ Simple VM manager for the xapi toolstack.
 Summary:        Xenopsd using xc
 Requires:       xenopsd = %{version}-%{release}
 Requires:       forkexecd
+Requires:       xcp-networkd
 Requires:       xen-libs
 Requires:       emu-manager
 # NVME support requires newer qemu
@@ -396,6 +405,7 @@ developing applications that use xcp-rrdd.
 %package -n rrdd-plugins
 Summary:   RRDD metrics plugin
 Requires:  jemalloc
+Requires:  sysstat
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
 # Requires Xen support for querying domain VCPU runnable and nonaffine running time
@@ -428,6 +438,7 @@ Requires: libnl3
 # Requires: pvsproxy
 Requires: bridge-utils
 Requires: dhclient
+Requires: openvswitch
 
 %description -n xcp-networkd
 Simple host networking management service for the xapi toolstack.
@@ -464,6 +475,8 @@ Summary:        A subprocess management service
 BuildRequires:  xs-opam-repo
 BuildRequires:  systemd-devel
 Requires:       jemalloc
+Requires:       dmidecode
+Requires:       kpatch
 %{?systemd_requires}
 Obsoletes:      xapi-forkexecd <= 1.31.0-2
 
@@ -1510,6 +1523,7 @@ Coverage files from unit tests
 * Tue Mar 24 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
 - Sync packaging with XS9
 - Do not require python2-udev on v9+
+- Add some missing Requires
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
