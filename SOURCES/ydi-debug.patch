@@ -1,0 +1,49 @@
+diff --git a/ocaml/xapi/create_misc.ml b/ocaml/xapi/create_misc.ml
+index 1b6e26ab8..1dfce727d 100644
+--- a/ocaml/xapi/create_misc.ml
++++ b/ocaml/xapi/create_misc.ml
+@@ -195,10 +195,13 @@ and ensure_domain_zero_record ~__context (host_info : host_info) : [`VM] Ref.t =
+   let domain_zero_ref, found =
+     try (ref_lookup (), true) with _ -> (ref_create (), false)
+   in
+-  if found then
+-    update_domain_zero_record ~__context ~domain_zero_ref host_info
+-  else
++  if found then (
++    debug "ensure_domain_zero_record: running update_domain_zero_record";
++    update_domain_zero_record ~__context ~domain_zero_ref host_info;
++  ) else (
++    debug "ensure_domain_zero_record: running create_domain_zero_record";
+     create_domain_zero_record ~__context ~domain_zero_ref host_info ;
++  );
+   domain_zero_ref
+ 
+ and ensure_domain_zero_console_record ~__context ~domain_zero_ref : unit =
+@@ -248,6 +251,7 @@ and ensure_domain_zero_metrics_record ~__context ~domain_zero_ref
+ 
+ and create_domain_zero_record ~__context ~domain_zero_ref (host_info : host_info)
+     : unit =
++  debug "create_domain_zero_record";
+   (* Determine domain 0 memory constraints. *)
+   let memory = create_domain_zero_memory_constraints host_info in
+   (* Determine information about the host machine. *)
+@@ -261,6 +265,7 @@ and create_domain_zero_record ~__context ~domain_zero_ref (host_info : host_info
+   let vcpus = count_cpus () in
+   let metrics = Ref.make () in
+   (* Now create the database record. *)
++  debug "create_domain_zero_record calling Db.VM.create";
+   Db.VM.create ~__context ~ref:domain_zero_ref
+     ~name_label:("Control domain on host: " ^ host_info.hostname)
+     ~uuid
+@@ -294,8 +299,11 @@ and create_domain_zero_record ~__context ~domain_zero_ref (host_info : host_info
+     ~domain_type:Xapi_globs.domain_zero_domain_type ~nVRAM:[]
+     ~pending_guidances:[] ~recommended_guidances:[]
+     ~pending_guidances_recommended:[] ~pending_guidances_full:[] ;
++  debug "create_domain_zero_record Db.VM.create called";
+   ensure_domain_zero_metrics_record ~__context ~domain_zero_ref host_info ;
++  debug "create_domain_zero_record ensure_domain_zero_metrics_record called";
+   Db.Host.set_control_domain ~__context ~self:localhost ~value:domain_zero_ref ;
++  debug "create_domain_zero_record set_control_domain called";
+   Xapi_vm_helpers.update_memory_overhead ~__context ~vm:domain_zero_ref
+ 
+ and create_domain_zero_console_record_with_protocol ~__context ~domain_zero_ref

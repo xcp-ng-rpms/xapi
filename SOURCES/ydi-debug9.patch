@@ -1,0 +1,301 @@
+diff --git a/ocaml/xapi/create_misc.ml b/ocaml/xapi/create_misc.ml
+index 1b6e26ab8..6998cc332 100644
+--- a/ocaml/xapi/create_misc.ml
++++ b/ocaml/xapi/create_misc.ml
+@@ -115,13 +115,19 @@ let count_cpus () =
+   Unixext.file_lines_fold count 0 cpuinfo
+ 
+ let read_localhost_info ~__context =
++  debug "read_localhost_info: open Xapi_xenops_queue";
+   let open Xapi_xenops_queue in
++  debug "read_localhost_info: make_client (default_xenopsd ())";
+   let module Client = (val make_client (default_xenopsd ()) : XENOPS) in
++  debug "read_localhost_info: Context.string_of_task __context";
+   let dbg = Context.string_of_task __context in
++  debug "read_localhost_info: Client.HOST.stat dbg";
+   let stat = try Some (Client.HOST.stat dbg) with _ -> None in
++  debug "read_localhost_info: get_total_memory_mib dbg";
+   let total_memory_mib =
+     try Some (Client.HOST.get_total_memory_mib dbg) with _ -> None
+   in
++  debug "read_localhost_info: linux_verstring";
+   let linux_verstring =
+     let verstring = ref "" in
+     let f line =
+@@ -130,13 +136,19 @@ let read_localhost_info ~__context =
+     Unixext.readfile_line f "/proc/version" ;
+     !verstring
+   in
++  debug "read_localhost_info: get_localhost_uuid";
+   let me = Helpers.get_localhost_uuid () in
+   let lookup_inventory_nofail k =
++    debug "read_localhost_info::lookup_inventory_nofail(%s)" k;
+     try Some (Xapi_inventory.lookup k) with _ -> None
+   in
++  debug "read_localhost_info: get_hostname";
+   let this_host_name = Networking_info.get_hostname () in
++  debug "read_localhost_info:  open Xapi_inventory";
+   let open Xapi_inventory in
++  debug "read_localhost_info: open Xenops_interface.Host";
+   let open Xenops_interface.Host in
++  debug "read_localhost_info: building info";
+   {
+     name_label= this_host_name
+   ; xen_verstring= Option.map (fun s -> s.hypervisor.version) stat
+@@ -195,10 +207,13 @@ and ensure_domain_zero_record ~__context (host_info : host_info) : [`VM] Ref.t =
+   let domain_zero_ref, found =
+     try (ref_lookup (), true) with _ -> (ref_create (), false)
+   in
+-  if found then
+-    update_domain_zero_record ~__context ~domain_zero_ref host_info
+-  else
++  if found then (
++    debug "ensure_domain_zero_record: running update_domain_zero_record";
++    update_domain_zero_record ~__context ~domain_zero_ref host_info;
++  ) else (
++    debug "ensure_domain_zero_record: running create_domain_zero_record";
+     create_domain_zero_record ~__context ~domain_zero_ref host_info ;
++  );
+   domain_zero_ref
+ 
+ and ensure_domain_zero_console_record ~__context ~domain_zero_ref : unit =
+@@ -248,19 +263,21 @@ and ensure_domain_zero_metrics_record ~__context ~domain_zero_ref
+ 
+ and create_domain_zero_record ~__context ~domain_zero_ref (host_info : host_info)
+     : unit =
+-  (* Determine domain 0 memory constraints. *)
++  debug "create_domain_zero_record: determine domain 0 memory constraints...";
+   let memory = create_domain_zero_memory_constraints host_info in
+-  (* Determine information about the host machine. *)
++  debug "create_domain_zero_record: determine information about the host machine...";
+   let domarch =
+     let i = Int64.of_nativeint (Int64.to_nativeint 0xffffffffL) in
+     if i > 0L then "x64" else "x32"
+   in
+   let localhost = Helpers.get_localhost ~__context in
+-  (* Read the control domain uuid from the inventory file *)
++  debug "create_domain_zero_record: Read the control domain uuid from the inventory file...";
+   let uuid = host_info.dom0_uuid in
++  debug "create_domain_zero_record: Count cpus...";
+   let vcpus = count_cpus () in
+   let metrics = Ref.make () in
+   (* Now create the database record. *)
++  debug "create_domain_zero_record: call Db.VM.create";
+   Db.VM.create ~__context ~ref:domain_zero_ref
+     ~name_label:("Control domain on host: " ^ host_info.hostname)
+     ~uuid
+@@ -294,8 +311,11 @@ and create_domain_zero_record ~__context ~domain_zero_ref (host_info : host_info
+     ~domain_type:Xapi_globs.domain_zero_domain_type ~nVRAM:[]
+     ~pending_guidances:[] ~recommended_guidances:[]
+     ~pending_guidances_recommended:[] ~pending_guidances_full:[] ;
++  debug "create_domain_zero_record Db.VM.create called";
+   ensure_domain_zero_metrics_record ~__context ~domain_zero_ref host_info ;
++  debug "create_domain_zero_record ensure_domain_zero_metrics_record called";
+   Db.Host.set_control_domain ~__context ~self:localhost ~value:domain_zero_ref ;
++  debug "create_domain_zero_record set_control_domain called";
+   Xapi_vm_helpers.update_memory_overhead ~__context ~vm:domain_zero_ref
+ 
+ and create_domain_zero_console_record_with_protocol ~__context ~domain_zero_ref
+@@ -554,10 +574,15 @@ let make_software_version ~__context host_info =
+   @ make_packs_info ()
+ 
+ let create_software_version ~__context ?(info = None) () =
++  debug "create_software_version 0";
+   let host_info = Option.value ~default:(read_localhost_info ~__context) info in
++  debug "create_software_version 1";
+   let software_version = make_software_version ~__context host_info in
++  debug "create_software_version 2";
+   let host = Helpers.get_localhost ~__context in
+-  Db.Host.set_software_version ~__context ~self:host ~value:software_version
++  debug "create_software_version 3";
++  Db.Host.set_software_version ~__context ~self:host ~value:software_version;
++  debug "create_software_version 4"
+ 
+ let create_host_cpu ~__context host_info =
+   let open Cpuid_helpers in
+@@ -727,6 +752,7 @@ let create_pool_cpuinfo ~__context =
+       (CPU_policy.to_string after)
+ 
+ let create_chipset_info ~__context host_info =
++  debug "create_chipset_info";
+   match host_info.chipset_info with
+   | None ->
+       warn "Failed to get host chipset info; not updating database"
+diff --git a/ocaml/xapi/dbsync.ml b/ocaml/xapi/dbsync.ml
+index 8045c0557..c7f8c827d 100644
+--- a/ocaml/xapi/dbsync.ml
++++ b/ocaml/xapi/dbsync.ml
+@@ -32,6 +32,7 @@ let resync_dom0_config_files () =
+     in Miami resulted in these not being created by default. We recreate them here for compatability.
+     Note that from MidnightRide onwards the metrics will always exist and we can delete this code. *)
+ let create_host_metrics ~__context =
++  debug "create_host_metrics";
+   List.iter
+     (fun self ->
+       let m = Db.Host.get_metrics ~__context ~self in
+@@ -54,6 +55,7 @@ let update_env ~__context =
+       let other_config =
+         match Db.Pool.get_all ~__context with
+         | [pool] ->
++           debug "getting other_config from Pool";
+             Db.Pool.get_other_config ~__context ~self:pool
+         | [] ->
+             (* Happens before the pool object has been created *)
+@@ -62,6 +64,8 @@ let update_env ~__context =
+             error "Multiple pool objects detected -- this should never happen" ;
+             []
+       in
++      (* debug "other_config: %s" other_config; *)
++      debug "got other_config";
+       if Pool_role.is_master () then create_host_metrics ~__context ;
+       Dbsync_slave.update_env __context other_config ;
+       if Pool_role.is_master () then Dbsync_master.update_env __context ;
+diff --git a/ocaml/xapi/dbsync_slave.ml b/ocaml/xapi/dbsync_slave.ml
+index 84af29bbf..9489575f1 100644
+--- a/ocaml/xapi/dbsync_slave.ml
++++ b/ocaml/xapi/dbsync_slave.ml
+@@ -88,14 +88,20 @@ let refresh_localhost_info ~__context info =
+   (* Xapi_ha_flags.resync_host_armed_flag __context host; *)
+   debug "Updating host software_version and updates_requiring_reboot" ;
+   Create_misc.create_updates_requiring_reboot_info ~__context ~host ;
++  debug "refresh_localhost_info 1";
+   Create_misc.create_software_version ~__context ~info:(Some info) () ;
++  debug "refresh_localhost_info 2";
+   Db.Host.set_API_version_major ~__context ~self:host
+     ~value:Datamodel_common.api_version_major ;
++  debug "refresh_localhost_info 3";
+   Db.Host.set_API_version_minor ~__context ~self:host
+     ~value:Datamodel_common.api_version_minor ;
++  debug "refresh_localhost_info 4";
+   Db.Host.set_virtual_hardware_platform_versions ~__context ~self:host
+     ~value:Xapi_globs.host_virtual_hardware_platform_versions ;
++  debug "refresh_localhost_info 5";
+   Db.Host.set_hostname ~__context ~self:host ~value:info.hostname ;
++  debug "refresh_localhost_info 6";
+   let caps =
+     match info.hypervisor with
+     | None ->
+@@ -103,13 +109,18 @@ let refresh_localhost_info ~__context info =
+     | Some {capabilities; _} ->
+         String.split ' ' capabilities
+   in
++  debug "refresh_localhost_info 7";
+   Db.Host.set_capabilities ~__context ~self:host ~value:caps ;
++  debug "refresh_localhost_info 8";
+   Db.Host.set_address ~__context ~self:host ~value:(get_my_ip_addr ~__context) ;
++  debug "refresh_localhost_info 9";
+   let boot_time_key = "boot_time" in
+   let boot_time_value = string_of_float (Date.to_float (get_start_time ())) in
+   Db.Host.remove_from_other_config ~__context ~self:host ~key:boot_time_key ;
++  debug "refresh_localhost_info 10";
+   Db.Host.add_to_other_config ~__context ~self:host ~key:boot_time_key
+     ~value:boot_time_value ;
++  debug "refresh_localhost_info 11";
+   let agent_start_key = "agent_start_time" in
+   let agent_start_time = string_of_float (Unix.time ()) in
+   Db.Host.remove_from_other_config ~__context ~self:host ~key:agent_start_key ;
+@@ -250,6 +261,7 @@ let remove_pending_guidances ~__context =
+ (** Update the database to reflect current state. Called for both start of day and after
+     an agent restart. *)
+ let update_env __context sync_keys =
++  debug "slave update_env";
+   (* Helper function to allow us to switch off particular types of syncing *)
+   let switched_sync key f =
+     let task_id = Context.get_task_id __context in
+@@ -269,14 +281,14 @@ let update_env __context sync_keys =
+     Db.Task.remove_from_other_config ~__context ~self:task_id
+       ~key:"sync_operation"
+   in
+-  (* Ensure basic records exist: *)
++  debug "update_env: Ensure basic records exist";
+   let info = Create_misc.read_localhost_info ~__context in
+-  (* create localhost record if doesn't already exist *)
++  debug "update_env: create localhost record if doesn't already exist";
+   switched_sync Xapi_globs.sync_create_localhost (fun () ->
+       debug "creating localhost" ;
+       create_localhost ~__context info
+   ) ;
+-  (* record who we are in xapi_globs *)
++  debug "update_env: record who we are in xapi_globs";
+   let localhost = Helpers.get_localhost_uncached ~__context in
+   Xapi_globs.localhost_ref := localhost ;
+   (* Normally the resident_on field would be set by the helper which creates
+diff --git a/ocaml/xapi/memory_check.ml b/ocaml/xapi/memory_check.ml
+index 4d537aec2..4235b0f72 100644
+--- a/ocaml/xapi/memory_check.ml
++++ b/ocaml/xapi/memory_check.ml
+@@ -136,12 +136,15 @@ let get_host_memory_summary ~__context ~host =
+   let host_memory_total_bytes =
+     Db.Host_metrics.get_memory_total ~__context ~self:metrics
+   in
++  debug "get_host_memory_summary: host_memory_total_bytes=%Ld" host_memory_total_bytes;
+   let host_memory_overhead_bytes =
+     Db.Host.get_memory_overhead ~__context ~self:host
+   in
++  debug "get_host_memory_summary: host_memory_overhead_bytes=%Ld" host_memory_overhead_bytes;
+   let host_maximum_guest_memory_bytes =
+     host_memory_total_bytes --- host_memory_overhead_bytes
+   in
++  debug "get_host_memory_summary: host_maximum_guest_memory_bytes=%Ld" host_maximum_guest_memory_bytes;
+   let resident =
+     Db.VM.get_refs_where ~__context
+       ~expr:(Eq (Field "resident_on", Literal (Ref.string_of host)))
+diff --git a/ocaml/xapi/storage_access.ml b/ocaml/xapi/storage_access.ml
+index 02e5545d1..6eeb273ac 100644
+--- a/ocaml/xapi/storage_access.ml
++++ b/ocaml/xapi/storage_access.ml
+@@ -693,6 +693,7 @@ let resynchronise_pbds ~__context ~pbds =
+    and must be synchronised against the state of the world. Therefore we must synchronise the
+    xapi view with the storage_impl view here. *)
+ let refresh_local_vdi_activations ~__context =
++  debug "refresh_local_vdi_activations";
+   let all_vdi_recs = Db.VDI.get_all_records ~__context in
+   let localhost = Helpers.get_localhost ~__context in
+   let all_hosts = Db.Host.get_all ~__context in
+@@ -767,7 +768,7 @@ let refresh_local_vdi_activations ~__context =
+       )
+       (Db.SR.get_all ~__context)
+   in
+-  List.iter
++  let res = List.iter
+     (fun (vdi_ref, vdi_rec) ->
+       let sr = List.assoc vdi_rec.API.vDI_SR sr_uuids in
+       let vdi = Storage_interface.Vdi.of_string vdi_rec.API.vDI_location in
+@@ -796,6 +797,10 @@ let refresh_local_vdi_activations ~__context =
+         unlock_vdi (vdi_ref, vdi_rec)
+     )
+     all_vdi_recs
++  in
++  debug "refresh_local_vdi_activations done";
++  res
++
+ 
+ (* This is a symptom of the ordering-sensitivity of the SM backend: it is not possible
+    to upgrade RO -> RW or downgrade RW -> RO on the fly.
+diff --git a/ocaml/xapi/xapi_pgpu.ml b/ocaml/xapi/xapi_pgpu.ml
+index a8ce14d73..168fc0657 100644
+--- a/ocaml/xapi/xapi_pgpu.ml
++++ b/ocaml/xapi/xapi_pgpu.ml
+@@ -120,6 +120,7 @@ let is_local_pgpu ~__context (_, pci_rec) =
+ 
+ (* Makes DB match reality for pgpus on local host *)
+ let update_gpus ~__context =
++  debug "update_gpus";
+   let host = Helpers.get_localhost ~__context in
+   let system_display_device = Xapi_pci.get_system_display_device () in
+   let existing_pgpus =
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index c715303b8..03b011b8f 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -585,8 +585,8 @@ let assert_host_supports_hvm ~__context ~self ~host =
+ 
+ let assert_enough_memory_available ~__context ~self ~host ~snapshot =
+   let host_mem_available =
+-    Memory_check.host_compute_free_memory_with_maximum_compression ~__context
+-      ~host (Some self)
++    Memory_check.host_compute_free_memory_with_maximum_compression ~dump_stats:true
++      ~__context ~host (Some self)
+   in
+   let policy =
+     match Helpers.check_domain_type snapshot.API.vM_domain_type with
