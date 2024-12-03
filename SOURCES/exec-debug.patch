@@ -1,0 +1,12 @@
+diff --git a/ocaml/forkexecd/lib/forkhelpers.ml b/ocaml/forkexecd/lib/forkhelpers.ml
+index 7b7fc0b22..8bae40307 100644
+--- a/ocaml/forkexecd/lib/forkhelpers.ml
++++ b/ocaml/forkexecd/lib/forkhelpers.ml
+@@ -202,6 +202,7 @@ let safe_close_and_exec ?tracing ?env stdin stdout stderr
+   let close_fds () = List.iter (fun fd -> Unix.close fd) !fds_to_close in
+ 
+   add_fd_to_close_list sock ;
++  D.debug "exec %s %s" cmd (String.concat " " args);
+ 
+   finally
+     (fun () ->
