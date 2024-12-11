@@ -70,22 +70,11 @@ Patch1001: xenopsd-24.19.2-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
 Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/5918
-Patch1004: xapi-24.16.0-openvswitch-config-update-fix-python2ism-in-python3.patch
+Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+# ?
 Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
-# Backport from 24.20
-Patch1006: xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch
 # Fix fingerprints for CA certificates too
 Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
-# To remove with v24.31.0
-Patch1008: xapi-24.19.2-ipv6-reset-networking.XCP-ng.patch
-Patch1009: xapi-24.19.2-keep-address-type-network-reset.XCP-ng.patch
-Patch1010: xapi-24.19.2-keep-ipv6-management-disable.XCP-ng.patch
-Patch1011: xapi-24.19.2-ipv6-pool-eject.XCP-ng.patch
-Patch1012: xapi-24.19.2-ipv6-virtual-pif.XCP-ng.patch.patch
-# To remove once https://github.com/xapi-project/xen-api/pull/6006 is released
-Patch1013: xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
 # HACK find instead why that test is failing
 Patch1014: 0001-Disable-test_select-which-needs-losetup.patch
 
