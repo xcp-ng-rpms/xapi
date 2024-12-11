@@ -1,33 +1,30 @@
-%global package_speccommit f774e74d8c4a94a8975da19de71571b91bf41eee
-%global package_srccommit v24.22.0
+%global package_speccommit 54556d9060853617809a16e443e35467099aa81b
+%global package_srccommit v24.27.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
+%global _pythonpath %{_usr}/bin/python3
 
 %global yum_dir %{_sysconfdir}/yum.repos.d
 
-%if 0%{?xenserver} < 9
-%global build_python2 1
-%global include_pyc_pyo 1
+%if 0%{?xenserver} >= 9
+# In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
+%bcond_without dnf_plugin
+%bcond_without own_yum_dir
 %else
-# There are still some shebangs for python2, we skip this check
-%global __brp_mangle_shebangs %nil
-%global include_pyc_pyo 0
-%global dnf_plugin 1
-# DNF no logger own /etc/yum.repo.d anymore in XS9, xapi needs to own it
-%global own_yum_dir 1
+%bcond_without python2_compat
 %endif
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.22.0
-Release: 1%{?xsrel}%{?dist}
+Version: 24.27.0
+Release: 3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.22.0.tar.gz
+Source0: xen-api-24.27.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -56,6 +53,10 @@ Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 Source27: pool-recommendations-xapi-conf
 Source28: xcp-rrdd-dcmi.service
+# python2 SDK for backward compatbility
+Source29: XenAPI.py
+Source30: XenAPIPlugin.py
+Source31: inventory.py
 
 %if "%{dist}" == ".xsx"
 # Empty for now
@@ -63,6 +64,7 @@ Source28: xcp-rrdd-dcmi.service
 
 %if "%{dist}" == ".xsu"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
+Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 %endif
 
 %{?_cov_buildrequires}
@@ -75,11 +77,6 @@ BuildRequires: git
 BuildRequires: gmp-devel
 BuildRequires: libuuid-devel
 BuildRequires: make
-
-%if 0%{?build_python2}
-BuildRequires: python2-devel
-%endif
-
 BuildRequires: python3-devel
 BuildRequires: xs-opam-repo >= 6.77.0-1
 BuildRequires: libnl3-devel
@@ -117,11 +114,8 @@ Requires: libffi
 Requires: busybox
 Requires: net-tools
 Requires: vmss
-Requires: python-six
 Requires: python3-six
-# This is necessary during py2->py3 transition
 %if 0%{?xenserver} < 9
-Requires: xcp-python-libs
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
 # Only XS8 support upgrade pbis to winbind
@@ -300,9 +294,6 @@ Memory ballooning daemon for the xapi toolstack.
 %package -n xcp-rrdd
 Summary:        Statistics gathering daemon for the xapi toolstack
 Requires(pre):  shadow-utils
-%if 0%{?build_python2}
-Requires:       python2-future
-%endif
 Requires:       python3-future
 
 %description -n xcp-rrdd
@@ -397,29 +388,11 @@ Obsoletes:      xapi-forkexecd-devel <= 1.31.0-2
 The forkexecd-devel package contains libraries and signature files for
 developing applications that use forkexecd.
 
-%if 0%{?build_python2}
-%package -n python2-xapi-storage
-Summary: Xapi storage interface (Python2)
-Provides: xapi-storage = %{version}-%{release}
-Obsoletes: xapi-storage < %{version}-%{release}
-Requires: python2-future
-Requires: python-six
-BuildRequires: python2-devel
-BuildRequires: python2-setuptools
-
-%description -n python2-xapi-storage
-Xapi storage interface libraries for python2
-
-%files -n python2-xapi-storage
-%defattr(-,root,root,-)
-%{python2_sitelib}/xapi/__init__.py*
-%{python2_sitelib}/xapi/storage/*
-%exclude %{python2_sitelib}/*.egg-info
-
-%endif
-
 %package -n python%{python3_pkgversion}-xapi-storage
-Summary: Xapi storage interface (Python3)
+Summary:        xapi storage interface (Python3)
+Provides:       xapi-storage = %{version}-%{release}
+Obsoletes:      xapi-storage < %{version}-%{release}
+
 Requires: python3-six
 BuildRequires: python3-devel
 BuildRequires: python3-rpm-macros
@@ -452,7 +425,7 @@ developing applications that use xapi-storage.
 
 %package storage-script
 Summary: Xapi storage script plugin server
-Requires:	jemalloc
+Requires:      jemalloc
 
 %description storage-script
 Allows script-based Xapi storage adapters.
@@ -486,11 +459,7 @@ It is responsible for giving access only to a specific VM to varstored.
 %global ocaml_libdir %{ocaml_dir}/lib
 %global ocaml_docdir %{_prefix}/doc
 
-%if 0%{?build_python2}
-%global __python     /usr/bin/python2
-%else
-%global __python     /usr/bin/python3
-%endif
+%global __python     %{_pythonpath}
 
 %prep
 %autosetup -p1
@@ -504,15 +473,11 @@ ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} sdk
 sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
 
-%if 0%{?build_python2}
-(cd ocaml/xapi-storage/python && %{py2_build})
-%endif
-
 (cd ocaml/xapi-storage/python && %{py3_build})
 
 %check
 export OCAMLPATH=%{_ocamlpath}
-COMPILE_JAVA=no %{__make} test %{!?build_python2:PY_TEST=NO}
+COMPILE_JAVA=no %{__make} test
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
 ls %{buildroot}/testresults/
@@ -521,17 +486,7 @@ ls %{buildroot}/testresults/
 rm -rf %{buildroot}
 %global xapi_storage_path _build/default/ocaml/xapi-storage/python/
 export OCAMLPATH=%{_ocamlpath}
-DESTDIR=$RPM_BUILD_ROOT %{__make} install %{!?build_python2:BUILD_PY2=NO}
-
-%if 0%{?build_python2}
-(cd %{xapi_storage_path} && (%{py2_build}) && (%{py2_install}))
-for f in XenAPI XenAPIPlugin inventory; do
-    for e in py pyc pyo; do
-        echo %{python2_sitelib}/$f.$e
-    done
-done > core-files
-%{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python2_sitelib}/
-%endif
+DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
@@ -540,15 +495,39 @@ for f in XenAPI XenAPIPlugin inventory observer; do
 done >> core-files
 echo "%{python3_sitelib}/xapi/__pycache__/__init__*.pyc" >> core-files
 echo "%{python3_sitelib}/xapi_storage*.egg-info" >> core-files
+echo "/opt/xensource/libexec/__pycache__/*" >> core-files
+echo "/etc/xapi.d/plugins/__pycache__/*" >> core-files
 
-%if 0%{?dnf_plugin}
+%if %{with python2_compat}
+install -d %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE29} %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE30} %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE31} %{buildroot}/%{python2_sitelib}/
+for f in XenAPI XenAPIPlugin inventory; do
+    echo %{python2_sitelib}/$f.py* >> core-files
+done
+%endif
+
+%if %{with dnf_plugin}
+# For xs9, use dnf instead of yum
 echo "%{python3_sitelib}/dnf-plugins/*" >> core-files
+# use dnf instead of yum, clean yum stuff
+rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
+rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
+rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
+rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
 %else
+# For xs8, use yum
+echo "/etc/yum/pluginconf.d/accesstoken.conf" >> core-files
+echo "/etc/yum/pluginconf.d/ptoken.conf" >> core-files
+echo "/usr/lib/yum-plugins/accesstoken.py" >> core-files
+echo "/usr/lib/yum-plugins/ptoken.py" >> core-files
+echo "/usr/lib/yum-plugins/__pycache__/*" >> core-files
 # clean the dnf-plugin as not required by XS8
 rm -rf %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %endif
 
-%if 0%{?own_yum_dir}
+%if %{with own_yum_dir}
 mkdir -m 755 -p %{buildroot}/%{yum_dir}
 %endif
 
@@ -611,6 +590,12 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
+
+# Refer to https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/
+%py_byte_compile %{_pythonpath} %{buildroot}/opt/xensource/libexec
+%py_byte_compile %{_pythonpath} %{buildroot}/%{_usr}/libexec/xenopsd
+%py_byte_compile %{_pythonpath} %{buildroot}/%{_sysconfdir}/xapi.d/plugins
+
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -888,8 +873,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
 %{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
-%config(noreplace) /etc/yum/pluginconf.d/accesstoken.conf
-%config(noreplace) /etc/yum/pluginconf.d/ptoken.conf
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
 /opt/xensource/bin/perfmon
@@ -950,7 +933,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/reset-and-reboot
 /opt/xensource/libexec/restore-sr-metadata.py
 /opt/xensource/libexec/set-hostname
-/opt/xensource/libexec/shell.py
 /opt/xensource/libexec/update-mh-info
 /opt/xensource/libexec/upload-wrapper
 /opt/xensource/libexec/xapi-health-check
@@ -961,8 +943,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
 /etc/xensource/usb-policy.conf
-/opt/xensource/packages/post-install-scripts/debian-etch
-/opt/xensource/packages/post-install-scripts/debug
+/opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
 /etc/xapi.d/host-post-declare-dead/10resetvdis
@@ -972,8 +953,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/debug/import-update-key
 /opt/xensource/debug/vncproxy
 /opt/xensource/debug/with-vdi
-/usr/lib/yum-plugins/accesstoken.py
-/usr/lib/yum-plugins/ptoken.py
 %{_unitdir}/cdrommon@.service
 %{_unitdir}/gencert.service
 %{_unitdir}/xapi-domains.service
@@ -990,37 +969,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
-%if 0%{?own_yum_dir}
+%if %{with own_yum_dir}
 %{yum_dir}
 %endif
-
-%if 0%{include_pyc_pyo}
-/etc/xapi.d/plugins/IPMI.pyo
-/etc/xapi.d/plugins/IPMI.pyc
-/etc/xapi.d/plugins/extauth-hook-AD.pyo
-/etc/xapi.d/plugins/extauth-hook-AD.pyc
-/etc/xapi.d/plugins/wlan.pyo
-/etc/xapi.d/plugins/wlan.pyc
-/opt/xensource/libexec/link-vms-by-sr.pyo
-/opt/xensource/libexec/link-vms-by-sr.pyc
-/opt/xensource/libexec/nbd_client_manager.pyo
-/opt/xensource/libexec/nbd_client_manager.pyc
-/opt/xensource/libexec/shell.pyo
-/opt/xensource/libexec/shell.pyc
-/opt/xensource/libexec/usb_reset.pyo
-/opt/xensource/libexec/usb_reset.pyc
-/opt/xensource/libexec/usb_scan.pyo
-/opt/xensource/libexec/usb_scan.pyc
-/usr/lib/yum-plugins/accesstoken.pyo
-/usr/lib/yum-plugins/accesstoken.pyc
-/usr/lib/yum-plugins/ptoken.pyo
-/usr/lib/yum-plugins/ptoken.pyc
-/opt/xensource/libexec/backup-sr-metadata.pyo
-/opt/xensource/libexec/backup-sr-metadata.pyc
-/opt/xensource/libexec/restore-sr-metadata.pyo
-/opt/xensource/libexec/restore-sr-metadata.pyc
-%endif
-
 
 %files xe
 %defattr(-,root,root,-)
@@ -1075,12 +1026,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %files sdk
 %{_datarootdir}/xapi/sdk/*
 %exclude %{_datarootdir}/xapi/sdk/*/dune
-%if 0%{include_pyc_pyo}
-%exclude %{_datarootdir}/xapi/sdk/python/*.pyc
-%exclude %{_datarootdir}/xapi/sdk/python/*.pyo
-%exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyc
-%exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyo
-%endif
 
 %files libs-devel
 %defattr(-,root,root,-)
@@ -1197,20 +1142,14 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_libexecdir}/xenopsd/vif-real
 %{_libexecdir}/xenopsd/block
 %{_libexecdir}/xenopsd/tap
-%{_libexecdir}/xenopsd/qemu-vif-script
 %{_libexecdir}/xenopsd/setup-vif-rules
 %{_libexecdir}/xenopsd/setup-pvs-proxy-rules
 %{_libexecdir}/xenopsd/pvs-proxy-ovs-setup
 %{_libexecdir}/xenopsd/common.py
 %{_libexecdir}/xenopsd/igmp_query_injector.py
+%{_usr}/libexec/xenopsd/__pycache__/*
 %config(noreplace) %{_sysconfdir}/sysconfig/xenopsd
 %config(noreplace) %{_sysconfdir}/xenopsd.conf
-%if 0%{include_pyc_pyo}
-%{_libexecdir}/xenopsd/common.pyo
-%{_libexecdir}/xenopsd/common.pyc
-%{_libexecdir}/xenopsd/igmp_query_injector.pyo
-%{_libexecdir}/xenopsd/igmp_query_injector.pyc
-%endif
 
 %exclude %{ocaml_dir}
 
@@ -1245,9 +1184,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) %{_sysconfdir}/sysconfig/xcp-rrdd
 %config(noreplace) %{_sysconfdir}/xcp-rrdd.conf
 %{_tmpfilesdir}/xcp-rrdd.conf
-%if 0%{?build_python2}
-%{python2_sitelib}/rrdd.py*
-%endif
 %{python3_sitelib}/rrdd.py*
 %{python3_sitelib}/__pycache__/rrdd.*.pyc
 
@@ -1281,12 +1217,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /usr/libexec/xapi/get_vhd_vsize
 /opt/xensource/libexec/get_nbd_extents.py
 /opt/xensource/libexec/python_nbd_client.py
-%if 0%{include_pyc_pyo}
-/opt/xensource/libexec/get_nbd_extents.pyc
-/opt/xensource/libexec/get_nbd_extents.pyo
-/opt/xensource/libexec/python_nbd_client.pyc
-/opt/xensource/libexec/python_nbd_client.pyo
-%endif
 
 %files -n xcp-networkd
 %{_sbindir}/xcp-networkd
@@ -1405,6 +1335,69 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Sep 04 2024 Christian Lindig <christian.lindig@citrix.com> - 24.27.0-1
+- CA-390883 CP-46112 CP-47334 CP-47555 CP-47653 CP-47869 CP-47935 CP-48466
+- CP-49148 CP-49896 CP-49900 CP-49901 CP-49902 CP-49903 CP-49904 CP-49906
+- CP-49907 CP-49909 CP-49910 CP-49911 CP-49912 CP-49913 CP-49914 CP-49915
+- CP-49916 CP-49918 CP-49919 CP-49920 CP-49921 CP-49922 CP-49923 CP-49925
+- CP-49926 CP-49927 CP-49928 CP-49930 CP-49931 CP-49934 CP-49975 CP-50091
+- CP-50099 CP-50100 CP-50172
+- Move Pyhton code to Python 3
+- CP-51278: define import_activate datapath operation
+- Fixup link.
+- Update VM failover planning document.
+- xe autocompletion: Only show required/optional prefixes when parameter name is
+- xe autocompletion: Exclude previously entered parameters before deciding
+
+* Thu Aug 29 2024 Christian Lindig <christian.lindig@citrix.com> - 24.26.0-1
+- quicktest: disable open 1024 fds on startup for now
+
+* Thu Aug 29 2024 Christian Lindig <christian.lindig@citrix.com> - 24.25.0-1
+- Quicktest: actually run the quickcheck tests too
+- xapi-fd-test: fix compatibility with old losetup
+- xapi-fd-test: fix BLK tests
+- xapi-fd-test: fix BLK EBADF
+- Quicktest: add unixext_test
+- xapi_fd_test: introduce testable_file_kind
+- xapi-fd-test: introduce with kind list
+- xapi-fd-test: introduce testable_file_kinds
+- xapi-fd-test: generate inputs for select
+- unixext_test: add test for select
+- CP-32622: introduce select-as-epoll in Unixext
+- xapi-fd-test: switch to testing Unixext.select
+- CP-32622: Thread.wait_timed_read/wait_timed_write
+- xenctrlext: remove xenforeignmemory module
+- IH-676: improve xe autocompletion
+- Allow xapi_globs specifications with descriptions
+- CP-50053: Add authentication cache
+- Cache external authentication results
+- Add feature flag to block starting VMs
+- Add feature flag to block starting VM appliances
+- Update datamodel lifecycle
+- http-lib: log reason that causes lack of response
+
+* Thu Aug 22 2024 Christian Lindig <christian.lindig@citrix.com> - 24.24.0-1
+- Add temporary exception for deprecation of `xmlStringDecodeEntities`
+- new-docs: Toggle hidden documentation only on header clicks
+- Revert "CP-51042: Raise error in sr-scan when SR.stat finds an unhealthy SR"
+
+* Tue Aug 20 2024 Christian Lindig <christian.lindig@citrix.com> - 24.23.0-1
+- CP-49212: Update datamodel for non-CDN update
+- CP-49212: Add UT for update datamodel for non-CDN update
+- CP-49213: Add new tar unpacking module
+- CP-49213: UT for add new tar unpacking module
+- CP-49214: Upload and sync bundle file
+- CP-49214: Allowed operations for sync bundle
+- CP-49214: UT for upload and sync bundle file
+- CP-49214: Refactor cli_operations
+- CP-49526: Resolve non-CDN design comments
+- CA-396540: Add API error for bundle syncing failure
+- CP-49217: Update datamodel_lifecycle
+- CP-49217: Update schem in Cli_operations.pool_sync_bundle
+- CP-49217: Bump up schema vsn
+- CP-51042: Raise error in sr-scan when SR.stat finds an unhealthy SR
+- CP-49217: Refine test_tar_ext and add copyright
+
 * Thu Aug 15 2024 Ming Lu <ming.lu@cloud.com> - 24.22.0-1
 - IH-662 - helpers.ml: Move to a threadsafe Re.Pcre instead of Re.Str
 - CP-50181: Percent decode all Uri paths before using them
