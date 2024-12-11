@@ -1,0 +1,413 @@
+https://github.com/xapi-project/xen-api/pull/5247
+
+ (* Historical schema versions just in case this is useful later *)
+ let rio_schema_major_vsn = 5
+diff --git i/ocaml/idl/datamodel_pool.ml w/ocaml/idl/datamodel_pool.ml
+index f0dab069e..56d180c9b 100644
+--- i/ocaml/idl/datamodel_pool.ml
++++ w/ocaml/idl/datamodel_pool.ml
+@@ -1026,8 +1026,27 @@ let disable_repository_proxy =
+
+ let set_uefi_certificates =
+   call ~name:"set_uefi_certificates"
+-    ~lifecycle:[(Published, "22.16.0", "")]
+-    ~doc:"Sets the UEFI certificates for a pool and all its hosts"
++    ~lifecycle:
++      [
++        (Published, "22.16.0", "")
++      ; (Deprecated, "23.32.0", "use set_custom_uefi_certificates instead")
++      ]
++    ~doc:
++      "Set the UEFI certificates for a pool and all its hosts. Deprecated: use \
++       set_custom_uefi_certificates instead"
++    ~params:
++      [
++        (Ref _pool, "self", "The pool")
++      ; (String, "value", "The certificates to apply to the pool and its hosts")
++      ]
++    ~allowed_roles:_R_POOL_ADMIN ()
++
++let set_custom_uefi_certificates =
++  call ~name:"set_custom_uefi_certificates" ~lifecycle:[]
++    ~doc:
++      "Set custom UEFI certificates for a pool and all its hosts. Need \
++       `allow-custom-uefi-verts` set to true in conf. If empty: default back \
++       to Pool.uefi_certificates"
+     ~params:
+       [
+         (Ref _pool, "self", "The pool")
+@@ -1184,6 +1203,7 @@ let t =
+       ; configure_repository_proxy
+       ; disable_repository_proxy
+       ; set_uefi_certificates
++      ; set_custom_uefi_certificates
+       ; set_https_only
+       ; set_telemetry_next_collection
+       ; reset_telemetry_uuid
+@@ -1370,6 +1390,9 @@ let t =
+               ]
+             ~default_value:(Some (VString "")) "uefi_certificates"
+             "The UEFI certificates allowing Secure Boot"
++        ; field ~qualifier:StaticRO ~ty:String ~lifecycle:[]
++            ~default_value:(Some (VString "")) "custom_uefi_certificates"
++            "Custom UEFI certificates allowing Secure Boot"
+         ; field ~in_product_since:rel_stockholm_psr ~qualifier:RW ~ty:Bool
+             ~default_value:(Some (VBool false)) "is_psr_pending"
+             "True if either a PSR is running or we are waiting for a PSR to be \
+diff --git i/ocaml/idl/schematest.ml w/ocaml/idl/schematest.ml
+index 58f772f09..5642e51cc 100644
+--- i/ocaml/idl/schematest.ml
++++ w/ocaml/idl/schematest.ml
+@@ -2,7 +2,7 @@ let hash x = Digest.string x |> Digest.to_hex
+
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+-let last_known_schema_hash = "8ff8c73b261e332b889583c8b2df5ecc"
++let last_known_schema_hash = "96da2c136aa13d4f8e71dd40fe2b84af"
+
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git i/ocaml/tests/common/test_common.ml w/ocaml/tests/common/test_common.ml
+index 938985e67..06f737280 100644
+--- i/ocaml/tests/common/test_common.ml
++++ w/ocaml/tests/common/test_common.ml
+@@ -287,7 +287,7 @@ let make_pool ~__context ~master ?(name_label = "") ?(name_description = "")
+     ?(ha_cluster_stack = !Xapi_globs.cluster_stack_default)
+     ?(guest_agent_config = []) ?(cpu_info = [])
+     ?(policy_no_vendor_device = false) ?(live_patching_disabled = false)
+-    ?(uefi_certificates = "") ?(repositories = [])
++    ?(uefi_certificates = "") ?(custom_uefi_certificates = "") ?(repositories = [])
+     ?(client_certificate_auth_enabled = false)
+     ?(client_certificate_auth_name = "") ?(repository_proxy_url = "")
+     ?(repository_proxy_username = "") ?(repository_proxy_password = Ref.null)
+@@ -306,7 +306,7 @@ let make_pool ~__context ~master ?(name_label = "") ?(name_description = "")
+     ~vswitch_controller ~igmp_snooping_enabled ~current_operations
+     ~allowed_operations ~restrictions ~other_config ~ha_cluster_stack
+     ~guest_agent_config ~cpu_info ~policy_no_vendor_device
+-    ~live_patching_disabled ~uefi_certificates ~is_psr_pending:false
++    ~live_patching_disabled ~uefi_certificates ~custom_uefi_certificates ~is_psr_pending:false
+     ~tls_verification_enabled:false ~repositories
+     ~client_certificate_auth_enabled ~client_certificate_auth_name
+     ~repository_proxy_url ~repository_proxy_username ~repository_proxy_password
+diff --git i/ocaml/xapi/dbsync_master.ml w/ocaml/xapi/dbsync_master.ml
+index 3a4c33231..e37e66473 100644
+--- i/ocaml/xapi/dbsync_master.ml
++++ w/ocaml/xapi/dbsync_master.ml
+@@ -42,7 +42,7 @@ let create_pool_record ~__context =
+       ~other_config:[Xapi_globs.memory_ratio_hvm; Xapi_globs.memory_ratio_pv]
+       ~ha_cluster_stack:"xhad" ~guest_agent_config:[] ~cpu_info:[]
+       ~policy_no_vendor_device:false ~live_patching_disabled:false
+-      ~uefi_certificates:"" ~is_psr_pending:false
++      ~uefi_certificates:"" ~custom_uefi_certificates:"" ~is_psr_pending:false
+       ~tls_verification_enabled:false ~repositories:[]
+       ~client_certificate_auth_enabled:false ~client_certificate_auth_name:""
+       ~repository_proxy_url:"" ~repository_proxy_username:""
+diff --git i/ocaml/xapi/message_forwarding.ml w/ocaml/xapi/message_forwarding.ml
+index 292345828..012bbc8c9 100644
+--- i/ocaml/xapi/message_forwarding.ml
++++ w/ocaml/xapi/message_forwarding.ml
+@@ -1099,6 +1099,12 @@ functor
+           value ;
+         Local.Pool.set_uefi_certificates ~__context ~self ~value
+
++      let set_custom_uefi_certificates ~__context ~self ~value =
++        info "Pool.set_custom_uefi_certificates: pool='%s' value='%s'"
++          (pool_uuid ~__context self)
++          value ;
++        Local.Pool.set_custom_uefi_certificates ~__context ~self ~value
++
+       let set_https_only ~__context ~self ~value =
+         info "Pool.set_https_only: pool='%s' value='%B'"
+           (pool_uuid ~__context self)
+diff --git i/ocaml/xapi/xapi_globs.ml w/ocaml/xapi/xapi_globs.ml
+index 3bfd8af9a..f694a2d63 100644
+--- i/ocaml/xapi/xapi_globs.ml
++++ w/ocaml/xapi/xapi_globs.ml
+@@ -855,7 +855,7 @@ let varstore_dir = ref "/var/lib/varstored"
+
+ let default_auth_dir = ref "/usr/share/varstored"
+
+-let override_uefi_certs = ref false
++let allow_custom_uefi_certs = ref false
+
+ let disable_logging_for = ref []
+
+@@ -1438,9 +1438,9 @@ let other_options =
+     , (fun () -> string_of_bool !ignore_vtpm_unimplemented)
+     , "Do not raise errors on use-cases where VTPM codepaths are not finished."
+     )
+-  ; ( "override-uefi-certs"
+-    , Arg.Set override_uefi_certs
+-    , (fun () -> string_of_bool !override_uefi_certs)
++  ; ( "allow-custom-uefi-certs"
++    , Arg.Set allow_custom_uefi_certs
++    , (fun () -> string_of_bool !allow_custom_uefi_certs)
+     , "Enable (true) or Disable (false) overriding location for varstored UEFI \
+        certificates"
+     )
+diff --git i/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
+index 65884883c..c8fc7951e 100644
+--- i/ocaml/xapi/xapi_host.ml
++++ w/ocaml/xapi/xapi_host.ml
+@@ -2672,12 +2672,17 @@ let allocate_resources_for_vm ~__context ~self:_ ~vm:_ ~live:_ =
+   (* Implemented entirely in Message_forwarding *)
+   ()
+
++let ( // ) = Filename.concat
++
+ (* Sync uefi certificates with the ones of the hosts *)
+-let extract_certificate_file name =
+-  if String.contains name '/' then
+-    (* Internal error: tarfile not created correctly *)
+-    failwith ("Path in certificate tarball %s contains '/'" ^ name) ;
+-  let path = Filename.concat !Xapi_globs.varstore_dir name in
++let extract_certificate_file tarpath =
++  let filename =
++    if String.contains tarpath '/' then
++      Filename.basename tarpath
++    else
++      tarpath
++  in
++  let path = !Xapi_globs.varstore_dir // filename in
+   Helpers.touch_file path ; path
+
+ let with_temp_file_contents ~contents f =
+@@ -2693,8 +2698,6 @@ let with_temp_file_contents ~contents f =
+
+ let ( let@ ) f x = f x
+
+-let ( // ) = Filename.concat
+-
+ let really_read_uefi_certificates_from_disk ~__context ~host:_ from_path =
+   let certs_files = Sys.readdir from_path |> Array.map (( // ) from_path) in
+   let@ temp_file, with_temp_out_ch =
+@@ -2725,7 +2728,7 @@ let really_write_uefi_certificates_to_disk ~__context ~host:_ ~value =
+                  [Unix.O_WRONLY; Unix.O_CREAT; Unix.O_TRUNC]
+                  0o644
+              in
+-             debug "override_uefi_certs: copy_file %s->%s" src dst ;
++             debug "allow_custom_uefi_certs: copy_file %s->%s" src dst ;
+              ignore (Unixext.copy_file src_fd dst_fd)
+          )
+   | base64_value -> (
+@@ -2746,7 +2749,7 @@ let really_write_uefi_certificates_to_disk ~__context ~host:_ ~value =
+
+ let write_uefi_certificates_to_disk ~__context ~host =
+   let with_valid_symlink ~from_path ~to_path fn =
+-    debug "override_uefi_certs: with_valid_symlink %s->%s" from_path to_path ;
++    debug "allow_custom_uefi_certs: with_valid_symlink %s->%s" from_path to_path ;
+     if Helpers.FileSys.realpathm from_path <> to_path then (
+       Xapi_stdext_unix.Unixext.rm_rec ~rm_top:true from_path ;
+       Unix.symlink to_path from_path
+@@ -2754,7 +2757,7 @@ let write_uefi_certificates_to_disk ~__context ~host =
+     fn from_path
+   in
+   let with_empty_dir path fn =
+-    debug "override_uefi_certs: with_empty_dir %s" path ;
++    debug "allow_custom_uefi_certs: with_empty_dir %s" path ;
+     Xapi_stdext_unix.Unixext.rm_rec ~rm_top:false path ;
+     Unixext.mkdir_rec path 0o755 ;
+     fn path
+@@ -2773,8 +2776,12 @@ let write_uefi_certificates_to_disk ~__context ~host =
+            uefi_certs_in_disk |> Array.mem cert |> log_of
+        )
+   in
+-  match !Xapi_globs.override_uefi_certs with
+-  | false ->
++  let pool_uefi_certs =
++    Db.Pool.get_custom_uefi_certificates ~__context
++      ~self:(Helpers.get_pool ~__context)
++  in
++  match (!Xapi_globs.allow_custom_uefi_certs, pool_uefi_certs) with
++  | false, _ ->
+       let@ path =
+         with_valid_symlink ~from_path:!Xapi_globs.varstore_dir
+           ~to_path:!Xapi_globs.default_auth_dir
+@@ -2791,28 +2798,25 @@ let write_uefi_certificates_to_disk ~__context ~host =
+         Db.Pool.set_uefi_certificates ~__context
+           ~self:(Helpers.get_pool ~__context)
+           ~value:disk_uefi_certs_tar
+-  | true ->
+-      let@ path = with_empty_dir !Xapi_globs.varstore_dir in
+-      (* get from pool for consistent results across hosts *)
+-      let pool_uefi_certs =
+-        Db.Pool.get_uefi_certificates ~__context
+-          ~self:(Helpers.get_pool ~__context)
++  | true, "" ->
++      (* When overriding certificates and user hasn't been able to set a value
++         yet, keep the symlink so VMs always have valid uefi certificates *)
++      let@ path =
++        with_valid_symlink ~from_path:!Xapi_globs.varstore_dir
++          ~to_path:!Xapi_globs.default_auth_dir
+       in
++      check_valid_uefi_certs_in path
++  | true, _ ->
++      let@ path = with_empty_dir !Xapi_globs.varstore_dir in
+       really_write_uefi_certificates_to_disk ~__context ~host
+         ~value:pool_uefi_certs ;
+       check_valid_uefi_certs_in path
+
+-let set_uefi_certificates ~__context ~host ~value =
+-  match !Xapi_globs.override_uefi_certs with
+-  | false ->
+-      raise Api_errors.(Server_error (Api_errors.operation_not_allowed, [""]))
+-  | true ->
+-      Db.Host.set_uefi_certificates ~__context ~self:host ~value ;
+-      Helpers.call_api_functions ~__context (fun rpc session_id ->
+-          Client.Client.Pool.set_uefi_certificates ~rpc ~session_id
+-            ~self:(Helpers.get_pool ~__context)
+-            ~value
+-      )
++let set_uefi_certificates ~__context ~host:_ ~value:_ =
++  let msg =
++    "To set UEFI certificates use: `Pool.set_custom_uefi_certificates`"
++  in
++  raise Api_errors.(Server_error (Api_errors.operation_not_allowed, [msg]))
+
+ let set_iscsi_iqn ~__context ~host ~value =
+   if value = "" then
+diff --git i/ocaml/xapi/xapi_pool.ml w/ocaml/xapi/xapi_pool.ml
+index d1e4945bf..4a4417e17 100644
+--- i/ocaml/xapi/xapi_pool.ml
++++ w/ocaml/xapi/xapi_pool.ml
+@@ -3567,16 +3567,23 @@ let disable_repository_proxy ~__context ~self =
+         Db.Secret.destroy ~__context ~self:old_secret_ref
+     )
+
+-let set_uefi_certificates ~__context ~self ~value =
+-  match !Xapi_globs.override_uefi_certs with
++let set_uefi_certificates ~__context ~self:_ ~value:_ =
++  let msg =
++    "Setting UEFI certificates is depreacted, please use \
++     `set_custom_uefi_certificates`"
++  in
++  raise Api_errors.(Server_error (operation_not_allowed, [msg]))
++
++let set_custom_uefi_certificates ~__context ~self ~value =
++  match !Xapi_globs.allow_custom_uefi_certs with
+   | false ->
+       let msg =
+-        "Setting UEFI certificates is not possible when override_uefi_certs is \
+-         false"
++        "Setting UEFI certificates is not possible when \
++         allow_custom_uefi_certs is false"
+       in
+       raise Api_errors.(Server_error (operation_not_allowed, [msg]))
+   | true ->
+-      Db.Pool.set_uefi_certificates ~__context ~self ~value ;
++      Db.Pool.set_custom_uefi_certificates ~__context ~self ~value ;
+       Helpers.call_api_functions ~__context (fun rpc session_id ->
+           List.iter
+             (fun host ->
+diff --git i/ocaml/xapi/xapi_pool.mli w/ocaml/xapi/xapi_pool.mli
+index f2cd79c63..e091b656c 100644
+--- i/ocaml/xapi/xapi_pool.mli
++++ w/ocaml/xapi/xapi_pool.mli
+@@ -388,6 +388,9 @@ val disable_repository_proxy : __context:Context.t -> self:API.ref_pool -> unit
+ val set_uefi_certificates :
+   __context:Context.t -> self:API.ref_pool -> value:string -> unit
+
++val set_custom_uefi_certificates :
++  __context:Context.t -> self:API.ref_pool -> value:string -> unit
++
+ val set_https_only :
+   __context:Context.t -> self:API.ref_pool -> value:bool -> unit
+
+diff --git i/ocaml/xapi/xapi_vm.ml w/ocaml/xapi/xapi_vm.ml
+index 879ca1ae3..4108c5d85 100644
+--- i/ocaml/xapi/xapi_vm.ml
++++ w/ocaml/xapi/xapi_vm.ml
+@@ -290,9 +290,15 @@ let update_platform_secureboot ~__context ~self platform =
+   | exception Not_found ->
+       platform
+   | "auto" ->
+-      ( "secureboot"
+-      , string_of_bool (Db.Pool.get_uefi_certificates ~__context ~self <> "")
+-      )
++      let custom_uefi_certs = Db.Pool.get_custom_uefi_certificates ~__context ~self in
++      let uefi_certs =
++        match (!Xapi_globs.allow_custom_uefi_certs, custom_uefi_certs) with
++        | false, _ | true, "" ->
++            Db.Pool.get_uefi_certificates ~__context ~self
++        | true, _ ->
++            custom_uefi_certs
++      in
++      ("secureboot", string_of_bool (uefi_certs <> ""))
+       :: List.remove_assoc "secureboot" platform
+   | _ ->
+       platform
+diff --git i/ocaml/xapi-cli-server/records.ml w/ocaml/xapi-cli-server/records.ml
+index c3d350b7c..d78806ef0 100644
+--- i/ocaml/xapi-cli-server/records.ml
++++ w/ocaml/xapi-cli-server/records.ml
+@@ -1387,6 +1387,12 @@ let pool_record rpc session_id pool =
+             Client.Pool.set_uefi_certificates ~rpc ~session_id ~self:pool ~value
+           )
+           ()
++      ; make_field ~name:"custom-uefi-certificates" ~hidden:true
++          ~get:(fun () -> (x ()).API.pool_custom_uefi_certificates)
++          ~set:(fun value ->
++            Client.Pool.set_custom_uefi_certificates ~rpc ~session_id ~self:pool ~value
++          )
++          ()
+       ; make_field ~name:"tls-verification-enabled"
+           ~get:(fun () ->
+             (x ()).API.pool_tls_verification_enabled |> string_of_bool
+diff --git i/ocaml/xapi/xapi_pool.ml w/ocaml/xapi/xapi_pool.ml
+index 615ede6d5..07b9e577a 100644
+--- i/ocaml/xapi/xapi_pool.ml
++++ w/ocaml/xapi/xapi_pool.ml
+@@ -1554,6 +1554,13 @@ let join_common ~__context ~master_address ~master_username ~master_password
+           Db.Pool.set_uefi_certificates ~__context
+             ~self:(Helpers.get_pool ~__context)
+             ~value:_uefi_certs ;
++          let _custom_uefi_certs =
++            Client.Pool.get_custom_uefi_certificates ~rpc ~session_id
++              ~self:(get_pool ~rpc ~session_id)
++          in
++          Db.Pool.set_custom_uefi_certificates ~__context
++            ~self:(Helpers.get_pool ~__context)
++            ~value:_custom_uefi_certs ;
+           Helpers.call_api_functions ~__context
+             (fun local_rpc local_session_id ->
+               Client.Host.write_uefi_certificates_to_disk ~rpc:local_rpc
+diff --git i/ocaml/xapi/xapi_host.ml w/ocaml/xapi/xapi_host.ml
+index 2cfeebdc8..8884a0b90 100644
+--- i/ocaml/xapi/xapi_host.ml
++++ w/ocaml/xapi/xapi_host.ml
+@@ -2777,6 +2777,17 @@ let write_uefi_certificates_to_disk ~__context ~host =
+            uefi_certs_in_disk |> Array.mem cert |> log_of
+        )
+   in
++  let disk_uefi_certs_tar =
++    really_read_uefi_certificates_from_disk ~__context ~host
++      !Xapi_globs.default_auth_dir
++  in
++  (* synchronize both host & pool read-only fields with contents in disk *)
++  Db.Host.set_uefi_certificates ~__context ~self:host
++    ~value:disk_uefi_certs_tar ;
++  if Pool_role.is_master () then
++    Db.Pool.set_uefi_certificates ~__context
++      ~self:(Helpers.get_pool ~__context)
++      ~value:disk_uefi_certs_tar ;
+   let pool_uefi_certs =
+     Db.Pool.get_custom_uefi_certificates ~__context
+       ~self:(Helpers.get_pool ~__context)
+@@ -2788,17 +2799,6 @@ let write_uefi_certificates_to_disk ~__context ~host =
+           ~to_path:!Xapi_globs.default_auth_dir
+       in
+       check_valid_uefi_certs_in path ;
+-      let disk_uefi_certs_tar =
+-        really_read_uefi_certificates_from_disk ~__context ~host
+-          !Xapi_globs.varstore_dir
+-      in
+-      (* synchronize both host & pool read-only fields with contents in disk *)
+-      Db.Host.set_uefi_certificates ~__context ~self:host
+-        ~value:disk_uefi_certs_tar ;
+-      if Pool_role.is_master () then
+-        Db.Pool.set_uefi_certificates ~__context
+-          ~self:(Helpers.get_pool ~__context)
+-          ~value:disk_uefi_certs_tar
+   | true, "" ->
+       (* When overriding certificates and user hasn't been able to set a value
+          yet, keep the symlink so VMs always have valid uefi certificates *)
