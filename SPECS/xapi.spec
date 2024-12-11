@@ -1,5 +1,5 @@
-%global package_speccommit 3fb5e82e46b28bcf62ed1c95cf8a777231305065
-%global package_srccommit v24.36.0
+%global package_speccommit e8a5246c6c3a810516e1df2ec1eb0dd4700cddfe
+%global package_srccommit v24.39.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -22,12 +22,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.36.0
-Release: 1%{?xsrel}%{?dist}
+Version: 24.39.0
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.36.0.tar.gz
+Source0: xen-api-24.39.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -53,8 +53,8 @@ Source21: XenAPI.py
 Source22: XenAPIPlugin.py
 Source23: inventory.py
 
-%if "%{dist}" == ".xsx"
-# Empty for now
+%if "%{dist}" == ".xsx" || "%{dist}" == ".xsr" || "%{dist}" == ".xs9"
+Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 %endif
 
 %if "%{dist}" == ".xsu"
@@ -110,6 +110,8 @@ Requires: busybox
 Requires: net-tools
 Requires: vmss
 Requires: python3-six
+# Requires openssl for certificate and key pair management
+Requires: openssl
 %if 0%{?xenserver} < 9
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
@@ -959,6 +961,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_unitdir}/generate-iscsi-iqn.service
 %{_unitdir}/control-domain-params-init.service
 %{_unitdir}/network-init.service
+%{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
@@ -1326,6 +1329,58 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Nov 26 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-2
+- Bump release and rebuild
+
+* Mon Nov 25 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-1
+- IH-728: Refactor tracing logic
+- Update datamodel_lifecycle.ml
+- CA-401274: Remove external auth limitation during set_hostname_live
+- CP-49134: tracing: do not destroy stacktrace
+- CP-49078: Use Hashtbl within Schema
+- opam: update vhd packages' opam metadata
+- maintenance: compatibility with cstruct 6.2.0
+- CA-402326: Fetch SM records from the pool to avoid race
+- CA-402654: Partially revert 3e2e970af
+- CA-402263, xapi_sr_operatrions: don't include all API storage operations in all_ops
+
+* Wed Nov 13 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-3
+- Bump release and rebuild
+
+* Wed Nov 13 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-2
+- Bump release and rebuild
+
+* Mon Nov 11 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-1
+- CP-50475: Remove unnecessary Parallel atoms from the xenopsd queues
+- CP-50475: parallelize device ops during VM lifecycle ops
+- xapi_stdext_unix/test: Fix intermittent systemd cram test failure
+- Fix a build warning with GCC 12.3.0
+- Remove use of deprecated syslog Standard* type
+- CA-400860: rrdp-netdev - drop xenctrl, use xenstore to get UUIDs from domids instead
+- CP-51870: Delegate restarting systemd services order to systemd
+- CP-51938: Generate XML alert for cluster health
+- CP-50546: Remove initscripts family
+- Remove notion of weird string from sexpr library
+- CA-399396: Adjust the jemalloc parameters for memory performance
+- CP-52039: Drop Semaphore from Xapi_stdext_threads
+- CA-400560: Fix version segment division error
+- Do not include xapi-clusterd.service in toolstack.target
+- CA-401324: Update pvsproxy socket location
+- CA-400560: Support tilde in RPM version/release comparison
+- CA-401404: Only check previous active service status
+- CA-401242: avoid long-running, idle connections on VDI.pool_migrate
+- xapi_vdi: replaces nested if-elses with monadic Result
+- datamodel: Add all VDI operations to the SR operations variant
+- CA-401498: Fix test_systemd occasional timeout
+- CA-399629: make daily-license-check aware of never
+- license_check: clean up interface
+- license_check: update the concept of "never"
+- daily_license_check: Do not use floats for handling time
+- CA-400060: Introduce new field for sm class
+- CA-400060: Sm feature intersection
+- CA-400060: Reject pool join if sm features mismatch
+- Document Rbac module
+
 * Tue Oct 29 2024 Christian Lindig <christian.lindig@cloud.com> - 24.36.0-1
 - CA-400559: API Error too_many_groups is not in go SDK
 - chore: annotate types for non-returning functions
