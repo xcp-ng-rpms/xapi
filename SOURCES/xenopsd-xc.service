@@ -1,7 +1,7 @@
 [Unit]
 Description=VM manager for Xen using libxc
 Documentation=man:xenopsd-xc(1)
-After=xenstored.service squeezed.service message-switch.service forkexecd.service xapi-storage-script.service syslog.target
+After=xenstored.service squeezed.service message-switch.service forkexecd.service xapi-storage-script.service syslog.target xcp-rrdd.service
 Wants=xenstored.service squeezed.service message-switch.service forkexecd.service xapi-storage-script.service syslog.target
 
 [Service]

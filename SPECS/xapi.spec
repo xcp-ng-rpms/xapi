@@ -1,5 +1,5 @@
-%global package_speccommit 7235b3725705881f12eac7e5f133b71e9d21ffd0
-%global package_srccommit v24.30.0
+%global package_speccommit 3fb5e82e46b28bcf62ed1c95cf8a777231305065
+%global package_srccommit v24.36.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -22,44 +22,36 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.30.0
+Version: 24.36.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.30.0.tar.gz
-Source1: xcp-rrdd.service
-Source2: xcp-rrdd-sysconfig
-Source3: xcp-rrdd-conf
-Source4: xcp-rrdd-tmp
-Source5: xcp-rrdd-iostat.service
-Source6: xcp-rrdd-squeezed.service
-Source7: xcp-rrdd-xenpm.service
-Source8: xenopsd-xc.service
-Source9: xenopsd-simulator.service
-Source10: xenopsd-sysconfig
-Source11: xenopsd-64-conf
-Source12: squeezed.service
-Source13: squeezed-sysconfig
-Source14: squeezed-conf
-Source15: xcp-networkd-sysconfig
-Source16: xcp-networkd-network-conf
-Source17: message-switch.service
-Source18: message-switch-conf
-Source19: message-switch-bugtool1.xml
-Source20: message-switch-bugtool2.xml
-Source21: forkexecd.service
-Source22: forkexecd-sysconfig
-Source23: xapi-storage-script.service
-Source24: xapi-storage-script-sysconfig
-Source25: xapi-storage-script-conf.in
-Source26: tracing-conf
-Source27: pool-recommendations-xapi-conf
-Source28: xcp-rrdd-dcmi.service
-# python2 SDK for backward compatbility
-Source29: XenAPI.py
-Source30: XenAPIPlugin.py
-Source31: inventory.py
+Source0: xen-api-24.36.0.tar.gz
+Source1: xenopsd-xc.service
+Source2: xenopsd-simulator.service
+Source3: xenopsd-sysconfig
+Source4: xenopsd-64-conf
+Source5: squeezed.service
+Source6: squeezed-sysconfig
+Source7: squeezed-conf
+Source8: xcp-networkd-sysconfig
+Source9: xcp-networkd-network-conf
+Source10: message-switch.service
+Source11: message-switch-conf
+Source12: message-switch-bugtool1.xml
+Source13: message-switch-bugtool2.xml
+Source14: forkexecd.service
+Source15: forkexecd-sysconfig
+Source16: xapi-storage-script.service
+Source17: xapi-storage-script-sysconfig
+Source18: xapi-storage-script-conf.in
+Source19: tracing-conf
+Source20: pool-recommendations-xapi-conf
+# python-8 SDK for backward compatbility
+Source21: XenAPI.py
+Source22: XenAPIPlugin.py
+Source23: inventory.py
 
 %if "%{dist}" == ".xsx"
 # Empty for now
@@ -476,7 +468,7 @@ export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
 %{__make} sdk
-sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
+sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE18} > xapi-storage-script.conf
 
 (cd ocaml/xapi-storage/python && %{py3_build})
 
@@ -505,9 +497,9 @@ echo "/etc/xapi.d/plugins/__pycache__/*" >> core-files
 
 %if %{with python2_compat}
 install -d %{buildroot}/%{python2_sitelib}/
-install -m 755 %{SOURCE29} %{buildroot}/%{python2_sitelib}/
-install -m 755 %{SOURCE30} %{buildroot}/%{python2_sitelib}/
-install -m 755 %{SOURCE31} %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE21} %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE22} %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE23} %{buildroot}/%{python2_sitelib}/
 for f in XenAPI XenAPIPlugin inventory; do
     echo %{python2_sitelib}/$f.py* >> core-files
 done
@@ -543,38 +535,29 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-echo 1 > %{buildroot}/etc/xenserver/features.d/cluster_health
 echo 0 > %{buildroot}/etc/xenserver/features.d/corosync3
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
-%{__install} -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/xcp-rrdd.service
-%{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/xcp-rrdd
-%{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/xcp-rrdd.conf
-%{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_tmpfilesdir}/xcp-rrdd.conf
-%{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/xcp-rrdd-iostat.service
-%{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_unitdir}/xcp-rrdd-squeezed.service
-%{__install} -D -m 0644 %{SOURCE7} %{buildroot}%{_unitdir}/xcp-rrdd-xenpm.service
+%{__install} -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/xenopsd-xc.service
+%{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/xenopsd-simulator.service
+%{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
+%{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/xenopsd.conf
 
-%{__install} -D -m 0644 %{SOURCE8} %{buildroot}%{_unitdir}/xenopsd-xc.service
-%{__install} -D -m 0644 %{SOURCE9} %{buildroot}%{_unitdir}/xenopsd-simulator.service
-%{__install} -D -m 0644 %{SOURCE10} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
-%{__install} -D -m 0644 %{SOURCE11} %{buildroot}%{_sysconfdir}/xenopsd.conf
+%{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/squeezed.service
+%{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
+%{__install} -D -m 0644 %{SOURCE7} %{buildroot}%{_sysconfdir}/squeezed.conf
 
-%{__install} -D -m 0644 %{SOURCE12} %{buildroot}%{_unitdir}/squeezed.service
-%{__install} -D -m 0644 %{SOURCE13} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
-%{__install} -D -m 0644 %{SOURCE14} %{buildroot}%{_sysconfdir}/squeezed.conf
+%{__install} -D -m 0644 %{SOURCE8} %{buildroot}%{_sysconfdir}/sysconfig/xcp-networkd
+%{__install} -D -m 0644 %{SOURCE9} %{buildroot}%{_sysconfdir}/xensource/network.conf
 
-%{__install} -D -m 0644 %{SOURCE15} %{buildroot}%{_sysconfdir}/sysconfig/xcp-networkd
-%{__install} -D -m 0644 %{SOURCE16} %{buildroot}%{_sysconfdir}/xensource/network.conf
+%{__install} -D -m 0644 %{SOURCE10} %{buildroot}%{_unitdir}/message-switch.service
+%{__install} -D -m 0644 %{SOURCE11} %{buildroot}%{_sysconfdir}/message-switch.conf
 
-%{__install} -D -m 0644 %{SOURCE17} %{buildroot}%{_unitdir}/message-switch.service
-%{__install} -D -m 0644 %{SOURCE18} %{buildroot}%{_sysconfdir}/message-switch.conf
-
-%{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch.xml
-%{__install} -D -m 0644 %{SOURCE20} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch/stuff.xml
-%{__install} -D -m 0644 %{SOURCE21} %{buildroot}%{_unitdir}/forkexecd.service
-%{__install} -D -m 0644 %{SOURCE22} %{buildroot}%{_sysconfdir}/sysconfig/forkexecd
+%{__install} -D -m 0644 %{SOURCE12} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch.xml
+%{__install} -D -m 0644 %{SOURCE13} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch/stuff.xml
+%{__install} -D -m 0644 %{SOURCE14} %{buildroot}%{_unitdir}/forkexecd.service
+%{__install} -D -m 0644 %{SOURCE15} %{buildroot}%{_sysconfdir}/sysconfig/forkexecd
 
 # Set server certificate file gid 204 (certusers)
 sed -i -E 's#(ExecStart=.+/xapi-ssl.pem) +-1 #\1 204 #g' %{buildroot}%{_unitdir}/gencert.service
@@ -584,17 +567,16 @@ rm %{buildroot}%{_bindir}/gen_lifecycle
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/volume
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/datapath
 %{__install} -D -m 0644 xapi-storage-script.conf %{buildroot}%{_sysconfdir}/xapi-storage-script.conf
-%{__install} -D -m 0644 %{SOURCE23} %{buildroot}%{_unitdir}/xapi-storage-script.service
-%{__install} -D -m 0644 %{SOURCE24} %{buildroot}%{_sysconfdir}/sysconfig/xapi-storage-script
+%{__install} -D -m 0644 %{SOURCE16} %{buildroot}%{_unitdir}/xapi-storage-script.service
+%{__install} -D -m 0644 %{SOURCE17} %{buildroot}%{_sysconfdir}/sysconfig/xapi-storage-script
 rm %{buildroot}%{ocaml_libdir}/xapi-storage-script -rf
 rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %{?_cov_install}
 
-%{__install} -D -m 0644 %{SOURCE26} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
-%{__install} -D -m 0644 %{SOURCE28} %{buildroot}%{_unitdir}/xcp-rrdd-dcmi.service
+%{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
-%{__install} -D -m 0644 %{SOURCE27} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
+%{__install} -D -m 0644 %{SOURCE20} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 
 # Refer to https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/
 %py_byte_compile %{_pythonpath} %{buildroot}/opt/xensource/libexec
@@ -680,6 +662,8 @@ systemctl kill -s HUP rsyslog 2> /dev/null || true
 %systemd_post xcp-rrdd-squeezed.service
 %systemd_post xcp-rrdd-xenpm.service
 %systemd_post xcp-rrdd-dcmi.service
+%systemd_post xcp-rrdd-cpu.service
+%systemd_post xcp-rrdd-netdev.service
 
 %post -n xcp-networkd
 %systemd_post xcp-networkd.service
@@ -751,6 +735,8 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_preun xcp-rrdd-squeezed.service
 %systemd_preun xcp-rrdd-xenpm.service
 %systemd_preun xcp-rrdd-dcmi.service
+%systemd_preun xcp-rrdd-cpu.service
+%systemd_preun xcp-rrdd-netdev.service
 
 %preun -n xcp-networkd
 %systemd_preun xcp-networkd.service
@@ -805,6 +791,8 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_postun xcp-rrdd-squeezed.service
 %systemd_postun xcp-rrdd-xenpm.service
 %systemd_postun xcp-rrdd-dcmi.service
+%systemd_postun xcp-rrdd-cpu.service
+%systemd_postun xcp-rrdd-netdev.service
 
 %postun -n xcp-networkd
 %systemd_postun xcp-networkd.service
@@ -852,7 +840,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 /etc/xenserver/features.d
-/etc/xapi.conf.d
+%dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/IPMI.py
 /etc/xapi.d/plugins/echo
@@ -1006,8 +994,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %exclude %{ocaml_libdir}/xen-api-client/*.cmt
 %{ocaml_libdir}/xen-api-client-lwt/*
 %exclude %{ocaml_libdir}/xen-api-client-lwt/*.cmt
-%{ocaml_libdir}/xen-api-client-async/*
-%exclude %{ocaml_libdir}/xen-api-client-async/*.cmt
 
 %files datamodel-devel
 %defattr(-,root,root,-)
@@ -1208,12 +1194,16 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-squeezed
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-xenpm
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-dcmi
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-cpu
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-netdev
 /etc/xensource/bugtool/xcp-rrdd-plugins.xml
 /etc/xensource/bugtool/xcp-rrdd-plugins/stuff.xml
 %{_unitdir}/xcp-rrdd-iostat.service
 %{_unitdir}/xcp-rrdd-squeezed.service
 %{_unitdir}/xcp-rrdd-xenpm.service
 %{_unitdir}/xcp-rrdd-dcmi.service
+%{_unitdir}/xcp-rrdd-cpu.service
+%{_unitdir}/xcp-rrdd-netdev.service
 
 %files -n vhd-tool
 %{_bindir}/vhd-tool
@@ -1242,20 +1232,16 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xensource/bugtool/message-switch.xml
 
 %files -n message-switch-devel
-%doc %{ocaml_docdir}/message-switch/LICENSE
-%doc %{ocaml_docdir}/message-switch/README.markdown
 %defattr(-,root,root,-)
 %{ocaml_docdir}/message-switch-core
 %{ocaml_docdir}/message-switch-unix
-%{ocaml_docdir}/message-switch-async
 %{ocaml_docdir}/message-switch-lwt
 %{ocaml_docdir}/message-switch-cli
-%{ocaml_docdir}/message-switch
+%doc %{ocaml_docdir}/message-switch
 %{ocaml_libdir}/message-switch
 %{ocaml_libdir}/message-switch-cli
 %{ocaml_libdir}/message-switch-core
 %{ocaml_libdir}/message-switch-unix
-%{ocaml_libdir}/message-switch-async
 %{ocaml_libdir}/message-switch-lwt
 %exclude %{ocaml_libdir}/*/*.cmt
 %exclude %{ocaml_libdir}/*/*.cmti
@@ -1340,6 +1326,68 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Oct 29 2024 Christian Lindig <christian.lindig@cloud.com> - 24.36.0-1
+- CA-400559: API Error too_many_groups is not in go SDK
+- chore: annotate types for non-returning functions
+- CA-400199: open /dev/urandom on first use
+
+* Wed Oct 23 2024 Christian Lindig <christian.lindig@cloud.com> - 24.35.0-1
+- CA-398341: Populate fingerprints of CA certificates on startup
+- CP-51527: Add --force option to pool-uninstall-ca-certificate
+- CA-400924 - networkd: Add bonds to `devs` in network_monitor_thread
+
+* Mon Oct 21 2024 Christian Lindig <christian.lindig@cloud.com> - 24.34.0-1
+- fix(test): avoid running XAPI hooks in unit tests
+- IH-715 - rrdp-netdev: Remove double (de)serialization
+- fixup! IH-715 - rrdp-netdev: Remove double (de)serialization
+- chore: update datamodel versions
+- IH-577 Implement v7 UUID generation
+- Update wire-protocol.md to have working Python3 code examples
+- Added WLB_VM_RELOCATION to the list of recognized messages.
+- Python command correction.
+- Remove unused Http_svr.Chunked module
+- chore: Fix some grammatical errors in cluster alerts
+- buf_io: remove unused function input_line
+- Access pvsproxy via a socket in /run
+- http-svr: change request_of_bio(_exn) to read_request(_exn)
+- xmlrpc_client: remove us of Buf_io
+- http-svr: remove read from Buf_io in read_body
+- xapi_http: unify cases in add_handler
+- Remove BufIO HTTP handler type completely
+- Remove now-unused Buf_io and associated tests
+- CA-400860: make CPU and netdev RRDD plugins pick up changes in domains
+- CP-51683: Make Cluster_health non-exp feature
+
+* Mon Oct 14 2024 Christian Lindig <christian.lindig@cloud.com> - 24.33.0-1
+- CA-392674: nbd_client_manager retry connect on nbd device busy
+- http-lib: add backtrace to logs on connection without response
+- http-lib: convert bash script to cram tests
+- http-lib: prepare test client for more commands
+- http-libs: add test about error logging
+- http-lib: use let@ for perf testing of the client
+- http-lib: make perf shorter
+- CA-399256: Ensure AD domain name check is case insensitive
+- Replace fold with of_list in rbac
+- maintenance: write interface files for vhd-tool
+- maintenance: add interface to vhd-tool's Chunked
+- maintenance: remove data from chd-tool's chunked datastructure
+- Revert "CP-48676: Don't check resuable pool session validity by default"
+- Revert "CP-48676: Reuse pool sessions on slave logins."
+- maintenance: remove unused code from stream_vdi
+
+* Thu Oct 10 2024 Christian Lindig <christian.lindig@cloud.com> - 24.32.0-1
+- xapi-stdect-unix: catch exceptions when testing the server
+- CP-51714: Remove noisy xenopsd debug logs
+- maintenance: avoid deprecated bindings in uuidm 0.9.9
+- ezxenstore: avoid copies when converting to and from uuids
+- CP-50603: Replace `c_rehash` with `openssl rehash` sub command
+- CA-400124: rrd: Serialize transform parameter for data sources
+- CA-400124 - rrdd: only serialize transform when it's not default
+- XSI-1722 fix timer for host heartbeat
+
+* Fri Oct 04 2024 Christian Lindig <christian.lindig@citrix.com> - 24.31.0-1
+- message-switch: remove dependency on async binaries
+
 * Mon Sep 23 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.30.0-1
 
 - CP-32622, CP-51483: Switch to epoll
