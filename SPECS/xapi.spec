@@ -1,5 +1,5 @@
-%global package_speccommit 472e8bbc98f17d6cbca1029995dec2cd5dea7efb
-%global package_srccommit v24.29.0
+%global package_speccommit 7235b3725705881f12eac7e5f133b71e9d21ffd0
+%global package_srccommit v24.30.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -22,12 +22,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.29.0
+Version: 24.30.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.29.0.tar.gz
+Source0: xen-api-24.30.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -1340,6 +1340,18 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Sep 23 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.30.0-1
+
+- CP-32622, CP-51483: Switch to epoll
+- CA-399187: Allow gencert to be called without groupid
+- Date: Accept all valid timezones from client, allow sub-second precision
+- CP-50614: Tracing, optimize and reduce overhead
+- xe autocompletion: Fix prefix escaping bug
+- Fix network reset script in static IPv6
+- CA-398128: Be wary that dates in database lose precision
+- Don't use dhcp4 for none mode
+- CA-398138: Handle enum value unknown error for Go SDK
+
 * Mon Sep 16 2024 Christian Lindig <christian.lindig@citrix.com> - 24.29.0-1
 - Use templates to generate `Types.java`
 - Use templates to generate Java classes
