@@ -1,5 +1,5 @@
-%global package_speccommit a4a8a7f74426ce64d5ca8a33a9d82bc036a0afc4
-%global package_srccommit v24.21.0
+%global package_speccommit f774e74d8c4a94a8975da19de71571b91bf41eee
+%global package_srccommit v24.22.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -22,12 +22,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.21.0
+Version: 24.22.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.21.0.tar.gz
+Source0: xen-api-24.22.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -124,6 +124,8 @@ Requires: python3-six
 Requires: xcp-python-libs
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
+# Only XS8 support upgrade pbis to winbind
+Requires: upgrade-pbis-to-winbind
 %else
 Requires: dnf
 # This is for dnf/yum plugin
@@ -143,7 +145,6 @@ Requires: zstd
 Requires: createrepo_c >= 0.10.0
 Requires: tdb-tools >= 1.3.18
 Requires: samba-winbind >= 4.10.16
-Requires: upgrade-pbis-to-winbind
 Requires: setup >= 2.8.74
 Requires: xenserver-release-config
 Requires: python3-fasteners
@@ -1404,6 +1405,49 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Aug 15 2024 Ming Lu <ming.lu@cloud.com> - 24.22.0-1
+- IH-662 - helpers.ml: Move to a threadsafe Re.Pcre instead of Re.Str
+- CP-50181: Percent decode all Uri paths before using them
+- clock: use external qcheck-alcotest
+- CP-50448: move quickcheck tests into internal libraries
+- Catch system exit in observer.py to close gracefully
+- CP-49876: Create spans for observer.py itself
+- CP-50121: Remove bc package from XS9 dom0
+- dune: declare stresstests dependencies
+- Update qcheck-alcotest dependencies
+- docs: add design documents for certificate-related features
+- CA-396479: Use default value for unknown enums in Java
+- Default to "UNRECOGNIZED" when using `toString()` of Type enums
+- xapi-idl: Delete String.{explode,implode} functions
+- xapi-idl: do not use custom operators for bit manipulations
+- xapi-idl: Refactor out find_index and add it to Listext
+- CP-50426: Add tracing to external auth functions
+- ci: use the names of binaries, not libraries in stresstests
+- CA-395789: Add polling to cluster health state update
+- ci: Avoid breaking through the opam sandbox in tests
+- ci: use ocaml-setup v3
+- ci: Do not spend time pinning packages
+- CA-389345: fix incorrect data type in python3
+- CP-50444: Intrument `http_svr`
+- CI: use ubuntu-22.04 for SDK too
+- CI: avoid mixing caches from different OSes
+- openvswitch-config-update: fix python2ism in python3
+- CA-396635: Wait for corosync to update its info
+- CP-50518: Add stub for crypt_r to ocaml/auth
+- CP-50444: Intrument `request_of_bio`
+- tracing: fix `make check` warnings
+- tracing: increase the default maximum number of spans in a trace
+- CP-50444: Add specialized function for tracing http requests to `Http.Request`
+- Output if parameter is required in JSON backend
+- Python SDK: Move "Packaging" section out of the public docs
+- Allow remediation commits for DCO
+- CI: fix spurious failure on busy system
+- CA-397171: Replace libjemalloc.so.1 with libjemalloc.so.2
+- CA-392685: Replace /tmp/network-reset  with /var/tmp/network-reset to persist tmp file after reboot
+- Retroactively sign off 8337fa94b76097428621d1e1987
+- CA-396751: write updated RRDD data before headers
+- CA-397268: vbd.create failed: The device name is invalid
+
 * Fri Jul 26 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.21.0-1
 - Improve build and test times
 - maintenance: delete unused fields

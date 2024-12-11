@@ -5,8 +5,8 @@ After=xenstored.service squeezed.service message-switch.service forkexecd.servic
 Wants=xenstored.service squeezed.service message-switch.service forkexecd.service xapi-storage-script.service syslog.target
 
 [Service]
-Environment="LD_PRELOAD=/usr/lib64/libjemalloc.so.1"
-Environment="MALLOC_CONF=narenas:1,tcache:false,lg_dirty_mult:22"
+Environment="LD_PRELOAD=/usr/lib64/libjemalloc.so.2"
+Environment="MALLOC_CONF=narenas:1,tcache:false"
 EnvironmentFile=-/etc/sysconfig/xenopsd
 ExecStart=/usr/sbin/xenopsd-xc --config /etc/xenopsd.conf $XENOPSD_OPTIONS
 StandardError=null
