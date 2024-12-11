@@ -1,5 +1,5 @@
-%global package_speccommit 54556d9060853617809a16e443e35467099aa81b
-%global package_srccommit v24.27.0
+%global package_speccommit 472e8bbc98f17d6cbca1029995dec2cd5dea7efb
+%global package_srccommit v24.29.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -15,16 +15,19 @@
 %bcond_without python2_compat
 %endif
 
+%global api_version_major 2
+%global api_version_minor 21
+
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.27.0
-Release: 3%{?xsrel}%{?dist}
+Version: 24.29.0
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.27.0.tar.gz
+Source0: xen-api-24.29.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -144,12 +147,14 @@ Requires: xenserver-release-config
 Requires: python3-fasteners
 Requires: sm
 Requires: ipmitool
+Requires: python3-opentelemetry-exporter-zipkin
 # firewall-port needs iptables-service to perform
 # `service iptables save`
 Requires: iptables-services
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
+Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
@@ -466,7 +471,7 @@ It is responsible for giving access only to a specific VM to varstored.
 %{?_cov_prepare}
 
 %build
-./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir}
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
 export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
@@ -538,7 +543,7 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-echo 0 > %{buildroot}/etc/xenserver/features.d/cluster_health
+echo 1 > %{buildroot}/etc/xenserver/features.d/cluster_health
 echo 0 > %{buildroot}/etc/xenserver/features.d/corosync3
 
 mkdir -p %{buildroot}%{_sbindir}
@@ -1335,6 +1340,62 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Sep 16 2024 Christian Lindig <christian.lindig@citrix.com> - 24.29.0-1
+- Use templates to generate `Types.java`
+- Use templates to generate Java classes
+- CP-38343: xenopsd: GC and memory RRD stats
+- CP-38343: use sscanf to parse /proc
+- CA-396743: log non managed devices in PIF.scan
+- CA-396743: make Network.managed reflect PIF.managed
+- CA-396743: forbid setting NBD purpose on unmanaged networks
+- CA-396743: fix bridge name for unmanaged devices
+- Extend Java deserialization support for xen-api dates
+- Minor doc corrections.
+- Removed entries that don't correspond to API messages. Removed obsolete parsing for CSLG failures.
+- C SDK: curl flags are not needed since the SDK does not depend on curl.
+- Expand Go deserialization support for xen-api dates
+- Expand C# deserialization support for xen-api dates
+- Expand C deserialization support for xen-api dates
+- Split generation of Types.java into separate functions
+- Split generation of classes into separate functions
+- CA-397788: Execute pre shutdown hook for xapi
+- Add sr to the Sr_unhealthy error constructor
+- Add more description on sr health
+- CP-49448: Add handling logic for SR health state
+- CP-51352: Compare before setting a new value in `last_active`
+- CP-51352: Configurable threshold for updating `last_active`
+- Add Java SDK to SDK actions
+- Fix syntax in CustomDateDeserializer.java
+- CP-47509: Revisited the setting of response headers to avoid errors when multiple threads use the same session object.
+- CA-397599 XSI-1704 implement setter for blocked ops manually
+
+* Tue Sep 10 2024 Christian Lindig <christian.lindig@citrix.com> - 24.28.0-1
+- Update record_util tests to the current state
+- IH-689: Include auto-generated record_util
+- Introduce mli for xapi_clustering
+- Make Daemon.enabled as an Atomic.t
+- CA-398438: Signal exit to the watcher thread
+- Remove the condition check for Daemon.enabled
+- fix(CI): feature/py3 has been merged, refer to master now
+- fix(WLS): disable non-root unit test
+- Update the docs for Volume.compose
+- CP-51042: Introduce new SR.scan2 for SMAPI{v1,v2,v3}
+- Replace Xapi_sr.scan with Xapi_sr.scan2
+- CP-50422: Destroy authentication cache in disable_external_auth
+- CP-32625: xenops-cli - replace handwritten JSON prettifier with yojson
+- IH-666: Report guest AD domain name and host name in the API
+- CP-47617: Expose backwards compat info to update packaging tooling
+- CP-46933: Expose XAPI API version in the output of HTTP API /updates
+- [maintenance]: mark data only dirs as such
+- [maintenance] disable preprocessor for modules that do not need them
+- [maintenance] only copy test_data when running tests
+- [maintenance]: reduce run count for test_timer
+- [maintenance]: speed up device_number_test
+- [maintenance]: reduce iteration count for unixext_test
+- [maintenance]: speed up vhd tests
+- [maintenance]: reduce sleeps in concur-rpc-test.sh
+- [maintenance]: vhd_format_lwt_test: speed up by using Cstruct.compare
+
 * Wed Sep 04 2024 Christian Lindig <christian.lindig@citrix.com> - 24.27.0-1
 - CA-390883 CP-46112 CP-47334 CP-47555 CP-47653 CP-47869 CP-47935 CP-48466
 - CP-49148 CP-49896 CP-49900 CP-49901 CP-49902 CP-49903 CP-49904 CP-49906
