@@ -68,9 +68,10 @@ Patch1000: xapi-24.11.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
 Patch1001: xenopsd-24.19.2-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
-Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
+# YD: must refresh
+#Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+#Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 # ?
 Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
 # Fix fingerprints for CA certificates too
