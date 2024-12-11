@@ -1,0 +1,25 @@
+From 0d7948310240689f5b59632c9bb417c2cc7621be Mon Sep 17 00:00:00 2001
+From: Yann Dirson <yann.dirson@vates.tech>
+Date: Wed, 11 Dec 2024 15:18:56 +0100
+Subject: [PATCH] Disable test_select, which needs losetup
+
+---
+ .../libs/xapi-stdext/lib/xapi-stdext-unix/test/unixext_test.ml  | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-unix/test/unixext_test.ml b/ocaml/libs/xapi-stdext/lib/xapi-stdext-unix/test/unixext_test.ml
+index be848f7b8..263f72f68 100644
+--- a/ocaml/libs/xapi-stdext/lib/xapi-stdext-unix/test/unixext_test.ml
++++ b/ocaml/libs/xapi-stdext/lib/xapi-stdext-unix/test/unixext_test.ml
+@@ -282,7 +282,7 @@ let test_select =
+   true
+ 
+ let tests =
+-  [test_select; test_proxy; test_time_limited_write; test_time_limited_read]
++  [test_proxy; test_time_limited_write; test_time_limited_read]
+ 
+ let () =
+   (* avoid SIGPIPE *)
+-- 
+2.39.5
+
