@@ -1,8 +1,10 @@
-%global package_speccommit 7d7c73786298bfc2d15911500057efe48a928750
-%global package_srccommit v24.19.2
+%global package_speccommit a4a8a7f74426ce64d5ca8a33a9d82bc036a0afc4
+%global package_srccommit v24.21.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
+
+%global yum_dir %{_sysconfdir}/yum.repos.d
 
 %if 0%{?xenserver} < 9
 %global build_python2 1
@@ -11,18 +13,21 @@
 # There are still some shebangs for python2, we skip this check
 %global __brp_mangle_shebangs %nil
 %global include_pyc_pyo 0
+%global dnf_plugin 1
+# DNF no logger own /etc/yum.repo.d anymore in XS9, xapi needs to own it
+%global own_yum_dir 1
 %endif
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.19.2
+Version: 24.21.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.19.2.tar.gz
+Source0: xen-api-24.21.0.tar.gz
 Source1: xcp-rrdd.service
 Source2: xcp-rrdd-sysconfig
 Source3: xcp-rrdd-conf
@@ -50,6 +55,7 @@ Source24: xapi-storage-script-sysconfig
 Source25: xapi-storage-script-conf.in
 Source26: tracing-conf
 Source27: pool-recommendations-xapi-conf
+Source28: xcp-rrdd-dcmi.service
 
 %if "%{dist}" == ".xsx"
 # Empty for now
@@ -104,7 +110,6 @@ Group: System/Hypervisor
 Requires:       %{name}-cov = %{version}-%{release}
 %endif
 Requires: hwdata
-Requires: redhat-lsb-core
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
 Requires: vhd-tool
@@ -121,6 +126,10 @@ Requires: xcp-python-libs
 Requires: yum-utils >= 1.1.31
 %else
 Requires: dnf
+# This is for dnf/yum plugin
+Requires: python3-urlgrabber
+# For dnf plugins like config-manager
+Requires: dnf-plugins-core
 %endif
 Requires: python3-xcp-libs
 Requires: python-pyudev
@@ -531,6 +540,17 @@ done >> core-files
 echo "%{python3_sitelib}/xapi/__pycache__/__init__*.pyc" >> core-files
 echo "%{python3_sitelib}/xapi_storage*.egg-info" >> core-files
 
+%if 0%{?dnf_plugin}
+echo "%{python3_sitelib}/dnf-plugins/*" >> core-files
+%else
+# clean the dnf-plugin as not required by XS8
+rm -rf %{buildroot}/%{python3_sitelib}/dnf-plugins/
+%endif
+
+%if 0%{?own_yum_dir}
+mkdir -m 755 -p %{buildroot}/%{yum_dir}
+%endif
+
 %{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python3_sitelib}/
 
 ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
@@ -575,9 +595,6 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 sed -i -E 's#(ExecStart=.+/xapi-ssl.pem) +-1 #\1 204 #g' %{buildroot}%{_unitdir}/gencert.service
 
 rm %{buildroot}%{_bindir}/gen_lifecycle
-rm %{buildroot}/opt/xensource/bin/xe*-metadata
-rm %{buildroot}/opt/xensource/libexec/backup-metadata-cron
-rm %{buildroot}/opt/xensource/libexec/*-sr-metadata.py*
 
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/volume
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/datapath
@@ -589,6 +606,7 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %{?_cov_install}
 
 %{__install} -D -m 0644 %{SOURCE26} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
+%{__install} -D -m 0644 %{SOURCE28} %{buildroot}%{_unitdir}/xcp-rrdd-dcmi.service
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
@@ -670,6 +688,7 @@ systemctl kill -s HUP rsyslog 2> /dev/null || true
 %systemd_post xcp-rrdd-iostat.service
 %systemd_post xcp-rrdd-squeezed.service
 %systemd_post xcp-rrdd-xenpm.service
+%systemd_post xcp-rrdd-dcmi.service
 
 %post -n xcp-networkd
 %systemd_post xcp-networkd.service
@@ -740,6 +759,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_preun xcp-rrdd-iostat.service
 %systemd_preun xcp-rrdd-squeezed.service
 %systemd_preun xcp-rrdd-xenpm.service
+%systemd_preun xcp-rrdd-dcmi.service
 
 %preun -n xcp-networkd
 %systemd_preun xcp-networkd.service
@@ -793,6 +813,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_postun xcp-rrdd-iostat.service
 %systemd_postun xcp-rrdd-squeezed.service
 %systemd_postun xcp-rrdd-xenpm.service
+%systemd_postun xcp-rrdd-dcmi.service
 
 %postun -n xcp-networkd
 %systemd_postun xcp-networkd.service
@@ -875,9 +896,11 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/bin/xapi-autostart-vms
 /opt/xensource/bin/xapi-db-process
 /opt/xensource/bin/xapi-wait-init-complete
+/opt/xensource/bin/xe-backup-metadata
 /opt/xensource/bin/xe-edit-bootloader
 /opt/xensource/bin/xe-get-network-backend
 /opt/xensource/bin/xe-mount-iso-sr
+/opt/xensource/bin/xe-restore-metadata
 /opt/xensource/bin/xe-reset-networking
 /opt/xensource/bin/xe-scsi-dev-map
 /opt/xensource/bin/xe-toolstack-restart
@@ -901,6 +924,8 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/sm_diagnostics
 /opt/xensource/libexec/xn_diagnostics
 /opt/xensource/libexec/thread_diagnostics
+/opt/xensource/libexec/backup-metadata-cron
+/opt/xensource/libexec/backup-sr-metadata.py
 /opt/xensource/libexec/block_device_io
 /opt/xensource/libexec/cdrommon
 /opt/xensource/libexec/alert-certificate-check
@@ -921,8 +946,8 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/nbd_client_manager.py
 /opt/xensource/libexec/network-init
 /opt/xensource/libexec/print-custom-templates
-/opt/xensource/libexec/probe-device-for-file
 /opt/xensource/libexec/reset-and-reboot
+/opt/xensource/libexec/restore-sr-metadata.py
 /opt/xensource/libexec/set-hostname
 /opt/xensource/libexec/shell.py
 /opt/xensource/libexec/update-mh-info
@@ -964,6 +989,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
+%if 0%{?own_yum_dir}
+%{yum_dir}
+%endif
 
 %if 0%{include_pyc_pyo}
 /etc/xapi.d/plugins/IPMI.pyo
@@ -986,6 +1014,10 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /usr/lib/yum-plugins/accesstoken.pyc
 /usr/lib/yum-plugins/ptoken.pyo
 /usr/lib/yum-plugins/ptoken.pyc
+/opt/xensource/libexec/backup-sr-metadata.pyo
+/opt/xensource/libexec/backup-sr-metadata.pyc
+/opt/xensource/libexec/restore-sr-metadata.pyo
+/opt/xensource/libexec/restore-sr-metadata.pyc
 %endif
 
 
@@ -1233,11 +1265,13 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-iostat
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-squeezed
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-xenpm
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-dcmi
 /etc/xensource/bugtool/xcp-rrdd-plugins.xml
 /etc/xensource/bugtool/xcp-rrdd-plugins/stuff.xml
 %{_unitdir}/xcp-rrdd-iostat.service
 %{_unitdir}/xcp-rrdd-squeezed.service
 %{_unitdir}/xcp-rrdd-xenpm.service
+%{_unitdir}/xcp-rrdd-dcmi.service
 
 %files -n vhd-tool
 %{_bindir}/vhd-tool
@@ -1292,7 +1326,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 
 %files idl-devel
 %{ocaml_docdir}/xapi-idl
-%{_bindir}/xcp-idl-debugger
 %{ocaml_libdir}/xapi-idl
 %{ocaml_libdir}/stublibs/*.so
 
@@ -1371,6 +1404,146 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 26 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.21.0-1
+- Improve build and test times
+- maintenance: delete unused fields
+- xapi: update mirage-crypto version
+- mirage-rng: Initialize it only in tests and selfcert
+
+* Thu Jul 25 2024 Ming Lu <ming.lu@cloud.com> - 24.20.0-2
+- Bump release and rebuild
+
+* Wed Jul 24 2024 Ming Lu <ming.lu@cloud.com> - 24.20.0-1
+- xe-xentrace: fix binary location
+- scripts/xentrace: detect host CPU spikes and dump xentrace
+- CA_388624: fix(C SDK): fix build failure with recent GCC
+- build: add sdk-build-c Makefile rule to test building C SDK locally
+- gen_api: generate an all_<enum> for enum types
+- fix(Host.set_numa_affinity_policy): be consistent about accepting mixed case
+- test(record_util): make a copy to test for backwards compatibility
+- test(record_util): add tests for all enums
+- redo_log: report redo log as broken if we cannot find the block device
+- CA-389506: fix platform:nested_virt typo
+- CA-389241: import-update-key compatible with xs8 and xs9
+- CA-381119: use JsonRPC V2 for error replies
+- CP-46944: Update yum plugins to dnf plugins (#5526)
+- Routine feature branch sync (#5531)
+- XenAPI.py: use correct type for 'verbose' and 'allow_none' with Python3
+- XenAPI: suppress pytype false positives
+- remove XenAPI.py from pytype expected to fail list
+- CP-48623: use persistent unix socket connection for SM to XAPI communication
+- CP-48623: avoid querying the API version, it is not used
+- CP-48623: avoid 4 additional API calls after each SM login
+- CP-45921: Use dnf as package manager for XS9 (#5534)
+- CP-48221: Support new gpg for XS9 (#5543)
+- [maintenance]: disable implicit transitive deps
+- fix(dune): avoid "module unavailable" errors when running dune build @check
+- CP-47001: [xapi-fdcaps]: dune plumbing for new library
+- CP-47001: [xapi-fd-test]: dune plumbing for a new test framework
+- CP-47001: [xapi-fdcaps]: add -principal flag
+- CP-47001: [xapi-fdcaps]: optional coverage support
+- CP-47001: [xapi-fdcaps]: add properties module and tests
+- CP-47001: [xapi-fdcaps]: add operations module and tests
+- CP-47001: [xapi-fdcaps]: wrap more Unix operations
+- CP-47001: [xapi-fdcaps] runtime tests for read-write properties
+- CP-47001: [xapi-fdcaps-test]: add observations module
+- CP-47001: [xapi-fdcaps-test]: add generate module
+- CP-47001: [unixext-test]: add quickcheck-style test
+- CP-47001: Add unit tests for threadext
+- CP-47001: [unixext-test]: add test for Unixext.proxy
+- Unix.time_limited_write: fix timeout behaviour on >64KiB writes/reads
+- Unix.time_limited_{read,write}: replace select with Polly
+- add Unixext.time_limited_single_read
+- CP-32622: replace select with Thread.delay
+- CP-32622: Delay: replace select with time_limited_read
+- CP-32622: replace select in proxy with polly
+- CP-32622: move new libraries to proper subdir
+- Update update.precheck/apply to be compatible with yum and dnf (#5564)
+- IH-543: Add IPMI DCMI based power reading rrdd plugin
+- CP-32622: Use Unix.sleepf for sleeps instead of select
+- CP-47536: drop Unix.select in newcli
+- CP-47536: test for Buf_io timeouts
+- [maintenance]: quicktest: add the ability to run without XAPI
+- CP-47536: add ezxenstore quicktest
+- master_connection: log why we failed to connect
+- xapi.conf: introduce test_open
+- xapi_main: enable backtraces earlier to get backtraces from early startup failures
+- fix(XenAPI.py): fix pylint warning
+- CA-394343: After clock jump the xapi assumed the host is HOST_OFFLINE
+- IH-642 Restructure xs-trace to use Cmdliner
+- Refactor watcher creation code
+- Only create watcher once
+- Refactor cluster change watcher interval
+- Add new internal API cstack_sync
+- CP-394109: Alert only once for cluster host leave/join
+- Feature flag the cstack_sync call
+- CP-50193: Update new fingerprint fields on DB upgrade
+- CP-50108: Use Ipaddr instead of string-based CIDR handling
+- Fix pytype warnings.
+- dune: fix tests to packages
+- CP-50259 simplify raising error in record_util
+- Refactor to use List apis
+- Add new check for new parameters' default value
+- Refactored HTTP_actions template.
+- CP-50259 simplify parsing size with kib, mib, etc suffix
+- Update datamodel lifecycle
+- xapi-cli-server: simplifications around error handling
+- xapi-cli-server: remove function s2sm to serialize data
+- xapi-cli-server: remove function s2brm to serialize data
+- CP-49101: Fix pylint error
+- CA-395626: Fix (server status report generation report)
+- CP-50078: Instrument xapi-storage-script with tracing (#5808)
+- context: `complete_tracing` should be called last
+- context: catch error inside span
+- tracing: Instrument task related functionality
+- time: use `Date.now` over `Unix.time` in `taskHelper.ml`
+- formatting: Use `let@` and `match` statements.
+- CA-395626: Add a unit test to detect incorrect cookie parsing
+- quicktest: associate unit-test with xapi package
+- CP-50270: Set the correct parent in `make_connection`
+- gen_empty_custom: avoid wildcards for actions
+- CA-390277: Add API to fetch references matching a query
+- xapi-cli-server: use helper remote in migrate function
+- CA-390277: Reduce record usage on CLI cross-pool migrations
+- Refactor: Move to default optional parameters when they were reimplemented by hand
+- Moved PS destructors to a template.
+- Add -run-only and -list-tests parameters to quicktests
+- CP-50079: Add correct cookie parsing alongside the old style
+- CP-50079: Expands http quicktests to also check parsing of cookies.
+- CP-50079: Remove legacy sync_config_files interface
+- CP-50079: Remove unused unixpwd function and its associated tests
+- quality-gate: fix list.hd
+- CP-49811: Remove redundant method object from span name
+- CA-395784: fix(xapi-fd-test): do not generate <1us timeouts
+- CA-395784: fix(xapi-fd-test): timeouts get converted to microseconds, must be at least 1
+- CA-395784: fix(buf_io_test): the timeout is per read, not per function call
+- CP-49875: Group the auto_instrumentation spans by module
+- CP-49634: Add alerting for Corosync upgrade
+- CA-395512: process SMAPIv3 API calls concurrently (default off)
+- vhd-tool, xen-api-client: Remove duplicated cohttp_unbuffered_io module
+- vhd-tool, ezxenstore: Remove duplicate xenstore module
+- Fix Short/Long duration printing
+- forkexecd: do not clip commandline in logs
+- CA-395174: Try to unarchive VM's metrics when they aren't running
+- rrdd_proxy: Change *_at to specify the IP address
+- rrdd_proxy: Use Option to encode where VMs might be available at
+- http-lib: avoid double-queries to the radix tree
+- rrdd_proxy: Return 400 on bad vm request
+- CA-394148: Fix dry-run handling in xe-restore-metadata
+- CA-393578: Fix vbd cleanup in metadata scripts
+- CA-383491: [Security fix] Use debugfs on xe-restore-metadata probes
+- Updates to Portable SR Functionality
+- Fixes for shellcheck
+- Remove unused `yes` parameter in xe-backup-metadata
+- Remove ineffectual parameter wiping (#5868)
+- CP-47536: Drop posix_channel and channel_helper: unused and a mix of Unix/Lwt
+- opam: dunify vhd-tool's metadata
+- CP-47536: replace Protocol_unix.scheduler.Delay with Threadext.Delay
+- fix(xapi-idl): replace PipeDelay with Delay, avoid another Thread.wait_timed_read
+- opam: dunify message-switch-unix's metadata
+- IH-507: xapi_xenops: raise an error when the kernel isn't allowed
+- IH-507: Do not allow guest kernels in /boot/
+
 * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
 - CA-395626: Fix (server status report generation report)
 
