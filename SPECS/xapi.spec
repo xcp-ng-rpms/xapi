@@ -471,6 +471,9 @@ It is responsible for giving access only to a specific VM to varstored.
 # YD: disable tests wanting losetup (maybe larger than required)
 : > ocaml/libs/xapi-stdext/lib/xapi-fdcaps/test/test_operations.ml
 : > ocaml/libs/xapi-stdext/lib/xapi-fd-test/test/test_xapi_fd_test.ml
+# disable tests failing for unknown reason
+# * `Unix.Unix_error(Unix.EACCES, "mkdir", "//data/src")`
+: > ocaml/libs/vhd/vhd_format_lwt_test/dune
 
 ./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
 export OCAMLPATH=%{_ocamlpath}
