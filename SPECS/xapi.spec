@@ -527,6 +527,7 @@ It is responsible for giving access only to a specific VM to varstored.
 %build
 ./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
 export OCAMLPATH=%{_ocamlpath}
+export GIT_CEILING_DIRECTORIES=%{_topdir}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
 %{__make} sdk
@@ -536,6 +537,7 @@ sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE18} > xapi-storage-script.conf
 
 %check
 export OCAMLPATH=%{_ocamlpath}
+export GIT_CEILING_DIRECTORIES=%{_topdir}
 COMPILE_JAVA=no %{__make} test
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
@@ -545,6 +547,7 @@ ls %{buildroot}/testresults/
 rm -rf %{buildroot}
 %global xapi_storage_path _build/default/ocaml/xapi-storage/python/
 export OCAMLPATH=%{_ocamlpath}
+export GIT_CEILING_DIRECTORIES=%{_topdir}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
@@ -1444,6 +1447,7 @@ Coverage files from unit tests
 - Test rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
+- use GIT_CEILING_DIRECTORIES to shield dune-build-info from the source-repo .git
 
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
