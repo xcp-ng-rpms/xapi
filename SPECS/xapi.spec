@@ -578,6 +578,20 @@ export OCAMLPATH=%{_ocamlpath}
 export GIT_CEILING_DIRECTORIES=%{_topdir}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
+# HACK: fix dune-build-info's job: replace $sha-dirty strings with version
+dirtystr=$(unset GIT_CEILING_DIRECTORIES; git describe --always --dirty --abbrev=7)
+dirtylen=${#dirtystr}
+version=%{version}
+verlen=${#version}
+# since we use sed we have to write as many bytes, so pad with spaces
+fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+    xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+# make sure the hack did its job
+! grep -r -e "-dirty"
+
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
     echo %{python3_sitelib}/$f.py
@@ -1460,6 +1474,7 @@ Coverage files from unit tests
 - list identified missing Requires
 - use GIT_CEILING_DIRECTORIES to shield dune-build-info from the source-repo .git
 - Don't rely on upstream mechanism for the version
+- HACK replace $sha-dirty strings with $version
 
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
