@@ -1380,7 +1380,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Dec 11 2024 Yann Dirson <yann.dirson@vates.tech> - 24.39.0-2.0.1
+* Wed Dec 11 2024 Yann Dirson <yann.dirson@vates.tech> - 24.39.0-2.0.2
 - HACK disable tests which require usable `losetup` to run
 - Merge new upstream work:
   * Tue Nov 26 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-2
