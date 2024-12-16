@@ -612,6 +612,23 @@ echo /usr/libexec/xapi/cluster-stack >> core-files
 echo /opt/xensource/www >> core-files
 echo /var/lib/xcp >> core-files
 
+# HACK: fix dune-build-info's job: replace $sha-dirty strings with version
+# Note: when building from a SRPM there is no git history
+if [ -r .git ]; then
+    dirtystr=$(git describe --always --dirty --abbrev=7)
+    dirtylen=${#dirtystr}
+    version=%{version}
+    verlen=${#version}
+    # since we use sed we have to write as many bytes, so pad with spaces
+    fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+    replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+    grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+        xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+    sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+fi
+# make sure we don't have any "-dirty" string in the build
+! grep -r -e "-dirty" $RPM_BUILD_ROOT
+
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
     echo %{python3_sitelib}/$f.py
@@ -1553,6 +1570,7 @@ Coverage files from unit tests
   - Don't pull qemu on arm64 for now
   - Revert the 26.1.3-1.4 changes relying on qcow support in xs-opam
   - Stay away from firewalld for now, use iptables-legacy
+  - Replace $sha-dirty strings with $version
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
