@@ -576,6 +576,20 @@ rm -rf %{buildroot}
 export OCAMLPATH=%{_ocamlpath}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
+# HACK: fix dune-build-info's job: replace $sha-dirty strings with version
+dirtystr=$(git describe --always --dirty --abbrev=7)
+dirtylen=${#dirtystr}
+version=%{version}
+verlen=${#version}
+# since we use sed we have to write as many bytes, so pad with spaces
+fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+    xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+# make sure the hack did its job
+! grep -r -e "-dirty"
+
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
     echo %{python3_sitelib}/$f.py
@@ -1494,6 +1508,7 @@ Coverage files from unit tests
 - Do not require python2-udev on v9+
 - list identified missing Requires
 - Don't rely on upstream mechanism for the version
+- HACK replace $sha-dirty strings with $version
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
