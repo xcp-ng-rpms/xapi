@@ -613,6 +613,15 @@ echo /usr/libexec/xapi/cluster-stack >> core-files
 echo /opt/xensource/www >> core-files
 echo /var/lib/xcp >> core-files
 
+# make sure we don't have any "-dirty" string in the build
+if grep -r -e "-dirty" $RPM_BUILD_ROOT >/dev/null; then
+    # ignore legit symbol "xen-set-global-dirty-log"
+    if grep -rl -e "-dirty" $RPM_BUILD_ROOT | xargs strings | grep -e "-dirty" | grep -v xen-set-global-dirty-log; then
+        echo >&2 "Found '-dirty' string in above files"
+        exit 1
+    fi
+fi
+
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
     echo %{python3_sitelib}/$f.py
@@ -1549,6 +1558,7 @@ Coverage files from unit tests
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - Fix extra_file logic used for xenserver9.conf
 - Backport upstream patches for QEMU 10 compatibility (CP-312095)
+- Add a safety net to abort build when binaries embed a version then cannot grok
 - Hacks and temporary measures:
   - On XCP-ng 9, require dhcp-client not dhclient
   - Revert the 26.1.3-1.4 changes relying on qcow support in xs-opam
