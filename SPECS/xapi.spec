@@ -508,7 +508,8 @@ It is responsible for giving access only to a specific VM to varstored.
 # * `Unix.Unix_error(Unix.EACCES, "mkdir", "//data/src")`
 rm -f ocaml/libs/vhd/vhd_format_lwt_test/dune
 
-./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir}
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --prefix %{_prefix} --libdir %{ocaml_libdir}
+echo '(version "%{version}")' >> dune-project
 export OCAMLPATH=%{_ocamlpath}
 export GIT_CEILING_DIRECTORIES=%{_topdir}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
