@@ -23,7 +23,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.39.0
-Release: 2.0.4%{?xsrel}%{?dist}
+Release: 2.0.6%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1384,7 +1384,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Dec 11 2024 Yann Dirson <yann.dirson@vates.tech> - 24.39.0-2.0.4
+* Wed Dec 11 2024 Yann Dirson <yann.dirson@vates.tech> - 24.39.0-2.0.6
 - HACK disable tests which require usable `losetup` to run
 - use GIT_CEILING_DIRECTORIES to shield dune-build-info from the source-repo .git
 - Merge new upstream work:
