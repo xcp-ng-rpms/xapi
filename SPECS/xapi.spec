@@ -525,7 +525,8 @@ It is responsible for giving access only to a specific VM to varstored.
 %{?_cov_prepare}
 
 %build
-./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
+echo '(version "%{version}")' >> dune-project
 export OCAMLPATH=%{_ocamlpath}
 export GIT_CEILING_DIRECTORIES=%{_topdir}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
@@ -1448,6 +1449,7 @@ Coverage files from unit tests
 - Do not require python2-udev on v9+
 - list identified missing Requires
 - use GIT_CEILING_DIRECTORIES to shield dune-build-info from the source-repo .git
+- Don't rely on upstream mechanism for the version
 
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
