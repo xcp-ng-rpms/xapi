@@ -542,7 +542,8 @@ It is responsible for giving access only to a specific VM to varstored.
 %{?_cov_prepare}
 
 %build
-./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
+echo '(version "%{version}")' >> dune-project
 export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
@@ -1476,6 +1477,7 @@ Coverage files from unit tests
 - Test rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
+- Don't rely on upstream mechanism for the version
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
