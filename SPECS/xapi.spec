@@ -1,17 +1,17 @@
-%global package_speccommit de5edecdf88cb9c615c48fedc3ad826ce85dc106
+%global package_speccommit bd4277b55198431680c1389ebe3719e570b61936
 %{!?xsrel: %global xsrel 1}
-%global package_srccommit v1.249.38
+%global package_srccommit v1.249.40
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.38
+Version: 1.249.40
 Release: %{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-1.249.38.tar.gz
+Source0: xen-api-1.249.40.tar.gz
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -434,6 +434,24 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Mon Dec 16 2024 Christian Lindig <christian.lindig@citrix.com> - 1.240.40-1
+- rebuild but use latest tag
+
+* Fri Dec 13 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.39-2
+- rebuild
+
+* Fri Dec 13 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.39-1
+- CA-397599 XSI-1704 implement setter for blocked ops manually
+- CA-397599 XSI-1704 reformat
+- CA-401242: avoid long-running, idle connections on VDI.pool_migrate, backport
+- CA-399629: make daily-license-check aware of never
+- CA-399629: adopt previous commit to yangtze
+- Revert "XSI-1706/CP-51295: limit open TCP connections to 250 and increase socket backlog"
+- CA-402901: Update leaked dp to Sr
+
+* Mon Dec 09 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.38-2
+- Bump release and rebuild
+
 * Thu Aug 29 2024 Christian Lindig <christian.lindig@cloud.com> - 1.249.38-1
 - CA-390277: Stop using host records on CLI cross-pool migrations
 - CP-49228: Updates to Portable SR Functionality
