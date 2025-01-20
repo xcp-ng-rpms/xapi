@@ -1,0 +1,131 @@
+From 5f49ba1f4c63f887f6671bae1e4bf33d956db9e8 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Mon, 20 Jan 2025 16:44:36 +0000
+Subject: [PATCH] numa: do not fail to load invalid distance matrices
+
+Instead disable NUMA for the host
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/lib/topology.ml       | 45 ++++++++++++++---------------
+ ocaml/xenopsd/lib/topology.mli      |  2 +-
+ ocaml/xenopsd/test/test_topology.ml |  4 +--
+ ocaml/xenopsd/xc/domain.ml          |  5 ++--
+ 4 files changed, 28 insertions(+), 28 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/topology.ml b/ocaml/xenopsd/lib/topology.ml
+index 1d8b1e0145d..fc2bfcefb5b 100644
+--- a/ocaml/xenopsd/lib/topology.ml
++++ b/ocaml/xenopsd/lib/topology.ml
+@@ -189,30 +189,29 @@ module NUMA = struct
+     Array.iteri
+       (fun i node -> node_cpus.(node) <- CPUSet.add i node_cpus.(node))
+       cpu_to_node ;
+-    Array.iteri
+-      (fun i row ->
+-        let d = distances.(i).(i) in
+-        if d <> 10 then
+-          invalid_arg
+-            (Printf.sprintf "NUMA distance from node to itself must be 10: %d" d) ;
+-        Array.iteri
+-          (fun _ d ->
+-            if d < 10 then
+-              invalid_arg (Printf.sprintf "NUMA distance must be >= 10: %d" d)
+-          )
+-          row
+-      )
+-      distances ;
+-    let all = Array.fold_left CPUSet.union CPUSet.empty node_cpus in
+-    let candidates = gen_candidates distances in
+-    {
++    let numa_matrix_is_reasonable =
+       distances
+-    ; cpu_to_node= Array.map node_of_int cpu_to_node
+-    ; node_cpus
+-    ; all
+-    ; node_usage= Array.map (fun _ -> 0) distances
+-    ; candidates
+-    }
++      |> Array.to_seqi
++      |> Seq.for_all (fun (i, row) ->
++             let d = distances.(i).(i) in
++             d = 10 || Array.for_all (fun d -> d >= 10) row
++         )
++    in
++
++    if not numa_matrix_is_reasonable then
++      None
++    else
++      let all = Array.fold_left CPUSet.union CPUSet.empty node_cpus in
++      let candidates = gen_candidates distances in
++      Some
++        {
++          distances
++        ; cpu_to_node= Array.map node_of_int cpu_to_node
++        ; node_cpus
++        ; all
++        ; node_usage= Array.map (fun _ -> 0) distances
++        ; candidates
++        }
+ 
+   let distance t (Node a) (Node b) = t.distances.(a).(b)
+ 
+diff --git a/ocaml/xenopsd/lib/topology.mli b/ocaml/xenopsd/lib/topology.mli
+index dcab8a06d4a..290c838d9b2 100644
+--- a/ocaml/xenopsd/lib/topology.mli
++++ b/ocaml/xenopsd/lib/topology.mli
+@@ -78,7 +78,7 @@ module NUMA : sig
+   (** A NUMA node index. Distinct from an int to avoid mixing with CPU numbers *)
+   type node = private Node of int
+ 
+-  val make : distances:int array array -> cpu_to_node:int array -> t
++  val make : distances:int array array -> cpu_to_node:int array -> t option
+   (** [make distances cpu_to_node] stores the topology. [distances] is a square
+       matrix [d] where [d.(i).(j)] is an approximation to how much slower it is
+       to access memory from node [j] when running on node [i]. Distances are
+diff --git a/ocaml/xenopsd/test/test_topology.ml b/ocaml/xenopsd/test/test_topology.ml
+index 1863f546321..5563a9db2d0 100644
+--- a/ocaml/xenopsd/test/test_topology.ml
++++ b/ocaml/xenopsd/test/test_topology.ml
+@@ -8,7 +8,7 @@ let make_numa ~numa ~cores =
+   in
+   let cores_per_numa = cores / numa in
+   let cpu_to_node = Array.init cores (fun core -> core / cores_per_numa) in
+-  (cores, NUMA.make ~distances ~cpu_to_node)
++  (cores, Option.get (NUMA.make ~distances ~cpu_to_node))
+ 
+ let make_numa_amd ~cores_per_numa =
+   (* e.g. AMD Opteron 6272 *)
+@@ -28,7 +28,7 @@ let make_numa_amd ~cores_per_numa =
+   let cpu_to_node =
+     Array.init (cores_per_numa * numa) (fun core -> core / cores_per_numa)
+   in
+-  (cores_per_numa * numa, NUMA.make ~distances ~cpu_to_node)
++  (cores_per_numa * numa, Option.get (NUMA.make ~distances ~cpu_to_node))
+ 
+ type t = {worst: int; average: float; nodes: NUMA.node list; best: int}
+ 
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index fce32abf19b..9f89e84fa90 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -851,7 +851,7 @@ let numa_init () =
+   let host = Lazy.force numa_hierarchy in
+   let mem = (Xenctrlext.numainfo xcext).memory in
+   D.debug "Host NUMA information: %s"
+-    (Fmt.to_to_string Topology.NUMA.pp_dump host) ;
++    (Fmt.to_to_string (Fmt.Dump.option Topology.NUMA.pp_dump) host) ;
+   Array.iteri
+     (fun i m ->
+       let open Xenctrlext in
+@@ -864,8 +864,9 @@ let numa_placement domid ~vcpus ~memory =
+   let open Topology in
+   let hint =
+     with_lock numa_mutex (fun () ->
++        let ( let* ) = Option.bind in
+         let xcext = get_handle () in
+-        let host = Lazy.force numa_hierarchy in
++        let* host = Lazy.force numa_hierarchy in
+         let numa_meminfo = (numainfo xcext).memory |> Array.to_list in
+         let nodes =
+           ListLabels.map2
