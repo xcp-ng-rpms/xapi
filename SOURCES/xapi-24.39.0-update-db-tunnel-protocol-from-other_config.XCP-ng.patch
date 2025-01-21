@@ -56,10 +56,10 @@ index 05f20f083..3aaf3fead 100644
  let rules =
    [
      upgrade_domain_type
-@@ -933,6 +957,7 @@ let rules =
-   ; remove_legacy_ssl_support
+@@ -933,4 +957,5 @@ let rules =
    ; empty_pool_uefi_certificates
    ; upgrade_update_guidance
+   ; upgrade_ca_fingerprints
 +  ; fill_tunnel_protocol
    ]
 
