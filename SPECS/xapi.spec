@@ -1,5 +1,5 @@
-%global package_speccommit e8a5246c6c3a810516e1df2ec1eb0dd4700cddfe
-%global package_srccommit v24.39.0
+%global package_speccommit e3fed2884036e03b1a38b1fad7f1f0ce75371831
+%global package_srccommit v24.39.1
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -22,12 +22,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.39.0
-Release: 2%{?xsrel}%{?dist}
+Version: 24.39.1
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.39.0.tar.gz
+Source0: xen-api-24.39.1.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1329,6 +1329,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
+- CA-404512: Add feature flag to the new clustering interface
+
 * Tue Nov 26 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-2
 - Bump release and rebuild
 
