@@ -1,0 +1,10 @@
+--- a/ocaml/xapi/helpers.ml
++++ b/ocaml/xapi/helpers.ml
+@@ -1798,6 +1798,7 @@
+           ; "TIMEOUTclose = 1"
+           ; "options = CIPHER_SERVER_PREFERENCE"
+           ; "sslVersion = TLSv1.2"
++          ; "renegotiation = no"
+           ]
+       in
+       let len = String.length conf_contents in
