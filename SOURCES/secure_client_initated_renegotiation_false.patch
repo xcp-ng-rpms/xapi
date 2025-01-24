@@ -1,0 +1,10 @@
+--- a/ocaml/xapi/xapi_stunnel_server.ml
++++ b/ocaml/xapi/xapi_stunnel_server.ml
+@@ -54,6 +54,7 @@ module Config : sig
+         ; "curve = secp384r1"
+         ; "options = CIPHER_SERVER_PREFERENCE"
++        ; "renegotiation = no"
+         ; "sslVersion = TLSv1.2"
+         ]
+       in
+       [

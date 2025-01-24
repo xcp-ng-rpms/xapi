@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.9%{?xsrel}%{?dist}
+Release: 1.10%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -83,6 +83,8 @@ Patch1011: xapi-24.19.2-ipv6-pool-eject.XCP-ng.patch
 Patch1012: xapi-24.19.2-ipv6-virtual-pif.XCP-ng.patch.patch
 # To remove once https://github.com/xapi-project/xen-api/pull/6006 is released
 Patch1013: xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
+# To disable renegotiation vulnerabilities
+Patch1014: secure_client_initated_renegotiation_false.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1414,6 +1416,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Feb 06 2025 Lucas Ravagnier <lucas.ravagnier@vates.tech> - 24.19.2-1.10
+- add secure_client_initated_renegotiation_false.patch
+  to disable a renegociation in stunnel.
+
 * Thu Oct 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.9
 - Add xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
 
