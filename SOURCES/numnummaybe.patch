@@ -1,0 +1,1026 @@
+From 41d7b1eac695b644fa75fbce6fe34df99649676d Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Mon, 20 Jan 2025 16:44:36 +0000
+Subject: [PATCH 1/6] CP-53335, topology: do not raise exception when loading
+ invalid distance matrices
+
+Instead disable NUMA for the host
+
+Fixes https://github.com/xapi-project/xen-api/issues/6240
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/lib/topology.ml       |  48 +++++-----
+ ocaml/xenopsd/lib/topology.mli      |   4 +-
+ ocaml/xenopsd/test/test.ml          |   3 +-
+ ocaml/xenopsd/test/test_topology.ml | 132 +++++++++++++++++-----------
+ ocaml/xenopsd/xc/domain.ml          |   5 +-
+ 5 files changed, 113 insertions(+), 79 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/topology.ml b/ocaml/xenopsd/lib/topology.ml
+index 1d8b1e0145d..bf0dd19c710 100644
+--- a/ocaml/xenopsd/lib/topology.ml
++++ b/ocaml/xenopsd/lib/topology.ml
+@@ -189,30 +189,32 @@ module NUMA = struct
+     Array.iteri
+       (fun i node -> node_cpus.(node) <- CPUSet.add i node_cpus.(node))
+       cpu_to_node ;
+-    Array.iteri
+-      (fun i row ->
+-        let d = distances.(i).(i) in
+-        if d <> 10 then
+-          invalid_arg
+-            (Printf.sprintf "NUMA distance from node to itself must be 10: %d" d) ;
+-        Array.iteri
+-          (fun _ d ->
+-            if d < 10 then
+-              invalid_arg (Printf.sprintf "NUMA distance must be >= 10: %d" d)
+-          )
+-          row
+-      )
+-      distances ;
+-    let all = Array.fold_left CPUSet.union CPUSet.empty node_cpus in
+-    let candidates = gen_candidates distances in
+-    {
++    let numa_matrix_is_reasonable =
+       distances
+-    ; cpu_to_node= Array.map node_of_int cpu_to_node
+-    ; node_cpus
+-    ; all
+-    ; node_usage= Array.map (fun _ -> 0) distances
+-    ; candidates
+-    }
++      |> Array.to_seqi
++      |> Seq.for_all (fun (i, row) ->
++             let d = distances.(i).(i) in
++             d = 10 && Array.for_all (fun d -> d >= 10) row
++         )
++    in
++
++    if not numa_matrix_is_reasonable then (
++      D.info
++        "Not enabling NUMA: the ACPI SLIT table contains values that are \
++         invalid." ;
++      None
++    ) else
++      let all = Array.fold_left CPUSet.union CPUSet.empty node_cpus in
++      let candidates = gen_candidates distances in
++      Some
++        {
++          distances
++        ; cpu_to_node= Array.map node_of_int cpu_to_node
++        ; node_cpus
++        ; all
++        ; node_usage= Array.map (fun _ -> 0) distances
++        ; candidates
++        }
+ 
+   let distance t (Node a) (Node b) = t.distances.(a).(b)
+ 
+diff --git a/ocaml/xenopsd/lib/topology.mli b/ocaml/xenopsd/lib/topology.mli
+index dcab8a06d4a..478a7ac2b64 100644
+--- a/ocaml/xenopsd/lib/topology.mli
++++ b/ocaml/xenopsd/lib/topology.mli
+@@ -78,7 +78,7 @@ module NUMA : sig
+   (** A NUMA node index. Distinct from an int to avoid mixing with CPU numbers *)
+   type node = private Node of int
+ 
+-  val make : distances:int array array -> cpu_to_node:int array -> t
++  val make : distances:int array array -> cpu_to_node:int array -> t option
+   (** [make distances cpu_to_node] stores the topology. [distances] is a square
+       matrix [d] where [d.(i).(j)] is an approximation to how much slower it is
+       to access memory from node [j] when running on node [i]. Distances are
+@@ -97,8 +97,6 @@ module NUMA : sig
+ 
+       NUMA nodes without any CPUs are accepted (to handle hard affinities).
+ 
+-      Raises [invalid_arg] if above constraints are not met
+-
+       A typical matrix might look like this:
+ 
+       10 21
+diff --git a/ocaml/xenopsd/test/test.ml b/ocaml/xenopsd/test/test.ml
+index befadd5e739..68cd53e0724 100644
+--- a/ocaml/xenopsd/test/test.ml
++++ b/ocaml/xenopsd/test/test.ml
+@@ -1032,4 +1032,5 @@ let _ =
+     )
+   in
+   Debug.log_to_stdout () ;
+-  Alcotest.run "xenops test" ([suite; Test_topology.suite] @ Test_cpuid.tests)
++  Alcotest.run "xenops test"
++    (List.concat [[suite]; Test_topology.suite; Test_cpuid.tests])
+diff --git a/ocaml/xenopsd/test/test_topology.ml b/ocaml/xenopsd/test/test_topology.ml
+index 1863f546321..40f99eac167 100644
+--- a/ocaml/xenopsd/test/test_topology.ml
++++ b/ocaml/xenopsd/test/test_topology.ml
+@@ -8,7 +8,11 @@ let make_numa ~numa ~cores =
+   in
+   let cores_per_numa = cores / numa in
+   let cpu_to_node = Array.init cores (fun core -> core / cores_per_numa) in
+-  (cores, NUMA.make ~distances ~cpu_to_node)
++  match NUMA.make ~distances ~cpu_to_node with
++  | None ->
++      Alcotest.fail "Synthetic matrix can't fail to load"
++  | Some d ->
++      (cores, d)
+ 
+ let make_numa_amd ~cores_per_numa =
+   (* e.g. AMD Opteron 6272 *)
+@@ -28,7 +32,20 @@ let make_numa_amd ~cores_per_numa =
+   let cpu_to_node =
+     Array.init (cores_per_numa * numa) (fun core -> core / cores_per_numa)
+   in
+-  (cores_per_numa * numa, NUMA.make ~distances ~cpu_to_node)
++  match NUMA.make ~distances ~cpu_to_node with
++  | None ->
++      Alcotest.fail "Synthetic matrix can't fail to load"
++  | Some d ->
++      (cores_per_numa * numa, d)
++
++let make_numa_unreachable ~cores_per_numa =
++  let numa = 2 in
++  (* 4294967295 is exactly (2ˆ32) - 1, meaning the node is unreachable *)
++  let distances = [|[|10; 4294967295|]; [|4294967295; 4294967295|]|] in
++  let cpu_to_node =
++    Array.init (cores_per_numa * numa) (fun core -> core / cores_per_numa)
++  in
++  NUMA.make ~distances ~cpu_to_node
+ 
+ type t = {worst: int; average: float; nodes: NUMA.node list; best: int}
+ 
+@@ -185,52 +202,67 @@ let test_allocate ?(mem = default_mem) (expected_cores, h) ~vms () =
+ 
+ let () = Printexc.record_backtrace true
+ 
++let distances_spec =
++  let numa = Alcotest.testable NUMA.pp_dump ( = ) in
++  let unreachable ~cores_per_numa expected () =
++    let actual = make_numa_unreachable ~cores_per_numa in
++    Alcotest.(check @@ option numa) "oops" expected actual
++  in
++  [("unreachable_nodes, 1 cpu / node", unreachable ~cores_per_numa:1 None)]
++
++let test_distances (name, fn) = (name, `Quick, fn)
++
++let distances_tests = List.map test_distances distances_spec
++
+ let suite =
+-  ( "topology test"
+-  , [
+-      ( "Allocation of 1 VM on 1 node"
+-      , `Quick
+-      , test_allocate ~vms:1 @@ make_numa ~numa:1 ~cores:2
+-      )
+-    ; ( "Allocation of 10 VMs on 1 node"
+-      , `Quick
+-      , test_allocate ~vms:10 @@ make_numa ~numa:1 ~cores:8
+-      )
+-    ; ( "Allocation of 1 VM on 2 nodes"
+-      , `Quick
+-      , test_allocate ~vms:1 @@ make_numa ~numa:2 ~cores:4
+-      )
+-    ; ( "Allocation of 10 VM on 2 nodes"
+-      , `Quick
+-      , test_allocate ~vms:10 @@ make_numa ~numa:2 ~cores:4
+-      )
+-    ; ( "Allocation of 1 VM on 4 nodes"
+-      , `Quick
+-      , test_allocate ~vms:1 @@ make_numa ~numa:4 ~cores:16
+-      )
+-    ; ( "Allocation of 10 VM on 4 nodes"
+-      , `Quick
+-      , test_allocate ~vms:10 @@ make_numa ~numa:4 ~cores:16
+-      )
+-    ; ( "Allocation of 40 VM on 16 nodes"
+-      , `Quick
+-      , test_allocate ~vms:40 @@ make_numa ~numa:16 ~cores:256
+-      )
+-    ; ( "Allocation of 40 VM on 32 nodes"
+-      , `Quick
+-      , test_allocate ~vms:40 @@ make_numa ~numa:32 ~cores:256
+-      )
+-    ; ( "Allocation of 40 VM on 64 nodes"
+-      , `Quick
+-      , test_allocate ~vms:80 @@ make_numa ~numa:64 ~cores:256
+-      )
+-    ; ( "Allocation of 10 VM on assymetric nodes"
+-      , `Quick
+-      , test_allocate ~vms:10 (make_numa_amd ~cores_per_numa:4)
+-      )
+-    ; ( "Allocation of 10 VM on assymetric nodes"
+-      , `Quick
+-      , test_allocate ~vms:6 ~mem:mem3 (make_numa_amd ~cores_per_numa:4)
+-      )
+-    ]
+-  )
++  [
++    ( "Allocation tests"
++    , [
++        ( "Allocation of 1 VM on 1 node"
++        , `Quick
++        , test_allocate ~vms:1 @@ make_numa ~numa:1 ~cores:2
++        )
++      ; ( "Allocation of 10 VMs on 1 node"
++        , `Quick
++        , test_allocate ~vms:10 @@ make_numa ~numa:1 ~cores:8
++        )
++      ; ( "Allocation of 1 VM on 2 nodes"
++        , `Quick
++        , test_allocate ~vms:1 @@ make_numa ~numa:2 ~cores:4
++        )
++      ; ( "Allocation of 10 VM on 2 nodes"
++        , `Quick
++        , test_allocate ~vms:10 @@ make_numa ~numa:2 ~cores:4
++        )
++      ; ( "Allocation of 1 VM on 4 nodes"
++        , `Quick
++        , test_allocate ~vms:1 @@ make_numa ~numa:4 ~cores:16
++        )
++      ; ( "Allocation of 10 VM on 4 nodes"
++        , `Quick
++        , test_allocate ~vms:10 @@ make_numa ~numa:4 ~cores:16
++        )
++      ; ( "Allocation of 40 VM on 16 nodes"
++        , `Quick
++        , test_allocate ~vms:40 @@ make_numa ~numa:16 ~cores:256
++        )
++      ; ( "Allocation of 40 VM on 32 nodes"
++        , `Quick
++        , test_allocate ~vms:40 @@ make_numa ~numa:32 ~cores:256
++        )
++      ; ( "Allocation of 40 VM on 64 nodes"
++        , `Quick
++        , test_allocate ~vms:80 @@ make_numa ~numa:64 ~cores:256
++        )
++      ; ( "Allocation of 10 VM on assymetric nodes"
++        , `Quick
++        , test_allocate ~vms:10 (make_numa_amd ~cores_per_numa:4)
++        )
++      ; ( "Allocation of 10 VM on assymetric nodes"
++        , `Quick
++        , test_allocate ~vms:6 ~mem:mem3 (make_numa_amd ~cores_per_numa:4)
++        )
++      ]
++    )
++  ; ("Distance matrix tests", distances_tests)
++  ]
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index fce32abf19b..9f89e84fa90 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -851,7 +851,7 @@ let numa_init () =
+   let host = Lazy.force numa_hierarchy in
+   let mem = (Xenctrlext.numainfo xcext).memory in
+   D.debug "Host NUMA information: %s"
+-    (Fmt.to_to_string Topology.NUMA.pp_dump host) ;
++    (Fmt.to_to_string (Fmt.Dump.option Topology.NUMA.pp_dump) host) ;
+   Array.iteri
+     (fun i m ->
+       let open Xenctrlext in
+@@ -864,8 +864,9 @@ let numa_placement domid ~vcpus ~memory =
+   let open Topology in
+   let hint =
+     with_lock numa_mutex (fun () ->
++        let ( let* ) = Option.bind in
+         let xcext = get_handle () in
+-        let host = Lazy.force numa_hierarchy in
++        let* host = Lazy.force numa_hierarchy in
+         let numa_meminfo = (numainfo xcext).memory |> Array.to_list in
+         let nodes =
+           ListLabels.map2
+
+From 0846a6a1ffd03151d1f3ff9ff538287c23faad02 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Wed, 22 Jan 2025 16:47:49 +0000
+Subject: [PATCH 2/6] test_topology: reorganise test cases
+
+Now the tests use the actual data from the test specifications instead of being
+hardcoded, and the distance matrices used for testing are in its own module for
+better clarity.
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/test/test_topology.ml | 195 +++++++++++++++-------------
+ 1 file changed, 103 insertions(+), 92 deletions(-)
+
+diff --git a/ocaml/xenopsd/test/test_topology.ml b/ocaml/xenopsd/test/test_topology.ml
+index 40f99eac167..cf3d1650bab 100644
+--- a/ocaml/xenopsd/test/test_topology.ml
++++ b/ocaml/xenopsd/test/test_topology.ml
+@@ -2,50 +2,67 @@ open Topology
+ 
+ module D = Debug.Make (struct let name = "test_topology" end)
+ 
+-let make_numa ~numa ~cores =
+-  let distances =
+-    Array.init numa (fun i -> Array.init numa (fun j -> 10 + (11 * abs (j - i))))
++module Distances = struct
++  type t = int * int array array
++
++  let example numa : t =
++    let distances =
++      Array.init numa (fun i ->
++          Array.init numa (fun j -> 10 + (11 * abs (j - i)))
++      )
++    in
++    (numa, distances)
++
++  let opteron : t =
++    (* e.g. AMD Opteron 6272 *)
++    let numa = 8 in
++    let distances =
++      [|
++         [|10; 16; 16; 22; 16; 22; 16; 22|]
++       ; [|16; 10; 22; 16; 16; 22; 22; 16|]
++       ; [|16; 22; 10; 16; 16; 16; 16; 16|]
++       ; [|22; 16; 16; 10; 16; 16; 22; 22|]
++       ; [|16; 16; 16; 16; 10; 16; 16; 22|]
++       ; [|22; 22; 16; 16; 16; 10; 22; 16|]
++       ; [|16; 22; 16; 22; 16; 22; 10; 16|]
++       ; [|22; 16; 16; 22; 22; 16; 16; 10|]
++      |]
++    in
++    (numa, distances)
++
++  let unreachable : t =
++    let numa = 2 in
++    (* 4294967295 is exactly (2ˆ32) - 1, meaning the node is unreachable *)
++    let distances = [|[|10; 4294967295|]; [|4294967295; 4294967295|]|] in
++    (numa, distances)
++end
++
++let make_numa_common ~cores_per_numa (distances : Distances.t) =
++  let numa, distances = distances in
++  let cpu_to_node =
++    Array.init (cores_per_numa * numa) (fun core -> core / cores_per_numa)
+   in
++  Option.map
++    (fun d -> (cores_per_numa * numa, d))
++    (NUMA.make ~distances ~cpu_to_node)
++
++let make_numa ~numa ~cores =
+   let cores_per_numa = cores / numa in
+-  let cpu_to_node = Array.init cores (fun core -> core / cores_per_numa) in
+-  match NUMA.make ~distances ~cpu_to_node with
++  match make_numa_common ~cores_per_numa (Distances.example numa) with
+   | None ->
+       Alcotest.fail "Synthetic matrix can't fail to load"
+   | Some d ->
+-      (cores, d)
++      d
+ 
+ let make_numa_amd ~cores_per_numa =
+-  (* e.g. AMD Opteron 6272 *)
+-  let numa = 8 in
+-  let distances =
+-    [|
+-       [|10; 16; 16; 22; 16; 22; 16; 22|]
+-     ; [|16; 10; 22; 16; 16; 22; 22; 16|]
+-     ; [|16; 22; 10; 16; 16; 16; 16; 16|]
+-     ; [|22; 16; 16; 10; 16; 16; 22; 22|]
+-     ; [|16; 16; 16; 16; 10; 16; 16; 22|]
+-     ; [|22; 22; 16; 16; 16; 10; 22; 16|]
+-     ; [|16; 22; 16; 22; 16; 22; 10; 16|]
+-     ; [|22; 16; 16; 22; 22; 16; 16; 10|]
+-    |]
+-  in
+-  let cpu_to_node =
+-    Array.init (cores_per_numa * numa) (fun core -> core / cores_per_numa)
+-  in
+-  match NUMA.make ~distances ~cpu_to_node with
++  match make_numa_common ~cores_per_numa Distances.opteron with
+   | None ->
+       Alcotest.fail "Synthetic matrix can't fail to load"
+   | Some d ->
+-      (cores_per_numa * numa, d)
++      d
+ 
+ let make_numa_unreachable ~cores_per_numa =
+-  let numa = 2 in
+-  (* 4294967295 is exactly (2ˆ32) - 1, meaning the node is unreachable *)
+-  let distances = [|[|10; 4294967295|]; [|4294967295; 4294967295|]|] in
+-  let cpu_to_node =
+-    Array.init (cores_per_numa * numa) (fun core -> core / cores_per_numa)
+-  in
+-  NUMA.make ~distances ~cpu_to_node
++  make_numa_common ~cores_per_numa Distances.unreachable
+ 
+ type t = {worst: int; average: float; nodes: NUMA.node list; best: int}
+ 
+@@ -202,67 +219,61 @@ let test_allocate ?(mem = default_mem) (expected_cores, h) ~vms () =
+ 
+ let () = Printexc.record_backtrace true
+ 
+-let distances_spec =
+-  let numa = Alcotest.testable NUMA.pp_dump ( = ) in
+-  let unreachable ~cores_per_numa expected () =
+-    let actual = make_numa_unreachable ~cores_per_numa in
+-    Alcotest.(check @@ option numa) "oops" expected actual
++let symmetric_specs =
++  let make ~vms ~numa ~cores =
++    let name =
++      Printf.sprintf "Allocation of %d VM(s) on %d node(s), %d cores" vms numa
++        cores
++    in
++    (name, vms, None, make_numa ~numa ~cores)
+   in
+-  [("unreachable_nodes, 1 cpu / node", unreachable ~cores_per_numa:1 None)]
+-
+-let test_distances (name, fn) = (name, `Quick, fn)
+-
+-let distances_tests = List.map test_distances distances_spec
++  [
++    make ~vms:1 ~numa:1 ~cores:2
++  ; make ~vms:10 ~numa:1 ~cores:8
++  ; make ~vms:1 ~numa:2 ~cores:4
++  ; make ~vms:10 ~numa:2 ~cores:4
++  ; make ~vms:1 ~numa:4 ~cores:16
++  ; make ~vms:10 ~numa:4 ~cores:16
++  ; make ~vms:40 ~numa:16 ~cores:256
++  ; make ~vms:40 ~numa:32 ~cores:256
++  ; make ~vms:80 ~numa:64 ~cores:256
++  ; make ~vms:10 ~numa:1 ~cores:8
++  ; make ~vms:10 ~numa:1 ~cores:8
++  ]
+ 
+-let suite =
++let amd_specs =
++  let make ~vms ~cores_per_numa ?mem () =
++    let name =
++      Printf.sprintf
++        "Allocation of %d VM(s) on asymmetric nodes, %d cores per node" vms
++        cores_per_numa
++    in
++    (name, vms, mem, make_numa_amd ~cores_per_numa)
++  in
+   [
+-    ( "Allocation tests"
+-    , [
+-        ( "Allocation of 1 VM on 1 node"
+-        , `Quick
+-        , test_allocate ~vms:1 @@ make_numa ~numa:1 ~cores:2
+-        )
+-      ; ( "Allocation of 10 VMs on 1 node"
+-        , `Quick
+-        , test_allocate ~vms:10 @@ make_numa ~numa:1 ~cores:8
+-        )
+-      ; ( "Allocation of 1 VM on 2 nodes"
+-        , `Quick
+-        , test_allocate ~vms:1 @@ make_numa ~numa:2 ~cores:4
+-        )
+-      ; ( "Allocation of 10 VM on 2 nodes"
+-        , `Quick
+-        , test_allocate ~vms:10 @@ make_numa ~numa:2 ~cores:4
+-        )
+-      ; ( "Allocation of 1 VM on 4 nodes"
+-        , `Quick
+-        , test_allocate ~vms:1 @@ make_numa ~numa:4 ~cores:16
+-        )
+-      ; ( "Allocation of 10 VM on 4 nodes"
+-        , `Quick
+-        , test_allocate ~vms:10 @@ make_numa ~numa:4 ~cores:16
+-        )
+-      ; ( "Allocation of 40 VM on 16 nodes"
+-        , `Quick
+-        , test_allocate ~vms:40 @@ make_numa ~numa:16 ~cores:256
+-        )
+-      ; ( "Allocation of 40 VM on 32 nodes"
+-        , `Quick
+-        , test_allocate ~vms:40 @@ make_numa ~numa:32 ~cores:256
+-        )
+-      ; ( "Allocation of 40 VM on 64 nodes"
+-        , `Quick
+-        , test_allocate ~vms:80 @@ make_numa ~numa:64 ~cores:256
+-        )
+-      ; ( "Allocation of 10 VM on assymetric nodes"
+-        , `Quick
+-        , test_allocate ~vms:10 (make_numa_amd ~cores_per_numa:4)
+-        )
+-      ; ( "Allocation of 10 VM on assymetric nodes"
+-        , `Quick
+-        , test_allocate ~vms:6 ~mem:mem3 (make_numa_amd ~cores_per_numa:4)
+-        )
+-      ]
+-    )
+-  ; ("Distance matrix tests", distances_tests)
++    make ~vms:10 ~cores_per_numa:4 (); make ~vms:6 ~mem:mem3 ~cores_per_numa:4 ()
+   ]
++
++let allocate_tests =
++  let test (name, vms, mem, spec) =
++    (name, `Quick, test_allocate ~vms ?mem spec)
++  in
++  ("VM Allocation", List.map test (symmetric_specs @ amd_specs))
++
++let distances_tests =
++  let numa = Alcotest.testable NUMA.pp_dump ( = ) in
++  let unreachable ~cores_per_numa =
++    let name =
++      Printf.sprintf "A node is unreachable, %d cores per node" cores_per_numa
++    in
++    let test () =
++      let actual = make_numa_unreachable ~cores_per_numa in
++      Alcotest.(check @@ option @@ pair int numa)
++        "NUMA object must match" None actual
++    in
++    (name, `Quick, test)
++  in
++
++  ("Distance matrices", [unreachable ~cores_per_numa:1])
++
++let suite = [allocate_tests; distances_tests]
+
+From 6de21bb98ca4146bceb4767702a8fff67d42fd54 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Fri, 24 Jan 2025 14:48:50 +0000
+Subject: [PATCH 3/6] CP-53335, topology: Allow NUMA to continue when some node
+ are unreachable
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Unreachable nodes do not contain any CPUs, and therefore VCPUs cannot be
+scheduled on them. They marked with a value of (2ˆ32) - 1. Instead of failing
+to produce a NUMA object that allows for scheduling, create an object that
+contains only schedulable NUMA nodes. This means changing how the
+datastructures node_cpus and candidates are created to ignore the unreachable
+ones.
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/lib/topology.ml       | 119 +++++++++++++++++++++-------
+ ocaml/xenopsd/test/test_topology.ml |  78 ++++++++++++++----
+ 2 files changed, 153 insertions(+), 44 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/topology.ml b/ocaml/xenopsd/lib/topology.ml
+index bf0dd19c710..54f47ff5ae6 100644
+--- a/ocaml/xenopsd/lib/topology.ml
++++ b/ocaml/xenopsd/lib/topology.ml
+@@ -95,13 +95,25 @@ let seq_range a b =
+   let rec next i () = if i = b then Seq.Nil else Seq.Cons (i, next (i + 1)) in
+   next a
+ 
+-(** [gen_2n n] Generates all non-empty subsets of the set of [n] nodes. *)
+-let seq_gen_2n n =
++let seq_filteri p s =
++  let rec loop i s () =
++    match s () with
++    | Seq.Nil ->
++        Seq.Nil
++    | Cons (hd, s) ->
++        if p i hd then
++          Cons (hd, loop (i + 1) s)
++        else
++          loop (i + 1) s ()
++  in
++  loop 0 s
++
++(** [seq_all_subsets n] Generates all non-empty subsets of the [nodes] set. *)
++let seq_all_subsets nodes =
++  let n = Seq.length nodes in
+   (* A node can either be present in the output or not, so use a loop [1, 2^n)
+      and have the [i]th bit determine that. *)
+-  let of_mask i =
+-    seq_range 0 n |> Seq.filter (fun bit -> (i lsr bit) land 1 = 1)
+-  in
++  let of_mask i = nodes |> seq_filteri (fun bit _ -> (i lsr bit) land 1 = 1) in
+   seq_range 1 (1 lsl n) |> Seq.map of_mask
+ 
+ (** [seq_sort ~cmp s] sorts [s] in a temporary place using [cmp]. *)
+@@ -125,6 +137,11 @@ module NUMA = struct
+     let compare (Node a) (Node b) = compare a b
+   end)
+ 
++  (* -1 in 32 bits *)
++  let unreachable_distance = 0xFFFFFFFF
++
++  let self_distance = 10
++
+   (* no mutation is exposed in the interface, therefore this is immutable *)
+   type t = {
+       distances: int array array
+@@ -132,7 +149,10 @@ module NUMA = struct
+     ; node_cpus: CPUSet.t array
+     ; all: CPUSet.t
+     ; node_usage: int array
++          (** Usage across nodes is meant to be balanced when choosing candidates for a VM *)
+     ; candidates: (float * node Seq.t) Seq.t
++          (** Sequence of all subsets of nodes and the average distance within
++              the subset, sorted by the latter in increasing order. *)
+   }
+ 
+   let node_of_int i = Node i
+@@ -159,9 +179,23 @@ module NUMA = struct
+        [n*multiply ... n*multiply + multiply-1], except we always the add the
+        single NUMA node combinations. *)
+     (* make sure that single NUMA nodes are always present in the combinations *)
+-    let single_nodes =
++    let distance_to_candidate d = (d, float d) in
++    let valid_nodes =
+       seq_range 0 (Array.length d)
+-      |> Seq.map (fun i -> ((10, 10.0), Seq.return i))
++      |> Seq.filter_map (fun i ->
++             let self_distance = d.(i).(i) in
++             if self_distance <> unreachable_distance then
++               Some i
++             else
++               None
++         )
++    in
++    let single_nodes =
++      valid_nodes
++      |> Seq.map (fun i ->
++             let self_distance = d.(i).(i) in
++             (distance_to_candidate self_distance, Seq.return i)
++         )
+     in
+     let numa_nodes = Array.length d in
+     let nodes =
+@@ -171,8 +205,8 @@ module NUMA = struct
+            reducing the matrix *)
+         single_nodes
+       else
+-        numa_nodes
+-        |> seq_gen_2n
++        valid_nodes
++        |> seq_all_subsets
+         |> Seq.map (node_distances d)
+         |> seq_append single_nodes
+     in
+@@ -183,38 +217,67 @@ module NUMA = struct
+   let pp_dump_distances = Fmt.(int |> Dump.array |> Dump.array)
+ 
+   let make ~distances ~cpu_to_node =
++    let ( let* ) = Option.bind in
+     debug "Distances: %s" (Fmt.to_to_string pp_dump_distances distances) ;
+     debug "CPU2Node: %s" (Fmt.to_to_string Fmt.(Dump.array int) cpu_to_node) ;
+     let node_cpus = Array.map (fun _ -> CPUSet.empty) distances in
++
++    (* nothing can be scheduled on unreachable nodes, remove them from the
++       node_cpus *)
+     Array.iteri
+-      (fun i node -> node_cpus.(node) <- CPUSet.add i node_cpus.(node))
++      (fun i node ->
++        let self_distance = distances.(node).(node) in
++        if self_distance <> unreachable_distance then
++          node_cpus.(node) <- CPUSet.add i node_cpus.(node)
++      )
+       cpu_to_node ;
++
++    debug "Cpus in node: %s"
++      Fmt.(to_to_string (Dump.array CPUSet.pp_dump) node_cpus) ;
++
++    let* () =
++      if Array.for_all (fun cpus -> CPUSet.is_empty cpus) node_cpus then (
++        D.info
++          "Not enabling NUMA: the ACPI SLIT only contains unreachable nodes." ;
++        None
++      ) else
++        Some ()
++    in
++
+     let numa_matrix_is_reasonable =
+       distances
+       |> Array.to_seqi
+       |> Seq.for_all (fun (i, row) ->
+              let d = distances.(i).(i) in
+-             d = 10 && Array.for_all (fun d -> d >= 10) row
++             (d = unreachable_distance || d = self_distance)
++             && Array.for_all
++                  (fun d -> d >= self_distance || d = unreachable_distance)
++                  row
+          )
+     in
+ 
+-    if not numa_matrix_is_reasonable then (
+-      D.info
+-        "Not enabling NUMA: the ACPI SLIT table contains values that are \
+-         invalid." ;
+-      None
+-    ) else
+-      let all = Array.fold_left CPUSet.union CPUSet.empty node_cpus in
+-      let candidates = gen_candidates distances in
+-      Some
+-        {
+-          distances
+-        ; cpu_to_node= Array.map node_of_int cpu_to_node
+-        ; node_cpus
+-        ; all
+-        ; node_usage= Array.map (fun _ -> 0) distances
+-        ; candidates
+-        }
++    let* () =
++      if not numa_matrix_is_reasonable then (
++        D.info
++          "Not enabling NUMA: the ACPI SLIT table contains values that are \
++           invalid." ;
++        None
++      ) else
++        Some ()
++    in
++
++    let candidates = gen_candidates distances in
++
++    let all = Array.fold_left CPUSet.union CPUSet.empty node_cpus in
++    Some
++      {
++        distances
++      ; cpu_to_node= Array.map node_of_int cpu_to_node
++      ; node_cpus
++      ; all
++      ; node_usage= Array.map (fun _ -> 0) distances
++      ; candidates
++      }
+ 
+   let distance t (Node a) (Node b) = t.distances.(a).(b)
+ 
+diff --git a/ocaml/xenopsd/test/test_topology.ml b/ocaml/xenopsd/test/test_topology.ml
+index cf3d1650bab..3bf83a34ec5 100644
+--- a/ocaml/xenopsd/test/test_topology.ml
++++ b/ocaml/xenopsd/test/test_topology.ml
+@@ -30,10 +30,31 @@ module Distances = struct
+     in
+     (numa, distances)
+ 
+-  let unreachable : t =
++  (* A node without CPUs has this distance value ((2ˆ32) - 1) *)
++  let empty = 0xFFFFFFFF
++
++  let unreachable_last : t =
++    let numa = 2 in
++    let distances = [|[|10; empty|]; [|empty; empty|]|] in
++    (numa, distances)
++
++  let unreachable_middle : t =
++    let numa = 3 in
++    let distances =
++      [|[|10; empty; 20|]; [|empty; empty; empty|]; [|20; empty; 10|]|]
++    in
++    (numa, distances)
++
++  let unreachable_two : t =
++    let numa = 3 in
++    let distances =
++      [|[|empty; empty; 20|]; [|empty; empty; empty|]; [|10; empty; 10|]|]
++    in
++    (numa, distances)
++
++  let none_reachable : t =
+     let numa = 2 in
+-    (* 4294967295 is exactly (2ˆ32) - 1, meaning the node is unreachable *)
+-    let distances = [|[|10; 4294967295|]; [|4294967295; 4294967295|]|] in
++    let distances = [|[|empty; empty|]; [|empty; empty|]|] in
+     (numa, distances)
+ end
+ 
+@@ -61,9 +82,6 @@ let make_numa_amd ~cores_per_numa =
+   | Some d ->
+       d
+ 
+-let make_numa_unreachable ~cores_per_numa =
+-  make_numa_common ~cores_per_numa Distances.unreachable
+-
+ type t = {worst: int; average: float; nodes: NUMA.node list; best: int}
+ 
+ let pp =
+@@ -261,19 +279,47 @@ let allocate_tests =
+   ("VM Allocation", List.map test (symmetric_specs @ amd_specs))
+ 
+ let distances_tests =
+-  let numa = Alcotest.testable NUMA.pp_dump ( = ) in
+-  let unreachable ~cores_per_numa =
+-    let name =
+-      Printf.sprintf "A node is unreachable, %d cores per node" cores_per_numa
+-    in
++  let specs =
++    [
++      ( "Last node is unreachable"
++      , Distances.unreachable_last
++      , Some [(10., [0]); (10., [0])]
++      )
++    ; ( "Node in the middle is unreachable"
++      , Distances.unreachable_middle
++      , Some [(10., [0]); (10., [2]); (10., [0]); (10., [2]); (15., [0; 2])]
++      )
++    ; ( "The first two nodes are unreachable"
++      , Distances.unreachable_two
++      , Some [(10., [2]); (10., [2])]
++      )
++    ; ("All nodes are unreachable", Distances.none_reachable, None)
++    ]
++  in
++  let to_actual spec =
++    spec
++    |> Seq.map (fun (d, nodes) ->
++           (d, Seq.map (function NUMA.Node n -> n) nodes |> List.of_seq)
++       )
++    |> List.of_seq
++  in
++  let test_of_spec (name, distances, expected) =
+     let test () =
+-      let actual = make_numa_unreachable ~cores_per_numa in
+-      Alcotest.(check @@ option @@ pair int numa)
+-        "NUMA object must match" None actual
++      let numa_t = make_numa_common ~cores_per_numa:1 distances in
++      match (expected, numa_t) with
++      | None, None ->
++          ()
++      | Some _, None ->
++          Alcotest.fail "Synthetic matrix can't fail to load"
++      | None, Some _ ->
++          Alcotest.fail "Synthetic matrix loaded when it wasn't supposed to"
++      | Some expected, Some (_, numa_t) ->
++          let actual = NUMA.candidates numa_t |> to_actual in
++          Alcotest.(check @@ list @@ pair (float Float.epsilon) (list int))
++            "Candidates must match" expected actual
+     in
+     (name, `Quick, test)
+   in
+-
+-  ("Distance matrices", [unreachable ~cores_per_numa:1])
++  ("Distance matrices", List.map test_of_spec specs)
+ 
+ let suite = [allocate_tests; distances_tests]
+
+From 4200e3590a6a3d877353428c48c3662aa5b183ea Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Fri, 24 Jan 2025 14:57:33 +0000
+Subject: [PATCH 4/6] CP-53335, topology: Avoid distances with NaN among NUMA
+ nodes
+
+These could be created accidentally by dividing by 0.
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/lib/topology.ml | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/topology.ml b/ocaml/xenopsd/lib/topology.ml
+index 54f47ff5ae6..7928bdf1adf 100644
+--- a/ocaml/xenopsd/lib/topology.ml
++++ b/ocaml/xenopsd/lib/topology.ml
+@@ -169,7 +169,10 @@ module NUMA = struct
+     (* We want to minimize maximum distance first, and average distance next.
+        When running the VM we don't know which pCPU it'll end up using, and want
+        to limit the worst case performance. *)
+-    ((max_dist, float sum_dist /. float count), nodes)
++    if Seq.is_empty nodes then
++      None
++    else
++      Some ((max_dist, float sum_dist /. float count), nodes)
+ 
+   let dist_cmp (a1, _) (b1, _) = compare a1 b1
+ 
+@@ -207,7 +210,7 @@ module NUMA = struct
+       else
+         valid_nodes
+         |> seq_all_subsets
+-        |> Seq.map (node_distances d)
++        |> Seq.filter_map (node_distances d)
+         |> seq_append single_nodes
+     in
+     nodes
+
+From 506286d204978eafff9959865608d8df7a7dd896 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Fri, 24 Jan 2025 15:00:14 +0000
+Subject: [PATCH 5/6] CP-53335, topology: Avoid duplicates in candidate NUMA
+ nodes
+
+It's unclear why the candidates with single nodes where always added, since the
+algorithm that generates all the subsets already includes these.
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/lib/topology.ml       | 29 ++++++++---------------------
+ ocaml/xenopsd/test/test_topology.ml |  9 +++------
+ 2 files changed, 11 insertions(+), 27 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/topology.ml b/ocaml/xenopsd/lib/topology.ml
+index 7928bdf1adf..4503001f180 100644
+--- a/ocaml/xenopsd/lib/topology.ml
++++ b/ocaml/xenopsd/lib/topology.ml
+@@ -121,13 +121,6 @@ let seq_sort ~cmp s =
+   let a = Array.of_seq s in
+   Array.fast_sort cmp a ; Array.to_seq a
+ 
+-(** [seq_append a b] is the sequence [a] followed by [b] *)
+-let seq_append (a : 'a Seq.t) (b : 'a Seq.t) =
+-  let rec next v () =
+-    match v () with Seq.Nil -> b () | Seq.Cons (x, xs) -> Seq.Cons (x, next xs)
+-  in
+-  next a
+-
+ module NUMA = struct
+   type node = Node of int
+ 
+@@ -193,25 +186,19 @@ module NUMA = struct
+                None
+          )
+     in
+-    let single_nodes =
+-      valid_nodes
+-      |> Seq.map (fun i ->
+-             let self_distance = d.(i).(i) in
+-             (distance_to_candidate self_distance, Seq.return i)
+-         )
+-    in
+     let numa_nodes = Array.length d in
+     let nodes =
+       if numa_nodes > 16 then
+-        (* try just the single nodes, and give up (use all nodes otherwise) to
+-           avoid exponential running time. We could do better here, e.g. by
++        (* Avoid generating too many candidates because of the exponential
++           running time. We could do better here, e.g. by
+            reducing the matrix *)
+-        single_nodes
+-      else
+         valid_nodes
+-        |> seq_all_subsets
+-        |> Seq.filter_map (node_distances d)
+-        |> seq_append single_nodes
++        |> Seq.map (fun i ->
++               let self_distance = d.(i).(i) in
++               (distance_to_candidate self_distance, Seq.return i)
++           )
++      else
++        valid_nodes |> seq_all_subsets |> Seq.filter_map (node_distances d)
+     in
+     nodes
+     |> seq_sort ~cmp:dist_cmp
+diff --git a/ocaml/xenopsd/test/test_topology.ml b/ocaml/xenopsd/test/test_topology.ml
+index 3bf83a34ec5..eaac6aa99ba 100644
+--- a/ocaml/xenopsd/test/test_topology.ml
++++ b/ocaml/xenopsd/test/test_topology.ml
+@@ -281,17 +281,14 @@ let allocate_tests =
+ let distances_tests =
+   let specs =
+     [
+-      ( "Last node is unreachable"
+-      , Distances.unreachable_last
+-      , Some [(10., [0]); (10., [0])]
+-      )
++      ("Last node is unreachable", Distances.unreachable_last, Some [(10., [0])])
+     ; ( "Node in the middle is unreachable"
+       , Distances.unreachable_middle
+-      , Some [(10., [0]); (10., [2]); (10., [0]); (10., [2]); (15., [0; 2])]
++      , Some [(10., [0]); (10., [2]); (15., [0; 2])]
+       )
+     ; ( "The first two nodes are unreachable"
+       , Distances.unreachable_two
+-      , Some [(10., [2]); (10., [2])]
++      , Some [(10., [2])]
+       )
+     ; ("All nodes are unreachable", Distances.none_reachable, None)
+     ]
+
+From 2e9453bbcc947039886ce3d9e9dc821d540a0620 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Mon, 27 Jan 2025 10:54:18 +0000
+Subject: [PATCH 6/6] topology: do not print-debug the host NUMA information
+
+It's already printed by xenopsd, and now that development has stabilised,
+unit-test can print this useful unformation.
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/lib/topology.ml | 9 ---------
+ 1 file changed, 9 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/topology.ml b/ocaml/xenopsd/lib/topology.ml
+index 4503001f180..70b9b695699 100644
+--- a/ocaml/xenopsd/lib/topology.ml
++++ b/ocaml/xenopsd/lib/topology.ml
+@@ -14,8 +14,6 @@
+ 
+ module D = Debug.Make (struct let name = "topology" end)
+ 
+-open D
+-
+ module CPUSet = struct
+   include Set.Make (struct
+     type t = int
+@@ -204,12 +202,8 @@ module NUMA = struct
+     |> seq_sort ~cmp:dist_cmp
+     |> Seq.map (fun ((_, avg), nodes) -> (avg, Seq.map (fun n -> Node n) nodes))
+ 
+-  let pp_dump_distances = Fmt.(int |> Dump.array |> Dump.array)
+-
+   let make ~distances ~cpu_to_node =
+     let ( let* ) = Option.bind in
+-    debug "Distances: %s" (Fmt.to_to_string pp_dump_distances distances) ;
+-    debug "CPU2Node: %s" (Fmt.to_to_string Fmt.(Dump.array int) cpu_to_node) ;
+     let node_cpus = Array.map (fun _ -> CPUSet.empty) distances in
+ 
+     (* nothing can be scheduled on unreachable nodes, remove them from the
+@@ -222,9 +216,6 @@ module NUMA = struct
+       )
+       cpu_to_node ;
+ 
+-    debug "Cpus in node: %s"
+-      Fmt.(to_to_string (Dump.array CPUSet.pp_dump) node_cpus) ;
+-
+     let* () =
+       if Array.for_all (fun cpus -> CPUSet.is_empty cpus) node_cpus then (
+         D.info
