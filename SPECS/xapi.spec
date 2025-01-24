@@ -74,6 +74,8 @@ Patch1003: xapi-24.39.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
 # Fix fingerprints for CA certificates too
 Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
+# Disable flaky test, see af3989235e62f5887a8cac08f4c1977726839297
+Patch1008: xen-api-24.39.1-test-disable-cancellable-sleep.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1370,6 +1372,8 @@ Coverage files from unit tests
 - Drop backport: xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch
 - Drop ipv6 patches merged into v24.31.0
 - Drop xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch now that #6006 is merged
+- New xen-api-24.39.1-test-disable-cancellable-sleep.patch: disable "cancellable sleep"
+flaky test
 - Upstream changelog:
   * Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
   - CA-404512: Add feature flag to the new clustering interface
