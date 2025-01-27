@@ -160,6 +160,7 @@ Requires: python3-fasteners
 Requires: sm
 Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
+Requires: python3-wrapt
 # firewall-port needs iptables-service to perform
 # `service iptables save`
 Requires: iptables-services
@@ -1374,6 +1375,7 @@ Coverage files from unit tests
 - Drop xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch now that #6006 is merged
 - New xen-api-24.39.1-test-disable-cancellable-sleep.patch: disable "cancellable sleep"
 flaky test
+- Add missing Requires: python3-wrapt
 - Upstream changelog:
   * Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
   - CA-404512: Add feature flag to the new clustering interface
