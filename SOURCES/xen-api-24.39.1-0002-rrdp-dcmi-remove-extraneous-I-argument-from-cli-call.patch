@@ -1,0 +1,29 @@
+From 4d7acf805be0583732587ca347cfc59f42dcdcd1 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Tue, 28 Jan 2025 09:50:38 +0000
+Subject: [PATCH 2/3] rrdp-dcmi: remove extraneous -I argument from cli calls
+
+The -I argument is to select a device, unsure why open is passed to it instead,
+but it doesn't seem to have any effect
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml b/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml
+index 94824a86e..7ecee5c5a 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml
++++ b/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml
+@@ -27,7 +27,7 @@ let ipmitool_bin = "/usr/bin/ipmitool"
+ 
+ let ipmitool args =
+   (* we connect to the local /dev/ipmi0 if available to read measurements from local BMC *)
+-  ipmitool_bin :: "-I" :: "open" :: args |> String.concat " "
++  ipmitool_bin :: args |> String.concat " "
+ 
+ let discover () =
+   Utils.exec_cmd
+-- 
+2.39.5
+

@@ -1,0 +1,391 @@
+From 027e0332ee5ce40c7594b782555ea0863b7cf178 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Mon, 27 Jan 2025 15:29:34 +0000
+Subject: [PATCH 3/3] CA-399669: Detect a reason for IPMI readings being
+ unavailable
+
+When the IPMI devices are missing, this is printed in the error line:
+
+$ /usr/bin/ipmitool -I open dcmi discover
+Could not open device at /dev/ipmi0 or /dev/ipmi/0 or /dev/ipmidev/0: No such file or directory
+
+Detect this situation so an appropriate warning can be printed.
+
+This needed changes in the function that executes the command, to be able to
+process stderr
+
+Example output:
+$ ./disco.exe
+[debug] Forking command /usr/bin/ipmitool dcmi discover
+[debug] Forked command /usr/bin/ipmitool dcmi discover
+[ info] DCMI discover: Could not open device at /dev/ipmi0 or /dev/ipmi/0 or /dev/ipmidev/0: No such file or directory
+[debug] Process 423018 exited normally with code 1
+[ warn] IPMI DCMI power readings not available, stopping. Reason: IPMI devices are missing
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xcp-rrdd/bin/rrdp-dcmi/dune             |  2 +-
+ ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml     | 61 +++++++++++++------
+ ocaml/xcp-rrdd/bin/rrdp-iostat/dune           |  1 +
+ ocaml/xcp-rrdd/bin/rrdp-iostat/rrdp_iostat.ml | 16 +++--
+ ocaml/xcp-rrdd/bin/rrdp-xenpm/dune            |  2 +-
+ ocaml/xcp-rrdd/bin/rrdp-xenpm/rrdp_xenpm.ml   | 12 ++--
+ ocaml/xcp-rrdd/lib/plugin/rrdd_plugin.mli     | 25 --------
+ ocaml/xcp-rrdd/lib/plugin/utils.ml            | 35 +++++++----
+ ocaml/xcp-rrdd/lib/plugin/utils.mli           | 14 +++--
+ 9 files changed, 96 insertions(+), 72 deletions(-)
+
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-dcmi/dune b/ocaml/xcp-rrdd/bin/rrdp-dcmi/dune
+index 971c2b342..80103ece9 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-dcmi/dune
++++ b/ocaml/xcp-rrdd/bin/rrdp-dcmi/dune
+@@ -2,8 +2,8 @@
+   (modes exe)
+   (name rrdp_dcmi)
+   (libraries
+-    
+     rrdd-plugin
++    rrdd-plugin.base
+     rrdd_plugins_libs
+     xapi-idl.rrd
+     xapi-log
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml b/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml
+index 7ecee5c5a..a581781b1 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml
++++ b/ocaml/xcp-rrdd/bin/rrdp-dcmi/rrdp_dcmi.ml
+@@ -29,29 +29,47 @@ let ipmitool args =
+   (* we connect to the local /dev/ipmi0 if available to read measurements from local BMC *)
+   ipmitool_bin :: args |> String.concat " "
+ 
++type discovery_error = Devices_missing
++
++let discovery_error_to_string = function
++  | Devices_missing ->
++      "IPMI devices are missing"
++
+ let discover () =
++  let read_out_line line =
++    (* this code runs once on startup, logging all the output here will be useful for debugging *)
++    D.debug "DCMI discover: %s" line ;
++    let line = String.trim line in
++    if String.equal line "Power management available" then
++      Some ()
++    else
++      None
++  in
++  let read_err_line line =
++    (* this code runs once on startup, logging all the output here will be useful for debugging *)
++    D.debug "DCMI discover: %s" line ;
++    let line = String.trim line in
++    if String.starts_with ~prefix:"Could not open device at" line then
++      Some Devices_missing
++    else
++      None
++  in
+   Utils.exec_cmd
+     (module Process.D)
+     ~cmdstring:(ipmitool ["dcmi"; "discover"])
+-    ~f:(fun line ->
+-      (* this code runs once on startup, logging all the output here will be useful for debugging *)
+-      D.debug "DCMI discover: %s" line ;
+-      if String.trim line = "Power management available" then
+-        Some ()
+-      else
+-        None
+-    )
++    ~read_out_line ~read_err_line
+ 
+ let get_dcmi_power_reading () =
++  let read_out_line line =
++    (* example line: '     Instantaneous power reading:                    34 Watts' *)
++    try Scanf.sscanf line " Instantaneous power reading : %f Watts" Option.some
++    with Scanf.Scan_failure _ | End_of_file -> None
++  in
++  let read_err_line _ = None in
+   Utils.exec_cmd
+     (module Process.D)
+     ~cmdstring:(ipmitool ["dcmi"; "power"; "reading"])
+-    ~f:(fun line ->
+-      (* example line: '     Instantaneous power reading:                    34 Watts' *)
+-      try
+-        Scanf.sscanf line " Instantaneous power reading : %f Watts" Option.some
+-      with Scanf.Scan_failure _ | End_of_file -> None
+-    )
++    ~read_out_line ~read_err_line
+ 
+ let gen_dcmi_power_reading value =
+   ( Rrd.Host
+@@ -63,7 +81,7 @@ let gen_dcmi_power_reading value =
+ 
+ let generate_dss () =
+   match get_dcmi_power_reading () with
+-  | watts :: _ ->
++  | watts :: _, _ ->
+       [gen_dcmi_power_reading watts]
+   | _ ->
+       []
+@@ -71,10 +89,15 @@ let generate_dss () =
+ let _ =
+   initialise () ;
+   match discover () with
+-  | [] ->
+-      D.warn "IPMI DCMI power readings not available, stopping." ;
+-      exit 0
+-  | _ ->
++  | () :: _, _ ->
+       D.info "IPMI DCMI power reading is available" ;
+       main_loop ~neg_shift:0.5 ~target:(Reporter.Local 1)
+         ~protocol:Rrd_interface.V2 ~dss_f:generate_dss
++  | [], errs ->
++      let reason =
++        List.nth_opt errs 0
++        |> Option.map discovery_error_to_string
++        |> Option.value ~default:"unknown"
++      in
++      D.warn "IPMI DCMI power readings not available, stopping. Reason: %s"
++        reason
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-iostat/dune b/ocaml/xcp-rrdd/bin/rrdp-iostat/dune
+index 03f7b00a5..4ba37845e 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-iostat/dune
++++ b/ocaml/xcp-rrdd/bin/rrdp-iostat/dune
+@@ -10,6 +10,7 @@
+     mtime
+     mtime.clock.os
+     rrdd-plugin
++    rrdd-plugin.base
+     rrdd_plugin_xenctrl
+     rrdd_plugins_libs
+     str
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-iostat/rrdp_iostat.ml b/ocaml/xcp-rrdd/bin/rrdp-iostat/rrdp_iostat.ml
+index 057d6e9dc..0f5470153 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-iostat/rrdp_iostat.ml
++++ b/ocaml/xcp-rrdd/bin/rrdp-iostat/rrdp_iostat.ml
+@@ -124,7 +124,7 @@ module Iostat = struct
+ 
+     (* Keep track of how many results headers we've seen so far *)
+     let parsing_section = ref 0 in
+-    let process_line str =
++    let read_out_line str =
+       let res = Utils.cut str in
+       (* Keep values from the second set of outputs *)
+       ( if !parsing_section = 2 then
+@@ -151,7 +151,10 @@ module Iostat = struct
+     (* 2 iterations; 1 second between them *)
+ 
+     (* Iterate through each line and populate dev_values_map *)
+-    let _ = Utils.exec_cmd (module Process.D) ~cmdstring ~f:process_line in
++    let read_err_line _ = None in
++    let _ =
++      Utils.exec_cmd (module Process.D) ~cmdstring ~read_out_line ~read_err_line
++    in
+ 
+     (* Now read the values out of dev_values_map for devices for which we have data *)
+     List.filter_map
+@@ -341,7 +344,7 @@ let exec_tap_ctl_list () : ((string * string) * int) list =
+         D.error "Could not find device with physical path %s" phypath ;
+         None
+   in
+-  let process_line str =
++  let read_out_line str =
+     try Scanf.sscanf str "pid=%d minor=%d state=%s args=%s@:%s" extract_vdis
+     with Scanf.Scan_failure _ | Failure _ | End_of_file ->
+       D.warn {|"%s" returned a line that could not be parsed. Ignoring.|}
+@@ -349,8 +352,11 @@ let exec_tap_ctl_list () : ((string * string) * int) list =
+       D.warn "Offending line: %s" str ;
+       None
+   in
+-  let pid_and_minor_to_sr_and_vdi =
+-    Utils.exec_cmd (module Process.D) ~cmdstring:tap_ctl ~f:process_line
++  let read_err_line _ = None in
++  let pid_and_minor_to_sr_and_vdi, _ =
++    Utils.exec_cmd
++      (module Process.D)
++      ~cmdstring:tap_ctl ~read_out_line ~read_err_line
+   in
+   let sr_and_vdi_to_minor =
+     List.map
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-xenpm/dune b/ocaml/xcp-rrdd/bin/rrdp-xenpm/dune
+index 8eb5191fb..b5f834eaa 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-xenpm/dune
++++ b/ocaml/xcp-rrdd/bin/rrdp-xenpm/dune
+@@ -2,8 +2,8 @@
+   (modes exe)
+   (name rrdp_xenpm)
+   (libraries
+-    
+     rrdd-plugin
++    rrdd-plugin.base
+     rrdd_plugins_libs
+     str
+     xapi-idl.rrd
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-xenpm/rrdp_xenpm.ml b/ocaml/xcp-rrdd/bin/rrdp-xenpm/rrdp_xenpm.ml
+index 6ce1aeb52..ccbe832b2 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-xenpm/rrdp_xenpm.ml
++++ b/ocaml/xcp-rrdd/bin/rrdp-xenpm/rrdp_xenpm.ml
+@@ -57,27 +57,30 @@ let gen_pm_cpu_averages cpu_id time =
+ 
+ let get_cpu_averages () : int64 list =
+   let pattern = Str.regexp "average cpu frequency:[ \t]+\\([0-9]+\\)[ \t]*$" in
+-  let match_fun s =
++  let read_out_line s =
+     if Str.string_match pattern s 0 then
+       Some (Int64.of_string (Str.matched_group 1 s))
+     else
+       None
+   in
++  let read_err_line _ = None in
+   Utils.exec_cmd
+     (module Process.D)
+     ~cmdstring:(Printf.sprintf "%s %s" xenpm_bin "get-cpufreq-average")
+-    ~f:match_fun
++    ~read_out_line ~read_err_line
++  |> fst
+ 
+ let get_states cpu_state : int64 list =
+   let pattern =
+     Str.regexp "[ \t]*residency[ \t]+\\[[ \t]*\\([0-9]+\\) ms\\][ \t]*"
+   in
+-  let match_fun s =
++  let read_out_line s =
+     if Str.string_match pattern s 0 then
+       Some (Int64.of_string (Str.matched_group 1 s))
+     else
+       None
+   in
++  let read_err_line _ = None in
+   Utils.exec_cmd
+     (module Process.D)
+     ~cmdstring:
+@@ -89,7 +92,8 @@ let get_states cpu_state : int64 list =
+              "get-cpufreq-states"
+          )
+       )
+-    ~f:match_fun
++    ~read_out_line ~read_err_line
++  |> fst
+ 
+ (* list_package [1;2;3;4] 2 = [[1;2];[3;4]] *)
+ let list_package (l : 'a list) (n : int) : 'a list list =
+diff --git a/ocaml/xcp-rrdd/lib/plugin/rrdd_plugin.mli b/ocaml/xcp-rrdd/lib/plugin/rrdd_plugin.mli
+index e4eaaeecd..04f431992 100644
+--- a/ocaml/xcp-rrdd/lib/plugin/rrdd_plugin.mli
++++ b/ocaml/xcp-rrdd/lib/plugin/rrdd_plugin.mli
+@@ -14,31 +14,6 @@
+ 
+ (** Library to simplify writing an rrdd plugin. *)
+ 
+-(** Utility functions useful for rrdd plugins. *)
+-module Utils : sig
+-  val now : unit -> int64
+-  (** Return the current unix epoch as an int64. *)
+-
+-  val cut : string -> string list
+-  (** Split a string into a list of strings as separated by spaces and/or
+-      	    tabs. *)
+-
+-  val list_directory_unsafe : string -> string list
+-  (** List the contents of a directory, including . and .. *)
+-
+-  val list_directory_entries_unsafe : string -> string list
+-  (** List the contents of a directory, not including . and .. *)
+-
+-  val exec_cmd :
+-       (module Debug.DEBUG)
+-    -> cmdstring:string
+-    -> f:(string -> 'a option)
+-    -> 'a list
+-  (** [exec_cmd cmd f] executes [cmd], applies [f] on each of the lines which
+-      	    [cmd] outputs on stdout, and returns a list of resulting values for which
+-      	    applying [f] returns [Some value]. *)
+-end
+-
+ (** Asynchronous interface to create, cancel and query the state of stats
+     reporting threads. *)
+ module Reporter : sig
+diff --git a/ocaml/xcp-rrdd/lib/plugin/utils.ml b/ocaml/xcp-rrdd/lib/plugin/utils.ml
+index 5744fa557..15934b4a5 100644
+--- a/ocaml/xcp-rrdd/lib/plugin/utils.ml
++++ b/ocaml/xcp-rrdd/lib/plugin/utils.ml
+@@ -33,10 +33,13 @@ let list_directory_entries_unsafe dir =
+   let dirlist = list_directory_unsafe dir in
+   List.filter (fun x -> x <> "." && x <> "..") dirlist
+ 
+-let exec_cmd (module D : Debug.DEBUG) ~cmdstring ~(f : string -> 'a option) =
++let exec_cmd (module D : Debug.DEBUG) ~cmdstring
++    ~(read_out_line : string -> 'a option) ~(read_err_line : string -> 'b option)
++    =
+   D.debug "Forking command %s" cmdstring ;
+-  (* create pipe for reading from the command's output *)
++  (* create pipes for reading from the command's output *)
+   let out_readme, out_writeme = Unix.pipe () in
++  let err_readme, err_writeme = Unix.pipe () in
+   let cmd, args =
+     match Astring.String.cuts ~empty:false ~sep:" " cmdstring with
+     | [] ->
+@@ -45,19 +48,25 @@ let exec_cmd (module D : Debug.DEBUG) ~cmdstring ~(f : string -> 'a option) =
+         (h, t)
+   in
+   let pid =
+-    Forkhelpers.safe_close_and_exec None (Some out_writeme) None [] cmd args
++    Forkhelpers.safe_close_and_exec None (Some out_writeme) (Some err_writeme)
++      [] cmd args
+   in
+   Unix.close out_writeme ;
+-  let in_channel = Unix.in_channel_of_descr out_readme in
+-  let vals = ref [] in
+-  let rec loop () =
+-    let line = input_line in_channel in
+-    let ret = f line in
+-    (match ret with None -> () | Some v -> vals := v :: !vals) ;
+-    loop ()
++  Unix.close err_writeme ;
++  let read_and_close f fd =
++    let in_channel = Unix.in_channel_of_descr fd in
++    let vals = ref [] in
++    let rec loop () =
++      let line = input_line in_channel in
++      let ret = f line in
++      (match ret with None -> () | Some v -> vals := v :: !vals) ;
++      loop ()
++    in
++    (try loop () with End_of_file -> ()) ;
++    Unix.close fd ; List.rev !vals
+   in
+-  (try loop () with End_of_file -> ()) ;
+-  Unix.close out_readme ;
++  let stdout = read_and_close read_out_line out_readme in
++  let stderr = read_and_close read_err_line err_readme in
+   let pid, status = Forkhelpers.waitpid pid in
+   ( match status with
+   | Unix.WEXITED n ->
+@@ -67,4 +76,4 @@ let exec_cmd (module D : Debug.DEBUG) ~cmdstring ~(f : string -> 'a option) =
+   | Unix.WSTOPPED s ->
+       D.debug "Process %d was stopped by signal %d" pid s
+   ) ;
+-  List.rev !vals
++  (stdout, stderr)
+diff --git a/ocaml/xcp-rrdd/lib/plugin/utils.mli b/ocaml/xcp-rrdd/lib/plugin/utils.mli
+index 7f797b223..7b3c819ff 100644
+--- a/ocaml/xcp-rrdd/lib/plugin/utils.mli
++++ b/ocaml/xcp-rrdd/lib/plugin/utils.mli
+@@ -27,7 +27,13 @@ val list_directory_entries_unsafe : string -> string list
+ (** List the contents of a directory, not including . and .. *)
+ 
+ val exec_cmd :
+-  (module Debug.DEBUG) -> cmdstring:string -> f:(string -> 'a option) -> 'a list
+-(** [exec_cmd cmd f] executes [cmd], applies [f] on each of the lines which
+-      	    [cmd] outputs on stdout, and returns a list of resulting values for which
+-      	    applying [f] returns [Some value]. *)
++     (module Debug.DEBUG)
++  -> cmdstring:string
++  -> read_out_line:(string -> 'a option)
++  -> read_err_line:(string -> 'b option)
++  -> 'a list * 'b list
++(** [exec_cmd cmd out_line err_line] executes [cmd], applies [read_out_line] to
++    each of the lines which [cmd] outputs on stdout, applies [read_err_line] to
++    each of the lines which [cmd] outputs on stderr, and returns a tuple of
++    list with each of the values that the [read_out_line] and [read_err_line]
++    returned [Some value]. *)
+-- 
+2.39.5
+

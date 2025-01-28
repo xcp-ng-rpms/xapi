@@ -78,6 +78,11 @@ Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
 Patch1008: xen-api-24.39.1-test-disable-cancellable-sleep.patch
 # #6280: traces to see observer not working on smapi component
 Patch1009: xen-api-24.39.1-debug-traces-for-is_component_enabled.patch
+# #6261: fix IPMI handling for hosts without IPMI (in 25.5.0)
+Patch1010: xen-api-24.39.1-0001-CA-399669-Do-not-exit-with-error-when-IPMI-readings-.patch
+Patch1011: xen-api-24.39.1-0002-rrdp-dcmi-remove-extraneous-I-argument-from-cli-call.patch
+Patch1012: xen-api-24.39.1-0003-CA-399669-Detect-a-reason-for-IPMI-readings-being-un.patch
+
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1379,6 +1384,7 @@ Coverage files from unit tests
 flaky test
 - Add missing Requires: python3-wrapt
 - More traces for is_component_enabled (PR #6280)
+- IPMI fixes from psafont for testing (PR #6261)
 - Upstream changelog:
   * Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
   - CA-404512: Add feature flag to the new clustering interface
