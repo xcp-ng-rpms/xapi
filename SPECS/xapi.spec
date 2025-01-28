@@ -76,6 +76,8 @@ Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
 Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
 # Disable flaky test, see af3989235e62f5887a8cac08f4c1977726839297
 Patch1008: xen-api-24.39.1-test-disable-cancellable-sleep.patch
+# #6280: traces to see observer not working on smapi component
+Patch1009: xen-api-24.39.1-debug-traces-for-is_component_enabled.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1376,6 +1378,7 @@ Coverage files from unit tests
 - New xen-api-24.39.1-test-disable-cancellable-sleep.patch: disable "cancellable sleep"
 flaky test
 - Add missing Requires: python3-wrapt
+- More traces for is_component_enabled (PR #6280)
 - Upstream changelog:
   * Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
   - CA-404512: Add feature flag to the new clustering interface
