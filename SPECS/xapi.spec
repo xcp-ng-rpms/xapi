@@ -155,7 +155,7 @@ Requires: gmp
 # Requires: xapi-storage-plugins >= 2.0.0
 # Requires: xapi-clusterd >= 0.64.0
 Requires: xxhash-libs
-Requires: jemalloc
+Requires: jemalloc >= 5
 Requires: zstd
 Requires: createrepo_c >= 0.10.0
 Requires: tdb-tools >= 1.3.18
@@ -1368,7 +1368,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Jan 21 2025 Yann Dirson <yann.dirson@vates.tech> - 24.39.1-1.1
+* Fri Feb 14 2025 Yann Dirson <yann.dirson@vates.tech> - 24.39.1-1.1
 - Update to upstream 24.39.1-1
 - Reformat changelog to allow diffing with upstream
 - Adjust change to avoid pulling upgrade-pbis-to-winbind (XS8-only)
@@ -1385,6 +1385,7 @@ flaky test
 - Add missing Requires: python3-wrapt
 - More traces for is_component_enabled (PR #6280)
 - IPMI fixes from psafont for testing (PR #6261)
+- Bump version requirement on jemalloc to get required libjemalloc.so.2
 - Upstream changelog:
   * Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
   - CA-404512: Add feature flag to the new clustering interface
