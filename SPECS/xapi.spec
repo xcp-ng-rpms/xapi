@@ -18,7 +18,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.19.2
-Release: 1.9%{?xsrel}%{?dist}
+Release: 1.10%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -83,6 +83,8 @@ Patch1011: xapi-24.19.2-ipv6-pool-eject.XCP-ng.patch
 Patch1012: xapi-24.19.2-ipv6-virtual-pif.XCP-ng.patch.patch
 # To remove once https://github.com/xapi-project/xen-api/pull/6006 is released
 Patch1013: xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
+# Backport from 24.20
+Patch1014: 0001-CA-389506-fix-platform-nested_virt-typo.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1414,6 +1416,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Feb 11 2025 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.10
+- Add 0001-CA-389506-fix-platform-nested_virt-typo.patch, backport for
+nested-virt support
+
 * Thu Oct 10 2024 Benjamin Reis <benjamin.reis@vates.tech> - 24.19.2-1.9
 - Add xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
 
