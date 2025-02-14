@@ -1416,6 +1416,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Feb 14 2025 Yann Dirson <yann.dirson@vates.tech> - next
+- Reformat changelog to allow diffing with upstream
+
 * Tue Feb 11 2025 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.10
 - Add 0001-CA-389506-fix-platform-nested_virt-typo.patch, backport for
 nested-virt support
@@ -1453,208 +1456,213 @@ nested-virt support
 - Drop xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
 - Drop xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 - *** Upstream changelog ***
-- * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
-- - CA-395626: Fix (server status report generation report)
-- * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.1-1
-- - Fixes: 99c43569a0 ("Transition from exception-raising Unix.getenv to Sys.getenv_opt with")
-- * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.0-1
-- - CP-47304: [Toolstack] - Add data model for anti-affinity group
-- - CP-47655: [Toolstack] - Associate/disassociate VM to/from anti-affinity group
-- - CA-391880: Update related field 'groups' of VM when destroying VM group.
-- - CP-47302: VM start with anti-affinity
-- - CA-392177: Keep current group after reverting from snapshot
-- - CP-47656 Anti-affinity feature generate alert
-- - CP-48570: Load recommendations from config file when Xapi starts
-- - CP-48011: Xapi Support anti-affinity feature flag
-- - CA-393421: Special VMs cannot be added to VM groups
-- - CP-48625: Code refactoring
-- - opam: add psq to xapi dependencies
-- - CP-49665: Anti-affinity support for host evacuation
-- - CP-48752: Add UT for host evacuation with anti-affinity support
-- - CP-49953: Remove parse_uri, switch to using Uri module instead
-- - doc: remaining API docs
-- - doc: add XenAPI release info
-- - Printf.kprintf is deprecated, replace with Printf.ksprintf
-- - Fix misplaced inline attributes
-- - CP-50050 track CBT status for SMAPIv3 SRs
-- - CP-49953: Remove parse_uri, switch to using Uri module instead
-- - CI: Complete parallel Coveralls uploads: Finish when done
-- - CP-49116: Replace fingerprint in certificate DB with sha256 and sha1
-- - CA-392887: set_tls_config immediately after enabling clustering
-- - CI: Update endcover step to v2 to fix CI (#5763)
-- - CA-386173: Update the message of WLB authentication issue
-- - Revert "CP-49953: Remove parse_uri, switch to using Uri module instead"
-- - Fix a bug noticed by a quicktest run
-- - Eliminate unnecessary usage of List.length to check for empty lists
-- - Transition from exception-raising Unix.getenv to Sys.getenv_opt with
-- - Replace Hashtbl.find with Hashtbl.find_opt in trivial cases
-- - Refactor Hashtbl.find out of resources/table.ml
-- - Refactor Hashtbl.find out of xenopsd/xc/readln.ml
-- - Add a gate for Hashbtl.find
-- - CP-50135: Bump datamodel_lifecycle for anti-affinity
-- - IH-621: Add IPMI host power on support and remove DRAC
-- - opam: generate xapi-forkexecd with dune
-- - opam: remove unversioned opam dependencies
-- - opam: generate xapi-networkd using dune
-- - fe_test: print stacktrace on unit test failure
-- - fix(fe_test): make it compatible with fd-send-recv 2.0.2
-- - Fix indentation in C code
-- * Mon Jul 01 2024 Ming Lu <ming.lu@cloud.com> - 24.18.0-1
-- - doc/README.md: Improve the Hugo Quick start guide for an easier start
-- - .codecov.yml: Remove scripts (Codecov is confused, we move scripts/ to python3/)
-- - CA-394444: Update task cancellation in `message_forwarding.ml`
-- - Hugo docs: Add dark mode support, theme variant selector and print
-- - Don't generate link-local address for interfaces
-- - Make `cluster-stack-version` show up in the CLI
-- - Update datamodel lifecycle
-- - Removed headers from the templates.
-- - Renamed files and reordered table of contents.
-- - IH-583 Create standalone implementations of systemd functions
-- - Fix failing builds by attaching package to the cram test
-- - CA-394883: fix race condition allocating task ids
-- - CA-394882: avoid error on tasks that are not ours
-- - CA-381119: use JsonRPC V2 for error replies
-- - CA-394169: Allow task to have permissions on itself
-- - CI: use new version of codecov action
-- - Merge .codecov.yml from feature/py3 to drop scripts checks
-- - CP-50055 Add Go SDK as a release package in XAPI
-- - CI: codecov is unstable, use coveralls
-- - CA-394921: Ignore unkown properties during Java SDK deserialisation
-- - CP-49446: expose SR health values to Python
-- - opam: record correct authorship for stdext packages
-- - IH-628: add new package clock for timekeeping
-- * Tue Jun 18 2024 Ming Lu <ming.lu@cloud.com> - 24.17.0-1
-- - CP-48666: initialize a skeleton project for Go SDK
-- - CP-47347: Add mustache template for Enum Types
-- - CP-47351: generate Record and Ref Type Golang code for all classes
-- - CP-47348: generate Golang code of Enum Type for all classes
-- - CP-47362: generate file headers
-- - CP-48666: collect api errors
-- - CP-47364: generate api messages and errors of Golang code
-- - refactor: create an `Alcotest.testable` to check structure of generated JSON is wanted
-- - refactor: move `objects` and `session_id` from `Gen_go_helper` to `CommonFunctions`
-- - CP-48666: use dune rule to get the destination dir for the generated files
-- - CP-48666: generate all enums to a file
-- - refactor the way of getting enums
-- - CP-48666: refactor the JSON schema checking
-- - CP-48666: refactor `render_template` with an optional newline parameter
-- - CP-47361: generate mustache template for deserialize and serialize functions
-- - CP-47358: Generate convert functions Go code
-- - CP-48855: update templates (APIErrors, APIMessages, Record)
-- - CP-48855: adjust generated json for templates changed
-- - CP-48855: add templates for option and APIVersions
-- - CP-48855: render options
-- - CP-47355, CP-47360: generate mustache template for xapi data module class messages
-- - CP-47354: Generate messages functions Golang code for all classes
-- - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
-- - CP-48855: render APIVersion
-- - CP-48855: fix go lint var-naming warnings
-- - fix `StringOfTyWithEnumsTest` after merged
-- - CP-48855: it should be only one empty line at end of Go file
-- - CP-47356: expose `published_release_for_param` and `compare_versions` for usage of other modules
-- - CP-47358: Add unit tests for generating convert functions
-- - CP-47355, CP-47360: generate mustache template for xapi data module class messages
-- - CP-47354: Generate messages functions Golang code for all classes
-- - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
-- - CP-48855: update templates (APIErrors, APIMessages, Record)
-- - CP-48855: adjust generated json for templates changed
-- - CP-48855: add templates for option and APIVersions
-- - CP-48855: render options
-- - CP-48855: render APIVersion
-- - CP-48855: remove go lint var-naming warnings
-- - CP-47356: Support backwards capability for Go SDK
-- - CP-47361: generate mustache template for deserialize and serialize functions
-- - CP-47358: Generate convert functions Go code
-- - CP-47358: Add unit tests for generating convert functions
-- - CP-47354: Generate messages functions Golang code for all classes
-- - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
-- - CP-48855: render options
-- - CP-48855: render APIVersion
-- - CP-47357: Add a Go JSON-RPC client file
-- - CP-47357: fix review issues
-- - CP-47367 Add type checking for generated SDK Go files
-- - CP-49350: fix variable naming in Go SDK
-- - Set up Github Action for go SDK component test (#5588)
-- - CA-391381: Avoid errors for Partial Callables in observer.py
-- - xapi-tracing: bind its test to the package
-- - opam: generate xapi-tracing with dune
-- - opam: generate xapi-tracing-export with dune
-- - opam: generate rrdd-plugin with dune
-- - opam: generate xapi-rrd-transport-utils with dune
-- - opam: generate xapi-rrdd with dune
-- - opam: drop xapi-rrd-transport
-- - opam: drop xen-api-sdk
-- - Revert "CP-47660 define anti-affinity feature"
-- - Remove CVM and relevant test cases (#5655)
-- - opam: Fix metadata
-- - opam: de-templatise message-switch-core
-- - ocaml: remove unused bindings
-- - dune: enforce version +3
-- - Add `VM.set_uefi_mode` API call
-- - Go SDK: Misc fixes for on-going component tests (#5661)
-- - Add `VM.get_secureboot_readiness` API call
-- - Add `Pool.get_guest_secureboot_readiness` API call
-- - CP-49446: Update SR health to include new constructors
-- - doc: copy design documents from xapi-project.github.io
-- - doc: add info table to design docs
-- - doc: style design doc index
-- - CP-47928: Add component test for Go SDK
-- - CP-49647 use URI for create_misc
-- - CP-49647 use URI for dbsync_master
-- - CP-49647 use URI for export.ml
-- - CP-49647 use URI for import.ml
-- - CP-49647 use URI for importexport.ml
-- - CP-49647 use URI for rrd_proxy.ml
-- - CP-49647 use URI for sm_fs_ops.ml
-- - CP-49647 use URI for xapi_message.ml
-- - CP-49647 use URI for xapi_xenops.ml
-- - CP-49647 use URI for xapi_vm_migrate.ml
-- - CP-49647 use URI for xapi_host.ml
-- - CP-49647 use URI for cli_util.ml
-- - CP-49647 use URI for http.ml
-- - CP-49647 use URI for cli_operations
-- - CP-45235: Support for `xe-cli` to transmit `traceparent`
-- - doc: add design review links (historical)
-- - doc: RDP design: fix list nesting
-- - CP-48995: Instrument `XenAPI.py` to submit traceparent
-- - Update datamodel_lifecycle.ml
-- - CP-49768: Update GO SDK README file (#5671)
-- - CP-49249: Implement SMAPIv3 CBT Forwarding
-- - CA-393866: Add support for Infinity in Java SDK parser
-- - CA-393507: Default cluster_stack value
-- - Remove fix_firewall.sh
-- - CA-393119: Don't use HTTPS for localhost migrations
-- - CP-49828: Remove iovirt script
-- - CP-49129: Add unit test for parallel parsing.
-- - CP-49129: Make unit test run on alcotest.
-- - CP-49129: Replace `ocamlyacc` with `menhir`
-- - CP-49129: Drop global lock around sexpr parsing
-- - CP-49045: replace all uses of ocamlyacc with menhir which is thread-safe
-- - CP-49129: Update `quality-gate.sh` for `ocamlyacc`
-- - Link just qcheck-core, not qcheck
-- - Define qcheck-core dependency in opam packages
-- - Makefile: fix compatibility with the dash shell
-- - CP-49858: Fix phrasing in readme
-- - CP-49858: Add licence text on top of Go source files
-- - CP-49858: Unit test: licence template variable
-- - CP-49858: Remove template variables 'first' and 'is_session_id'
-- - CP-49858: Unit test: Update for changes on template variables
-- - rpm: remove `sexprpp` from public_name
-- - sexpr: add tests to the package
-- - xapi-rrdd: change tests to reduce amount of logs produced
-- - rrd-transport: generate opam metadata using dune
-- - http-lib: generate opam metadata using dune
-- - wsproxy: test with alcotest instead of ounit
-- - vhd-format-lwt: run tests using alcotest
-- - xen-api-client: run tests with alcotest
-- - xapi-sdk: add empty packge to be able to run tests for it
-- - CI: pin packages
-- - CP-49647 use URI for newcli.ml
-- - CP-49677 implement Http.Url using URI
-- - Update quality-gate.sh
-- * Mon Jun 10 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.16.0-3
-- - Bump release and rebuild
-- - Remove vm_anti_affinity tag and dependency on m2crypto
+  * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
+  - CA-395626: Fix (server status report generation report)
+
+  * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.1-1
+  - Fixes: 99c43569a0 ("Transition from exception-raising Unix.getenv to Sys.getenv_opt with")
+
+  * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.0-1
+  - CP-47304: [Toolstack] - Add data model for anti-affinity group
+  - CP-47655: [Toolstack] - Associate/disassociate VM to/from anti-affinity group
+  - CA-391880: Update related field 'groups' of VM when destroying VM group.
+  - CP-47302: VM start with anti-affinity
+  - CA-392177: Keep current group after reverting from snapshot
+  - CP-47656 Anti-affinity feature generate alert
+  - CP-48570: Load recommendations from config file when Xapi starts
+  - CP-48011: Xapi Support anti-affinity feature flag
+  - CA-393421: Special VMs cannot be added to VM groups
+  - CP-48625: Code refactoring
+  - opam: add psq to xapi dependencies
+  - CP-49665: Anti-affinity support for host evacuation
+  - CP-48752: Add UT for host evacuation with anti-affinity support
+  - CP-49953: Remove parse_uri, switch to using Uri module instead
+  - doc: remaining API docs
+  - doc: add XenAPI release info
+  - Printf.kprintf is deprecated, replace with Printf.ksprintf
+  - Fix misplaced inline attributes
+  - CP-50050 track CBT status for SMAPIv3 SRs
+  - CP-49953: Remove parse_uri, switch to using Uri module instead
+  - CI: Complete parallel Coveralls uploads: Finish when done
+  - CP-49116: Replace fingerprint in certificate DB with sha256 and sha1
+  - CA-392887: set_tls_config immediately after enabling clustering
+  - CI: Update endcover step to v2 to fix CI (#5763)
+  - CA-386173: Update the message of WLB authentication issue
+  - Revert "CP-49953: Remove parse_uri, switch to using Uri module instead"
+  - Fix a bug noticed by a quicktest run
+  - Eliminate unnecessary usage of List.length to check for empty lists
+  - Transition from exception-raising Unix.getenv to Sys.getenv_opt with
+  - Replace Hashtbl.find with Hashtbl.find_opt in trivial cases
+  - Refactor Hashtbl.find out of resources/table.ml
+  - Refactor Hashtbl.find out of xenopsd/xc/readln.ml
+  - Add a gate for Hashbtl.find
+  - CP-50135: Bump datamodel_lifecycle for anti-affinity
+  - IH-621: Add IPMI host power on support and remove DRAC
+  - opam: generate xapi-forkexecd with dune
+  - opam: remove unversioned opam dependencies
+  - opam: generate xapi-networkd using dune
+  - fe_test: print stacktrace on unit test failure
+  - fix(fe_test): make it compatible with fd-send-recv 2.0.2
+  - Fix indentation in C code
+
+  * Mon Jul 01 2024 Ming Lu <ming.lu@cloud.com> - 24.18.0-1
+  - doc/README.md: Improve the Hugo Quick start guide for an easier start
+  - .codecov.yml: Remove scripts (Codecov is confused, we move scripts/ to python3/)
+  - CA-394444: Update task cancellation in `message_forwarding.ml`
+  - Hugo docs: Add dark mode support, theme variant selector and print
+  - Don't generate link-local address for interfaces
+  - Make `cluster-stack-version` show up in the CLI
+  - Update datamodel lifecycle
+  - Removed headers from the templates.
+  - Renamed files and reordered table of contents.
+  - IH-583 Create standalone implementations of systemd functions
+  - Fix failing builds by attaching package to the cram test
+  - CA-394883: fix race condition allocating task ids
+  - CA-394882: avoid error on tasks that are not ours
+  - CA-381119: use JsonRPC V2 for error replies
+  - CA-394169: Allow task to have permissions on itself
+  - CI: use new version of codecov action
+  - Merge .codecov.yml from feature/py3 to drop scripts checks
+  - CP-50055 Add Go SDK as a release package in XAPI
+  - CI: codecov is unstable, use coveralls
+  - CA-394921: Ignore unkown properties during Java SDK deserialisation
+  - CP-49446: expose SR health values to Python
+  - opam: record correct authorship for stdext packages
+  - IH-628: add new package clock for timekeeping
+
+  * Tue Jun 18 2024 Ming Lu <ming.lu@cloud.com> - 24.17.0-1
+  - CP-48666: initialize a skeleton project for Go SDK
+  - CP-47347: Add mustache template for Enum Types
+  - CP-47351: generate Record and Ref Type Golang code for all classes
+  - CP-47348: generate Golang code of Enum Type for all classes
+  - CP-47362: generate file headers
+  - CP-48666: collect api errors
+  - CP-47364: generate api messages and errors of Golang code
+  - refactor: create an `Alcotest.testable` to check structure of generated JSON is wanted
+  - refactor: move `objects` and `session_id` from `Gen_go_helper` to `CommonFunctions`
+  - CP-48666: use dune rule to get the destination dir for the generated files
+  - CP-48666: generate all enums to a file
+  - refactor the way of getting enums
+  - CP-48666: refactor the JSON schema checking
+  - CP-48666: refactor `render_template` with an optional newline parameter
+  - CP-47361: generate mustache template for deserialize and serialize functions
+  - CP-47358: Generate convert functions Go code
+  - CP-48855: update templates (APIErrors, APIMessages, Record)
+  - CP-48855: adjust generated json for templates changed
+  - CP-48855: add templates for option and APIVersions
+  - CP-48855: render options
+  - CP-47355, CP-47360: generate mustache template for xapi data module class messages
+  - CP-47354: Generate messages functions Golang code for all classes
+  - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
+  - CP-48855: render APIVersion
+  - CP-48855: fix go lint var-naming warnings
+  - fix `StringOfTyWithEnumsTest` after merged
+  - CP-48855: it should be only one empty line at end of Go file
+  - CP-47356: expose `published_release_for_param` and `compare_versions` for usage of other modules
+  - CP-47358: Add unit tests for generating convert functions
+  - CP-47355, CP-47360: generate mustache template for xapi data module class messages
+  - CP-47354: Generate messages functions Golang code for all classes
+  - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
+  - CP-48855: update templates (APIErrors, APIMessages, Record)
+  - CP-48855: adjust generated json for templates changed
+  - CP-48855: add templates for option and APIVersions
+  - CP-48855: render options
+  - CP-48855: render APIVersion
+  - CP-48855: remove go lint var-naming warnings
+  - CP-47356: Support backwards capability for Go SDK
+  - CP-47361: generate mustache template for deserialize and serialize functions
+  - CP-47358: Generate convert functions Go code
+  - CP-47358: Add unit tests for generating convert functions
+  - CP-47354: Generate messages functions Golang code for all classes
+  - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
+  - CP-48855: render options
+  - CP-48855: render APIVersion
+  - CP-47357: Add a Go JSON-RPC client file
+  - CP-47357: fix review issues
+  - CP-47367 Add type checking for generated SDK Go files
+  - CP-49350: fix variable naming in Go SDK
+  - Set up Github Action for go SDK component test (#5588)
+  - CA-391381: Avoid errors for Partial Callables in observer.py
+  - xapi-tracing: bind its test to the package
+  - opam: generate xapi-tracing with dune
+  - opam: generate xapi-tracing-export with dune
+  - opam: generate rrdd-plugin with dune
+  - opam: generate xapi-rrd-transport-utils with dune
+  - opam: generate xapi-rrdd with dune
+  - opam: drop xapi-rrd-transport
+  - opam: drop xen-api-sdk
+  - Revert "CP-47660 define anti-affinity feature"
+  - Remove CVM and relevant test cases (#5655)
+  - opam: Fix metadata
+  - opam: de-templatise message-switch-core
+  - ocaml: remove unused bindings
+  - dune: enforce version +3
+  - Add `VM.set_uefi_mode` API call
+  - Go SDK: Misc fixes for on-going component tests (#5661)
+  - Add `VM.get_secureboot_readiness` API call
+  - Add `Pool.get_guest_secureboot_readiness` API call
+  - CP-49446: Update SR health to include new constructors
+  - doc: copy design documents from xapi-project.github.io
+  - doc: add info table to design docs
+  - doc: style design doc index
+  - CP-47928: Add component test for Go SDK
+  - CP-49647 use URI for create_misc
+  - CP-49647 use URI for dbsync_master
+  - CP-49647 use URI for export.ml
+  - CP-49647 use URI for import.ml
+  - CP-49647 use URI for importexport.ml
+  - CP-49647 use URI for rrd_proxy.ml
+  - CP-49647 use URI for sm_fs_ops.ml
+  - CP-49647 use URI for xapi_message.ml
+  - CP-49647 use URI for xapi_xenops.ml
+  - CP-49647 use URI for xapi_vm_migrate.ml
+  - CP-49647 use URI for xapi_host.ml
+  - CP-49647 use URI for cli_util.ml
+  - CP-49647 use URI for http.ml
+  - CP-49647 use URI for cli_operations
+  - CP-45235: Support for `xe-cli` to transmit `traceparent`
+  - doc: add design review links (historical)
+  - doc: RDP design: fix list nesting
+  - CP-48995: Instrument `XenAPI.py` to submit traceparent
+  - Update datamodel_lifecycle.ml
+  - CP-49768: Update GO SDK README file (#5671)
+  - CP-49249: Implement SMAPIv3 CBT Forwarding
+  - CA-393866: Add support for Infinity in Java SDK parser
+  - CA-393507: Default cluster_stack value
+  - Remove fix_firewall.sh
+  - CA-393119: Don't use HTTPS for localhost migrations
+  - CP-49828: Remove iovirt script
+  - CP-49129: Add unit test for parallel parsing.
+  - CP-49129: Make unit test run on alcotest.
+  - CP-49129: Replace `ocamlyacc` with `menhir`
+  - CP-49129: Drop global lock around sexpr parsing
+  - CP-49045: replace all uses of ocamlyacc with menhir which is thread-safe
+  - CP-49129: Update `quality-gate.sh` for `ocamlyacc`
+  - Link just qcheck-core, not qcheck
+  - Define qcheck-core dependency in opam packages
+  - Makefile: fix compatibility with the dash shell
+  - CP-49858: Fix phrasing in readme
+  - CP-49858: Add licence text on top of Go source files
+  - CP-49858: Unit test: licence template variable
+  - CP-49858: Remove template variables 'first' and 'is_session_id'
+  - CP-49858: Unit test: Update for changes on template variables
+  - rpm: remove `sexprpp` from public_name
+  - sexpr: add tests to the package
+  - xapi-rrdd: change tests to reduce amount of logs produced
+  - rrd-transport: generate opam metadata using dune
+  - http-lib: generate opam metadata using dune
+  - wsproxy: test with alcotest instead of ounit
+  - vhd-format-lwt: run tests using alcotest
+  - xen-api-client: run tests with alcotest
+  - xapi-sdk: add empty packge to be able to run tests for it
+  - CI: pin packages
+  - CP-49647 use URI for newcli.ml
+  - CP-49677 implement Http.Url using URI
+  - Update quality-gate.sh
+
+  * Mon Jun 10 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.16.0-3
+  - Bump release and rebuild
+  - Remove vm_anti_affinity tag and dependency on m2crypto
 
 * Wed Aug 07 2024 Yann Dirson <yann.dirson@vates.tech> - 24.16.0-1.3
 - Fix openvswitch-config-update not fully ported to python3
