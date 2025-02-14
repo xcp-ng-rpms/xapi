@@ -1,62 +1,65 @@
-%global package_speccommit 7d7c73786298bfc2d15911500057efe48a928750
-%global package_srccommit v24.19.2
+%global package_speccommit e3fed2884036e03b1a38b1fad7f1f0ce75371831
+%global package_srccommit v24.39.1
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
+%global _pythonpath %{_usr}/bin/python3
 
-%if 0%{?xenserver} < 9
-%global build_python2 1
-%global include_pyc_pyo 1
+%global yum_dir %{_sysconfdir}/yum.repos.d
+
+%if 0%{?xenserver} >= 9
+# In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
+%bcond_without dnf_plugin
+%bcond_without own_yum_dir
 %else
-# There are still some shebangs for python2, we skip this check
-%global __brp_mangle_shebangs %nil
-%global include_pyc_pyo 0
+%bcond_without python2_compat
 %endif
+
+%global api_version_major 2
+%global api_version_minor 21
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.19.2
-Release: 1.10%{?xsrel}%{?dist}
+Version: 24.39.1
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.19.2.tar.gz
-Source1: xcp-rrdd.service
-Source2: xcp-rrdd-sysconfig
-Source3: xcp-rrdd-conf
-Source4: xcp-rrdd-tmp
-Source5: xcp-rrdd-iostat.service
-Source6: xcp-rrdd-squeezed.service
-Source7: xcp-rrdd-xenpm.service
-Source8: xenopsd-xc.service
-Source9: xenopsd-simulator.service
-Source10: xenopsd-sysconfig
-Source11: xenopsd-64-conf
-Source12: squeezed.service
-Source13: squeezed-sysconfig
-Source14: squeezed-conf
-Source15: xcp-networkd-sysconfig
-Source16: xcp-networkd-network-conf
-Source17: message-switch.service
-Source18: message-switch-conf
-Source19: message-switch-bugtool1.xml
-Source20: message-switch-bugtool2.xml
-Source21: forkexecd.service
-Source22: forkexecd-sysconfig
-Source23: xapi-storage-script.service
-Source24: xapi-storage-script-sysconfig
-Source25: xapi-storage-script-conf.in
-Source26: tracing-conf
-Source27: pool-recommendations-xapi-conf
+Source0: xen-api-24.39.1.tar.gz
+Source1: xenopsd-xc.service
+Source2: xenopsd-simulator.service
+Source3: xenopsd-sysconfig
+Source4: xenopsd-64-conf
+Source5: squeezed.service
+Source6: squeezed-sysconfig
+Source7: squeezed-conf
+Source8: xcp-networkd-sysconfig
+Source9: xcp-networkd-network-conf
+Source10: message-switch.service
+Source11: message-switch-conf
+Source12: message-switch-bugtool1.xml
+Source13: message-switch-bugtool2.xml
+Source14: forkexecd.service
+Source15: forkexecd-sysconfig
+Source16: xapi-storage-script.service
+Source17: xapi-storage-script-sysconfig
+Source18: xapi-storage-script-conf.in
+Source19: tracing-conf
+Source20: pool-recommendations-xapi-conf
+# python-8 SDK for backward compatbility
+Source21: XenAPI.py
+Source22: XenAPIPlugin.py
+Source23: inventory.py
 
-%if "%{dist}" == ".xsx"
-# Empty for now
+%if "%{dist}" == ".xsx" || "%{dist}" == ".xsr" || "%{dist}" == ".xs9"
+Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 %endif
 
 %if "%{dist}" == ".xsu"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
+Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 %endif
 
 # XCP-ng patches
@@ -65,26 +68,21 @@ Patch1000: xapi-24.11.0-update-xapi-conf.XCP-ng.patch
 # Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
 Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
 # Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
-Patch1002: xapi-23.31.0-open-openflow-port.XCP-ng.patch
+Patch1002: xapi-24.39.0-open-openflow-port.XCP-ng.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1003: xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/5918
-Patch1004: xapi-24.16.0-openvswitch-config-update-fix-python2ism-in-python3.patch
+Patch1003: xapi-24.39.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
 Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
-# Backport from 24.20
-Patch1006: xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch
 # Fix fingerprints for CA certificates too
 Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
-# To remove with v24.31.0
-Patch1008: xapi-24.19.2-ipv6-reset-networking.XCP-ng.patch
-Patch1009: xapi-24.19.2-keep-address-type-network-reset.XCP-ng.patch
-Patch1010: xapi-24.19.2-keep-ipv6-management-disable.XCP-ng.patch
-Patch1011: xapi-24.19.2-ipv6-pool-eject.XCP-ng.patch
-Patch1012: xapi-24.19.2-ipv6-virtual-pif.XCP-ng.patch.patch
-# To remove once https://github.com/xapi-project/xen-api/pull/6006 is released
-Patch1013: xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch
-# Backport from 24.20
-Patch1014: 0001-CA-389506-fix-platform-nested_virt-typo.patch
+# Disable flaky test, see af3989235e62f5887a8cac08f4c1977726839297
+Patch1008: xen-api-24.39.1-test-disable-cancellable-sleep.patch
+# #6280: traces to see observer not working on smapi component
+Patch1009: xen-api-24.39.1-debug-traces-for-is_component_enabled.patch
+# #6261: fix IPMI handling for hosts without IPMI (in 25.5.0)
+Patch1010: xen-api-24.39.1-0001-CA-399669-Do-not-exit-with-error-when-IPMI-readings-.patch
+Patch1011: xen-api-24.39.1-0002-rrdp-dcmi-remove-extraneous-I-argument-from-cli-call.patch
+Patch1012: xen-api-24.39.1-0003-CA-399669-Detect-a-reason-for-IPMI-readings-being-un.patch
+
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -96,11 +94,6 @@ BuildRequires: git
 BuildRequires: gmp-devel
 BuildRequires: libuuid-devel
 BuildRequires: make
-
-%if 0%{?build_python2}
-BuildRequires: python2-devel
-%endif
-
 BuildRequires: python3-devel
 BuildRequires: xs-opam-repo >= 6.77.0-1
 BuildRequires: libnl3-devel
@@ -131,7 +124,6 @@ Group: System/Hypervisor
 Requires:       %{name}-cov = %{version}-%{release}
 %endif
 Requires: hwdata
-Requires: redhat-lsb-core
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
 Requires: vhd-tool
@@ -139,15 +131,21 @@ Requires: libffi
 Requires: busybox
 Requires: net-tools
 Requires: vmss
-Requires: python-six
 Requires: python3-six
-# This is necessary during py2->py3 transition
+# Requires openssl for certificate and key pair management
+Requires: openssl
 %if 0%{?xenserver} < 9
-Requires: xcp-python-libs
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
+# Only XS8 support upgrade pbis to winbind
+# XCP-ng: remove Requires for proprietary component
+# Requires: upgrade-pbis-to-winbind
 %else
 Requires: dnf
+# This is for dnf/yum plugin
+Requires: python3-urlgrabber
+# For dnf plugins like config-manager
+Requires: dnf-plugins-core
 %endif
 Requires: python3-xcp-libs
 Requires: python2-pyudev
@@ -157,25 +155,26 @@ Requires: gmp
 # Requires: xapi-storage-plugins >= 2.0.0
 # Requires: xapi-clusterd >= 0.64.0
 Requires: xxhash-libs
-Requires: jemalloc
+Requires: jemalloc >= 5
 Requires: zstd
 Requires: createrepo_c >= 0.10.0
 Requires: tdb-tools >= 1.3.18
 Requires: samba-winbind >= 4.10.16
-# XCP-ng: remove Requires for proprietary component
-# Requires: upgrade-pbis-to-winbind
 # XCP-ng: don't require XS's fork of the setup RPM
 #Requires: setup >= 2.8.74
 Requires: xcp-ng-release-config
 Requires: python3-fasteners
 Requires: sm
 Requires: ipmitool
+Requires: python3-opentelemetry-exporter-zipkin
+Requires: python3-wrapt
 # firewall-port needs iptables-service to perform
 # `service iptables save`
 Requires: iptables-services
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
+Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
@@ -323,9 +322,6 @@ Memory ballooning daemon for the xapi toolstack.
 %package -n xcp-rrdd
 Summary:        Statistics gathering daemon for the xapi toolstack
 Requires(pre):  shadow-utils
-%if 0%{?build_python2}
-Requires:       python2-future
-%endif
 Requires:       python3-future
 
 %description -n xcp-rrdd
@@ -421,29 +417,11 @@ Obsoletes:      xapi-forkexecd-devel <= 1.31.0-2
 The forkexecd-devel package contains libraries and signature files for
 developing applications that use forkexecd.
 
-%if 0%{?build_python2}
-%package -n python2-xapi-storage
-Summary: Xapi storage interface (Python2)
-Provides: xapi-storage = %{version}-%{release}
-Obsoletes: xapi-storage < %{version}-%{release}
-Requires: python2-future
-Requires: python-six
-BuildRequires: python2-devel
-BuildRequires: python2-setuptools
-
-%description -n python2-xapi-storage
-Xapi storage interface libraries for python2
-
-%files -n python2-xapi-storage
-%defattr(-,root,root,-)
-%{python2_sitelib}/xapi/__init__.py*
-%{python2_sitelib}/xapi/storage/*
-%exclude %{python2_sitelib}/*.egg-info
-
-%endif
-
 %package -n python%{python3_pkgversion}-xapi-storage
-Summary: Xapi storage interface (Python3)
+Summary:        xapi storage interface (Python3)
+Provides:       xapi-storage = %{version}-%{release}
+Obsoletes:      xapi-storage < %{version}-%{release}
+
 Requires: python3-six
 BuildRequires: python3-devel
 BuildRequires: python3-rpm-macros
@@ -476,7 +454,7 @@ developing applications that use xapi-storage.
 
 %package storage-script
 Summary: Xapi storage script plugin server
-Requires:	jemalloc
+Requires:      jemalloc
 
 %description storage-script
 Allows script-based Xapi storage adapters.
@@ -510,33 +488,25 @@ It is responsible for giving access only to a specific VM to varstored.
 %global ocaml_libdir %{ocaml_dir}/lib
 %global ocaml_docdir %{_prefix}/doc
 
-%if 0%{?build_python2}
-%global __python     /usr/bin/python2
-%else
-%global __python     /usr/bin/python3
-%endif
+%global __python     %{_pythonpath}
 
 %prep
 %autosetup -p1
 %{?_cov_prepare}
 
 %build
-./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir}
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
 export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
 %{__make} sdk
-sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE25} > xapi-storage-script.conf
-
-%if 0%{?build_python2}
-(cd ocaml/xapi-storage/python && %{py2_build})
-%endif
+sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE18} > xapi-storage-script.conf
 
 (cd ocaml/xapi-storage/python && %{py3_build})
 
 %check
 export OCAMLPATH=%{_ocamlpath}
-COMPILE_JAVA=no %{__make} test %{!?build_python2:PY_TEST=NO}
+COMPILE_JAVA=no %{__make} test
 mkdir %{buildroot}/testresults
 find . -name 'bisect*.out' -exec cp {} %{buildroot}/testresults/ \;
 ls %{buildroot}/testresults/
@@ -545,17 +515,7 @@ ls %{buildroot}/testresults/
 rm -rf %{buildroot}
 %global xapi_storage_path _build/default/ocaml/xapi-storage/python/
 export OCAMLPATH=%{_ocamlpath}
-DESTDIR=$RPM_BUILD_ROOT %{__make} install %{!?build_python2:BUILD_PY2=NO}
-
-%if 0%{?build_python2}
-(cd %{xapi_storage_path} && (%{py2_build}) && (%{py2_install}))
-for f in XenAPI XenAPIPlugin inventory; do
-    for e in py pyc pyo; do
-        echo %{python2_sitelib}/$f.$e
-    done
-done > core-files
-%{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python2_sitelib}/
-%endif
+DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
@@ -564,6 +524,48 @@ for f in XenAPI XenAPIPlugin inventory observer; do
 done >> core-files
 echo "%{python3_sitelib}/xapi/__pycache__/__init__*.pyc" >> core-files
 echo "%{python3_sitelib}/xapi_storage*.egg-info" >> core-files
+echo "/opt/xensource/libexec/__pycache__/*" >> core-files
+echo "/etc/xapi.d/plugins/__pycache__/*" >> core-files
+
+%if %{with python2_compat}
+install -d %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE21} %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE22} %{buildroot}/%{python2_sitelib}/
+install -m 755 %{SOURCE23} %{buildroot}/%{python2_sitelib}/
+for f in XenAPI XenAPIPlugin inventory; do
+    echo %{python2_sitelib}/$f.py* >> core-files
+done
+%endif
+
+%if %{with dnf_plugin}
+# For xs9, use dnf instead of yum
+echo "%{python3_sitelib}/dnf-plugins/*" >> core-files
+# use dnf instead of yum, clean yum stuff
+rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
+rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
+rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
+rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
+%else
+## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
+## # For xs8, use yum
+## echo "/etc/yum/pluginconf.d/accesstoken.conf" >> core-files
+## echo "/etc/yum/pluginconf.d/ptoken.conf" >> core-files
+## echo "/usr/lib/yum-plugins/accesstoken.py" >> core-files
+## echo "/usr/lib/yum-plugins/ptoken.py" >> core-files
+## echo "/usr/lib/yum-plugins/__pycache__/*" >> core-files
+rm -f %{buildroot}/etc/yum/pluginconf.d/accesstoken.conf
+rm -f %{buildroot}/etc/yum/pluginconf.d/ptoken.conf
+rm -f %{buildroot}/usr/lib/yum-plugins/accesstoken.py
+rm -f %{buildroot}/usr/lib/yum-plugins/ptoken.py
+## XCP-ng END
+
+# clean the dnf-plugin as not required by XS8
+rm -rf %{buildroot}/%{python3_sitelib}/dnf-plugins/
+%endif
+
+%if %{with own_yum_dir}
+mkdir -m 755 -p %{buildroot}/%{yum_dir}
+%endif
 
 %{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python3_sitelib}/
 
@@ -572,66 +574,54 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-echo 0 > %{buildroot}/etc/xenserver/features.d/cluster_health
 echo 0 > %{buildroot}/etc/xenserver/features.d/corosync3
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
-%{__install} -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/xcp-rrdd.service
-%{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_sysconfdir}/sysconfig/xcp-rrdd
-%{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/xcp-rrdd.conf
-%{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_tmpfilesdir}/xcp-rrdd.conf
-%{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/xcp-rrdd-iostat.service
-%{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_unitdir}/xcp-rrdd-squeezed.service
-%{__install} -D -m 0644 %{SOURCE7} %{buildroot}%{_unitdir}/xcp-rrdd-xenpm.service
+%{__install} -D -m 0644 %{SOURCE1} %{buildroot}%{_unitdir}/xenopsd-xc.service
+%{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/xenopsd-simulator.service
+%{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
+%{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/xenopsd.conf
 
-%{__install} -D -m 0644 %{SOURCE8} %{buildroot}%{_unitdir}/xenopsd-xc.service
-%{__install} -D -m 0644 %{SOURCE9} %{buildroot}%{_unitdir}/xenopsd-simulator.service
-%{__install} -D -m 0644 %{SOURCE10} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
-%{__install} -D -m 0644 %{SOURCE11} %{buildroot}%{_sysconfdir}/xenopsd.conf
+%{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/squeezed.service
+%{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
+%{__install} -D -m 0644 %{SOURCE7} %{buildroot}%{_sysconfdir}/squeezed.conf
 
-%{__install} -D -m 0644 %{SOURCE12} %{buildroot}%{_unitdir}/squeezed.service
-%{__install} -D -m 0644 %{SOURCE13} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
-%{__install} -D -m 0644 %{SOURCE14} %{buildroot}%{_sysconfdir}/squeezed.conf
+%{__install} -D -m 0644 %{SOURCE8} %{buildroot}%{_sysconfdir}/sysconfig/xcp-networkd
+%{__install} -D -m 0644 %{SOURCE9} %{buildroot}%{_sysconfdir}/xensource/network.conf
 
-%{__install} -D -m 0644 %{SOURCE15} %{buildroot}%{_sysconfdir}/sysconfig/xcp-networkd
-%{__install} -D -m 0644 %{SOURCE16} %{buildroot}%{_sysconfdir}/xensource/network.conf
+%{__install} -D -m 0644 %{SOURCE10} %{buildroot}%{_unitdir}/message-switch.service
+%{__install} -D -m 0644 %{SOURCE11} %{buildroot}%{_sysconfdir}/message-switch.conf
 
-%{__install} -D -m 0644 %{SOURCE17} %{buildroot}%{_unitdir}/message-switch.service
-%{__install} -D -m 0644 %{SOURCE18} %{buildroot}%{_sysconfdir}/message-switch.conf
-
-%{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch.xml
-%{__install} -D -m 0644 %{SOURCE20} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch/stuff.xml
-%{__install} -D -m 0644 %{SOURCE21} %{buildroot}%{_unitdir}/forkexecd.service
-%{__install} -D -m 0644 %{SOURCE22} %{buildroot}%{_sysconfdir}/sysconfig/forkexecd
+%{__install} -D -m 0644 %{SOURCE12} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch.xml
+%{__install} -D -m 0644 %{SOURCE13} %{buildroot}%{_sysconfdir}/xensource/bugtool/message-switch/stuff.xml
+%{__install} -D -m 0644 %{SOURCE14} %{buildroot}%{_unitdir}/forkexecd.service
+%{__install} -D -m 0644 %{SOURCE15} %{buildroot}%{_sysconfdir}/sysconfig/forkexecd
 
 # Set server certificate file gid 204 (certusers)
 sed -i -E 's#(ExecStart=.+/xapi-ssl.pem) +-1 #\1 204 #g' %{buildroot}%{_unitdir}/gencert.service
 
 rm %{buildroot}%{_bindir}/gen_lifecycle
-rm %{buildroot}/opt/xensource/bin/xe*-metadata
-rm %{buildroot}/opt/xensource/libexec/backup-metadata-cron
-rm %{buildroot}/opt/xensource/libexec/*-sr-metadata.py*
 
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/volume
 mkdir -p %{buildroot}%{_libexecdir}/xapi-storage-script/datapath
 %{__install} -D -m 0644 xapi-storage-script.conf %{buildroot}%{_sysconfdir}/xapi-storage-script.conf
-%{__install} -D -m 0644 %{SOURCE23} %{buildroot}%{_unitdir}/xapi-storage-script.service
-%{__install} -D -m 0644 %{SOURCE24} %{buildroot}%{_sysconfdir}/sysconfig/xapi-storage-script
+%{__install} -D -m 0644 %{SOURCE16} %{buildroot}%{_unitdir}/xapi-storage-script.service
+%{__install} -D -m 0644 %{SOURCE17} %{buildroot}%{_sysconfdir}/sysconfig/xapi-storage-script
 rm %{buildroot}%{ocaml_libdir}/xapi-storage-script -rf
 rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %{?_cov_install}
 
-%{__install} -D -m 0644 %{SOURCE26} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
-
-# XCP-ng: remove the ptoken and accesstoken yum plugins
-rm -f %{buildroot}/etc/yum/pluginconf.d/accesstoken.conf
-rm -f %{buildroot}/etc/yum/pluginconf.d/ptoken.conf
-rm -f %{buildroot}/usr/lib/yum-plugins/accesstoken.py
-rm -f %{buildroot}/usr/lib/yum-plugins/ptoken.py
+%{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
-%{__install} -D -m 0644 %{SOURCE27} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
+%{__install} -D -m 0644 %{SOURCE20} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
+
+# Refer to https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/
+%py_byte_compile %{_pythonpath} %{buildroot}/opt/xensource/libexec
+%py_byte_compile %{_pythonpath} %{buildroot}/%{_usr}/libexec/xenopsd
+%py_byte_compile %{_pythonpath} %{buildroot}/%{_sysconfdir}/xapi.d/plugins
+
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -710,6 +700,9 @@ systemctl kill -s HUP rsyslog 2> /dev/null || true
 %systemd_post xcp-rrdd-iostat.service
 %systemd_post xcp-rrdd-squeezed.service
 %systemd_post xcp-rrdd-xenpm.service
+%systemd_post xcp-rrdd-dcmi.service
+%systemd_post xcp-rrdd-cpu.service
+%systemd_post xcp-rrdd-netdev.service
 
 %post -n xcp-networkd
 %systemd_post xcp-networkd.service
@@ -780,6 +773,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_preun xcp-rrdd-iostat.service
 %systemd_preun xcp-rrdd-squeezed.service
 %systemd_preun xcp-rrdd-xenpm.service
+%systemd_preun xcp-rrdd-dcmi.service
+%systemd_preun xcp-rrdd-cpu.service
+%systemd_preun xcp-rrdd-netdev.service
 
 %preun -n xcp-networkd
 %systemd_preun xcp-networkd.service
@@ -833,6 +829,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_postun xcp-rrdd-iostat.service
 %systemd_postun xcp-rrdd-squeezed.service
 %systemd_postun xcp-rrdd-xenpm.service
+%systemd_postun xcp-rrdd-dcmi.service
+%systemd_postun xcp-rrdd-cpu.service
+%systemd_postun xcp-rrdd-netdev.service
 
 %postun -n xcp-networkd
 %systemd_postun xcp-networkd.service
@@ -882,7 +881,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 /etc/xenserver/features.d
-/etc/xapi.conf.d
+%dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/IPMI.py
 /etc/xapi.d/plugins/echo
@@ -908,9 +907,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
 %{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
-# XCP-ng: we don't need these configuration files that are specific to XS8's update process
-#%%config(noreplace) /etc/yum/pluginconf.d/accesstoken.conf
-#%%config(noreplace) /etc/yum/pluginconf.d/ptoken.conf
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
 /opt/xensource/bin/perfmon
@@ -918,9 +914,11 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/bin/xapi-autostart-vms
 /opt/xensource/bin/xapi-db-process
 /opt/xensource/bin/xapi-wait-init-complete
+/opt/xensource/bin/xe-backup-metadata
 /opt/xensource/bin/xe-edit-bootloader
 /opt/xensource/bin/xe-get-network-backend
 /opt/xensource/bin/xe-mount-iso-sr
+/opt/xensource/bin/xe-restore-metadata
 /opt/xensource/bin/xe-reset-networking
 /opt/xensource/bin/xe-scsi-dev-map
 /opt/xensource/bin/xe-toolstack-restart
@@ -944,6 +942,8 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/sm_diagnostics
 /opt/xensource/libexec/xn_diagnostics
 /opt/xensource/libexec/thread_diagnostics
+/opt/xensource/libexec/backup-metadata-cron
+/opt/xensource/libexec/backup-sr-metadata.py
 /opt/xensource/libexec/block_device_io
 /opt/xensource/libexec/cdrommon
 /opt/xensource/libexec/alert-certificate-check
@@ -964,10 +964,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/nbd_client_manager.py
 /opt/xensource/libexec/network-init
 /opt/xensource/libexec/print-custom-templates
-/opt/xensource/libexec/probe-device-for-file
 /opt/xensource/libexec/reset-and-reboot
+/opt/xensource/libexec/restore-sr-metadata.py
 /opt/xensource/libexec/set-hostname
-/opt/xensource/libexec/shell.py
 /opt/xensource/libexec/update-mh-info
 /opt/xensource/libexec/upload-wrapper
 /opt/xensource/libexec/xapi-health-check
@@ -978,8 +977,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
 /etc/xensource/usb-policy.conf
-/opt/xensource/packages/post-install-scripts/debian-etch
-/opt/xensource/packages/post-install-scripts/debug
+/opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
 /etc/xapi.d/host-post-declare-dead/10resetvdis
@@ -989,9 +987,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/debug/import-update-key
 /opt/xensource/debug/vncproxy
 /opt/xensource/debug/with-vdi
-# XCP-ng: we don't need these plugins that are specific to XS8's update process
-#/usr/lib/yum-plugins/accesstoken.py
-#/usr/lib/yum-plugins/ptoken.py
 %{_unitdir}/cdrommon@.service
 %{_unitdir}/gencert.service
 %{_unitdir}/xapi-domains.service
@@ -1005,34 +1000,13 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_unitdir}/generate-iscsi-iqn.service
 %{_unitdir}/control-domain-params-init.service
 %{_unitdir}/network-init.service
+%{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
-
-%if 0%{include_pyc_pyo}
-/etc/xapi.d/plugins/IPMI.pyo
-/etc/xapi.d/plugins/IPMI.pyc
-/etc/xapi.d/plugins/extauth-hook-AD.pyo
-/etc/xapi.d/plugins/extauth-hook-AD.pyc
-/etc/xapi.d/plugins/wlan.pyo
-/etc/xapi.d/plugins/wlan.pyc
-/opt/xensource/libexec/link-vms-by-sr.pyo
-/opt/xensource/libexec/link-vms-by-sr.pyc
-/opt/xensource/libexec/nbd_client_manager.pyo
-/opt/xensource/libexec/nbd_client_manager.pyc
-/opt/xensource/libexec/shell.pyo
-/opt/xensource/libexec/shell.pyc
-/opt/xensource/libexec/usb_reset.pyo
-/opt/xensource/libexec/usb_reset.pyc
-/opt/xensource/libexec/usb_scan.pyo
-/opt/xensource/libexec/usb_scan.pyc
-# XCP-ng: we don't need these plugins that are specific to XS8's update process
-#/usr/lib/yum-plugins/accesstoken.pyo
-#/usr/lib/yum-plugins/accesstoken.pyc
-#/usr/lib/yum-plugins/ptoken.pyo
-#/usr/lib/yum-plugins/ptoken.pyc
+%if %{with own_yum_dir}
+%{yum_dir}
 %endif
-
 
 %files xe
 %defattr(-,root,root,-)
@@ -1062,8 +1036,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %exclude %{ocaml_libdir}/xen-api-client/*.cmt
 %{ocaml_libdir}/xen-api-client-lwt/*
 %exclude %{ocaml_libdir}/xen-api-client-lwt/*.cmt
-%{ocaml_libdir}/xen-api-client-async/*
-%exclude %{ocaml_libdir}/xen-api-client-async/*.cmt
 
 %files datamodel-devel
 %defattr(-,root,root,-)
@@ -1087,12 +1059,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %files sdk
 %{_datarootdir}/xapi/sdk/*
 %exclude %{_datarootdir}/xapi/sdk/*/dune
-%if 0%{include_pyc_pyo}
-%exclude %{_datarootdir}/xapi/sdk/python/*.pyc
-%exclude %{_datarootdir}/xapi/sdk/python/*.pyo
-%exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyc
-%exclude %{_datarootdir}/xapi/sdk/python/samples/*.pyo
-%endif
 
 %files libs-devel
 %defattr(-,root,root,-)
@@ -1209,20 +1175,14 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %{_libexecdir}/xenopsd/vif-real
 %{_libexecdir}/xenopsd/block
 %{_libexecdir}/xenopsd/tap
-%{_libexecdir}/xenopsd/qemu-vif-script
 %{_libexecdir}/xenopsd/setup-vif-rules
 %{_libexecdir}/xenopsd/setup-pvs-proxy-rules
 %{_libexecdir}/xenopsd/pvs-proxy-ovs-setup
 %{_libexecdir}/xenopsd/common.py
 %{_libexecdir}/xenopsd/igmp_query_injector.py
+%{_usr}/libexec/xenopsd/__pycache__/*
 %config(noreplace) %{_sysconfdir}/sysconfig/xenopsd
 %config(noreplace) %{_sysconfdir}/xenopsd.conf
-%if 0%{include_pyc_pyo}
-%{_libexecdir}/xenopsd/common.pyo
-%{_libexecdir}/xenopsd/common.pyc
-%{_libexecdir}/xenopsd/igmp_query_injector.pyo
-%{_libexecdir}/xenopsd/igmp_query_injector.pyc
-%endif
 
 %exclude %{ocaml_dir}
 
@@ -1257,9 +1217,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %config(noreplace) %{_sysconfdir}/sysconfig/xcp-rrdd
 %config(noreplace) %{_sysconfdir}/xcp-rrdd.conf
 %{_tmpfilesdir}/xcp-rrdd.conf
-%if 0%{?build_python2}
-%{python2_sitelib}/rrdd.py*
-%endif
 %{python3_sitelib}/rrdd.py*
 %{python3_sitelib}/__pycache__/rrdd.*.pyc
 
@@ -1278,11 +1235,17 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-iostat
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-squeezed
 /opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-xenpm
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-dcmi
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-cpu
+/opt/xensource/libexec/xcp-rrdd-plugins/xcp-rrdd-netdev
 /etc/xensource/bugtool/xcp-rrdd-plugins.xml
 /etc/xensource/bugtool/xcp-rrdd-plugins/stuff.xml
 %{_unitdir}/xcp-rrdd-iostat.service
 %{_unitdir}/xcp-rrdd-squeezed.service
 %{_unitdir}/xcp-rrdd-xenpm.service
+%{_unitdir}/xcp-rrdd-dcmi.service
+%{_unitdir}/xcp-rrdd-cpu.service
+%{_unitdir}/xcp-rrdd-netdev.service
 
 %files -n vhd-tool
 %{_bindir}/vhd-tool
@@ -1291,12 +1254,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /usr/libexec/xapi/get_vhd_vsize
 /opt/xensource/libexec/get_nbd_extents.py
 /opt/xensource/libexec/python_nbd_client.py
-%if 0%{include_pyc_pyo}
-/opt/xensource/libexec/get_nbd_extents.pyc
-/opt/xensource/libexec/get_nbd_extents.pyo
-/opt/xensource/libexec/python_nbd_client.pyc
-/opt/xensource/libexec/python_nbd_client.pyo
-%endif
 
 %files -n xcp-networkd
 %{_sbindir}/xcp-networkd
@@ -1317,27 +1274,22 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xensource/bugtool/message-switch.xml
 
 %files -n message-switch-devel
-%doc %{ocaml_docdir}/message-switch/LICENSE
-%doc %{ocaml_docdir}/message-switch/README.markdown
 %defattr(-,root,root,-)
 %{ocaml_docdir}/message-switch-core
 %{ocaml_docdir}/message-switch-unix
-%{ocaml_docdir}/message-switch-async
 %{ocaml_docdir}/message-switch-lwt
 %{ocaml_docdir}/message-switch-cli
-%{ocaml_docdir}/message-switch
+%doc %{ocaml_docdir}/message-switch
 %{ocaml_libdir}/message-switch
 %{ocaml_libdir}/message-switch-cli
 %{ocaml_libdir}/message-switch-core
 %{ocaml_libdir}/message-switch-unix
-%{ocaml_libdir}/message-switch-async
 %{ocaml_libdir}/message-switch-lwt
 %exclude %{ocaml_libdir}/*/*.cmt
 %exclude %{ocaml_libdir}/*/*.cmti
 
 %files idl-devel
 %{ocaml_docdir}/xapi-idl
-%{_bindir}/xcp-idl-debugger
 %{ocaml_libdir}/xapi-idl
 %{ocaml_libdir}/stublibs/*.so
 
@@ -1416,6 +1368,459 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Feb 14 2025 Yann Dirson <yann.dirson@vates.tech> - 24.39.1-1.1
+- Update to upstream 24.39.1-1
+- Reformat changelog to allow diffing with upstream
+- Adjust change to avoid pulling upgrade-pbis-to-winbind (XS8-only)
+- Reworked non-installation of yum plugins
+- Adjust xapi-23.31.0-open-openflow-port.XCP-ng.patch for file rename
+- Adjust xapi-24.11.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
+- Drop xapi-24.16.0-openvswitch-config-update-fix-python2ism-in-python3.patch,
+  merged upstream
+- Drop backport: xapi-24.19.2-update-new-fingerprint-fields-on-DB-upgrade.backport.patch
+- Drop ipv6 patches merged into v24.31.0
+- Drop xapi-24.19-2-fix-pem-fingerprint-startup.XCP-ng.patch now that #6006 is merged
+- New xen-api-24.39.1-test-disable-cancellable-sleep.patch: disable "cancellable sleep"
+flaky test
+- Add missing Requires: python3-wrapt
+- More traces for is_component_enabled (PR #6280)
+- IPMI fixes from psafont for testing (PR #6261)
+- Bump version requirement on jemalloc to get required libjemalloc.so.2
+- Upstream changelog:
+  * Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
+  - CA-404512: Add feature flag to the new clustering interface
+  
+  * Tue Nov 26 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-2
+  - Bump release and rebuild
+  
+  * Mon Nov 25 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-1
+  - IH-728: Refactor tracing logic
+  - Update datamodel_lifecycle.ml
+  - CA-401274: Remove external auth limitation during set_hostname_live
+  - CP-49134: tracing: do not destroy stacktrace
+  - CP-49078: Use Hashtbl within Schema
+  - opam: update vhd packages' opam metadata
+  - maintenance: compatibility with cstruct 6.2.0
+  - CA-402326: Fetch SM records from the pool to avoid race
+  - CA-402654: Partially revert 3e2e970af
+  - CA-402263, xapi_sr_operatrions: don't include all API storage operations in all_ops
+  
+  * Wed Nov 13 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-3
+  - Bump release and rebuild
+  
+  * Wed Nov 13 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-2
+  - Bump release and rebuild
+  
+  * Mon Nov 11 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-1
+  - CP-50475: Remove unnecessary Parallel atoms from the xenopsd queues
+  - CP-50475: parallelize device ops during VM lifecycle ops
+  - xapi_stdext_unix/test: Fix intermittent systemd cram test failure
+  - Fix a build warning with GCC 12.3.0
+  - Remove use of deprecated syslog Standard* type
+  - CA-400860: rrdp-netdev - drop xenctrl, use xenstore to get UUIDs from domids instead
+  - CP-51870: Delegate restarting systemd services order to systemd
+  - CP-51938: Generate XML alert for cluster health
+  - CP-50546: Remove initscripts family
+  - Remove notion of weird string from sexpr library
+  - CA-399396: Adjust the jemalloc parameters for memory performance
+  - CP-52039: Drop Semaphore from Xapi_stdext_threads
+  - CA-400560: Fix version segment division error
+  - Do not include xapi-clusterd.service in toolstack.target
+  - CA-401324: Update pvsproxy socket location
+  - CA-400560: Support tilde in RPM version/release comparison
+  - CA-401404: Only check previous active service status
+  - CA-401242: avoid long-running, idle connections on VDI.pool_migrate
+  - xapi_vdi: replaces nested if-elses with monadic Result
+  - datamodel: Add all VDI operations to the SR operations variant
+  - CA-401498: Fix test_systemd occasional timeout
+  - CA-399629: make daily-license-check aware of never
+  - license_check: clean up interface
+  - license_check: update the concept of "never"
+  - daily_license_check: Do not use floats for handling time
+  - CA-400060: Introduce new field for sm class
+  - CA-400060: Sm feature intersection
+  - CA-400060: Reject pool join if sm features mismatch
+  - Document Rbac module
+  
+  * Tue Oct 29 2024 Christian Lindig <christian.lindig@cloud.com> - 24.36.0-1
+  - CA-400559: API Error too_many_groups is not in go SDK
+  - chore: annotate types for non-returning functions
+  - CA-400199: open /dev/urandom on first use
+  
+  * Wed Oct 23 2024 Christian Lindig <christian.lindig@cloud.com> - 24.35.0-1
+  - CA-398341: Populate fingerprints of CA certificates on startup
+  - CP-51527: Add --force option to pool-uninstall-ca-certificate
+  - CA-400924 - networkd: Add bonds to `devs` in network_monitor_thread
+  
+  * Mon Oct 21 2024 Christian Lindig <christian.lindig@cloud.com> - 24.34.0-1
+  - fix(test): avoid running XAPI hooks in unit tests
+  - IH-715 - rrdp-netdev: Remove double (de)serialization
+  - fixup! IH-715 - rrdp-netdev: Remove double (de)serialization
+  - chore: update datamodel versions
+  - IH-577 Implement v7 UUID generation
+  - Update wire-protocol.md to have working Python3 code examples
+  - Added WLB_VM_RELOCATION to the list of recognized messages.
+  - Python command correction.
+  - Remove unused Http_svr.Chunked module
+  - chore: Fix some grammatical errors in cluster alerts
+  - buf_io: remove unused function input_line
+  - Access pvsproxy via a socket in /run
+  - http-svr: change request_of_bio(_exn) to read_request(_exn)
+  - xmlrpc_client: remove us of Buf_io
+  - http-svr: remove read from Buf_io in read_body
+  - xapi_http: unify cases in add_handler
+  - Remove BufIO HTTP handler type completely
+  - Remove now-unused Buf_io and associated tests
+  - CA-400860: make CPU and netdev RRDD plugins pick up changes in domains
+  - CP-51683: Make Cluster_health non-exp feature
+  
+  * Mon Oct 14 2024 Christian Lindig <christian.lindig@cloud.com> - 24.33.0-1
+  - CA-392674: nbd_client_manager retry connect on nbd device busy
+  - http-lib: add backtrace to logs on connection without response
+  - http-lib: convert bash script to cram tests
+  - http-lib: prepare test client for more commands
+  - http-libs: add test about error logging
+  - http-lib: use let@ for perf testing of the client
+  - http-lib: make perf shorter
+  - CA-399256: Ensure AD domain name check is case insensitive
+  - Replace fold with of_list in rbac
+  - maintenance: write interface files for vhd-tool
+  - maintenance: add interface to vhd-tool's Chunked
+  - maintenance: remove data from chd-tool's chunked datastructure
+  - Revert "CP-48676: Don't check resuable pool session validity by default"
+  - Revert "CP-48676: Reuse pool sessions on slave logins."
+  - maintenance: remove unused code from stream_vdi
+  
+  * Thu Oct 10 2024 Christian Lindig <christian.lindig@cloud.com> - 24.32.0-1
+  - xapi-stdect-unix: catch exceptions when testing the server
+  - CP-51714: Remove noisy xenopsd debug logs
+  - maintenance: avoid deprecated bindings in uuidm 0.9.9
+  - ezxenstore: avoid copies when converting to and from uuids
+  - CP-50603: Replace `c_rehash` with `openssl rehash` sub command
+  - CA-400124: rrd: Serialize transform parameter for data sources
+  - CA-400124 - rrdd: only serialize transform when it's not default
+  - XSI-1722 fix timer for host heartbeat
+  
+  * Fri Oct 04 2024 Christian Lindig <christian.lindig@citrix.com> - 24.31.0-1
+  - message-switch: remove dependency on async binaries
+  
+  * Mon Sep 23 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.30.0-1
+  
+  - CP-32622, CP-51483: Switch to epoll
+  - CA-399187: Allow gencert to be called without groupid
+  - Date: Accept all valid timezones from client, allow sub-second precision
+  - CP-50614: Tracing, optimize and reduce overhead
+  - xe autocompletion: Fix prefix escaping bug
+  - Fix network reset script in static IPv6
+  - CA-398128: Be wary that dates in database lose precision
+  - Don't use dhcp4 for none mode
+  - CA-398138: Handle enum value unknown error for Go SDK
+  
+  * Mon Sep 16 2024 Christian Lindig <christian.lindig@citrix.com> - 24.29.0-1
+  - Use templates to generate `Types.java`
+  - Use templates to generate Java classes
+  - CP-38343: xenopsd: GC and memory RRD stats
+  - CP-38343: use sscanf to parse /proc
+  - CA-396743: log non managed devices in PIF.scan
+  - CA-396743: make Network.managed reflect PIF.managed
+  - CA-396743: forbid setting NBD purpose on unmanaged networks
+  - CA-396743: fix bridge name for unmanaged devices
+  - Extend Java deserialization support for xen-api dates
+  - Minor doc corrections.
+  - Removed entries that don't correspond to API messages. Removed obsolete parsing for CSLG failures.
+  - C SDK: curl flags are not needed since the SDK does not depend on curl.
+  - Expand Go deserialization support for xen-api dates
+  - Expand C# deserialization support for xen-api dates
+  - Expand C deserialization support for xen-api dates
+  - Split generation of Types.java into separate functions
+  - Split generation of classes into separate functions
+  - CA-397788: Execute pre shutdown hook for xapi
+  - Add sr to the Sr_unhealthy error constructor
+  - Add more description on sr health
+  - CP-49448: Add handling logic for SR health state
+  - CP-51352: Compare before setting a new value in `last_active`
+  - CP-51352: Configurable threshold for updating `last_active`
+  - Add Java SDK to SDK actions
+  - Fix syntax in CustomDateDeserializer.java
+  - CP-47509: Revisited the setting of response headers to avoid errors when multiple threads use the same session object.
+  - CA-397599 XSI-1704 implement setter for blocked ops manually
+  
+  * Tue Sep 10 2024 Christian Lindig <christian.lindig@citrix.com> - 24.28.0-1
+  - Update record_util tests to the current state
+  - IH-689: Include auto-generated record_util
+  - Introduce mli for xapi_clustering
+  - Make Daemon.enabled as an Atomic.t
+  - CA-398438: Signal exit to the watcher thread
+  - Remove the condition check for Daemon.enabled
+  - fix(CI): feature/py3 has been merged, refer to master now
+  - fix(WLS): disable non-root unit test
+  - Update the docs for Volume.compose
+  - CP-51042: Introduce new SR.scan2 for SMAPI{v1,v2,v3}
+  - Replace Xapi_sr.scan with Xapi_sr.scan2
+  - CP-50422: Destroy authentication cache in disable_external_auth
+  - CP-32625: xenops-cli - replace handwritten JSON prettifier with yojson
+  - IH-666: Report guest AD domain name and host name in the API
+  - CP-47617: Expose backwards compat info to update packaging tooling
+  - CP-46933: Expose XAPI API version in the output of HTTP API /updates
+  - [maintenance]: mark data only dirs as such
+  - [maintenance] disable preprocessor for modules that do not need them
+  - [maintenance] only copy test_data when running tests
+  - [maintenance]: reduce run count for test_timer
+  - [maintenance]: speed up device_number_test
+  - [maintenance]: reduce iteration count for unixext_test
+  - [maintenance]: speed up vhd tests
+  - [maintenance]: reduce sleeps in concur-rpc-test.sh
+  - [maintenance]: vhd_format_lwt_test: speed up by using Cstruct.compare
+  
+  * Wed Sep 04 2024 Christian Lindig <christian.lindig@citrix.com> - 24.27.0-1
+  - CA-390883 CP-46112 CP-47334 CP-47555 CP-47653 CP-47869 CP-47935 CP-48466
+  - CP-49148 CP-49896 CP-49900 CP-49901 CP-49902 CP-49903 CP-49904 CP-49906
+  - CP-49907 CP-49909 CP-49910 CP-49911 CP-49912 CP-49913 CP-49914 CP-49915
+  - CP-49916 CP-49918 CP-49919 CP-49920 CP-49921 CP-49922 CP-49923 CP-49925
+  - CP-49926 CP-49927 CP-49928 CP-49930 CP-49931 CP-49934 CP-49975 CP-50091
+  - CP-50099 CP-50100 CP-50172
+  - Move Pyhton code to Python 3
+  - CP-51278: define import_activate datapath operation
+  - Fixup link.
+  - Update VM failover planning document.
+  - xe autocompletion: Only show required/optional prefixes when parameter name is
+  - xe autocompletion: Exclude previously entered parameters before deciding
+  
+  * Thu Aug 29 2024 Christian Lindig <christian.lindig@citrix.com> - 24.26.0-1
+  - quicktest: disable open 1024 fds on startup for now
+  
+  * Thu Aug 29 2024 Christian Lindig <christian.lindig@citrix.com> - 24.25.0-1
+  - Quicktest: actually run the quickcheck tests too
+  - xapi-fd-test: fix compatibility with old losetup
+  - xapi-fd-test: fix BLK tests
+  - xapi-fd-test: fix BLK EBADF
+  - Quicktest: add unixext_test
+  - xapi_fd_test: introduce testable_file_kind
+  - xapi-fd-test: introduce with kind list
+  - xapi-fd-test: introduce testable_file_kinds
+  - xapi-fd-test: generate inputs for select
+  - unixext_test: add test for select
+  - CP-32622: introduce select-as-epoll in Unixext
+  - xapi-fd-test: switch to testing Unixext.select
+  - CP-32622: Thread.wait_timed_read/wait_timed_write
+  - xenctrlext: remove xenforeignmemory module
+  - IH-676: improve xe autocompletion
+  - Allow xapi_globs specifications with descriptions
+  - CP-50053: Add authentication cache
+  - Cache external authentication results
+  - Add feature flag to block starting VMs
+  - Add feature flag to block starting VM appliances
+  - Update datamodel lifecycle
+  - http-lib: log reason that causes lack of response
+  
+  * Thu Aug 22 2024 Christian Lindig <christian.lindig@citrix.com> - 24.24.0-1
+  - Add temporary exception for deprecation of `xmlStringDecodeEntities`
+  - new-docs: Toggle hidden documentation only on header clicks
+  - Revert "CP-51042: Raise error in sr-scan when SR.stat finds an unhealthy SR"
+  
+  * Tue Aug 20 2024 Christian Lindig <christian.lindig@citrix.com> - 24.23.0-1
+  - CP-49212: Update datamodel for non-CDN update
+  - CP-49212: Add UT for update datamodel for non-CDN update
+  - CP-49213: Add new tar unpacking module
+  - CP-49213: UT for add new tar unpacking module
+  - CP-49214: Upload and sync bundle file
+  - CP-49214: Allowed operations for sync bundle
+  - CP-49214: UT for upload and sync bundle file
+  - CP-49214: Refactor cli_operations
+  - CP-49526: Resolve non-CDN design comments
+  - CA-396540: Add API error for bundle syncing failure
+  - CP-49217: Update datamodel_lifecycle
+  - CP-49217: Update schem in Cli_operations.pool_sync_bundle
+  - CP-49217: Bump up schema vsn
+  - CP-51042: Raise error in sr-scan when SR.stat finds an unhealthy SR
+  - CP-49217: Refine test_tar_ext and add copyright
+  
+  * Thu Aug 15 2024 Ming Lu <ming.lu@cloud.com> - 24.22.0-1
+  - IH-662 - helpers.ml: Move to a threadsafe Re.Pcre instead of Re.Str
+  - CP-50181: Percent decode all Uri paths before using them
+  - clock: use external qcheck-alcotest
+  - CP-50448: move quickcheck tests into internal libraries
+  - Catch system exit in observer.py to close gracefully
+  - CP-49876: Create spans for observer.py itself
+  - CP-50121: Remove bc package from XS9 dom0
+  - dune: declare stresstests dependencies
+  - Update qcheck-alcotest dependencies
+  - docs: add design documents for certificate-related features
+  - CA-396479: Use default value for unknown enums in Java
+  - Default to "UNRECOGNIZED" when using `toString()` of Type enums
+  - xapi-idl: Delete String.{explode,implode} functions
+  - xapi-idl: do not use custom operators for bit manipulations
+  - xapi-idl: Refactor out find_index and add it to Listext
+  - CP-50426: Add tracing to external auth functions
+  - ci: use the names of binaries, not libraries in stresstests
+  - CA-395789: Add polling to cluster health state update
+  - ci: Avoid breaking through the opam sandbox in tests
+  - ci: use ocaml-setup v3
+  - ci: Do not spend time pinning packages
+  - CA-389345: fix incorrect data type in python3
+  - CP-50444: Intrument `http_svr`
+  - CI: use ubuntu-22.04 for SDK too
+  - CI: avoid mixing caches from different OSes
+  - openvswitch-config-update: fix python2ism in python3
+  - CA-396635: Wait for corosync to update its info
+  - CP-50518: Add stub for crypt_r to ocaml/auth
+  - CP-50444: Intrument `request_of_bio`
+  - tracing: fix `make check` warnings
+  - tracing: increase the default maximum number of spans in a trace
+  - CP-50444: Add specialized function for tracing http requests to `Http.Request`
+  - Output if parameter is required in JSON backend
+  - Python SDK: Move "Packaging" section out of the public docs
+  - Allow remediation commits for DCO
+  - CI: fix spurious failure on busy system
+  - CA-397171: Replace libjemalloc.so.1 with libjemalloc.so.2
+  - CA-392685: Replace /tmp/network-reset  with /var/tmp/network-reset to persist tmp file after reboot
+  - Retroactively sign off 8337fa94b76097428621d1e1987
+  - CA-396751: write updated RRDD data before headers
+  - CA-397268: vbd.create failed: The device name is invalid
+  
+  * Fri Jul 26 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.21.0-1
+  - Improve build and test times
+  - maintenance: delete unused fields
+  - xapi: update mirage-crypto version
+  - mirage-rng: Initialize it only in tests and selfcert
+  
+  * Thu Jul 25 2024 Ming Lu <ming.lu@cloud.com> - 24.20.0-2
+  - Bump release and rebuild
+  
+  * Wed Jul 24 2024 Ming Lu <ming.lu@cloud.com> - 24.20.0-1
+  - xe-xentrace: fix binary location
+  - scripts/xentrace: detect host CPU spikes and dump xentrace
+  - CA_388624: fix(C SDK): fix build failure with recent GCC
+  - build: add sdk-build-c Makefile rule to test building C SDK locally
+  - gen_api: generate an all_<enum> for enum types
+  - fix(Host.set_numa_affinity_policy): be consistent about accepting mixed case
+  - test(record_util): make a copy to test for backwards compatibility
+  - test(record_util): add tests for all enums
+  - redo_log: report redo log as broken if we cannot find the block device
+  - CA-389506: fix platform:nested_virt typo
+  - CA-389241: import-update-key compatible with xs8 and xs9
+  - CA-381119: use JsonRPC V2 for error replies
+  - CP-46944: Update yum plugins to dnf plugins (#5526)
+  - Routine feature branch sync (#5531)
+  - XenAPI.py: use correct type for 'verbose' and 'allow_none' with Python3
+  - XenAPI: suppress pytype false positives
+  - remove XenAPI.py from pytype expected to fail list
+  - CP-48623: use persistent unix socket connection for SM to XAPI communication
+  - CP-48623: avoid querying the API version, it is not used
+  - CP-48623: avoid 4 additional API calls after each SM login
+  - CP-45921: Use dnf as package manager for XS9 (#5534)
+  - CP-48221: Support new gpg for XS9 (#5543)
+  - [maintenance]: disable implicit transitive deps
+  - fix(dune): avoid "module unavailable" errors when running dune build @check
+  - CP-47001: [xapi-fdcaps]: dune plumbing for new library
+  - CP-47001: [xapi-fd-test]: dune plumbing for a new test framework
+  - CP-47001: [xapi-fdcaps]: add -principal flag
+  - CP-47001: [xapi-fdcaps]: optional coverage support
+  - CP-47001: [xapi-fdcaps]: add properties module and tests
+  - CP-47001: [xapi-fdcaps]: add operations module and tests
+  - CP-47001: [xapi-fdcaps]: wrap more Unix operations
+  - CP-47001: [xapi-fdcaps] runtime tests for read-write properties
+  - CP-47001: [xapi-fdcaps-test]: add observations module
+  - CP-47001: [xapi-fdcaps-test]: add generate module
+  - CP-47001: [unixext-test]: add quickcheck-style test
+  - CP-47001: Add unit tests for threadext
+  - CP-47001: [unixext-test]: add test for Unixext.proxy
+  - Unix.time_limited_write: fix timeout behaviour on >64KiB writes/reads
+  - Unix.time_limited_{read,write}: replace select with Polly
+  - add Unixext.time_limited_single_read
+  - CP-32622: replace select with Thread.delay
+  - CP-32622: Delay: replace select with time_limited_read
+  - CP-32622: replace select in proxy with polly
+  - CP-32622: move new libraries to proper subdir
+  - Update update.precheck/apply to be compatible with yum and dnf (#5564)
+  - IH-543: Add IPMI DCMI based power reading rrdd plugin
+  - CP-32622: Use Unix.sleepf for sleeps instead of select
+  - CP-47536: drop Unix.select in newcli
+  - CP-47536: test for Buf_io timeouts
+  - [maintenance]: quicktest: add the ability to run without XAPI
+  - CP-47536: add ezxenstore quicktest
+  - master_connection: log why we failed to connect
+  - xapi.conf: introduce test_open
+  - xapi_main: enable backtraces earlier to get backtraces from early startup failures
+  - fix(XenAPI.py): fix pylint warning
+  - CA-394343: After clock jump the xapi assumed the host is HOST_OFFLINE
+  - IH-642 Restructure xs-trace to use Cmdliner
+  - Refactor watcher creation code
+  - Only create watcher once
+  - Refactor cluster change watcher interval
+  - Add new internal API cstack_sync
+  - CP-394109: Alert only once for cluster host leave/join
+  - Feature flag the cstack_sync call
+  - CP-50193: Update new fingerprint fields on DB upgrade
+  - CP-50108: Use Ipaddr instead of string-based CIDR handling
+  - Fix pytype warnings.
+  - dune: fix tests to packages
+  - CP-50259 simplify raising error in record_util
+  - Refactor to use List apis
+  - Add new check for new parameters' default value
+  - Refactored HTTP_actions template.
+  - CP-50259 simplify parsing size with kib, mib, etc suffix
+  - Update datamodel lifecycle
+  - xapi-cli-server: simplifications around error handling
+  - xapi-cli-server: remove function s2sm to serialize data
+  - xapi-cli-server: remove function s2brm to serialize data
+  - CP-49101: Fix pylint error
+  - CA-395626: Fix (server status report generation report)
+  - CP-50078: Instrument xapi-storage-script with tracing (#5808)
+  - context: `complete_tracing` should be called last
+  - context: catch error inside span
+  - tracing: Instrument task related functionality
+  - time: use `Date.now` over `Unix.time` in `taskHelper.ml`
+  - formatting: Use `let@` and `match` statements.
+  - CA-395626: Add a unit test to detect incorrect cookie parsing
+  - quicktest: associate unit-test with xapi package
+  - CP-50270: Set the correct parent in `make_connection`
+  - gen_empty_custom: avoid wildcards for actions
+  - CA-390277: Add API to fetch references matching a query
+  - xapi-cli-server: use helper remote in migrate function
+  - CA-390277: Reduce record usage on CLI cross-pool migrations
+  - Refactor: Move to default optional parameters when they were reimplemented by hand
+  - Moved PS destructors to a template.
+  - Add -run-only and -list-tests parameters to quicktests
+  - CP-50079: Add correct cookie parsing alongside the old style
+  - CP-50079: Expands http quicktests to also check parsing of cookies.
+  - CP-50079: Remove legacy sync_config_files interface
+  - CP-50079: Remove unused unixpwd function and its associated tests
+  - quality-gate: fix list.hd
+  - CP-49811: Remove redundant method object from span name
+  - CA-395784: fix(xapi-fd-test): do not generate <1us timeouts
+  - CA-395784: fix(xapi-fd-test): timeouts get converted to microseconds, must be at least 1
+  - CA-395784: fix(buf_io_test): the timeout is per read, not per function call
+  - CP-49875: Group the auto_instrumentation spans by module
+  - CP-49634: Add alerting for Corosync upgrade
+  - CA-395512: process SMAPIv3 API calls concurrently (default off)
+  - vhd-tool, xen-api-client: Remove duplicated cohttp_unbuffered_io module
+  - vhd-tool, ezxenstore: Remove duplicate xenstore module
+  - Fix Short/Long duration printing
+  - forkexecd: do not clip commandline in logs
+  - CA-395174: Try to unarchive VM's metrics when they aren't running
+  - rrdd_proxy: Change *_at to specify the IP address
+  - rrdd_proxy: Use Option to encode where VMs might be available at
+  - http-lib: avoid double-queries to the radix tree
+  - rrdd_proxy: Return 400 on bad vm request
+  - CA-394148: Fix dry-run handling in xe-restore-metadata
+  - CA-393578: Fix vbd cleanup in metadata scripts
+  - CA-383491: [Security fix] Use debugfs on xe-restore-metadata probes
+  - Updates to Portable SR Functionality
+  - Fixes for shellcheck
+  - Remove unused `yes` parameter in xe-backup-metadata
+  - Remove ineffectual parameter wiping (#5868)
+  - CP-47536: Drop posix_channel and channel_helper: unused and a mix of Unix/Lwt
+  - opam: dunify vhd-tool's metadata
+  - CP-47536: replace Protocol_unix.scheduler.Delay with Threadext.Delay
+  - fix(xapi-idl): replace PipeDelay with Delay, avoid another Thread.wait_timed_read
+  - opam: dunify message-switch-unix's metadata
+  - IH-507: xapi_xenops: raise an error when the kernel isn't allowed
+  - IH-507: Do not allow guest kernels in /boot/
+  
+  * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
+  - CA-395626: Fix (server status report generation report)
+
 * Tue Feb 11 2025 Yann Dirson <yann.dirson@vates.tech> - 24.19.2-1.10
 - Add 0001-CA-389506-fix-platform-nested_virt-typo.patch, backport for
 nested-virt support
@@ -1453,208 +1858,213 @@ nested-virt support
 - Drop xapi-24.11.0-don-t-generate-link-local-address-for-interfaces.patch
 - Drop xapi-23.31.0-fix-ipv6-import.XCP-ng.patch
 - *** Upstream changelog ***
-- * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
-- - CA-395626: Fix (server status report generation report)
-- * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.1-1
-- - Fixes: 99c43569a0 ("Transition from exception-raising Unix.getenv to Sys.getenv_opt with")
-- * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.0-1
-- - CP-47304: [Toolstack] - Add data model for anti-affinity group
-- - CP-47655: [Toolstack] - Associate/disassociate VM to/from anti-affinity group
-- - CA-391880: Update related field 'groups' of VM when destroying VM group.
-- - CP-47302: VM start with anti-affinity
-- - CA-392177: Keep current group after reverting from snapshot
-- - CP-47656 Anti-affinity feature generate alert
-- - CP-48570: Load recommendations from config file when Xapi starts
-- - CP-48011: Xapi Support anti-affinity feature flag
-- - CA-393421: Special VMs cannot be added to VM groups
-- - CP-48625: Code refactoring
-- - opam: add psq to xapi dependencies
-- - CP-49665: Anti-affinity support for host evacuation
-- - CP-48752: Add UT for host evacuation with anti-affinity support
-- - CP-49953: Remove parse_uri, switch to using Uri module instead
-- - doc: remaining API docs
-- - doc: add XenAPI release info
-- - Printf.kprintf is deprecated, replace with Printf.ksprintf
-- - Fix misplaced inline attributes
-- - CP-50050 track CBT status for SMAPIv3 SRs
-- - CP-49953: Remove parse_uri, switch to using Uri module instead
-- - CI: Complete parallel Coveralls uploads: Finish when done
-- - CP-49116: Replace fingerprint in certificate DB with sha256 and sha1
-- - CA-392887: set_tls_config immediately after enabling clustering
-- - CI: Update endcover step to v2 to fix CI (#5763)
-- - CA-386173: Update the message of WLB authentication issue
-- - Revert "CP-49953: Remove parse_uri, switch to using Uri module instead"
-- - Fix a bug noticed by a quicktest run
-- - Eliminate unnecessary usage of List.length to check for empty lists
-- - Transition from exception-raising Unix.getenv to Sys.getenv_opt with
-- - Replace Hashtbl.find with Hashtbl.find_opt in trivial cases
-- - Refactor Hashtbl.find out of resources/table.ml
-- - Refactor Hashtbl.find out of xenopsd/xc/readln.ml
-- - Add a gate for Hashbtl.find
-- - CP-50135: Bump datamodel_lifecycle for anti-affinity
-- - IH-621: Add IPMI host power on support and remove DRAC
-- - opam: generate xapi-forkexecd with dune
-- - opam: remove unversioned opam dependencies
-- - opam: generate xapi-networkd using dune
-- - fe_test: print stacktrace on unit test failure
-- - fix(fe_test): make it compatible with fd-send-recv 2.0.2
-- - Fix indentation in C code
-- * Mon Jul 01 2024 Ming Lu <ming.lu@cloud.com> - 24.18.0-1
-- - doc/README.md: Improve the Hugo Quick start guide for an easier start
-- - .codecov.yml: Remove scripts (Codecov is confused, we move scripts/ to python3/)
-- - CA-394444: Update task cancellation in `message_forwarding.ml`
-- - Hugo docs: Add dark mode support, theme variant selector and print
-- - Don't generate link-local address for interfaces
-- - Make `cluster-stack-version` show up in the CLI
-- - Update datamodel lifecycle
-- - Removed headers from the templates.
-- - Renamed files and reordered table of contents.
-- - IH-583 Create standalone implementations of systemd functions
-- - Fix failing builds by attaching package to the cram test
-- - CA-394883: fix race condition allocating task ids
-- - CA-394882: avoid error on tasks that are not ours
-- - CA-381119: use JsonRPC V2 for error replies
-- - CA-394169: Allow task to have permissions on itself
-- - CI: use new version of codecov action
-- - Merge .codecov.yml from feature/py3 to drop scripts checks
-- - CP-50055 Add Go SDK as a release package in XAPI
-- - CI: codecov is unstable, use coveralls
-- - CA-394921: Ignore unkown properties during Java SDK deserialisation
-- - CP-49446: expose SR health values to Python
-- - opam: record correct authorship for stdext packages
-- - IH-628: add new package clock for timekeeping
-- * Tue Jun 18 2024 Ming Lu <ming.lu@cloud.com> - 24.17.0-1
-- - CP-48666: initialize a skeleton project for Go SDK
-- - CP-47347: Add mustache template for Enum Types
-- - CP-47351: generate Record and Ref Type Golang code for all classes
-- - CP-47348: generate Golang code of Enum Type for all classes
-- - CP-47362: generate file headers
-- - CP-48666: collect api errors
-- - CP-47364: generate api messages and errors of Golang code
-- - refactor: create an `Alcotest.testable` to check structure of generated JSON is wanted
-- - refactor: move `objects` and `session_id` from `Gen_go_helper` to `CommonFunctions`
-- - CP-48666: use dune rule to get the destination dir for the generated files
-- - CP-48666: generate all enums to a file
-- - refactor the way of getting enums
-- - CP-48666: refactor the JSON schema checking
-- - CP-48666: refactor `render_template` with an optional newline parameter
-- - CP-47361: generate mustache template for deserialize and serialize functions
-- - CP-47358: Generate convert functions Go code
-- - CP-48855: update templates (APIErrors, APIMessages, Record)
-- - CP-48855: adjust generated json for templates changed
-- - CP-48855: add templates for option and APIVersions
-- - CP-48855: render options
-- - CP-47355, CP-47360: generate mustache template for xapi data module class messages
-- - CP-47354: Generate messages functions Golang code for all classes
-- - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
-- - CP-48855: render APIVersion
-- - CP-48855: fix go lint var-naming warnings
-- - fix `StringOfTyWithEnumsTest` after merged
-- - CP-48855: it should be only one empty line at end of Go file
-- - CP-47356: expose `published_release_for_param` and `compare_versions` for usage of other modules
-- - CP-47358: Add unit tests for generating convert functions
-- - CP-47355, CP-47360: generate mustache template for xapi data module class messages
-- - CP-47354: Generate messages functions Golang code for all classes
-- - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
-- - CP-48855: update templates (APIErrors, APIMessages, Record)
-- - CP-48855: adjust generated json for templates changed
-- - CP-48855: add templates for option and APIVersions
-- - CP-48855: render options
-- - CP-48855: render APIVersion
-- - CP-48855: remove go lint var-naming warnings
-- - CP-47356: Support backwards capability for Go SDK
-- - CP-47361: generate mustache template for deserialize and serialize functions
-- - CP-47358: Generate convert functions Go code
-- - CP-47358: Add unit tests for generating convert functions
-- - CP-47354: Generate messages functions Golang code for all classes
-- - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
-- - CP-48855: render options
-- - CP-48855: render APIVersion
-- - CP-47357: Add a Go JSON-RPC client file
-- - CP-47357: fix review issues
-- - CP-47367 Add type checking for generated SDK Go files
-- - CP-49350: fix variable naming in Go SDK
-- - Set up Github Action for go SDK component test (#5588)
-- - CA-391381: Avoid errors for Partial Callables in observer.py
-- - xapi-tracing: bind its test to the package
-- - opam: generate xapi-tracing with dune
-- - opam: generate xapi-tracing-export with dune
-- - opam: generate rrdd-plugin with dune
-- - opam: generate xapi-rrd-transport-utils with dune
-- - opam: generate xapi-rrdd with dune
-- - opam: drop xapi-rrd-transport
-- - opam: drop xen-api-sdk
-- - Revert "CP-47660 define anti-affinity feature"
-- - Remove CVM and relevant test cases (#5655)
-- - opam: Fix metadata
-- - opam: de-templatise message-switch-core
-- - ocaml: remove unused bindings
-- - dune: enforce version +3
-- - Add `VM.set_uefi_mode` API call
-- - Go SDK: Misc fixes for on-going component tests (#5661)
-- - Add `VM.get_secureboot_readiness` API call
-- - Add `Pool.get_guest_secureboot_readiness` API call
-- - CP-49446: Update SR health to include new constructors
-- - doc: copy design documents from xapi-project.github.io
-- - doc: add info table to design docs
-- - doc: style design doc index
-- - CP-47928: Add component test for Go SDK
-- - CP-49647 use URI for create_misc
-- - CP-49647 use URI for dbsync_master
-- - CP-49647 use URI for export.ml
-- - CP-49647 use URI for import.ml
-- - CP-49647 use URI for importexport.ml
-- - CP-49647 use URI for rrd_proxy.ml
-- - CP-49647 use URI for sm_fs_ops.ml
-- - CP-49647 use URI for xapi_message.ml
-- - CP-49647 use URI for xapi_xenops.ml
-- - CP-49647 use URI for xapi_vm_migrate.ml
-- - CP-49647 use URI for xapi_host.ml
-- - CP-49647 use URI for cli_util.ml
-- - CP-49647 use URI for http.ml
-- - CP-49647 use URI for cli_operations
-- - CP-45235: Support for `xe-cli` to transmit `traceparent`
-- - doc: add design review links (historical)
-- - doc: RDP design: fix list nesting
-- - CP-48995: Instrument `XenAPI.py` to submit traceparent
-- - Update datamodel_lifecycle.ml
-- - CP-49768: Update GO SDK README file (#5671)
-- - CP-49249: Implement SMAPIv3 CBT Forwarding
-- - CA-393866: Add support for Infinity in Java SDK parser
-- - CA-393507: Default cluster_stack value
-- - Remove fix_firewall.sh
-- - CA-393119: Don't use HTTPS for localhost migrations
-- - CP-49828: Remove iovirt script
-- - CP-49129: Add unit test for parallel parsing.
-- - CP-49129: Make unit test run on alcotest.
-- - CP-49129: Replace `ocamlyacc` with `menhir`
-- - CP-49129: Drop global lock around sexpr parsing
-- - CP-49045: replace all uses of ocamlyacc with menhir which is thread-safe
-- - CP-49129: Update `quality-gate.sh` for `ocamlyacc`
-- - Link just qcheck-core, not qcheck
-- - Define qcheck-core dependency in opam packages
-- - Makefile: fix compatibility with the dash shell
-- - CP-49858: Fix phrasing in readme
-- - CP-49858: Add licence text on top of Go source files
-- - CP-49858: Unit test: licence template variable
-- - CP-49858: Remove template variables 'first' and 'is_session_id'
-- - CP-49858: Unit test: Update for changes on template variables
-- - rpm: remove `sexprpp` from public_name
-- - sexpr: add tests to the package
-- - xapi-rrdd: change tests to reduce amount of logs produced
-- - rrd-transport: generate opam metadata using dune
-- - http-lib: generate opam metadata using dune
-- - wsproxy: test with alcotest instead of ounit
-- - vhd-format-lwt: run tests using alcotest
-- - xen-api-client: run tests with alcotest
-- - xapi-sdk: add empty packge to be able to run tests for it
-- - CI: pin packages
-- - CP-49647 use URI for newcli.ml
-- - CP-49677 implement Http.Url using URI
-- - Update quality-gate.sh
-- * Mon Jun 10 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.16.0-3
-- - Bump release and rebuild
-- - Remove vm_anti_affinity tag and dependency on m2crypto
+  * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
+  - CA-395626: Fix (server status report generation report)
+
+  * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.1-1
+  - Fixes: 99c43569a0 ("Transition from exception-raising Unix.getenv to Sys.getenv_opt with")
+
+  * Tue Jul 09 2024 Ming Lu <ming.lu@cloud.com> - 24.19.0-1
+  - CP-47304: [Toolstack] - Add data model for anti-affinity group
+  - CP-47655: [Toolstack] - Associate/disassociate VM to/from anti-affinity group
+  - CA-391880: Update related field 'groups' of VM when destroying VM group.
+  - CP-47302: VM start with anti-affinity
+  - CA-392177: Keep current group after reverting from snapshot
+  - CP-47656 Anti-affinity feature generate alert
+  - CP-48570: Load recommendations from config file when Xapi starts
+  - CP-48011: Xapi Support anti-affinity feature flag
+  - CA-393421: Special VMs cannot be added to VM groups
+  - CP-48625: Code refactoring
+  - opam: add psq to xapi dependencies
+  - CP-49665: Anti-affinity support for host evacuation
+  - CP-48752: Add UT for host evacuation with anti-affinity support
+  - CP-49953: Remove parse_uri, switch to using Uri module instead
+  - doc: remaining API docs
+  - doc: add XenAPI release info
+  - Printf.kprintf is deprecated, replace with Printf.ksprintf
+  - Fix misplaced inline attributes
+  - CP-50050 track CBT status for SMAPIv3 SRs
+  - CP-49953: Remove parse_uri, switch to using Uri module instead
+  - CI: Complete parallel Coveralls uploads: Finish when done
+  - CP-49116: Replace fingerprint in certificate DB with sha256 and sha1
+  - CA-392887: set_tls_config immediately after enabling clustering
+  - CI: Update endcover step to v2 to fix CI (#5763)
+  - CA-386173: Update the message of WLB authentication issue
+  - Revert "CP-49953: Remove parse_uri, switch to using Uri module instead"
+  - Fix a bug noticed by a quicktest run
+  - Eliminate unnecessary usage of List.length to check for empty lists
+  - Transition from exception-raising Unix.getenv to Sys.getenv_opt with
+  - Replace Hashtbl.find with Hashtbl.find_opt in trivial cases
+  - Refactor Hashtbl.find out of resources/table.ml
+  - Refactor Hashtbl.find out of xenopsd/xc/readln.ml
+  - Add a gate for Hashbtl.find
+  - CP-50135: Bump datamodel_lifecycle for anti-affinity
+  - IH-621: Add IPMI host power on support and remove DRAC
+  - opam: generate xapi-forkexecd with dune
+  - opam: remove unversioned opam dependencies
+  - opam: generate xapi-networkd using dune
+  - fe_test: print stacktrace on unit test failure
+  - fix(fe_test): make it compatible with fd-send-recv 2.0.2
+  - Fix indentation in C code
+
+  * Mon Jul 01 2024 Ming Lu <ming.lu@cloud.com> - 24.18.0-1
+  - doc/README.md: Improve the Hugo Quick start guide for an easier start
+  - .codecov.yml: Remove scripts (Codecov is confused, we move scripts/ to python3/)
+  - CA-394444: Update task cancellation in `message_forwarding.ml`
+  - Hugo docs: Add dark mode support, theme variant selector and print
+  - Don't generate link-local address for interfaces
+  - Make `cluster-stack-version` show up in the CLI
+  - Update datamodel lifecycle
+  - Removed headers from the templates.
+  - Renamed files and reordered table of contents.
+  - IH-583 Create standalone implementations of systemd functions
+  - Fix failing builds by attaching package to the cram test
+  - CA-394883: fix race condition allocating task ids
+  - CA-394882: avoid error on tasks that are not ours
+  - CA-381119: use JsonRPC V2 for error replies
+  - CA-394169: Allow task to have permissions on itself
+  - CI: use new version of codecov action
+  - Merge .codecov.yml from feature/py3 to drop scripts checks
+  - CP-50055 Add Go SDK as a release package in XAPI
+  - CI: codecov is unstable, use coveralls
+  - CA-394921: Ignore unkown properties during Java SDK deserialisation
+  - CP-49446: expose SR health values to Python
+  - opam: record correct authorship for stdext packages
+  - IH-628: add new package clock for timekeeping
+
+  * Tue Jun 18 2024 Ming Lu <ming.lu@cloud.com> - 24.17.0-1
+  - CP-48666: initialize a skeleton project for Go SDK
+  - CP-47347: Add mustache template for Enum Types
+  - CP-47351: generate Record and Ref Type Golang code for all classes
+  - CP-47348: generate Golang code of Enum Type for all classes
+  - CP-47362: generate file headers
+  - CP-48666: collect api errors
+  - CP-47364: generate api messages and errors of Golang code
+  - refactor: create an `Alcotest.testable` to check structure of generated JSON is wanted
+  - refactor: move `objects` and `session_id` from `Gen_go_helper` to `CommonFunctions`
+  - CP-48666: use dune rule to get the destination dir for the generated files
+  - CP-48666: generate all enums to a file
+  - refactor the way of getting enums
+  - CP-48666: refactor the JSON schema checking
+  - CP-48666: refactor `render_template` with an optional newline parameter
+  - CP-47361: generate mustache template for deserialize and serialize functions
+  - CP-47358: Generate convert functions Go code
+  - CP-48855: update templates (APIErrors, APIMessages, Record)
+  - CP-48855: adjust generated json for templates changed
+  - CP-48855: add templates for option and APIVersions
+  - CP-48855: render options
+  - CP-47355, CP-47360: generate mustache template for xapi data module class messages
+  - CP-47354: Generate messages functions Golang code for all classes
+  - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
+  - CP-48855: render APIVersion
+  - CP-48855: fix go lint var-naming warnings
+  - fix `StringOfTyWithEnumsTest` after merged
+  - CP-48855: it should be only one empty line at end of Go file
+  - CP-47356: expose `published_release_for_param` and `compare_versions` for usage of other modules
+  - CP-47358: Add unit tests for generating convert functions
+  - CP-47355, CP-47360: generate mustache template for xapi data module class messages
+  - CP-47354: Generate messages functions Golang code for all classes
+  - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
+  - CP-48855: update templates (APIErrors, APIMessages, Record)
+  - CP-48855: adjust generated json for templates changed
+  - CP-48855: add templates for option and APIVersions
+  - CP-48855: render options
+  - CP-48855: render APIVersion
+  - CP-48855: remove go lint var-naming warnings
+  - CP-47356: Support backwards capability for Go SDK
+  - CP-47361: generate mustache template for deserialize and serialize functions
+  - CP-47358: Generate convert functions Go code
+  - CP-47358: Add unit tests for generating convert functions
+  - CP-47354: Generate messages functions Golang code for all classes
+  - CP-47354: add unit tests for `func_name_suffix` and `string_of_ty_with_enums`
+  - CP-48855: render options
+  - CP-48855: render APIVersion
+  - CP-47357: Add a Go JSON-RPC client file
+  - CP-47357: fix review issues
+  - CP-47367 Add type checking for generated SDK Go files
+  - CP-49350: fix variable naming in Go SDK
+  - Set up Github Action for go SDK component test (#5588)
+  - CA-391381: Avoid errors for Partial Callables in observer.py
+  - xapi-tracing: bind its test to the package
+  - opam: generate xapi-tracing with dune
+  - opam: generate xapi-tracing-export with dune
+  - opam: generate rrdd-plugin with dune
+  - opam: generate xapi-rrd-transport-utils with dune
+  - opam: generate xapi-rrdd with dune
+  - opam: drop xapi-rrd-transport
+  - opam: drop xen-api-sdk
+  - Revert "CP-47660 define anti-affinity feature"
+  - Remove CVM and relevant test cases (#5655)
+  - opam: Fix metadata
+  - opam: de-templatise message-switch-core
+  - ocaml: remove unused bindings
+  - dune: enforce version +3
+  - Add `VM.set_uefi_mode` API call
+  - Go SDK: Misc fixes for on-going component tests (#5661)
+  - Add `VM.get_secureboot_readiness` API call
+  - Add `Pool.get_guest_secureboot_readiness` API call
+  - CP-49446: Update SR health to include new constructors
+  - doc: copy design documents from xapi-project.github.io
+  - doc: add info table to design docs
+  - doc: style design doc index
+  - CP-47928: Add component test for Go SDK
+  - CP-49647 use URI for create_misc
+  - CP-49647 use URI for dbsync_master
+  - CP-49647 use URI for export.ml
+  - CP-49647 use URI for import.ml
+  - CP-49647 use URI for importexport.ml
+  - CP-49647 use URI for rrd_proxy.ml
+  - CP-49647 use URI for sm_fs_ops.ml
+  - CP-49647 use URI for xapi_message.ml
+  - CP-49647 use URI for xapi_xenops.ml
+  - CP-49647 use URI for xapi_vm_migrate.ml
+  - CP-49647 use URI for xapi_host.ml
+  - CP-49647 use URI for cli_util.ml
+  - CP-49647 use URI for http.ml
+  - CP-49647 use URI for cli_operations
+  - CP-45235: Support for `xe-cli` to transmit `traceparent`
+  - doc: add design review links (historical)
+  - doc: RDP design: fix list nesting
+  - CP-48995: Instrument `XenAPI.py` to submit traceparent
+  - Update datamodel_lifecycle.ml
+  - CP-49768: Update GO SDK README file (#5671)
+  - CP-49249: Implement SMAPIv3 CBT Forwarding
+  - CA-393866: Add support for Infinity in Java SDK parser
+  - CA-393507: Default cluster_stack value
+  - Remove fix_firewall.sh
+  - CA-393119: Don't use HTTPS for localhost migrations
+  - CP-49828: Remove iovirt script
+  - CP-49129: Add unit test for parallel parsing.
+  - CP-49129: Make unit test run on alcotest.
+  - CP-49129: Replace `ocamlyacc` with `menhir`
+  - CP-49129: Drop global lock around sexpr parsing
+  - CP-49045: replace all uses of ocamlyacc with menhir which is thread-safe
+  - CP-49129: Update `quality-gate.sh` for `ocamlyacc`
+  - Link just qcheck-core, not qcheck
+  - Define qcheck-core dependency in opam packages
+  - Makefile: fix compatibility with the dash shell
+  - CP-49858: Fix phrasing in readme
+  - CP-49858: Add licence text on top of Go source files
+  - CP-49858: Unit test: licence template variable
+  - CP-49858: Remove template variables 'first' and 'is_session_id'
+  - CP-49858: Unit test: Update for changes on template variables
+  - rpm: remove `sexprpp` from public_name
+  - sexpr: add tests to the package
+  - xapi-rrdd: change tests to reduce amount of logs produced
+  - rrd-transport: generate opam metadata using dune
+  - http-lib: generate opam metadata using dune
+  - wsproxy: test with alcotest instead of ounit
+  - vhd-format-lwt: run tests using alcotest
+  - xen-api-client: run tests with alcotest
+  - xapi-sdk: add empty packge to be able to run tests for it
+  - CI: pin packages
+  - CP-49647 use URI for newcli.ml
+  - CP-49677 implement Http.Url using URI
+  - Update quality-gate.sh
+
+  * Mon Jun 10 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.16.0-3
+  - Bump release and rebuild
+  - Remove vm_anti_affinity tag and dependency on m2crypto
 
 * Wed Aug 07 2024 Yann Dirson <yann.dirson@vates.tech> - 24.16.0-1.3
 - Fix openvswitch-config-update not fully ported to python3

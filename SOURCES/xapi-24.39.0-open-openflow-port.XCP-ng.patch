@@ -1,7 +1,7 @@
-diff --git i/scripts/plugins/openvswitch-config-update w/scripts/plugins/openvswitch-config-update
+diff --git i/python3/plugins/openvswitch-config-update w/python3/plugins/openvswitch-config-update
 index d97671b14..eed841da4 100755
---- i/scripts/plugins/openvswitch-config-update
-+++ w/scripts/plugins/openvswitch-config-update
+--- i/python3/plugins/openvswitch-config-update
++++ w/python3/plugins/openvswitch-config-update
 @@ -74,6 +74,7 @@ def update(session, args):
      if not controller and currentControllers:
          delete_cacert()

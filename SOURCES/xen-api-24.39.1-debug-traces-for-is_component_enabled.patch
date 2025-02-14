@@ -1,0 +1,37 @@
+From ece03ca03cd54064954bf2b8ee5e53be5c73cd6c Mon Sep 17 00:00:00 2001
+From: Yann Dirson <yann.dirson@vates.tech>
+Date: Wed, 29 Jan 2025 14:42:39 +0100
+Subject: [PATCH] debug traces for is_component_enabled
+
+Signed-off-by: Yann Dirson <yann.dirson@vates.tech>
+---
+ ocaml/xapi/xapi_observer_components.ml | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_observer_components.ml b/ocaml/xapi/xapi_observer_components.ml
+index 0b3b884f4..e78031891 100644
+--- a/ocaml/xapi/xapi_observer_components.ml
++++ b/ocaml/xapi/xapi_observer_components.ml
+@@ -90,9 +90,17 @@ let is_component_enabled ~component =
+                  |> List.mem component
+             )
+             observers
+-        with _ -> false
++        with e ->
++          D.log_backtrace () ;
++          D.warn "is_component_enabled(%s) inner got exception: %s"
++            (to_string component) (Printexc.to_string e) ;
++          false
+       )
+-  with _ -> false
++  with e ->
++    D.log_backtrace () ;
++    D.warn "is_component_enabled(%s) got exception: %s" (to_string component)
++      (Printexc.to_string e) ;
++    false
+ 
+ let is_smapi_enabled () = is_component_enabled ~component:SMApi
+ 
+-- 
+2.39.5
+
