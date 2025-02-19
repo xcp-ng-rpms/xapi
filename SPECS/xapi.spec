@@ -1,17 +1,17 @@
-%global package_speccommit bd4277b55198431680c1389ebe3719e570b61936
+%global package_speccommit 102bfffb25089988a6f11d4b63758463301a93d6
 %{!?xsrel: %global xsrel 1}
-%global package_srccommit v1.249.40
+%global package_srccommit v1.249.41
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 1.249.40
+Version: 1.249.41
 Release: %{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-1.249.40.tar.gz
+Source0: xen-api-1.249.41.tar.gz
 
 # XCP-ng specific sources and patches
 Source1: 00-XCP-ng-allow-sched-gran.conf
@@ -467,6 +467,12 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Wed Feb 19 2025 Gael Duperrey <gduperrey@vates.tech> - 1.249.41-1.1
+- Sync with hotfix XS82ECU1084
+- *** Upstream changelog ***
+- * Fri Jan 03 2025 Ming Lu <ming.lu@cloud.com> - 1.249.41-1
+- - CA-404062: Wrongly restart xapi when receiving HTTP errors
+
 * Thu Jan 16 2025 Gael Duperrey <gduperrey@vates.tech> - 1.249.40-1.1
 - Sync with hotfix XS82ECU1080
 - *** Upstream changelog ***
