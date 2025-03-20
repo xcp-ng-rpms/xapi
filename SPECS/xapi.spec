@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.5%{?xsrel}%{?dist}
+Release: 1.5%{?xsrel}.0.pvh.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -100,6 +100,9 @@ Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/6454
 Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
+# Backport fixes for vncterm for PVH
+Patch1014: 0002-xenopsd-start-vncterm-for-PVH-guests.patch
+Patch1015: 0003-xenopsd-make-vncterm-less-errorprone.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
