@@ -1,0 +1,28 @@
+From 6ba654440cfd040ebb1d1f6a60588fc343185827 Mon Sep 17 00:00:00 2001
+Message-ID: <6ba654440cfd040ebb1d1f6a60588fc343185827.1742486427.git.teddy.astie@outlook.fr>
+In-Reply-To: <6e04ead07469426e1c2f84627ceac428fd212ee2.1742486427.git.teddy.astie@outlook.fr>
+References: <6e04ead07469426e1c2f84627ceac428fd212ee2.1742486427.git.teddy.astie@outlook.fr>
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Mon, 17 Mar 2025 11:48:08 +0000
+Subject: [PATCH 2/3] xenopsd: start vncterm for PVH guests
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index ba3dd7e2b..397b47857 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -2314,6 +2314,7 @@ module VM = struct
+         (create_device_model_config vm vmextra vbds vifs vgpus vusbs) ;
+       match vm.Vm.ty with
+       | Vm.PV {vncterm= true; vncterm_ip= ip; _}
++      | Vm.PVH {vncterm= true; vncterm_ip= ip; _}
+       | Vm.PVinPVH {vncterm= true; vncterm_ip= ip; _} ->
+           Service.PV_Vnc.start ~xs ?ip di.Xenctrl.domid
+       | _ ->
+-- 
+2.47.2
+

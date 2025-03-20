@@ -82,7 +82,9 @@ Patch1009: xen-api-24.39.1-debug-traces-for-is_component_enabled.patch
 Patch1010: xen-api-24.39.1-0001-CA-399669-Do-not-exit-with-error-when-IPMI-readings-.patch
 Patch1011: xen-api-24.39.1-0002-rrdp-dcmi-remove-extraneous-I-argument-from-cli-call.patch
 Patch1012: xen-api-24.39.1-0003-CA-399669-Detect-a-reason-for-IPMI-readings-being-un.patch
-
+# Backport fixes for vncterm for PVH
+Patch1013: 0002-xenopsd-start-vncterm-for-PVH-guests.patch
+Patch1014: 0003-xenopsd-make-vncterm-less-errorprone.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1368,6 +1370,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Mar 20 2025 Teddy Astie <teddy.astie@vates.tech> - 24.39.1-2
+- Backport vncterm fix for PVH guests
+
 * Fri Feb 14 2025 Yann Dirson <yann.dirson@vates.tech> - 24.39.1-1.1
 - Update to upstream 24.39.1-1
 - Reformat changelog to allow diffing with upstream

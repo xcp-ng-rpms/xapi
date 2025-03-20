@@ -1,0 +1,41 @@
+From 24e892760447c81afc37c46d622211cbed4aafd4 Mon Sep 17 00:00:00 2001
+Message-ID: <24e892760447c81afc37c46d622211cbed4aafd4.1742486427.git.teddy.astie@outlook.fr>
+In-Reply-To: <6e04ead07469426e1c2f84627ceac428fd212ee2.1742486427.git.teddy.astie@outlook.fr>
+References: <6e04ead07469426e1c2f84627ceac428fd212ee2.1742486427.git.teddy.astie@outlook.fr>
+From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+Date: Mon, 17 Mar 2025 13:36:15 +0000
+Subject: [PATCH 3/3] xenopsd: make vncterm less errorprone
+
+Previous match had a wildcard which made it easy to miss added cases, change it
+so all the guest types have to be enumerated.
+
+Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
+---
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 397b47857..db54f1829 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -2313,11 +2313,12 @@ module VM = struct
+         )
+         (create_device_model_config vm vmextra vbds vifs vgpus vusbs) ;
+       match vm.Vm.ty with
+-      | Vm.PV {vncterm= true; vncterm_ip= ip; _}
+-      | Vm.PVH {vncterm= true; vncterm_ip= ip; _}
+-      | Vm.PVinPVH {vncterm= true; vncterm_ip= ip; _} ->
+-          Service.PV_Vnc.start ~xs ?ip di.Xenctrl.domid
+-      | _ ->
++      | PV {vncterm; vncterm_ip= ip; _}
++      | PVH {vncterm; vncterm_ip= ip; _}
++      | PVinPVH {vncterm; vncterm_ip= ip; _} ->
++          if vncterm then
++            Service.PV_Vnc.start ~xs ?ip di.Xenctrl.domid
++      | HVM _ ->
+           ()
+     with Device.Ioemu_failed (name, msg) ->
+       raise (Xenopsd_error (Failed_to_start_emulator (vm.Vm.id, name, msg)))
+-- 
+2.47.2
+
