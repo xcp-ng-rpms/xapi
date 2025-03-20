@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.7%{?xsrel}%{?dist}
+Release: 1.7%{?xsrel}.0.pvh.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -107,6 +107,10 @@ Patch1014: 0014-CA-409510-Make-xenopsd-nested-Parallel-atoms-explici.patch
 Patch1015: 0015-CA-409510-Give-a-warning-if-atoms-nested-incorrectly.patch
 Patch1016: 0016-CA-410782-Add-receive_memory_queues-for-VM_receive_m.patch
 Patch1017: 0017-CA-411319-Concurrent-VM.assert_can_migrate-failure.patch
+
+# Backport fixes for vncterm for PVH
+Patch1018: 0002-xenopsd-start-vncterm-for-PVH-guests.patch
+Patch1019: 0003-xenopsd-make-vncterm-less-errorprone.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
