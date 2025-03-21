@@ -1,0 +1,289 @@
+From cde61e2802ba86c26736a5f816976350c53ac6b4 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Fri, 28 Mar 2025 09:43:02 +0100
+Subject: [PATCH] [qcow-tool] implement streaming
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/qcow-tool/cli/impl.ml       |  4 +++
+ ocaml/qcow-tool/cli/main.ml       | 20 +++++++++++
+ ocaml/xapi/common_tool_wrapper.ml | 60 +++++++++++++++++++++++++++++++
+ ocaml/xapi/export_raw_vdi.ml      |  1 +
+ ocaml/xapi/import_raw_vdi.ml      |  1 -
+ ocaml/xapi/qcow_tool_wrapper.ml   | 34 ++++++++++++++++--
+ ocaml/xapi/vhd_tool_wrapper.ml    | 56 +++++------------------------
+ 7 files changed, 124 insertions(+), 52 deletions(-)
+ create mode 100644 ocaml/xapi/common_tool_wrapper.ml
+
+diff --git a/ocaml/qcow-tool/cli/impl.ml b/ocaml/qcow-tool/cli/impl.ml
+index 28c2db58d..226a9f4b9 100644
+--- a/ocaml/qcow-tool/cli/impl.ml
++++ b/ocaml/qcow-tool/cli/impl.ml
+@@ -844,3 +844,7 @@ let rehydrate _common input_filename output_filename =
+     >>= fun () -> Lwt.return (`Ok ())
+   in
+   Lwt_main.run t
++
++let stream _common source output =
++  failwith
++    (Printf.sprintf "streaming from %s to %s is not implemented" source output)
+diff --git a/ocaml/qcow-tool/cli/main.ml b/ocaml/qcow-tool/cli/main.ml
+index a5a6ffb84..d041d2a0c 100644
+--- a/ocaml/qcow-tool/cli/main.ml
++++ b/ocaml/qcow-tool/cli/main.ml
+@@ -457,6 +457,25 @@ let rehydrate_cmd =
+   , Cmd.info "rehydrate" ~sdocs:_common_options ~doc ~man
+   )
+ 
++let stream_cmd =
++  let doc = "stream the contents of a virtual disk" in
++  let man =
++    [
++      `S "DESCRIPTION"
++    ; `P
++        "Read the contents of a virtual disk from a source and write it to\n\
++        \         a destination that is a qcow2 file."
++    ]
++    @ help
++  in
++  let source =
++    let doc = Printf.sprintf "The disk to be streamed" in
++    Arg.(value & opt string "stdin:" & info ["source"] ~doc)
++  in
++  ( Term.(ret (const Impl.stream $ common_options_t $ source $ output))
++  , Cmd.info "stream" ~sdocs:_common_options ~doc ~man
++  )
++
+ let cmds =
+   [
+     info_cmd
+@@ -475,6 +494,7 @@ let cmds =
+   ; sha_cmd
+   ; dehydrate_cmd
+   ; rehydrate_cmd
++  ; stream_cmd
+   ]
+   |> List.map (fun (t, i) -> Cmd.v i t)
+ 
+diff --git a/ocaml/xapi/common_tool_wrapper.ml b/ocaml/xapi/common_tool_wrapper.ml
+new file mode 100644
+index 000000000..c3033054c
+--- /dev/null
++++ b/ocaml/xapi/common_tool_wrapper.ml
+@@ -0,0 +1,60 @@
++(*
++ * Copyright (C) 2025 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++open Xapi_stdext_std.Xstringext
++
++(** [find_backend_device path] returns [Some path'] where [path'] is the backend path in
++    the driver domain corresponding to the frontend device [path] in this domain. *)
++let find_backend_device path =
++  try
++    let open Ezxenstore_core.Xenstore in
++    (* If we're looking at a xen frontend device, see if the backend
++       is in the same domain. If so check if it looks like a .vhd *)
++    let rdev = (Unix.stat path).Unix.st_rdev in
++    let major = rdev / 256 and minor = rdev mod 256 in
++    let link =
++      Unix.readlink (Printf.sprintf "/sys/dev/block/%d:%d/device" major minor)
++    in
++    match List.rev (String.split '/' link) with
++    | id :: "xen" :: "devices" :: _
++      when Astring.String.is_prefix ~affix:"vbd-" id ->
++        let id = int_of_string (String.sub id 4 (String.length id - 4)) in
++        with_xs (fun xs ->
++            let self = xs.Xs.read "domid" in
++            let backend =
++              xs.Xs.read (Printf.sprintf "device/vbd/%d/backend" id)
++            in
++            let params = xs.Xs.read (Printf.sprintf "%s/params" backend) in
++            match String.split '/' backend with
++            | "local" :: "domain" :: bedomid :: _ ->
++                if not (self = bedomid) then
++                  raise
++                    Api_errors.(
++                      Server_error
++                        ( internal_error
++                        , [
++                            Printf.sprintf
++                              "find_backend_device: Got domid %s but expected \
++                               %s"
++                              bedomid self
++                          ]
++                        )
++                    ) ;
++                Some params
++            | _ ->
++                raise Not_found
++        )
++    | _ ->
++        raise Not_found
++  with _ -> None
+diff --git a/ocaml/xapi/export_raw_vdi.ml b/ocaml/xapi/export_raw_vdi.ml
+index 5686608c6..dfde2e39b 100644
+--- a/ocaml/xapi/export_raw_vdi.ml
++++ b/ocaml/xapi/export_raw_vdi.ml
+@@ -22,6 +22,7 @@ open D
+ let localhost_handler rpc session_id vdi (req : Http.Request.t)
+     (s : Unix.file_descr) =
+   req.Http.Request.close <- true ;
++  debug "body: %s" (String.concat " " (Option.to_list req.body)) ;
+   Xapi_http.with_context "Exporting raw VDI" req s (fun __context ->
+       let task_id = Context.get_task_id __context in
+       match Importexport.Format.of_req req with
+diff --git a/ocaml/xapi/import_raw_vdi.ml b/ocaml/xapi/import_raw_vdi.ml
+index 35934713a..234fc44f3 100644
+--- a/ocaml/xapi/import_raw_vdi.ml
++++ b/ocaml/xapi/import_raw_vdi.ml
+@@ -163,7 +163,6 @@ let localhost_handler rpc session_id vdi_opt (req : Request.t)
+                       not
+                         (Sm_fs_ops.must_write_zeroes_into_new_vdi ~__context vdi)
+                     in
+-                    debug "GTNDEBUG: we are receiving Raw, Vhd or Qcow file" ;
+                     Sm_fs_ops.with_block_attached_device __context rpc
+                       session_id vdi `RW (fun path ->
+                         if chunked then
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index 3de67504c..c6b7bf9da 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -57,9 +57,37 @@ let run_qcow_tool (progress_cb : int -> unit) (args : string list)
+ let update_task_progress (__context : Context.t) (x : int) =
+   TaskHelper.set_progress ~__context (float_of_int x /. 100.)
+ 
++let qcow_of_device path =
++  let tapdisk_of_path path =
++    try
++      match Tapctl.of_device (Tapctl.create ()) path with
++      | _, str, Some (_, qcow) ->
++          debug "Found str %s and file %s" str qcow ;
++          Some qcow
++      | _ ->
++          None
++    with Not_found ->
++      debug "Device %s has an unknown driver" path ;
++      None
++  in
++  Common_tool_wrapper.find_backend_device path
++  |> Option.value ~default:path
++  |> tapdisk_of_path
++
+ let send (progress_cb : int -> unit) (unix_fd : Unix.file_descr) (path : string)
+     (size : Int64.t) =
+   debug "Qcow send called with a size of %Ld and path equal to %s" size path ;
+-  let _ = progress_cb in
+-  let _ = unix_fd in
+-  run_qcow_tool progress_cb ["stream"] unix_fd
++  let _, source =
++    match (Stream_vdi.get_nbd_device path, qcow_of_device path) with
++    | Some (nbd_path, exportname), Some p ->
++        debug "get_nbd_device (path=%s, exportname=%s), p = %s" nbd_path
++          exportname p ;
++        (nbd_path, exportname)
++    | None, Some p ->
++        debug "nbd device not found but p = %s" p ;
++        ("gtn_no_nbd", p)
++    | _ ->
++        ("gtn_unknown", "gtn_unknown")
++  in
++  let args = ["stream"; "--source"; source; path] in
++  run_qcow_tool progress_cb args unix_fd
+diff --git a/ocaml/xapi/vhd_tool_wrapper.ml b/ocaml/xapi/vhd_tool_wrapper.ml
+index beab363a8..be21d9735 100644
+--- a/ocaml/xapi/vhd_tool_wrapper.ml
++++ b/ocaml/xapi/vhd_tool_wrapper.ml
+@@ -113,51 +113,6 @@ let receive progress_cb format protocol (s : Unix.file_descr)
+   in
+   run_vhd_tool progress_cb args s s' path
+ 
+-(** [find_backend_device path] returns [Some path'] where [path'] is the backend path in
+-    the driver domain corresponding to the frontend device [path] in this domain. *)
+-let find_backend_device path =
+-  try
+-    let open Ezxenstore_core.Xenstore in
+-    (* If we're looking at a xen frontend device, see if the backend
+-       is in the same domain. If so check if it looks like a .vhd *)
+-    let rdev = (Unix.stat path).Unix.st_rdev in
+-    let major = rdev / 256 and minor = rdev mod 256 in
+-    let link =
+-      Unix.readlink (Printf.sprintf "/sys/dev/block/%d:%d/device" major minor)
+-    in
+-    match List.rev (String.split '/' link) with
+-    | id :: "xen" :: "devices" :: _
+-      when Astring.String.is_prefix ~affix:"vbd-" id ->
+-        let id = int_of_string (String.sub id 4 (String.length id - 4)) in
+-        with_xs (fun xs ->
+-            let self = xs.Xs.read "domid" in
+-            let backend =
+-              xs.Xs.read (Printf.sprintf "device/vbd/%d/backend" id)
+-            in
+-            let params = xs.Xs.read (Printf.sprintf "%s/params" backend) in
+-            match String.split '/' backend with
+-            | "local" :: "domain" :: bedomid :: _ ->
+-                if not (self = bedomid) then
+-                  raise
+-                    Api_errors.(
+-                      Server_error
+-                        ( internal_error
+-                        , [
+-                            Printf.sprintf
+-                              "find_backend_device: Got domid %s but expected \
+-                               %s"
+-                              bedomid self
+-                          ]
+-                        )
+-                    ) ;
+-                Some params
+-            | _ ->
+-                raise Not_found
+-        )
+-    | _ ->
+-        raise Not_found
+-  with _ -> None
+-
+ (** [vhd_of_device path] returns (Some vhd) where 'vhd' is the vhd leaf backing a particular device [path] or None.
+     [path] may either be a blktap2 device *or* a blkfront device backed by a blktap2 device. If the latter then
+     the script must be run in the same domain as blkback. *)
+@@ -187,22 +142,27 @@ let vhd_of_device path =
+         debug "Device %s has an unknown driver" path ;
+         None
+   in
+-  find_backend_device path |> Option.value ~default:path |> tapdisk_of_path
++  Common_tool_wrapper.find_backend_device path
++  |> Option.value ~default:path
++  |> tapdisk_of_path
+ 
+ let send progress_cb ?relative_to (protocol : string) (dest_format : string)
+     (s : Unix.file_descr) (path : string) (size : Int64.t) (prefix : string) =
+   let s' = Uuidx.(to_string (make ())) in
++  debug "GTNDEBUG: path is %s" path ;
++  debug "GTNDEBUG: prefix is %s" prefix ;
+   let source_format, source =
+-    debug "GTNDEBUG: get_nbd_device %s" path ;
+-    debug "GTNDEBUG: s' is %s" s' ;
+     match (Stream_vdi.get_nbd_device path, vhd_of_device path, relative_to) with
+     | Some (nbd_server, exportname), _, None ->
++        debug "GTNDEBUG: nbdhybrid %s:%s:%s:%Ld" path nbd_server exportname size ;
+         ( "nbdhybrid"
+         , Printf.sprintf "%s:%s:%s:%Ld" path nbd_server exportname size
+         )
+     | Some _, Some vhd, Some _ | None, Some vhd, _ ->
++        debug "GTNDEBUG: hybrid %s" (path ^ ":" ^ vhd) ;
+         ("hybrid", path ^ ":" ^ vhd)
+     | None, None, None ->
++        debug "GTNDEBUG: raw %s" path ;
+         ("raw", path)
+     | _, None, Some _ ->
+         let msg = "Cannot compute differences on non-VHD images" in

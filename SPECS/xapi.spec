@@ -23,7 +23,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.39.1
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.15%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -83,6 +83,16 @@ Patch1010: xen-api-24.39.1-0001-CA-399669-Do-not-exit-with-error-when-IPMI-readi
 Patch1011: xen-api-24.39.1-0002-rrdp-dcmi-remove-extraneous-I-argument-from-cli-call.patch
 Patch1012: xen-api-24.39.1-0003-CA-399669-Detect-a-reason-for-IPMI-readings-being-un.patch
 
+Patch1021: 0001-qcow-tool-packaging-import-qcow-tool-from-ocaml-qcow.patch
+Patch1022: 0002-qcow-tool-packaging-build-fix-use-io-page-instead-of.patch
+Patch1023: 0003-qcow-tool-packaging-build-fix-cstruct.patch
+Patch1024: 0004-qcow-tool-packaging-build-fix-remove-Unimplemented-v.patch
+Patch1025: 0005-qcow-tool-packaging-build-fix-update-cmdliner.patch
+Patch1026: 0006-qcow-tool-packaging-package-it-in-xapi.patch
+Patch1027: 0007-qcow-tool-packaging-remove-lib-test.patch
+Patch1028: 0008-qcow-tool-run-make-format.patch
+Patch1029: 0009-qcow-tool-add-qcow-as-supported-format.patch
+Patch1030: 0010-qcow-tool-implement-streaming.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -127,6 +137,7 @@ Requires: hwdata
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
 Requires: vhd-tool
+Requires: qcow-tool
 Requires: libffi
 Requires: busybox
 Requires: net-tools
@@ -356,6 +367,12 @@ Summary: Command-line tools for manipulating and streaming .vhd format files
 %description -n vhd-tool
 Simple command-line tools for manipulating and streaming .vhd format file.
 
+%package -n qcow-tool
+Summary: Command-line tools for manipulating and streaming .qcow format files
+
+%description -n qcow-tool
+Simple command-line tools for manipulating and streaming .qcow format file.
+
 %package -n xcp-networkd
 Summary:  Simple host network management service for the xapi toolstack
 Requires: ethtool
@@ -516,6 +533,20 @@ rm -rf %{buildroot}
 %global xapi_storage_path _build/default/ocaml/xapi-storage/python/
 export OCAMLPATH=%{_ocamlpath}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
+
+# HACK: fix dune-build-info's job: replace $sha-dirty strings with version
+dirtystr=$(unset GIT_CEILING_DIRECTORIES; git describe --always --dirty --abbrev=7)
+dirtylen=${#dirtystr}
+version=%{version}
+verlen=${#version}
+# since we use sed we have to write as many bytes, so pad with spaces
+fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+    xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+# make sure the hack did its job
+! grep -r -e "-dirty"
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
@@ -1254,6 +1285,9 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /usr/libexec/xapi/get_vhd_vsize
 /opt/xensource/libexec/get_nbd_extents.py
 /opt/xensource/libexec/python_nbd_client.py
+
+%files -n qcow-tool
+%{_bindir}/qcow-tool
 
 %files -n xcp-networkd
 %{_sbindir}/xcp-networkd

@@ -1,0 +1,257 @@
+From 99b3756ef04288a7b98a909abbef1d93e30c0608 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Mon, 16 Dec 2024 16:53:56 +0100
+Subject: [PATCH] [qcow-tool] add qcow as supported format
+
+This patch allows to pass "qcow2" as a supported format when calling VDI
+import/export. Currently we should reach unimplemented qcow tool wrapper
+if we are using "qcow2"" format.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/vhd-tool/src/impl.ml      |  6 ++-
+ ocaml/xapi-consts/api_errors.ml |  3 ++
+ ocaml/xapi/export_raw_vdi.ml    | 17 ++++++---
+ ocaml/xapi/import_raw_vdi.ml    |  3 +-
+ ocaml/xapi/importexport.ml      | 16 +++++++-
+ ocaml/xapi/qcow_tool_wrapper.ml | 65 +++++++++++++++++++++++++++++++++
+ ocaml/xapi/vhd_tool_wrapper.ml  |  2 +
+ ocaml/xapi/xapi_globs.ml        |  3 ++
+ 8 files changed, 104 insertions(+), 11 deletions(-)
+ create mode 100644 ocaml/xapi/qcow_tool_wrapper.ml
+
+diff --git a/ocaml/vhd-tool/src/impl.ml b/ocaml/vhd-tool/src/impl.ml
+index 52f2b3aa5..3cc8fdb82 100644
+--- a/ocaml/vhd-tool/src/impl.ml
++++ b/ocaml/vhd-tool/src/impl.ml
+@@ -1313,7 +1313,7 @@ let serve common_options source source_fd source_format source_protocol
+       protocol_of_string (require "source-protocol" source_protocol)
+     in
+ 
+-    let supported_formats = ["raw"; "vhd"] in
++    let supported_formats = ["raw"; "vhd"; "qcow2"] in
+     if not (List.mem source_format supported_formats) then
+       failwith (Printf.sprintf "%s is not a supported format" source_format) ;
+     let supported_formats = ["raw"] in
+@@ -1351,7 +1351,9 @@ let serve common_options source source_fd source_format source_protocol
+           endpoint_of_string source
+       | Some fd ->
+           return
+-            (File_descr (Lwt_unix.of_unix_file_descr (file_descr_of_int fd)))
++            ( Printf.fprintf stderr "GTNDEBUG: source fd is %d" fd ;
++              File_descr (Lwt_unix.of_unix_file_descr (file_descr_of_int fd))
++            )
+       )
+       >>= fun source_endpoint ->
+       ( match source_endpoint with
+diff --git a/ocaml/xapi-consts/api_errors.ml b/ocaml/xapi-consts/api_errors.ml
+index 53e9e0617..2264420de 100644
+--- a/ocaml/xapi-consts/api_errors.ml
++++ b/ocaml/xapi-consts/api_errors.ml
+@@ -1398,3 +1398,6 @@ let telemetry_next_collection_too_late =
+ let illegal_in_fips_mode = add_error "ILLEGAL_IN_FIPS_MODE"
+ 
+ let too_many_groups = add_error "TOO_MANY_GROUPS"
++
++let unimplemented_in_qcow_tool_wrapper =
++  add_error "UNIMPLEMENTED_IN_QCOW_TOOL_WRAPPER"
+diff --git a/ocaml/xapi/export_raw_vdi.ml b/ocaml/xapi/export_raw_vdi.ml
+index cea32fb55..5686608c6 100644
+--- a/ocaml/xapi/export_raw_vdi.ml
++++ b/ocaml/xapi/export_raw_vdi.ml
+@@ -47,11 +47,16 @@ let localhost_handler rpc session_id vdi (req : Http.Request.t)
+           let copy base_path path size =
+             try
+               debug "Copying VDI contents..." ;
+-              Vhd_tool_wrapper.send ?relative_to:base_path
+-                (Vhd_tool_wrapper.update_task_progress __context)
+-                "none"
+-                (Importexport.Format.to_string format)
+-                s path size "" ;
++              if format = Qcow then
++                Qcow_tool_wrapper.send
++                  (Qcow_tool_wrapper.update_task_progress __context)
++                  s path size
++              else
++                Vhd_tool_wrapper.send ?relative_to:base_path
++                  (Vhd_tool_wrapper.update_task_progress __context)
++                  "none"
++                  (Importexport.Format.to_string format)
++                  s path size "" ;
+               debug "Copying VDI complete."
+             with Unix.Unix_error (Unix.EIO, _, _) ->
+               raise
+@@ -73,7 +78,7 @@ let localhost_handler rpc session_id vdi (req : Http.Request.t)
+             in
+             Http_svr.headers s headers ;
+             match format with
+-            | Raw | Vhd ->
++            | Qcow | Raw | Vhd ->
+                 let size = Db.VDI.get_virtual_size ~__context ~self:vdi in
+                 if format = Vhd && size > Constants.max_vhd_size then
+                   raise
+diff --git a/ocaml/xapi/import_raw_vdi.ml b/ocaml/xapi/import_raw_vdi.ml
+index 565c29e7d..35934713a 100644
+--- a/ocaml/xapi/import_raw_vdi.ml
++++ b/ocaml/xapi/import_raw_vdi.ml
+@@ -158,11 +158,12 @@ let localhost_handler rpc session_id vdi_opt (req : Request.t)
+                 in
+                 Http_svr.headers s headers ;
+                 ( match format with
+-                | Raw | Vhd ->
++                | Raw | Vhd | Qcow ->
+                     let prezeroed =
+                       not
+                         (Sm_fs_ops.must_write_zeroes_into_new_vdi ~__context vdi)
+                     in
++                    debug "GTNDEBUG: we are receiving Raw, Vhd or Qcow file" ;
+                     Sm_fs_ops.with_block_attached_device __context rpc
+                       session_id vdi `RW (fun path ->
+                         if chunked then
+diff --git a/ocaml/xapi/importexport.ml b/ocaml/xapi/importexport.ml
+index b6f784dc5..cc5c84f66 100644
+--- a/ocaml/xapi/importexport.ml
++++ b/ocaml/xapi/importexport.ml
+@@ -428,9 +428,17 @@ let sr_of_req ~__context (req : Http.Request.t) =
+     None
+ 
+ module Format = struct
+-  type t = Raw | Vhd | Tar
++  type t = Raw | Vhd | Tar | Qcow
+ 
+-  let to_string = function Raw -> "raw" | Vhd -> "vhd" | Tar -> "tar"
++  let to_string = function
++    | Raw ->
++        "raw"
++    | Vhd ->
++        "vhd"
++    | Tar ->
++        "tar"
++    | Qcow ->
++        "qcow2"
+ 
+   let of_string x =
+     match String.lowercase_ascii x with
+@@ -440,6 +448,8 @@ module Format = struct
+         Some Vhd
+     | "tar" ->
+         Some Tar
++    | "qcow2" ->
++        Some Qcow
+     | _ ->
+         None
+ 
+@@ -455,6 +465,8 @@ module Format = struct
+         "application/vhd"
+     | Tar ->
+         "application/x-tar"
++    | Qcow ->
++        "application/x-qemu-disk"
+ 
+   let _key = "format"
+ 
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+new file mode 100644
+index 000000000..3de67504c
+--- /dev/null
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -0,0 +1,65 @@
++(*
++ * Copyright (C) 2025 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++module D = Debug.Make (struct let name = "qcow_tool_wrapper" end)
++
++open D
++
++let unimplemented () =
++  raise
++    (Api_errors.Server_error (Api_errors.unimplemented_in_qcow_tool_wrapper, []))
++
++let run_qcow_tool (progress_cb : int -> unit) (args : string list)
++    (ufd : Unix.file_descr) =
++  let qcow_tool = !Xapi_globs.qcow_tool in
++  info "Executing %s %s" qcow_tool (String.concat " " args) ;
++  let open Forkhelpers in
++  let pipe_read, pipe_write = Unix.pipe () in
++  Xapi_stdext_pervasives.Pervasiveext.finally
++    (fun () ->
++      match
++        with_logfile_fd "qcow-tool" (fun log_fd ->
++            let ufd_str = Uuidx.(to_string (make ())) in
++            let pid =
++              safe_close_and_exec None (Some pipe_write) (Some log_fd)
++                [(ufd_str, ufd)]
++                qcow_tool args
++            in
++            let _, status = waitpid pid in
++            if status <> Unix.WEXITED 0 then (
++              error "qcow-tool failed, returning VDI_IO_ERROR" ;
++              raise
++                (Api_errors.Server_error
++                   (Api_errors.vdi_io_error, ["Device I/O errors"])
++                )
++            )
++        )
++      with
++      | Success (out, _) ->
++          debug "%s" out
++      | Failure (out, e) ->
++          error "qcow-tool output: %s" out ;
++          raise e
++    )
++    (fun () -> List.iter Unix.close [pipe_read; pipe_write])
++
++let update_task_progress (__context : Context.t) (x : int) =
++  TaskHelper.set_progress ~__context (float_of_int x /. 100.)
++
++let send (progress_cb : int -> unit) (unix_fd : Unix.file_descr) (path : string)
++    (size : Int64.t) =
++  debug "Qcow send called with a size of %Ld and path equal to %s" size path ;
++  let _ = progress_cb in
++  let _ = unix_fd in
++  run_qcow_tool progress_cb ["stream"] unix_fd
+diff --git a/ocaml/xapi/vhd_tool_wrapper.ml b/ocaml/xapi/vhd_tool_wrapper.ml
+index ee1151feb..beab363a8 100644
+--- a/ocaml/xapi/vhd_tool_wrapper.ml
++++ b/ocaml/xapi/vhd_tool_wrapper.ml
+@@ -193,6 +193,8 @@ let send progress_cb ?relative_to (protocol : string) (dest_format : string)
+     (s : Unix.file_descr) (path : string) (size : Int64.t) (prefix : string) =
+   let s' = Uuidx.(to_string (make ())) in
+   let source_format, source =
++    debug "GTNDEBUG: get_nbd_device %s" path ;
++    debug "GTNDEBUG: s' is %s" s' ;
+     match (Stream_vdi.get_nbd_device path, vhd_of_device path, relative_to) with
+     | Some (nbd_server, exportname), _, None ->
+         ( "nbdhybrid"
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index efdcabfbd..145e01da4 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -804,6 +804,8 @@ let sparse_dd = ref "sparse_dd"
+ 
+ let vhd_tool = ref "vhd-tool"
+ 
++let qcow_tool = ref "qcow-tool"
++
+ let fence = ref "fence"
+ 
+ let host_bugreport_upload = ref "host-bugreport-upload"
+@@ -1660,6 +1662,7 @@ module Resources = struct
+       )
+     ; ("sparse_dd", sparse_dd, "Path to sparse_dd")
+     ; ("vhd-tool", vhd_tool, "Path to vhd-tool")
++    ; ("qcow-tool", qcow_tool, "Path to qcow-tool")
+     ; ("fence", fence, "Path to fence binary, used for HA host fencing")
+     ; ( "host-bugreport-upload"
+       , host_bugreport_upload
