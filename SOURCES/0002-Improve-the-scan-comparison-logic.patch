@@ -1,0 +1,61 @@
+From 2eb31af08d6ccbfb2be53d990df40264d8e53ede Mon Sep 17 00:00:00 2001
+From: Vincent Liu <shuntian.liu2@cloud.com>
+Date: Tue, 10 Dec 2024 14:19:00 +0000
+Subject: [PATCH] Improve the scan comparison logic
+
+For the scan retry, previously we were comparing the entire vdi data
+structure from the database using the (<>) operator. This is a bit
+wasteful and not very stable. Instead let us just compare the vdi refs,
+since the race here comes from `VDI.db_{introduce,forget}`, which would
+only add/remove vdis from the db, but not change its actual data
+structure.
+
+Also add a bit more logging when retrying, since this should not happen
+very often.
+
+Signed-off-by: Vincent Liu <shuntian.liu2@cloud.com>
+---
+ ocaml/xapi/xapi_sr.ml | 23 +++++++++++++++++++++--
+ 1 file changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_sr.ml b/ocaml/xapi/xapi_sr.ml
+index 8af5bd6e6..a504f54c0 100644
+--- a/ocaml/xapi/xapi_sr.ml
++++ b/ocaml/xapi/xapi_sr.ml
+@@ -798,15 +798,34 @@ let scan ~__context ~sr =
+               Db.VDI.get_records_where ~__context
+                 ~expr:(Eq (Field "SR", Literal sr'))
+             in
++            (* It is sufficient to just compare the refs in two db_vdis, as this
++               is what update_vdis uses to determine what to delete *)
++            let vdis_ref_equal db_vdi1 db_vdi2 =
++              Listext.List.set_difference (List.map fst db_vdi1)
++                (List.map fst db_vdi2)
++              = []
++            in
+             let db_vdis_before = find_vdis () in
+             let vs, sr_info =
+               C.SR.scan2 (Ref.string_of task)
+                 (Storage_interface.Sr.of_string sr_uuid)
+             in
+             let db_vdis_after = find_vdis () in
+-            if limit > 0 && db_vdis_after <> db_vdis_before then
++            if limit > 0 && not (vdis_ref_equal db_vdis_before db_vdis_after)
++            then (
++              debug
++                "%s detected db change while scanning, before scan vdis %s, \
++                 after scan vdis %s, retry limit left %d"
++                __FUNCTION__
++                (List.map (fun (_, v) -> v.vDI_uuid) db_vdis_before
++                |> String.concat ","
++                )
++                (List.map (fun (_, v) -> v.vDI_uuid) db_vdis_after
++                |> String.concat ","
++                )
++                limit ;
+               (scan_rec [@tailcall]) (limit - 1)
+-            else if limit = 0 then
++            ) else if limit = 0 then
+               raise
+                 (Api_errors.Server_error
+                    (Api_errors.internal_error, ["SR.scan retry limit exceeded"])
