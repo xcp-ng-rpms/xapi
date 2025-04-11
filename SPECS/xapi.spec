@@ -23,7 +23,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 24.39.1
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -82,6 +82,13 @@ Patch1009: xen-api-24.39.1-debug-traces-for-is_component_enabled.patch
 Patch1010: xen-api-24.39.1-0001-CA-399669-Do-not-exit-with-error-when-IPMI-readings-.patch
 Patch1011: xen-api-24.39.1-0002-rrdp-dcmi-remove-extraneous-I-argument-from-cli-call.patch
 Patch1012: xen-api-24.39.1-0003-CA-399669-Detect-a-reason-for-IPMI-readings-being-un.patch
+# The three following patches mitigate the issue related to SR.scan atomicity.
+# #6113: in 24.40.0
+Patch1013: 0001-CA-399757-Add-CAS-style-check-for-SR-scan.patch
+# #6168: in 24.40.0
+Patch1014: 0002-Improve-the-scan-comparison-logic.patch
+# #6413: in review
+Patch1015: 0003-Check-that-there-are-no-changes-during-SR.scan.patch
 
 
 %{?_cov_buildrequires}
@@ -1368,6 +1375,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Apr 03 2025 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 24.39.1-1.3
+- Check that there are no changes during SR.scan
+- Improve the scan comparison logic
+- Add CAS style check for SR scan
+
 * Fri Feb 14 2025 Yann Dirson <yann.dirson@vates.tech> - 24.39.1-1.1
 - Update to upstream 24.39.1-1
 - Reformat changelog to allow diffing with upstream
