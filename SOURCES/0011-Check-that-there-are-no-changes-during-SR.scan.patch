@@ -1,4 +1,4 @@
-From d5e33264eba78fb2eea59d19d64aa53900b0892d Mon Sep 17 00:00:00 2001
+From ef924afbd296a39959991a0099393a2f1ef0f681 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Tue, 8 Apr 2025 18:22:21 +0200
 Subject: [PATCH] Check that there are no changes during SR.scan
@@ -16,10 +16,10 @@ Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
  1 file changed, 23 insertions(+), 14 deletions(-)
 
 diff --git a/ocaml/xapi/xapi_sr.ml b/ocaml/xapi/xapi_sr.ml
-index a504f54c0..7d0a8ed88 100644
+index b6d8caf5d..82d2923cb 100644
 --- a/ocaml/xapi/xapi_sr.ml
 +++ b/ocaml/xapi/xapi_sr.ml
-@@ -777,6 +777,11 @@ let update_vdis ~__context ~sr db_vdis vdi_infos =
+@@ -757,6 +757,11 @@ let update_vdis ~__context ~sr db_vdis vdi_infos =
  
  (* Perform a scan of this locally-attached SR *)
  let scan ~__context ~sr =
@@ -31,7 +31,7 @@ index a504f54c0..7d0a8ed88 100644
    let open Storage_access in
    let task = Context.get_task_id __context in
    let module C = Storage_interface.StorageAPI (Idl.Exn.GenClient (struct
-@@ -801,9 +806,21 @@ let scan ~__context ~sr =
+@@ -781,9 +786,21 @@ let scan ~__context ~sr =
              (* It is sufficient to just compare the refs in two db_vdis, as this
                 is what update_vdis uses to determine what to delete *)
              let vdis_ref_equal db_vdi1 db_vdi2 =
@@ -56,7 +56,7 @@ index a504f54c0..7d0a8ed88 100644
              in
              let db_vdis_before = find_vdis () in
              let vs, sr_info =
-@@ -813,17 +830,8 @@ let scan ~__context ~sr =
+@@ -793,17 +810,8 @@ let scan ~__context ~sr =
              let db_vdis_after = find_vdis () in
              if limit > 0 && not (vdis_ref_equal db_vdis_before db_vdis_after)
              then (
@@ -76,7 +76,7 @@ index a504f54c0..7d0a8ed88 100644
                (scan_rec [@tailcall]) (limit - 1)
              ) else if limit = 0 then
                raise
-@@ -831,6 +839,7 @@ let scan ~__context ~sr =
+@@ -811,6 +819,7 @@ let scan ~__context ~sr =
                     (Api_errors.internal_error, ["SR.scan retry limit exceeded"])
                  )
              else (

@@ -1,7 +1,25 @@
-diff --git c/scripts/xapi.conf w/scripts/xapi.conf
-index 46f859a8d..ddbf923f3 100644
---- c/scripts/xapi.conf
-+++ w/scripts/xapi.conf
+From a9abdf0aac58ca7ed4ab81c6d4766d5b8d26f3ab Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Mon, 31 Mar 2025 11:05:15 +0200
+Subject: [PATCH] [xcp-ng] configure xapi.conf to meet our needs
+
+This patch enables:
+  - custom uefi certificates
+  - our additional SMAPI plugins drivers
+  - creation of an SR for tools ISO
+  - modification of host scheduler
+
+It disables website https-only
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ scripts/xapi.conf | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/scripts/xapi.conf b/scripts/xapi.conf
+index 46f859a8d..10bec0cb6 100644
+--- a/scripts/xapi.conf
++++ b/scripts/xapi.conf
 @@ -1,3 +1,7 @@
 +# WARNING: any changes made to this file may be overwritten by future
 +# updates of the xapi-core RPM.
@@ -9,27 +27,27 @@ index 46f859a8d..ddbf923f3 100644
 +
  # The xapi config file has 3 sections: a global policy section;
  # a section for paths to helper utilities; and a timeout tweak section.
-
+ 
 @@ -82,7 +86,7 @@ igd-passthru-vendor-whitelist = 8086
  # repository-domain-name-allowlist =
-
+ 
  # Allow the use of custom UEFI certificates
 -# allow-custom-uefi-certs = false
 +allow-custom-uefi-certs = true
-
+ 
  # Paths to utilities: ############################################
-
+ 
 @@ -163,7 +167,7 @@ sparse_dd = /usr/libexec/xapi/sparse_dd
  # sm-dir =  @OPTDIR@/sm
-
+ 
  # Whitelist of SM plugins
 -sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb
 +sm-plugins=ext nfs iscsi lvmoiscsi dummy file hba rawhba udev iso lvm lvmohba lvmofcoe shm smb cephfs glusterfs xfs zfs largeblock
-
+ 
  # Directory containing tools ISO
  # tools-sr-dir = @OPTDIR@/packages/iso
 @@ -396,3 +400,12 @@ xen_livepatch_list = "/usr/sbin/xen-livepatch list"
-
+ 
  # The command to query current kernel patch list
  kpatch_list = "/usr/sbin/kpatch list"
 +

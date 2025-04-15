@@ -71,33 +71,29 @@ Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 %endif
 
 # XCP-ng patches
+#   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
+#   - git format-patch --no-numbered --no-signature  v25.6.0..v25.6.0-8.3
 # Enables our additional sm drivers
-Patch1000: xapi-24.11.0-update-xapi-conf.XCP-ng.patch
-# Patch1001: in XCP-ng xs-clipboardd is named xcp-clipboardd
-Patch1001: xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch
-# Replace this if/when PR https://github.com/xapi-project/xen-api/pull/4188 is finalized
-Patch1002: xapi-24.39.0-open-openflow-port.XCP-ng.patch
-# Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1003: xapi-24.39.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch
-Patch1005: xapi-24.19.2-fix-ipv6-import.XCP-ng.patch
-# Fix fingerprints for CA certificates too
-Patch1007: xapi-24.19.2-more-fingerprint-field-updates-fixes.XCP-ng.patch
+Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
+Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
 # Disable flaky test, see af3989235e62f5887a8cac08f4c1977726839297
-Patch1008: xen-api-24.39.1-test-disable-cancellable-sleep.patch
+Patch1003: 0003-xcp-ng-disable-cancellable-sleep.patch
 # #6280: traces to see observer not working on smapi component
-Patch1009: xen-api-24.39.1-debug-traces-for-is_component_enabled.patch
-# #6261: fix IPMI handling for hosts without IPMI (in 25.5.0)
-Patch1010: xen-api-24.39.1-0001-CA-399669-Do-not-exit-with-error-when-IPMI-readings-.patch
-Patch1011: xen-api-24.39.1-0002-rrdp-dcmi-remove-extraneous-I-argument-from-cli-call.patch
-Patch1012: xen-api-24.39.1-0003-CA-399669-Detect-a-reason-for-IPMI-readings-being-un.patch
-# The three following patches mitigate the issue related to SR.scan atomicity.
-# #6113: in 24.40.0
-Patch1013: 0001-CA-399757-Add-CAS-style-check-for-SR-scan.patch
-# #6168: in 24.40.0
-Patch1014: 0002-Improve-the-scan-comparison-logic.patch
-# #6413: in review
-Patch1015: 0003-Check-that-there-are-no-changes-during-SR.scan.patch
-
+Patch1004: 0004-xcp-ng-add-debug-info-in-observer.patch
+Patch1005: 0005-xcp-ng-fix-IPv6-import.patch
+# check if https://github.com/xapi-project/xen-api/pull/4188 is fixed
+Patch1006: 0006-xcp-ng-open-close-openflow-port.patch
+# Drop this patch when we don't want to support migration from older SDN controller anymore
+Patch1007: 0007-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
+# Backports:
+# Fix metrics issues - cherry-picked from v25.11.0
+Patch1008: 0008-CA-408126-rrd-Do-not-lose-ds_min-max-when-adding-to-.patch
+# Fix metrics issues - cherry-picked from v25.13.0
+Patch1009: 0009-CA-408126-follow-up-Fix-negative-ds_min-and-RRD-valu.patch
+# Fix metrics issues - cherry-picked from v25.15.0
+Patch1010: 0010-CA-408841-rrd-don-t-update-rrds-when-ds_update-is-ca.patch
+# Fix SR.scan not atomic - cherry-picked from v25.16.0
+Patch1011: 0011-Check-that-there-are-no-changes-during-SR.scan.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1413,6 +1409,25 @@ Coverage files from unit tests
 %changelog
 * Tue Apr 15 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.1
 - Update to upstream 25.6.0-1
+- Regenerate and rename patches with git format-patch
+- Rename xapi-24.11.0-update-xapi-conf.XCP-ng.patch to 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
+- Rename xenopsd-22.20.0-use-xcp-clipboardd.XCP-ng.patch to 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
+- Rename xen-api-24.39.1-test-disable-cancellable-sleep.patch to 0003-xcp-ng-disable-cancellable-sleep.patch
+- Rename xen-api-24.39.1-debug-traces-for-is_component_enabled.patch to 0004-xcp-ng-add-debug-info-in-observer.patch
+- Rename xapi-24.19.2-fix-ipv6-import.XCP-ng.patch to 0005-xcp-ng-fix-IPv6-import.patch
+- Rename xapi-24.39.0-open-openflow-port.XCP-ng.patch to 0006-xcp-ng-open-close-openflow-port.patch
+- Rename xapi-24.39.0-update-db-tunnel-protocol-from-other_config.XCP-ng.patch to
+  0007-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
+- Add 0008-CA-408126-rrd-Do-not-lose-ds_min-max-when-adding-to-.patch
+- Add 0009-CA-408126-follow-up-Fix-negative-ds_min-and-RRD-valu.patch
+- Add 0010-CA-408841-rrd-don-t-update-rrds-when-ds_update-is-ca.patch
+- Rename 0003-Check-that-there-are-no-changes-during-SR.scan.patch to
+  0011-Check-that-there-are-no-changes-during-SR.scan.patch
+- Drop xen-api-24.39.1-0001-CA-399669-Do-not-exit-with-error-when-IPMI-readings-.patch, merged upstream
+- Drop xen-api-24.39.1-0002-rrdp-dcmi-remove-extraneous-I-argument-from-cli-call.patch, merged upstream
+- Drop xen-api-24.39.1-0003-CA-399669-Detect-a-reason-for-IPMI-readings-being-un.patch, merged upstream
+- Drop 0001-CA-399757-Add-CAS-style-check-for-SR-scan.patch, merged upstream
+- Drop 0002-Improve-the-scan-comparison-logic.patch, merged upstream
 - *** Upstream changelog ***
   * Mon Feb 10 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.6.0-1
   - CP-52114: Add pool.license_server for pool level licensing
