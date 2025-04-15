@@ -1,5 +1,5 @@
-%global package_speccommit e3fed2884036e03b1a38b1fad7f1f0ce75371831
-%global package_srccommit v24.39.1
+%global package_speccommit 56b4e6460879ce5d09616c669e322f20354a4ef3
+%global package_srccommit v25.6.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -11,8 +11,13 @@
 # In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
 %bcond_without dnf_plugin
 %bcond_without own_yum_dir
+# Enable corosync3 by default
+%bcond_without corosync3
+# XS9 reset all epoch to 0
+%define qemu_epoch 0
 %else
 %bcond_without python2_compat
+%define qemu_epoch 2
 %endif
 
 %global api_version_major 2
@@ -22,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 24.39.1
-Release: 1.3%{?xsrel}%{?dist}
+Version: 25.6.0
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-24.39.1.tar.gz
+Source0: xen-api-25.6.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -52,6 +57,9 @@ Source20: pool-recommendations-xapi-conf
 Source21: XenAPI.py
 Source22: XenAPIPlugin.py
 Source23: inventory.py
+# For xs9, move these config files from xenserver-release
+Source24: xapi-service-local.conf
+Source25: xenopsd-xc-local.conf
 
 %if "%{dist}" == ".xsx" || "%{dist}" == ".xsr" || "%{dist}" == ".xs9"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
@@ -136,7 +144,7 @@ Requires: stunnel >= 5.55
 Requires: vhd-tool
 Requires: libffi
 Requires: busybox
-Requires: net-tools
+Requires: iproute
 Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
@@ -147,12 +155,14 @@ Requires: yum-utils >= 1.1.31
 # Only XS8 support upgrade pbis to winbind
 # XCP-ng: remove Requires for proprietary component
 # Requires: upgrade-pbis-to-winbind
+# Keep command `ifconfig` available on XS8
+Requires: net-tools
 %else
 Requires: dnf
 # This is for dnf/yum plugin
 Requires: python3-urlgrabber
 # For dnf plugins like config-manager
-Requires: dnf-plugins-core
+Requires: dnf5-plugins
 %endif
 Requires: python3-xcp-libs
 Requires: python2-pyudev
@@ -178,6 +188,7 @@ Requires: python3-wrapt
 # firewall-port needs iptables-service to perform
 # `service iptables save`
 Requires: iptables-services
+Requires: rsync
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -214,7 +225,6 @@ metrics on standard output, in the CSV format.
 %package tests
 Summary: Toolstack test programs
 Group: System/Hypervisor
-Requires: net-tools
 
 %description tests
 This package contains a series of simple regression tests.
@@ -298,8 +308,8 @@ Requires:       emu-manager
 # Semantic versioning: describe acceptable range of qemu versions
 # if a new major version of qemu/qemu.pg is released and xenopsd is still
 # compatible then we just have to update this line and bump the minor for xenopsd
-Requires:       qemu >= 2:4.2.1-5.0.0
-Conflicts:      qemu >= 2:4.2.1-6.0.0
+Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
+Conflicts:      qemu >= %{qemu_epoch}:4.2.1-6.0.0
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 
 %description -n xenopsd-xc
@@ -329,7 +339,7 @@ Memory ballooning daemon for the xapi toolstack.
 %package -n xcp-rrdd
 Summary:        Statistics gathering daemon for the xapi toolstack
 Requires(pre):  shadow-utils
-Requires:       python3-future
+Requires:       rrd-client-lib >= 2.0.0
 
 %description -n xcp-rrdd
 Statistics gathering daemon for the xapi toolstack.
@@ -341,6 +351,7 @@ Requires:       xs-opam-repo
 Requires:       forkexecd-devel%{?_isa} = %{version}-%{release}
 Requires:       xapi-idl-devel%{?_isa} = %{version}-%{release}
 Requires:       xen-ocaml-devel
+Requires:       rrd-client-lib >= 2.0.0
 Obsoletes:      ocaml-rrd-transport-devel < 21.0.0-1
 Obsoletes:      ocaml-rrdd-plugin-devel < 21.0.0-1
 
@@ -370,6 +381,7 @@ Requires: libnl3
 # XCP-ng: remove Requires to proprietary component
 # Requires: pvsproxy
 Requires: bridge-utils
+Requires: dhclient
 
 %description -n xcp-networkd
 Simple host networking management service for the xapi toolstack.
@@ -581,7 +593,11 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+%if %{with corosync3}
+echo 1 > %{buildroot}/etc/xenserver/features.d/corosync3
+%else
 echo 0 > %{buildroot}/etc/xenserver/features.d/corosync3
+%endif
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -629,6 +645,11 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_usr}/libexec/xenopsd
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_sysconfdir}/xapi.d/plugins
 
+# For xs9, move this config here from xenserver-release
+%if 0%{?xenserver} >= 9
+%{__install} -D -m 0644 %{SOURCE24} %{buildroot}/%{_sysconfdir}/systemd/system/xapi.service.d/local.conf
+%{__install} -D -m 0644 %{SOURCE25} %{buildroot}/%{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
+%endif
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -869,6 +890,18 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %posttrans -n message-switch
 /bin/systemctl daemon-reload >/dev/null 2>&1 || :
 
+%posttrans -n xcp-rrdd
+## On upgrade, the plugin protocol can change, so shut down
+## existing plugins and start new ones.
+## NOTE: This will actually restart plugins on *any* kind of transaction involving xcp-rrdd, not only
+## upgrades. This is because there is no way to distinguish upgrades from other kinds of transactions
+## in RPM < 4.12, see https://pagure.io/packaging-committee/issue/1051.
+## This (and likely the daemon-reload above) should really be fixed with XS9, though it isn't a huge issue
+/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1 | while read plugins;
+do
+/usr/bin/systemctl restart "$plugins" 'qemu-stats@*' pvsproxy.service 2>&1 || :
+done
+
 %files core -f core-files
 %defattr(-,root,root,-)
 /opt/xensource/bin/xapi
@@ -914,6 +947,10 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
 %{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
+%if 0%{?xenserver} >= 9
+%{_sysconfdir}/systemd/system/xapi.service.d/local.conf
+%{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
+%endif
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
 /opt/xensource/bin/perfmon
@@ -1023,7 +1060,6 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 
 %files tests
 %defattr(-,root,root,-)
-/opt/xensource/debug/perftest
 /opt/xensource/debug/quicktest
 /opt/xensource/debug/quicktestbin
 
@@ -1375,6 +1411,261 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Apr 15 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.1
+- Update to upstream 25.6.0-1
+- *** Upstream changelog ***
+  * Mon Feb 10 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.6.0-1
+  - CP-52114: Add pool.license_server for pool level licensing
+  - CP-52116: Support pool level licensing data in Host.apply_edition
+  - CP-51209: add hooks lock_acquired/released for bpftrace
+  - Hugo docs update
+  - CA-405628: unmount/detach PVS cache VDI before destroying
+  - xenopsd tests: split suite into 3 executables
+  - CP-53335, topology: do not raise exception when loading invalid distance matrices
+  - test_topology: reorganise test cases
+  - Fix CI: Re-enable running shellcheck even when only docs changed
+  - CP-49141: Mark the DB lock as high priority: try to avoid voluntary Thread.yield while we hold it
+  - CP-49140: prepare for database optimizations
+  - Document Xapi's auto-generated modules
+  - CA-405754: Update xapi-storage-script state.db
+  - Add Pool_role.is_master benchmarks
+  - Optimize fastpath in Pool_role
+  - CA-405971: avoid calling DB functions when in emergency mode
+  * Mon Feb 03 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.5.0-1
+  - CP-49158: [prep] Add Task completion latency benchmark
+  - CP-51690: [prep] Xapi_periodic_scheduler: Factor out Delay.wait call
+  - CP-51690: [bugfix] Xapi_periodic_scheduler: avoid 10s sleep on empty queue
+  - CP-51693: feat(use-xmlrpc): [perf] use JSONRPC instead of XMLRPC for internal communication
+  - CP-51701: [perf] Xapi_event: do not convert to lowercase if already lowercase
+  - CP-51701: [perf] Xapi_event: drop duplicate lowercase_ascii
+  - CP-51701: [perf] Xapi_events: replace List.any+map with List.exists
+  - CP-49064:`Tgroup` library
+  - CP-51493: Add `set_cgroup`
+  - CP-51488: Set `tgroup` based on request header.
+  - CP-49064: Init cgroups at xapi startup
+  - CP-50537: Always reset `_extra_headers` when making a connection.
+  - CP-50537: Propagate originator as a http request header
+  - CP-51489: Classify threads based on http requests.
+  - CP-50537: Add a guard in `xapi_globs`, `Xapi_globs.tgroups_enabled`.
+  - CP-51692: feat(use-event-next): introduce use-event-next configuration flag
+  - CP-52625: workaround Rpc.Int32 parsing bug
+  - CP-51692: feat(use-event-next): cli_util: use Event.from instead of Event.next
+  - CP-51692: feat(use-event-next): xe event-wait: use Event.from instead of Event.next
+  - CA-401651: stunnel_cache: run the cache expiry code periodically
+  - CA-401652: stunnel_cache: set stunnel size limit based on host role
+  - CA-388210: rename vm' to vm
+  - CA-388210: drop unused domain parameter
+  - CA-388210: factor out computing the domain parameter
+  - CA-388210: SMAPIv3 concurrency safety: send the (unique) datapath argument as domain for Dom0
+  - CA-388210: SMAPIv3 debugging: log PID
+  - CP-52707: Improve Event.from/next API documentation
+  - CA-388210: SMAPIv3 concurrency: turn on concurrent operations by default
+  - CA-388210: delete comment about deadlock bug, they are fixed
+  - CA-388564: move qemu-dm to vm.slice
+  - CP-52821: Xapi_periodic_scheduler: introduce add_to_queue_span
+  - CP-52821: Xapi_event: use Clock.Timer instead of gettimeofday
+  - CP-52821: xapi_periodic_scheduler: use Mtime.span instead of Mtime.t
+  - CP-49158: [prep] batching: add a helper for recursive, batched calls like Event.{from,next}
+  - CP-49158: [prep] Event.from: replace recursion with Batching.with_recursive
+  - CP-51692: Event.next: use same batching as Event.from
+  - CP-49158: [prep] Event.{from,next}: make delays configurable and prepare for task specific delays
+  - CP-49158: Event.next is deprecated: increase delays
+  - CP-49158: Use exponential backoff for delay between recursive calls
+  - CP-49158: Throttle: add Thread.yield
+  - CP-49141: add OCaml timeslice setter
+  - CP-52709: add timeslice configuration to all services
+  - CP-52709: add simple measurement code
+  - CP-52709: recommended measurement
+  - CP-52709: Enable timeslice setting during unit tests by default
+  - CP-52320: Improve xapi thread classification
+  - CP-52320 & CP-52795: Add unit tests for tgroup library
+  - CP-52320 & CP-52743: Classify xapi threads.
+  - CP-51692: Do not enable Event.next ratelimiting if Event.next is still used internally
+  - CA-399669: Do not exit with error when IPMI readings aren't available
+  - rrdp-dcmi: remove extraneous -I argument from cli calls
+  - CA-399669: Detect a reason for IPMI readings being unavailable
+  - xcp-rrdd: Make parsing of cmd's output more robust
+  - CA-405593: Normalise API-installed host certificates
+  - Refactor xapi-storage-script to use modules
+  * Wed Jan 29 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.4.0-1
+  - docs: Update doc/README.md and Hugo Relearn (to 5.23.0 for now)
+  - CA-403759: Initialise licensing after no-other-masters check
+  - CA-400272: pool.set_igmp_snooping_enabled: ignore non-managed PIFs
+  - Revert "CP-45016: Clean up the source VM earlier"
+  - CA-405502: Change post_detach to post_deactivate
+  * Mon Jan 27 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.3.0-1
+  - CA-403634: Corrected error text (this error can be issued for other types of devices, not only disks).
+  - Removed errors that are not issued by the API.
+  - fe_test: add test for syslog feature
+  - CA-404591 - rrd: Do not lose precision when converting floats to strings
+  - MVD CP-52334 multi-version driver API/CLI
+  - Refactor feature processing logic in `Smint`
+  - Move `transform_storage_exn` to Storage_utils
+  - CP-45016: Add support for specifying nbd export in sparse_dd
+  - CP-45016: Implement inbound SXM SMAPIv3 SRs
+  - CP-45016: Delay VDI.compose in SXM
+  - CA-404693 prohibit selecting driver variant if h/w not present
+  - CP-45016: Implement a new nbd proxy handler
+  - CP-45016: Clean up the source VM earlier
+  - Update XE_SR_ERRORCODES.xml from SM
+  - CA-404611: SXM: check power-state just before metadata export
+  - CA-404611: live import: only check CPUID if VM is not Halted
+  - CA-399260: Keep both new and old certs during the switchover
+  - Added preprocessor directive so that the assembly internals are visible to XenServerTest only when specified.
+  - Remove dangling use of python-future from rrdd.py
+  - opam: add missing dependencies
+  - CA-405404: Fix path to dracut
+  * Fri Jan 17 2025 Gang Ji <gang.ji@cloud.com> - 25.2.0-1
+  - CA-364194: use timespans for script timeouts
+  - Remove unused Unixext.Direct module
+  - github: update release for ubuntu 24.04
+  - github: remove dependency of python wheel's on dune
+  - CA-404640 XSI-1781 accept in PEM key/cert in any order
+  - CA-404640 XSI-1781 bring back fail-06.pem
+  - Log proper names for POSIX signals
+  - Debug: add pretty-printing function for signals
+  - CA-404597: rrd/lib_test - Verify that RRD handles non-rate data sources correctly
+  - CA-404597: rrd - Pass Gauge and Absolute data source values as-is
+  * Mon Jan 13 2025 Gang Ji <gang.ji@cloud.com> - 25.1.0-1
+  - CA-403620: Drop the usage of fuser in stunnel client proxy
+  - CA-403620: Make the stunnel proxy local port configurable
+  - Removed deprecated methods.
+  - Cmdlet refactoring:
+  - CP-53003: Use JsonRpc v1.0 by default and switch to v2.0 once the API version is known.
+  - Use Mtime.Span.to_float_ns instead of  Mtime.Span.to_uint64_ns+Int64.to_float
+  - CA-404013: do not relock the mutex when backing up rrds
+  - database: do not log when a field is dropped when loading from db_xml
+  - CA-403700 use iso9660 file system for updates
+  - rrd2csv: Accept a trailing comma in metrics names
+  - CA-404512: Add feature flag to the new clustering interface
+  * Thu Jan 09 2025 Gang Ji <gang.ji@cloud.com> - 25.0.0-1
+  - Simplify event generation predicate in Xapi_event
+  - Update comment to include implicit invariant
+  - IH-747 - xapi/import: Don't lie in VDI import logs
+  - IH-747 - database: Add an internal get_by_uuid_opt method
+  - IH-747 - xapi/import: Use get_by_uuid_opt to not log backtraces when failure is expected
+  - Simplify Eventgen
+  - Add eventgen.mli
+  - Hide that get_records are stored in a Hashtbl
+  - Document eventgen.mli
+  - Precompute symmetric closure table
+  - CA-402921: Relax VIF constraint for PVS proxy
+  - CA-402921: Update PVS-proxy tests
+  - CA-402921: Restrict VIF.create
+  - CA-402921: Add some unit tests for Xapi_vif_helpers
+  - CA-403422: lengthen the timeout for xenopsd's serialized tasks
+  - xenopsd: remove unused subtask parameter
+  - XSI-1773 improve logging if service file unexpectedly exists
+  - XSI-1773 clean up swtpm service files
+  - CA-404020: Do not fail when removing a non-existing datasource
+  - rrd/lib: remove outdated functions from utils
+  - rrdd: add more comments about its datastructures
+  - CA-404062: Wrongly restart xapi when receiving HTTP errors
+  - CA-404062: Reformat
+  - CP-51895: Drop FCoE support when fcoe_driver does not exists
+  - Report memory available as Kib
+  - xenopsd: Avoid calling to_string every time
+  - gencert: name the pem parsers
+  - CA-404236, gencert: when parsing pems, ignore data between key and certificates
+  - CP-51895: Drop FCoE support when fcoe_driver does not exists
+  - CA-403344: Add `db_get_by_uuid_opt` to db_cache*
+  - Add unit test to the new `db_get_by_uuid_opt` function
+  - Style: Refactor using failwith_fmt
+  - CA-404013: replace Thread.delay with Delay module
+  * Wed Dec 18 2024 Gang Ji <gang.ji@cloud.com> - 24.40.0-1
+  - CP-51694: Add testing of C# date converter
+  - CP-51694: Add testing of Java date deserializer
+  - rrdd: avoid constructing intermediate lists, use Seq
+  - CA-391651 - rrd: Remove deprecated member of rra struct
+  - CA-391651: Make timestamps of data collectors in xcp-rrdd independent
+  - CA-391651: rrdd_server - read plugins' timestamps, don't just ignore them
+  - CA-391651: Propagate the timestamp inside RRD.
+  - CA-391651: Rename 'new_domid' parameter to 'new_rrd'
+  - CA-391651 - rrd: Carry indices with datasources
+  - CA-391651: Use per-datasource last_updated timestamp during updating and archiving
+  - CA-391651: rrd - don't iterate over lists needlessly
+  - CA-391651: rrdd_monitor - Handle missing datasources by resetting them explicitly
+  - CA-391651 - rrd protocol: Stop truncating timestamps to seconds
+  - CA-391651 - rrdd.py: Stop truncating timestamps to seconds
+  - CA-391651 rrd: Don't truncate timestamps when calculating values
+  - CA-391651: Update RRD tests to the new interfaces
+  - CA-391651 - docs: Update RRD design pages
+  - Increase wait-init-complete timeout
+  - CP-51694: Add testing of Go date deserialization
+  - Set non-UTC timezone for date time unit test runners
+  - Fix parsing of timezone agnostic date strings in Java deserializer
+  - Ensure C# date tests work when running under any timezone
+  - Minimize xenstore accesses during domid-to-uuid lookups
+  - CP-52524 - dbsync_slave: stop calculating boot time ourselves
+  - CP-52524: Generate an alert when various host kernel taints are set
+  - xenopsd: Optimize lazy evaluation
+  - NUMA docs: Fix typos and extend the intro for the best-effort mode
+  - CP-51772: Remove traceparent from Http.Request
+  - CP-51772: Remove external usage of traceparent
+  - CP-51772: Add TraceContext to Tracing
+  - CP-51772: Add Http Request Propagator
+  - CP-51772: Extract traceparent back out
+  - CP-51772: Remove tracing dependency from http-lib
+  - CP-51772: Consolidate propagation into tracing lib
+  - CP-51772: Repair xapi-cli-server's tracing
+  - CP-51772: Repair tracing in xapi
+  - Restructuring
+  - CP-51772: Forward baggage from xe-cli
+  - CP-51772: Propagate trace context through spans
+  - Apply fix by psafont: [Xenopsd] chooses NUMA nodes purely based on amount of free memory on the NUMA nodes of the host
+  - Apply fix by psafont: "Future XAPI versions may change `default_policy` to mean `best_effort`."
+  - xe-cli completion: Use grep -E instead of egrep
+  - CA-388210: factor out computing the domain parameter
+  - CA-388210: SMAPIv3 concurrency safety: send the (unique) datapath argument as domain for Dom0
+  - CA-388210: SMAPIv3 debugging: log PID
+  - CA-388210: SMAPIv3 concurrency: turn on concurrent operations by default
+  - Improve Delay test
+  - CP-42675: add new SM GC message ID
+  - CA-403101: Keep host.last_update_hash for host joined a pool
+  - xapi_message: Fix incorrect slow path invocation (and its logs)
+  - xapi: move the 'periodic' scheduler to xapi-stdext-threads
+  - Check index before using it removing an element from Imperative priority queue
+  - Fix removing elements from Imperative priority queue
+  - Remove possible systematic leak in Imperative priority queue
+  - Add test for is_empty for Imperative priority queue
+  - Move and improve old test for Imperative priority queue
+  - Initialise Imperative priority queue array on creation
+  - CA-399757: Add CAS style check for SR scan
+  - xapi-stdext-threads: use mtime.clock.os
+  - Remove unused ocaml/perftest
+  - Remove references to perftest
+  - Update quality-gate
+  - CA-401075: remove misleading logs from HTTP client
+  - CP-52807: No more cluster stack alert
+  - Rewrite Delay module
+  - CA-394851: Update allowed operations on the cloned VBD
+  - CP-51429 Avoid redundant processing when full metadata already exists during sync_updates
+  - Delay: wait a bit more testing the module
+  - Simple test for periodic scheduler
+  - Limit mutex contention in add_to_queue
+  - Compare correctly Mtime.t
+  - Protect queue with mutex in remove_from_queue
+  - Remove signal parameter from add_to_queue
+  - Fix multiple issues in periodic scheduler
+  - Add test for removing periodic event in periodic scheduler
+  - Add test for handling event if queue was empty in periodic scheduler
+  - xapi_sr: remove commented code from 2009
+  - Add a test to check the loop is woken up adding a new event
+  - CA-390025: do not override SR's client-set metadata on update
+  - xe-cli completion: Hide COMPREPLY manipulation behind functions
+  - Improve the scan comparison logic
+  - CA-402901: Update leaked dp to Sr
+  - Added manually messages that are not autogenerated.
+  - Docs tidy up:
+  - Add VM_metrics to metadata export
+  - Add VM_metrics to metadata import
+  - Cross-pool live migration: move CPU check to the target host
+  - CA-380580: cross-pool migration: no CPU checks for halted VMs
+  - CA-403633: Keep vPCI devices in the same order
+  - CA-403767: verifyPeer can't use root CA for appliance cert check
+  * Tue Nov 26 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-2
+  - Bump release and rebuild
+
 * Thu Apr 03 2025 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 24.39.1-1.3
 - Check that there are no changes during SR.scan
 - Improve the scan comparison logic
