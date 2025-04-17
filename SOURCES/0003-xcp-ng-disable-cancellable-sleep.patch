@@ -1,3 +1,16 @@
+From 7c5769e7b06cb94892d8781be0cacab1b1117321 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Mon, 31 Mar 2025 12:57:40 +0200
+Subject: [PATCH] [xcp-ng] disable cancellable sleep
+
+This patch disables flaky test.
+See af3989235e62f5887a8cac08f4c1977726839297
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ .../xapi-stdext/lib/xapi-fd-test/test/test_xapi_fd_test.ml  | 6 ------
+ 1 file changed, 6 deletions(-)
+
 diff --git a/ocaml/libs/xapi-stdext/lib/xapi-fd-test/test/test_xapi_fd_test.ml b/ocaml/libs/xapi-stdext/lib/xapi-fd-test/test/test_xapi_fd_test.ml
 index b6ae12eb0..77de7cdf2 100644
 --- a/ocaml/libs/xapi-stdext/lib/xapi-fd-test/test/test_xapi_fd_test.ml
