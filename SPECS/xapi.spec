@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -94,6 +94,9 @@ Patch1009: 0009-CA-408126-follow-up-Fix-negative-ds_min-and-RRD-valu.patch
 Patch1010: 0010-CA-408841-rrd-don-t-update-rrds-when-ds_update-is-ca.patch
 # Fix SR.scan not atomic - cherry-picked from v25.16.0
 Patch1011: 0011-Check-that-there-are-no-changes-during-SR.scan.patch
+
+# Merged upstream, will be in v25.17.0
+Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1408,8 +1411,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Apr 22 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.2
+* Tue Apr 22 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.2
 - Remove dependency on rrd-client-lib. It's not used by XCP-ng.
+- Update xenstore keys that Xapi Guest Agent checks for Windows PV driver versions
 
 * Tue Apr 15 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.1
 - Update to upstream 25.6.0-1
