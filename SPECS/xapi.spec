@@ -97,6 +97,8 @@ Patch1011: 0011-Check-that-there-are-no-changes-during-SR.scan.patch
 
 # Merged upstream, will be in v25.17.0
 Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
+Patch1013: 0013-Adding-supported-image-formats-in-sm-list.patch
+Patch1014: 0014-Add-qcow2-as-supported-format-by-xcp-rrdd-iostat.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
