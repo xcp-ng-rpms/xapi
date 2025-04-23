@@ -335,7 +335,8 @@ Memory ballooning daemon for the xapi toolstack.
 %package -n xcp-rrdd
 Summary:        Statistics gathering daemon for the xapi toolstack
 Requires(pre):  shadow-utils
-Requires:       rrd-client-lib >= 2.0.0
+# XCP-ng: not an actual dependency: it was added to ensure that rrd-client-lib is updated
+# Requires:       rrd-client-lib >= 2.0.0
 
 %description -n xcp-rrdd
 Statistics gathering daemon for the xapi toolstack.
@@ -1407,6 +1408,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Apr 22 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.2
+- Remove dependency on rrd-client-lib. It's not used by XCP-ng.
+
 * Tue Apr 15 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.1
 - Update to upstream 25.6.0-1
 - Regenerate and rename patches with git format-patch
