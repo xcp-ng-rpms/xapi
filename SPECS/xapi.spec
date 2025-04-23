@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.2%{?xsrel}%{?dist}
+Release: 1.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -351,7 +351,8 @@ Requires:       xs-opam-repo
 Requires:       forkexecd-devel%{?_isa} = %{version}-%{release}
 Requires:       xapi-idl-devel%{?_isa} = %{version}-%{release}
 Requires:       xen-ocaml-devel
-Requires:       rrd-client-lib >= 2.0.0
+# XCP-ng: not an actual dependency: it was added to ensure that rrd-client-lib is updated
+# Requires:       rrd-client-lib >= 2.0.0
 Obsoletes:      ocaml-rrd-transport-devel < 21.0.0-1
 Obsoletes:      ocaml-rrdd-plugin-devel < 21.0.0-1
 
@@ -1411,6 +1412,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Apr 23 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.3
+- Remove remaining dependency on rrd-client-lib in xcp-rrdd-devel.
+
 * Tue Apr 22 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.2
 - Remove dependency on rrd-client-lib. It's not used by XCP-ng.
 - Update xenstore keys that Xapi Guest Agent checks for Windows PV driver versions
