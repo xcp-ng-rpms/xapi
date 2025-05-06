@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.3%{?xsrel}%{?dist}
+Release: 1.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -97,6 +97,9 @@ Patch1011: 0011-Check-that-there-are-no-changes-during-SR.scan.patch
 
 # Merged upstream, will be in v25.17.0
 Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
+
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/6454
+Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1412,6 +1415,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed May 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.4
+- Fix a race during VM suspend that would make the snapshot unresumable
+
 * Wed Apr 23 2025 Gaëtan Lehmann <gaetan.lehmann@vates.tech> - 25.6.0-1.3
 - Remove remaining dependency on rrd-client-lib in xcp-rrdd-devel.
 
