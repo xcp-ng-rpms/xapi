@@ -98,6 +98,9 @@ Patch1011: 0011-Check-that-there-are-no-changes-during-SR.scan.patch
 # Merged upstream, will be in v25.17.0
 Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 
+# Will be posted upstream
+Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
