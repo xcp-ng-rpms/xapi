@@ -7,7 +7,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 1.249.41
-Release: %{?xsrel}.1%{?dist}
+Release: %{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -33,6 +33,8 @@ Patch1013: xapi-1.249.32-quicktest-handle-empty-sr-list.backport.patch
 Patch1014: xapi-1.249.32-use-lib-guess-content-type.backport.patch
 Patch1015: xapi-1.249.36-only-count-vdis-tested-sr.backport.patch
 Patch1016: xapi-1.249.38-increase-wait-init-complete-timeout.backport.patch
+
+Patch1017: xapi-1.249.41-guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -467,6 +469,9 @@ Coverage files from unit tests
 %endif
 
 %changelog
+* Thu Apr 17 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 1.249.41-1.2
+- Update xenstore keys that Xapi Guest Agent checks for Windows PV driver versions
+
 * Wed Feb 19 2025 Gael Duperrey <gduperrey@vates.tech> - 1.249.41-1.1
 - Sync with hotfix XS82ECU1084
 - *** Upstream changelog ***
