@@ -1,4 +1,4 @@
-From 78dfefeb3f85a1a97ad62d76d262deb810e006ac Mon Sep 17 00:00:00 2001
+From 5881065769945c980a3ad6d625401296bf0973fa Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andrii.sultanov@cloud.com>
 Date: Mon, 31 Mar 2025 07:40:58 +0100
 Subject: [PATCH] CA-408841 rrd: don't update rrds when ds_update is called

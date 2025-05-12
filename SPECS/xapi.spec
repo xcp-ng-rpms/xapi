@@ -101,6 +101,8 @@ Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/6454
 Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
 
+Patch1014: 0014-Adding-supported-image-formats-in-sm-list.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

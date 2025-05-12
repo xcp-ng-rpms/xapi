@@ -1,0 +1,369 @@
+From ddbc55f5f9668471b29ff5235eb8ead4cc530fb2 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Thu, 23 Jan 2025 10:36:21 +0100
+Subject: [PATCH] Adding supported image formats in sm-list
+
+When running `xe sm-list params=all` you will now have the info of
+supported image formats if the SM plugin specified it in its DRIVER_INFO.
+The field is called `supported-image-formats`. If the plugin doesn't
+provide the info the field will be empty.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/idl/datamodel.ml                                    | 4 ++++
+ ocaml/idl/datamodel_common.ml                             | 2 +-
+ ocaml/idl/schematest.ml                                   | 2 +-
+ ocaml/tests/common/test_common.ml                         | 5 +++--
+ ocaml/tests/test_sm_features.ml                           | 1 +
+ ocaml/tests/test_vdi_cbt.ml                               | 1 +
+ ocaml/xapi-cli-server/records.ml                          | 5 +++++
+ .../test_data/storage/responses/Query.query.response.0    | 2 +-
+ .../test_data/storage/responses/Query.query.response.1    | 2 +-
+ .../test_data/storage/responses/Query.query.response.2    | 2 +-
+ .../test_data/storage/responses/Query.query.response.3    | 2 +-
+ ocaml/xapi-idl/storage/storage_interface.ml               | 7 ++++---
+ ocaml/xapi-storage-script/main.ml                         | 2 ++
+ .../test/volume/org.xen.xapi.storage.dummyv5/plugin.py    | 3 ++-
+ ocaml/xapi-storage/generator/lib/plugin.ml                | 3 +++
+ .../python/examples/datapath/loop+blkback/plugin.py       | 3 ++-
+ .../volume/org.xen.xapi.storage.simple-file/plugin.py     | 3 ++-
+ ocaml/xapi/sm_exec.ml                                     | 8 ++++++++
+ ocaml/xapi/smint.ml                                       | 2 ++
+ ocaml/xapi/storage_mux.ml                                 | 1 +
+ ocaml/xapi/storage_smapiv1.ml                             | 1 +
+ ocaml/xapi/xapi_services.ml                               | 1 +
+ ocaml/xapi/xapi_sm.ml                                     | 6 +++++-
+ 23 files changed, 53 insertions(+), 15 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 75137852c..7fb449166 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -5039,6 +5039,10 @@ module SM = struct
+             ~ty:(Set String) "required_cluster_stack"
+             "The storage plugin requires that one of these cluster stacks is \
+              configured and running."
++        ; field ~in_oss_since:None ~qualifier:DynamicRO ~lifecycle:[]
++            ~default_value:(Some (VSet [])) ~ty:(Set String)
++            "supported_image_formats"
++            "Image formats suported by the SR (VHD, RAW, Qcow2, ...)"
+         ]
+       ()
+ end
+diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
+index 50bc585b7..a044c9a0f 100644
+--- a/ocaml/idl/datamodel_common.ml
++++ b/ocaml/idl/datamodel_common.ml
+@@ -10,7 +10,7 @@ open Datamodel_roles
+               to leave a gap for potential hotfixes needing to increment the schema version.*)
+ let schema_major_vsn = 5
+ 
+-let schema_minor_vsn = 786
++let schema_minor_vsn = 787
+ 
+ (* Historical schema versions just in case this is useful later *)
+ let rio_schema_major_vsn = 5
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index dcb0722a8..e6c48ea1a 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "6f6230f87a92572b68ebd742196ffd0e"
++let last_known_schema_hash = "199b240031e758ce6014b5b47457ca2c"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/tests/common/test_common.ml b/ocaml/tests/common/test_common.ml
+index 7b5484a02..3e4255efe 100644
+--- a/ocaml/tests/common/test_common.ml
++++ b/ocaml/tests/common/test_common.ml
+@@ -345,11 +345,12 @@ let make_sm ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+     ?(copyright = "") ?(version = "") ?(required_api_version = "")
+     ?(capabilities = []) ?(features = default_sm_features)
+     ?(host_pending_features = []) ?(configuration = []) ?(other_config = [])
+-    ?(driver_filename = "/dev/null") ?(required_cluster_stack = []) () =
++    ?(driver_filename = "/dev/null") ?(required_cluster_stack = [])
++    ?(supported_image_formats = []) () =
+   Db.SM.create ~__context ~ref ~uuid ~_type ~name_label ~name_description
+     ~vendor ~copyright ~version ~required_api_version ~capabilities ~features
+     ~host_pending_features ~configuration ~other_config ~driver_filename
+-    ~required_cluster_stack ;
++    ~required_cluster_stack ~supported_image_formats ;
+   ref
+ 
+ let make_sr ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+diff --git a/ocaml/tests/test_sm_features.ml b/ocaml/tests/test_sm_features.ml
+index 43bce4c38..ccc28240a 100644
+--- a/ocaml/tests/test_sm_features.ml
++++ b/ocaml/tests/test_sm_features.ml
+@@ -244,6 +244,7 @@ module CreateSMObject = Generic.MakeStateful (struct
+       ; features
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       }
+ 
+   let extract_output __context _ =
+diff --git a/ocaml/tests/test_vdi_cbt.ml b/ocaml/tests/test_vdi_cbt.ml
+index 3137e0485..e3319edec 100644
+--- a/ocaml/tests/test_vdi_cbt.ml
++++ b/ocaml/tests/test_vdi_cbt.ml
+@@ -30,6 +30,7 @@ let register_smapiv2_server (module S : Storage_interface.Server_impl) sr_ref =
+       ; features= []
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       }
+   in
+ 
+diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
+index 69ef3e71c..cf47bc66f 100644
+--- a/ocaml/xapi-cli-server/records.ml
++++ b/ocaml/xapi-cli-server/records.ml
+@@ -3734,6 +3734,11 @@ let sm_record rpc session_id sm =
+       ; make_field ~name:"required-cluster-stack"
+           ~get:(fun () -> concat_with_comma (x ()).API.sM_required_cluster_stack)
+           ()
++      ; make_field ~name:"supported-image-formats"
++          ~get:(fun () ->
++            concat_with_comma (x ()).API.sM_supported_image_formats
++          )
++          ()
+       ]
+   }
+ 
+diff --git a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.0 b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.0
+index 93c377800..292d85220 100644
+--- a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.0
++++ b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.0
+@@ -1 +1 @@
+-<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>required_cluster_stack</name><value><array><data></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+\ No newline at end of file
++<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>supported_image_formats</name><value><array><data></data></array></value></member><member><name>required_cluster_stack</name><value><array><data></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+diff --git a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.1 b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.1
+index cdf744f3f..d543bfecd 100644
+--- a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.1
++++ b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.1
+@@ -1 +1 @@
+-<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>required_cluster_stack</name><value><array><data></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data><value>features</value></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+\ No newline at end of file
++<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>supported_image_formats</name><value><array><data></data></array></value></member><member><name>required_cluster_stack</name><value><array><data></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data><value>features</value></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+diff --git a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.2 b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.2
+index f26aeeaa0..f0880cdb2 100644
+--- a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.2
++++ b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.2
+@@ -1 +1 @@
+-<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>required_cluster_stack</name><value><array><data><value>required_cluster_stack</value></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+\ No newline at end of file
++<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>supported_image_formats</name><value><array><data><value><string>vhd</string></value></data></array></value></member><member><name>required_cluster_stack</name><value><array><data><value>required_cluster_stack</value></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+diff --git a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.3 b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.3
+index 38dacf3f6..d1fbabb18 100644
+--- a/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.3
++++ b/ocaml/xapi-idl/lib_test/test_data/storage/responses/Query.query.response.3
+@@ -1 +1 @@
+-<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>required_cluster_stack</name><value><array><data><value>required_cluster_stack</value></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data><value>features</value></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+\ No newline at end of file
++<?xml version="1.0"?><methodResponse><params><param><value><struct><member><name>Status</name><value>Success</value></member><member><name>Value</name><value><struct><member><name>supported_image_formats</name><value><array><data></data></array></value></member><member><name>required_cluster_stack</name><value><array><data><value>required_cluster_stack</value></data></array></value></member><member><name>configuration</name><value><struct><member><name>configuration</name><value>configuration</value></member></struct></value></member><member><name>features</name><value><array><data><value>features</value></data></array></value></member><member><name>required_api_version</name><value>required_api_version</value></member><member><name>version</name><value>version</value></member><member><name>copyright</name><value>copyright</value></member><member><name>vendor</name><value>vendor</value></member><member><name>description</name><value>description</value></member><member><name>name</name><value>name</value></member><member><name>driver</name><value>driver</value></member></struct></value></member></struct></value></param></params></methodResponse>
+diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
+index 34ca1938b..d2cebc351 100644
+--- a/ocaml/xapi-idl/storage/storage_interface.ml
++++ b/ocaml/xapi-idl/storage/storage_interface.ml
+@@ -415,6 +415,7 @@ type query_result = {
+   ; features: string list
+   ; configuration: (string * string) list
+   ; required_cluster_stack: string list
++  ; supported_image_formats: string list
+ }
+ [@@deriving rpcty]
+ 
+@@ -625,9 +626,9 @@ module StorageAPI (R : RPC) = struct
+       declare "SR.destroy" [] (dbg_p @-> sr_p @-> returning unit_p err)
+ 
+     (** [scan task sr] returns a list of VDIs contained within an attached SR.
+-    @deprecated This function is deprecated, and is only here to keep backward 
+-    compatibility with old xapis that call Remote.SR.scan during SXM. 
+-    Use the scan2 function instead. 
++    @deprecated This function is deprecated, and is only here to keep backward
++    compatibility with old xapis that call Remote.SR.scan during SXM.
++    Use the scan2 function instead.
+     *)
+     let scan =
+       let open TypeCombinators in
+diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
+index fec91f16c..2578946ad 100644
+--- a/ocaml/xapi-storage-script/main.ml
++++ b/ocaml/xapi-storage-script/main.ml
+@@ -948,6 +948,8 @@ module QueryImpl (M : META) = struct
+         ; configuration= response.Xapi_storage.Plugin.configuration
+         ; required_cluster_stack=
+             response.Xapi_storage.Plugin.required_cluster_stack
++        ; supported_image_formats=
++            response.Xapi_storage.Plugin.supported_image_formats
+         }
+     in
+     wrap th
+diff --git a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
+index bf54820cd..6618ee2f1 100755
+--- a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
++++ b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
+@@ -31,7 +31,8 @@ class Implementation(xapi.storage.api.v5.plugin.Plugin_skeleton):
+                     "VDI_CREATE",
+                     "VDI_DESTROY"],
+                 "configuration": {},
+-                "required_cluster_stack": []}
++                "required_cluster_stack": [],
++                "supported_image_formats": []}
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/ocaml/xapi-storage/generator/lib/plugin.ml b/ocaml/xapi-storage/generator/lib/plugin.ml
+index 4fc4d6d3f..f346a1969 100644
+--- a/ocaml/xapi-storage/generator/lib/plugin.ml
++++ b/ocaml/xapi-storage/generator/lib/plugin.ml
+@@ -18,6 +18,9 @@ type query_result = {
+         (** Key/description pairs describing required device_config parameters. *)
+   ; required_cluster_stack: string list
+         (** The plugin requires one of these cluster stacks to be active. *)
++  ; supported_image_formats: string list
++        (** List of image formats (VHD, RAW, Qcow2, ...) supported by an
++            SR.type. *)
+ }
+ [@@deriving rpcty]
+ 
+diff --git a/ocaml/xapi-storage/python/examples/datapath/loop+blkback/plugin.py b/ocaml/xapi-storage/python/examples/datapath/loop+blkback/plugin.py
+index 4cbc9939f..fc0243295 100755
+--- a/ocaml/xapi-storage/python/examples/datapath/loop+blkback/plugin.py
++++ b/ocaml/xapi-storage/python/examples/datapath/loop+blkback/plugin.py
+@@ -37,7 +37,8 @@ class Implementation(xapi.storage.api.v5.plugin.Plugin_skeleton):
+             "required_api_version": "5.0",
+             "features": [],
+             "configuration": {},
+-            "required_cluster_stack": []}
++            "required_cluster_stack": [],
++            "supported_image_formats": []}
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/ocaml/xapi-storage/python/examples/volume/org.xen.xapi.storage.simple-file/plugin.py b/ocaml/xapi-storage/python/examples/volume/org.xen.xapi.storage.simple-file/plugin.py
+index 583043015..4402b55d5 100755
+--- a/ocaml/xapi-storage/python/examples/volume/org.xen.xapi.storage.simple-file/plugin.py
++++ b/ocaml/xapi-storage/python/examples/volume/org.xen.xapi.storage.simple-file/plugin.py
+@@ -54,7 +54,8 @@ class Implementation(xapi.storage.api.v5.plugin.Plugin_skeleton):
+                 "VDI_RESIZE",
+                 "THIN_PROVISIONING"],
+             "configuration": config,
+-            "required_cluster_stack": []
++            "required_cluster_stack": [],
++            "supported_image_formats": []
+         }
+ 
+ if __name__ == "__main__":
+diff --git a/ocaml/xapi/sm_exec.ml b/ocaml/xapi/sm_exec.ml
+index 1da0c6c7e..3851a71c6 100644
+--- a/ocaml/xapi/sm_exec.ml
++++ b/ocaml/xapi/sm_exec.ml
+@@ -570,6 +570,13 @@ let parse_sr_get_driver_info driver (xml : Xml.xml) =
+       )
+       (XMLRPC.From.array XMLRPC.From.structure (safe_assoc "configuration" info))
+   in
++  let image_formats =
++    match List.assoc_opt "supported_image_formats" info with
++    | None ->
++        []
++    | Some lst ->
++        XMLRPC.From.array XMLRPC.From.string lst
++  in
+   {
+     sr_driver_filename= driver
+   ; sr_driver_name= name
+@@ -582,6 +589,7 @@ let parse_sr_get_driver_info driver (xml : Xml.xml) =
+   ; sr_driver_configuration= configuration
+   ; sr_driver_text_features= text_features
+   ; sr_driver_required_cluster_stack= []
++  ; sr_driver_supported_image_formats= image_formats
+   }
+ 
+ let sr_get_driver_info ~dbg driver =
+diff --git a/ocaml/xapi/smint.ml b/ocaml/xapi/smint.ml
+index b5c290afc..a415c81d1 100644
+--- a/ocaml/xapi/smint.ml
++++ b/ocaml/xapi/smint.ml
+@@ -190,6 +190,7 @@ type sr_driver_info = {
+   ; sr_driver_text_features: string list
+   ; sr_driver_configuration: (string * string) list
+   ; sr_driver_required_cluster_stack: string list
++  ; sr_driver_supported_image_formats: string list
+ }
+ 
+ let query_result_of_sr_driver_info x =
+@@ -204,6 +205,7 @@ let query_result_of_sr_driver_info x =
+   ; features= x.sr_driver_text_features
+   ; configuration= x.sr_driver_configuration
+   ; required_cluster_stack= x.sr_driver_required_cluster_stack
++  ; supported_image_formats= x.sr_driver_supported_image_formats
+   }
+ 
+ type attach_info = {
+diff --git a/ocaml/xapi/storage_mux.ml b/ocaml/xapi/storage_mux.ml
+index 7acba0c88..b36d4b6ba 100644
+--- a/ocaml/xapi/storage_mux.ml
++++ b/ocaml/xapi/storage_mux.ml
+@@ -169,6 +169,7 @@ module Mux = struct
+       ; features= []
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       }
+ 
+     let diagnostics () ~dbg =
+diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
+index 87a80d0ca..d8f5bf05a 100644
+--- a/ocaml/xapi/storage_smapiv1.ml
++++ b/ocaml/xapi/storage_smapiv1.ml
+@@ -172,6 +172,7 @@ module SMAPIv1 : Server_impl = struct
+       ; features= []
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       }
+ 
+     let diagnostics _context ~dbg:_ =
+diff --git a/ocaml/xapi/xapi_services.ml b/ocaml/xapi/xapi_services.ml
+index a413e4c36..30474cbb8 100644
+--- a/ocaml/xapi/xapi_services.ml
++++ b/ocaml/xapi/xapi_services.ml
+@@ -254,6 +254,7 @@ let get_handler (req : Http.Request.t) s _ =
+             ; features= List.map (fun x -> path [_services; x]) [_SM]
+             ; configuration= []
+             ; required_cluster_stack= []
++            ; supported_image_formats= []
+             }
+           in
+           respond req (Storage_interface.(rpc_of query_result) q) s
+diff --git a/ocaml/xapi/xapi_sm.ml b/ocaml/xapi/xapi_sm.ml
+index 769484ddd..c207bb30c 100644
+--- a/ocaml/xapi/xapi_sm.ml
++++ b/ocaml/xapi/xapi_sm.ml
+@@ -49,6 +49,7 @@ let create_from_query_result ~__context q =
+       ~host_pending_features:[] ~configuration:q.configuration ~other_config:[]
+       ~driver_filename:(Sm_exec.cmd_name q.driver)
+       ~required_cluster_stack:q.required_cluster_stack
++      ~supported_image_formats:q.supported_image_formats
+   )
+ 
+ let find_pending_features existing_features features =
+@@ -143,7 +144,10 @@ let update_from_query_result ~__context (self, r) q_result =
+     if r.API.sM_configuration <> q_result.configuration then
+       Db.SM.set_configuration ~__context ~self ~value:q_result.configuration ;
+     if r.API.sM_driver_filename <> driver_filename then
+-      Db.SM.set_driver_filename ~__context ~self ~value:driver_filename
++      Db.SM.set_driver_filename ~__context ~self ~value:driver_filename ;
++    if r.API.sM_supported_image_formats <> q_result.supported_image_formats then
++      Db.SM.set_supported_image_formats ~__context ~self
++        ~value:q_result.supported_image_formats
+   )
+ 
+ let is_v1 x = version_of_string x < [2; 0]
