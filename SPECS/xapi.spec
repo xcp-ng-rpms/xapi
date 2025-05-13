@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.9%{?xsrel}%{?dist}
+Release: 1.9.0.qcow2.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -121,6 +121,29 @@ Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
 
 # Fix from upstream in v25.10.0 (https://github.com/xapi-project/xen-api/pull/6328)
 Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
+
+Patch1028: 0028-qcow-tool-packaging-import-qcow-tool-from-ocaml-qcow.patch
+Patch1029: 0029-qcow-tool-packaging-build-fix-use-io-page-instead-of.patch
+Patch1030: 0030-qcow-tool-packaging-build-fix-cstruct.patch
+Patch1031: 0031-qcow-tool-packaging-build-fix-remove-Unimplemented-v.patch
+Patch1032: 0032-qcow-tool-packaging-build-fix-update-cmdliner.patch
+Patch1033: 0033-qcow-tool-packaging-package-it-in-xapi.patch
+Patch1034: 0034-qcow-tool-packaging-remove-lib-test.patch
+Patch1035: 0035-qcow-tool-run-make-format.patch
+Patch1036: 0036-python-Add-qcow2-to-stdout.py-script.patch
+Patch1037: 0037-python3-qcow2-to-stdout-Update-to-handle-block-speci.patch
+Patch1038: 0038-ocaml-qcow-Update-header-parsing-with-the-new-QCOW-f.patch
+Patch1039: 0039-qcow-tool-Fix-positional-argument-parsing-in-the-CLI.patch
+Patch1040: 0040-ocaml-qcow-Fix-malloc-page-allocation-calculation.patch
+Patch1041: 0041-qcow-tool-Add-qcow_stream-module-implementation-with.patch
+Patch1042: 0042-cli-Add-stream_decode-command.patch
+Patch1043: 0043-export-import-_raw_vdi-add-qcow-as-supported-format.patch
+Patch1044: 0044-tests-unix_select-Add-Lwt_engine__fun-to-the-list-of.patch
+Patch1045: 0045-ocaml-qcow-Skip-and-cache-subsequent-clusters-when-r.patch
+Patch1046: 0046-python3-qcow2-to-stdout-Add-diff-option-to-export-on.patch
+Patch1047: 0047-export_raw_vdi-Add-support-for-differential-QCOW2-ex.patch
+Patch1048: 0048-Add-qcow2-as-supported-format-by-xcp-rrdd-iostat.patch
+
 
 
 %{?_cov_buildrequires}
@@ -1047,6 +1070,7 @@ done
 /opt/xensource/libexec/xe-syslog-reconfigure
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
+/opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
@@ -1438,6 +1462,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jul 02 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9.0.qcow2.1
+- Add patches implementing VDI export/import for Qcow2
+
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
 

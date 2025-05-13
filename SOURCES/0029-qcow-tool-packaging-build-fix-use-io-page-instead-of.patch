@@ -1,0 +1,41 @@
+From ce434b73850e32059eb7077a8ad84567c3775e0b Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 18 Mar 2025 10:55:16 +0100
+Subject: [PATCH] [qcow-tool packaging] build fix: use io-page instead of
+ io-page-unix
+
+Use io-page instead of io-page-unix because io-page is 3.0.0 and
+io-page-unix is 2.3.0 only
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/qcow-tool/cli/dune | 2 +-
+ ocaml/qcow-tool/lib/dune | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/qcow-tool/cli/dune b/ocaml/qcow-tool/cli/dune
+index 8d1999074..7d7890a93 100644
+--- a/ocaml/qcow-tool/cli/dune
++++ b/ocaml/qcow-tool/cli/dune
+@@ -2,7 +2,7 @@
+  (name main)
+  (public_name qcow-tool)
+  (package qcow-tool)
+- (libraries qcow io-page.unix logs logs.fmt sha unix-type-representations
++ (libraries qcow io-page logs logs.fmt sha unix-type-representations
+    cmdliner sexplib mirage-block-combinators)
+  (preprocess
+   (pps ppx_sexp_conv)))
+diff --git a/ocaml/qcow-tool/lib/dune b/ocaml/qcow-tool/lib/dune
+index 1aeb688d6..94d007727 100644
+--- a/ocaml/qcow-tool/lib/dune
++++ b/ocaml/qcow-tool/lib/dune
+@@ -2,7 +2,7 @@
+  (name qcow)
+  (public_name qcow)
+  (libraries astring cstruct logs lwt mirage-block mirage-block-unix
+-   mirage-types.lwt prometheus io-page-unix sexplib stdlib-shims
++   mirage-types.lwt prometheus io-page sexplib stdlib-shims
+    mirage-time)
+  (wrapped false)
+  (preprocess

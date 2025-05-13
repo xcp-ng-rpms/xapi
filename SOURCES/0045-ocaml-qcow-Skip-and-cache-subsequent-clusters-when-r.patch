@@ -1,0 +1,125 @@
+From 9fe1502357d3668afc5781cccdf95180caf6ec95 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 9 May 2025 15:46:47 +0100
+Subject: [PATCH] ocaml-qcow: Skip and cache subsequent clusters when reading
+ non-sequentially
+
+Turns out, various tools do tend to produce less nice QCOW files, where the
+headers->refcount tables->L1 tables->L2 tables are not all laid out
+sequentially cluster-after-cluster, without any gaps in the middle.
+Even qcow2-to-stdout and qemu-img can sometimes leave a gap between the
+refcount cluster and the first L1 table cluster, for some reason.
+
+So we need to handle non-sequential clusters when reading - modify Qcow_cache
+so that it knows how to handle non-seekable input in the case where several
+clusters need to be skipped over (and cached) and only the last one needs
+returning immediately.
+
+This way we can return the skipped-over clusters from the cache later if they
+are needed.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-tool/lib/qcow_cache.ml  | 42 ++++++++++++++++++++++++------
+ ocaml/qcow-tool/lib/qcow_cache.mli |  1 +
+ ocaml/qcow-tool/lib/qcow_stream.ml |  5 +---
+ 3 files changed, 36 insertions(+), 12 deletions(-)
+
+diff --git a/ocaml/qcow-tool/lib/qcow_cache.ml b/ocaml/qcow-tool/lib/qcow_cache.ml
+index 29be21ca7..27c494d96 100644
+--- a/ocaml/qcow-tool/lib/qcow_cache.ml
++++ b/ocaml/qcow-tool/lib/qcow_cache.ml
+@@ -28,11 +28,19 @@ type t = {
+   ; write_cluster:
+       Cluster.t -> Cstruct.t -> (unit, Mirage_block.write_error) result Lwt.t
+   ; mutable clusters: Cstruct.t Cluster.Map.t
++  ; seekable: bool
++  ; last_read_cluster: Cluster.t ref
+ }
+ 
+-let create ~read_cluster ~write_cluster () =
++let create ~read_cluster ~write_cluster ?(seekable = true) () =
+   let clusters = Cluster.Map.empty in
+-  {read_cluster; write_cluster; clusters}
++  {
++    read_cluster
++  ; write_cluster
++  ; clusters
++  ; seekable
++  ; last_read_cluster= ref (Cluster.of_int 0)
++  }
+ 
+ let read t cluster =
+   if Cluster.Map.mem cluster t.clusters then
+@@ -40,12 +48,30 @@ let read t cluster =
+     Lwt.return (Ok data)
+   else
+     let open Lwt.Infix in
+-    t.read_cluster cluster >>= function
+-    | Error e ->
+-        Lwt.return (Error e)
+-    | Ok data ->
+-        t.clusters <- Cluster.Map.add cluster data t.clusters ;
+-        Lwt.return (Ok data)
++    let read_cluster cluster =
++      t.read_cluster cluster >>= function
++      | Error e ->
++          Lwt.return (Error e)
++      | Ok data ->
++          t.clusters <- Cluster.Map.add cluster data t.clusters ;
++          Lwt.return (Ok data)
++    in
++    let next_cluster = Cluster.succ !(t.last_read_cluster) in
++    if t.seekable then
++      read_cluster cluster
++    else
++      (* If we can't seek, we need to read sequential clusters until we reach
++         the one we want. Previous clusters will still be stored in the cache
++         for when we need them later (since we can't seek back) *)
++      let rec aux cur_cluster last_cluster =
++        let data = read_cluster cur_cluster in
++        t.last_read_cluster := cur_cluster ;
++        if cur_cluster < last_cluster then
++          aux (Cluster.succ cur_cluster) last_cluster
++        else
++          data
++      in
++      aux next_cluster cluster
+ 
+ let write t cluster data =
+   if not (Cluster.Map.mem cluster t.clusters) then (
+diff --git a/ocaml/qcow-tool/lib/qcow_cache.mli b/ocaml/qcow-tool/lib/qcow_cache.mli
+index 51a56c573..1f26de0c7 100644
+--- a/ocaml/qcow-tool/lib/qcow_cache.mli
++++ b/ocaml/qcow-tool/lib/qcow_cache.mli
+@@ -23,6 +23,7 @@ val create :
+      read_cluster:(Cluster.t -> (Cstruct.t, Mirage_block.error) result Lwt.t)
+   -> write_cluster:
+        (Cluster.t -> Cstruct.t -> (unit, Mirage_block.write_error) result Lwt.t)
++  -> ?seekable:bool
+   -> unit
+   -> t
+ (** Create a cache of clusters, given the read/write functions *)
+diff --git a/ocaml/qcow-tool/lib/qcow_stream.ml b/ocaml/qcow-tool/lib/qcow_stream.ml
+index 6ed061485..31d8d210c 100644
+--- a/ocaml/qcow-tool/lib/qcow_stream.ml
++++ b/ocaml/qcow-tool/lib/qcow_stream.ml
+@@ -113,9 +113,6 @@ let malloc cluster_bits =
+ let read_cluster last_read_cluster fd cluster_bits alloc_func read_func i =
+   let cluster = Cluster.to_int64 i in
+   if !last_read_cluster ++ 1L = cluster then (
+-    (* TODO: we can theoretically read non-sequential clusters if we skip
+-       over a few and still put them in the cache - do we need to though?
+-    *)
+     last_read_cluster := cluster ;
+     let buf = alloc_func cluster_bits in
+     Printf.printf "\tread_cluster %Lu\n" cluster ;
+@@ -374,7 +371,7 @@ let stream_make last_read_cluster fd h sector_size =
+     read_cluster last_read_cluster fd h.cluster_bits malloc stream_read
+   in
+   let write_cluster i buf = assert false in
+-  let cache = Cache.create ~read_cluster ~write_cluster () in
++  let cache = Cache.create ~read_cluster ~write_cluster ~seekable:false () in
+   let metadata = Metadata.make ~cache ~cluster_bits ~locks () in
+   let cluster_info =
+     {

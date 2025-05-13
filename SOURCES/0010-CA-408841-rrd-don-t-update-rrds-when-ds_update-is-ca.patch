@@ -11,8 +11,8 @@ particular plugin/owner combination, for example.
 
 Signed-off-by: Andrii Sultanov <andrii.sultanov@cloud.com>
 ---
- ocaml/libs/xapi-rrd/lib/rrd.ml | 203 +++++++++++++++++----------------
- 1 file changed, 103 insertions(+), 100 deletions(-)
+ ocaml/libs/xapi-rrd/lib/rrd.ml | 197 +++++++++++++++++----------------
+ 1 file changed, 100 insertions(+), 97 deletions(-)
 
 diff --git a/ocaml/libs/xapi-rrd/lib/rrd.ml b/ocaml/libs/xapi-rrd/lib/rrd.ml
 index bd1f85795..7af7554a3 100644
@@ -23,7 +23,10 @@ index bd1f85795..7af7554a3 100644
  
  let ds_update rrd timestamp valuesandtransforms new_rrd =
 -  (* Interval is the time between this and the last update
--
++  (* CA-408841 - don't update the rrd at all if list of datasources is empty *)
++  if valuesandtransforms <> [||] then (
++    (* Interval is the time between this and the last update
+ 
 -     Currently ds_update is called with datasources that belong to a single
 -     plugin, correspondingly they all have the same timestamp.
 -     Further refactoring is needed if timestamps per measurement are to be
@@ -33,16 +36,32 @@ index bd1f85795..7af7554a3 100644
 -  let interval = timestamp -. last_updated in
 -  (* Work around the clock going backwards *)
 -  let interval = if interval < 0. then 5. else interval in
--
++       Currently ds_update is called with datasources that belong to a single
++       plugin, correspondingly they all have the same timestamp.
++       Further refactoring is needed if timestamps per measurement are to be
++       introduced. *)
++    let first_ds_index, _ = valuesandtransforms.(0) in
++    let last_updated = rrd.rrd_dss.(first_ds_index).ds_last_updated in
++    let interval = timestamp -. last_updated in
++    (* Work around the clock going backwards *)
++    let interval = if interval < 0. then 5. else interval in
+ 
 -  (* start time (st) and age of the last processed pdp and the currently occupied one *)
 -  let proc_pdp_st, _proc_pdp_age = get_times last_updated rrd.timestep in
 -  let occu_pdp_st, occu_pdp_age = get_times timestamp rrd.timestep in
--
++    (* start time (st) and age of the last processed pdp and the currently occupied one *)
++    let proc_pdp_st, _proc_pdp_age = get_times last_updated rrd.timestep in
++    let occu_pdp_st, occu_pdp_age = get_times timestamp rrd.timestep in
+ 
 -  (* The number of pdps that should result from this update *)
 -  let elapsed_pdp_st =
 -    Int64.to_int ((occu_pdp_st --- proc_pdp_st) /// rrd.timestep)
 -  in
--
++    (* The number of pdps that should result from this update *)
++    let elapsed_pdp_st =
++      Int64.to_int ((occu_pdp_st --- proc_pdp_st) /// rrd.timestep)
++    in
+ 
 -  (* if we're due one or more PDPs, pre_int is the amount of the
 -     current update interval that will be used in calculating them, and
 -     post_int is the amount left over
@@ -57,29 +76,7 @@ index bd1f85795..7af7554a3 100644
 -
 -  (* We're now done with the last_updated value, so update it *)
 -  rrd.last_updated <- timestamp ;
-+  (* CA-408841 - don't update the rrd at all if list of datasources is empty *)
-+  if valuesandtransforms <> [||] then (
-+    (* Interval is the time between this and the last update
-+
-+       Currently ds_update is called with datasources that belong to a single
-+       plugin, correspondingly they all have the same timestamp.
-+       Further refactoring is needed if timestamps per measurement are to be
-+       introduced. *)
-+    let first_ds_index, _ = valuesandtransforms.(0) in
-+    let last_updated = rrd.rrd_dss.(first_ds_index).ds_last_updated in
-+    let interval = timestamp -. last_updated in
-+    (* Work around the clock going backwards *)
-+    let interval = if interval < 0. then 5. else interval in
-+
-+    (* start time (st) and age of the last processed pdp and the currently occupied one *)
-+    let proc_pdp_st, _proc_pdp_age = get_times last_updated rrd.timestep in
-+    let occu_pdp_st, occu_pdp_age = get_times timestamp rrd.timestep in
-+
-+    (* The number of pdps that should result from this update *)
-+    let elapsed_pdp_st =
-+      Int64.to_int ((occu_pdp_st --- proc_pdp_st) /// rrd.timestep)
-+    in
- 
+-
 -  (* Calculate the values we're going to store based on the input data and the type of the DS *)
 -  let v2s =
 -    Array.map
@@ -117,14 +114,14 @@ index bd1f85795..7af7554a3 100644
 -    v2s ;
 +        (interval, 0.0)
 +    in
-+
-+    (* We're now done with the last_updated value, so update it *)
-+    rrd.last_updated <- timestamp ;
  
 -  (* If we've passed a PDP point, we need to update the RRAs *)
 -  if elapsed_pdp_st > 0 then (
 -    (* Calculate the PDPs for each DS *)
 -    let pdps =
++    (* We're now done with the last_updated value, so update it *)
++    rrd.last_updated <- timestamp ;
++
 +    (* Calculate the values we're going to store based on the input data and the type of the DS *)
 +    let v2s =
        Array.map
