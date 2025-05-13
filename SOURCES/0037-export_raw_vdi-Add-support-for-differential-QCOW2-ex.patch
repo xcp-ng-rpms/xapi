@@ -1,0 +1,42 @@
+From a7f79e32ae28e8a16da284e8f2696ca002b89edd Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 15 May 2025 14:17:18 +0100
+Subject: [PATCH] export_raw_vdi: Add support for differential QCOW2 export
+ with base
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/export_raw_vdi.ml    | 2 +-
+ ocaml/xapi/qcow_tool_wrapper.ml | 8 +++++---
+ 2 files changed, 6 insertions(+), 4 deletions(-)
+
+diff --git a/ocaml/xapi/export_raw_vdi.ml b/ocaml/xapi/export_raw_vdi.ml
+index 4a54283cc..df3d778d5 100644
+--- a/ocaml/xapi/export_raw_vdi.ml
++++ b/ocaml/xapi/export_raw_vdi.ml
+@@ -49,7 +49,7 @@ let localhost_handler rpc session_id vdi (req : Http.Request.t)
+               debug "Copying VDI contents..." ;
+               match format with
+               | Qcow ->
+-                  Qcow_tool_wrapper.send
++                  Qcow_tool_wrapper.send ?relative_to:base_path
+                     (Qcow_tool_wrapper.update_task_progress __context)
+                     s path size
+               | Vhd | Tar | Raw ->
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index 7cd642230..08c21ee19 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -50,7 +50,9 @@ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+   debug "Calling Qcow_stream.stream_decode (output_path = '%s')" path ;
+   Qcow_stream.stream_decode ~progress_cb unix_fd path
+ 
+-let send (progress_cb : int -> unit) (unix_fd : Unix.file_descr) (path : string)
+-    (size : Int64.t) =
+-  let args = [path] in
++let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
++    (path : string) (size : Int64.t) =
++  let args =
++    [path] @ match relative_to with None -> [] | Some vdi -> ["--diff"; vdi]
++  in
+   run_qcow_tool progress_cb args unix_fd
