@@ -1,0 +1,44 @@
+From e7a0e2efb2707b9786b728cb8d8a5a4d91c008d4 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 30 Apr 2025 09:00:19 +0100
+Subject: [PATCH] ocaml-qcow: Update header parsing with the new QCOW fields
+
+Since the library was developed, QCOW added an additional compression_type
+field, which can, when present, increase the header size from the expected
+minimum 104 to 112 (compression_type only takes up a single byte, with padding
+rounding the size up to a multiple of 8).
+
+Qcow_header parsing did not account for additional fields, however, and
+expected exactly 104 byte-long headers, raising:
+
+Failure("Read a header_length of 112 but we computed 104")
+
+Since "In general, these fields are optional and may be safely ignored by the
+software", do exactly that - expect a header *at least* 104 bytes long with the
+size a multiple of 8.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-tool/lib/qcow_header.ml | 9 ++++++---
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/ocaml/qcow-tool/lib/qcow_header.ml b/ocaml/qcow-tool/lib/qcow_header.ml
+index e58f497c9..e9cd91e92 100644
+--- a/ocaml/qcow-tool/lib/qcow_header.ml
++++ b/ocaml/qcow-tool/lib/qcow_header.ml
+@@ -423,9 +423,12 @@ let read rest =
+     }
+   in
+   (* qemu excludes extensions from the header_length *)
+-  if sizeof {t with extensions= []} <> header_length then
+-    error_msg "Read a header_length of %d but we computed %d" header_length
+-      (sizeof t)
++  (* we ignore additional fields like compression_type *)
++  if sizeof {t with extensions= []} > header_length then
++    error_msg "Read a header_length of %d but we computed at least %d"
++      header_length (sizeof t)
++  else if header_length mod 8 <> 0 then
++    error_msg "header_length must be a multiple of 8, but is %d" header_length
+   else
+     return (t, rest)
+ 

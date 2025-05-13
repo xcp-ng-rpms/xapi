@@ -1,0 +1,337 @@
+From 099a3c0c525b953098873184e61dbc84c897814f Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 18 Mar 2025 10:59:56 +0100
+Subject: [PATCH] [qcow-tool packaging] build fix: cstruct
+
+Since 6.0.1 Cstruct.len function was deprecated and we must use
+Cstruct.length. This patch fixes this issue
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/qcow-tool/cli/impl.ml             | 22 +++++++++++-----------
+ ocaml/qcow-tool/lib/qcow.ml             |  8 ++++----
+ ocaml/qcow-tool/lib/qcow_bitmap.ml      |  4 ++--
+ ocaml/qcow-tool/lib/qcow_block_cache.ml |  6 +++---
+ ocaml/qcow-tool/lib/qcow_cstructs.ml    | 12 ++++++------
+ ocaml/qcow-tool/lib/qcow_header.ml      |  8 ++++----
+ ocaml/qcow-tool/lib/qcow_int64.ml       |  2 +-
+ ocaml/qcow-tool/lib/qcow_metadata.ml    |  2 +-
+ ocaml/qcow-tool/lib/qcow_recycler.ml    |  2 +-
+ ocaml/qcow-tool/lib/qcow_types.ml       |  2 +-
+ 10 files changed, 34 insertions(+), 34 deletions(-)
+
+diff --git a/ocaml/qcow-tool/cli/impl.ml b/ocaml/qcow-tool/cli/impl.ml
+index f876480c3..655408789 100644
+--- a/ocaml/qcow-tool/cli/impl.ml
++++ b/ocaml/qcow-tool/cli/impl.ml
+@@ -49,7 +49,7 @@ end
+ module TracedBlock = struct
+   include ReadWriteBlock
+ 
+-  let length_of bufs = List.fold_left (+) 0 (List.map Cstruct.len bufs)
++  let length_of bufs = List.fold_left (+) 0 (List.map Cstruct.length bufs)
+ 
+   let read t sector bufs =
+     Log.info (fun f -> f "BLOCK.read %Ld len = %d" sector (length_of bufs));
+@@ -251,7 +251,7 @@ exception Non_zero
+ (* slow but performance is not a concern *)
+ let is_zero buffer =
+   try
+-    for i = 0 to Cstruct.len buffer - 1 do
++    for i = 0 to Cstruct.length buffer - 1 do
+       if Cstruct.get_uint8 buffer i <> 0 then raise Non_zero
+     done;
+     true
+@@ -283,7 +283,7 @@ let discard unsafe_buffering filename =
+     F.mapped_s
+       ~f:(fun acc sector buffer ->
+         if is_zero buffer then begin
+-          let len = Cstruct.len buffer in
++          let len = Cstruct.length buffer in
+           assert (len mod info.Mirage_block.sector_size = 0);
+           let n = Int64.of_int @@ len / info.Mirage_block.sector_size in
+           if Int64.add sector n = info.Mirage_block.size_sectors then begin
+@@ -407,13 +407,13 @@ let sha _common_options_t filename =
+       if c.Cstruct.off = 0 && c.Cstruct.len = (Bigarray.Array1.dim b')
+       then Sha1.update_buffer ctx b'
+       else begin
+-        let c' = Cstruct.create (Cstruct.len c) in
+-        Cstruct.blit c 0 c' 0 (Cstruct.len c);
++        let c' = Cstruct.create (Cstruct.length c) in
++        Cstruct.blit c 0 c' 0 (Cstruct.length c);
+         let b' = c'.Cstruct.buffer in
+         Sha1.update_buffer ctx b'
+       end in
+     let buf = Io_page.(to_cstruct @@ get 1024) in
+-    let buf_sectors = Int64.of_int (Cstruct.len buf / info.Mirage_block.sector_size) in
++    let buf_sectors = Int64.of_int (Cstruct.length buf / info.Mirage_block.sector_size) in
+     let rec loop sector =
+       let remaining = Int64.sub info.Mirage_block.size_sectors sector in
+       if remaining = 0L then Lwt.return_unit else begin
+@@ -566,7 +566,7 @@ let pattern common_options_t trace filename size number =
+            should be worst case for the compactor *)
+         let pages = Io_page.(to_cstruct @@ get 1024) in (* 4 MiB *)
+         Cstruct.memset pages 0;
+-        let sectors = Cstruct.len pages / sector_size in
++        let sectors = Cstruct.length pages / sector_size in
+         let rec loop sector =
+           if sector >= info.Mirage_block.size_sectors then Lwt.return_unit else begin
+             let percent = Int64.(to_int (div (mul 50L sector) info.Mirage_block.size_sectors)) in
+@@ -642,7 +642,7 @@ type output = [
+ 
+ let is_zero buf =
+   let rec loop ofs =
+-    (ofs >= Cstruct.len buf) || (Cstruct.get_uint8 buf ofs = 0 && (loop (ofs + 1))) in
++    (ofs >= Cstruct.length buf) || (Cstruct.get_uint8 buf ofs = 0 && (loop (ofs + 1))) in
+   loop 0
+ 
+ let mapped filename _format ignore_zeroes =
+@@ -660,7 +660,7 @@ let mapped filename _format ignore_zeroes =
+     F.mapped_s ~f:(fun () sector_ofs data ->
+       let sector_bytes = Int64.(mul sector_ofs (of_int info.Mirage_block.sector_size)) in
+       if not ignore_zeroes || not(is_zero data)
+-      then Printf.printf "%Lx %d\n" sector_bytes (Cstruct.len data);
++      then Printf.printf "%Lx %d\n" sector_bytes (Cstruct.length data);
+       Lwt.return_unit
+     ) () x
+     >>*= fun () ->
+@@ -713,7 +713,7 @@ let dehydrate _common input_filename output_filename =
+         let rec loop x =
+           let remaining = Int64.(succ @@ sub y x) in
+           if remaining = 0L then Lwt.return_unit else begin
+-            let this_time = min (Cstruct.len buffer) (Int64.to_int remaining) in
++            let this_time = min (Cstruct.length buffer) (Int64.to_int remaining) in
+             let fragment = Cstruct.sub buffer 0 this_time in
+             Lwt_unix.LargeFile.lseek input_fd x Lwt_unix.SEEK_SET
+             >>= fun _ ->
+@@ -758,7 +758,7 @@ let rehydrate _common input_filename output_filename =
+         let rec loop x =
+           let remaining = Int64.(succ @@ sub y x) in
+           if remaining = 0L then Lwt.return_unit else begin
+-            let this_time = min (Cstruct.len buffer) (Int64.to_int remaining) in
++            let this_time = min (Cstruct.length buffer) (Int64.to_int remaining) in
+             let fragment = Cstruct.sub buffer 0 this_time in
+             Lwt_unix.LargeFile.lseek output_fd x Lwt_unix.SEEK_SET
+             >>= fun _ ->
+diff --git a/ocaml/qcow-tool/lib/qcow.ml b/ocaml/qcow-tool/lib/qcow.ml
+index b000437bd..cc329e380 100644
+--- a/ocaml/qcow-tool/lib/qcow.ml
++++ b/ocaml/qcow-tool/lib/qcow.ml
+@@ -853,12 +853,12 @@ module Make(Base: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+     | buf :: bufs ->
+       (* If we're not aligned, sync to the next boundary *)
+       let into = Int64.(to_int (sub alignment (rem ofs alignment))) in
+-      if Cstruct.len buf > into then begin
++      if Cstruct.length buf > into then begin
+         let this = ofs, Cstruct.sub buf 0 into in
+         let rest = chop_into_aligned alignment Int64.(add ofs (of_int into)) (Cstruct.shift buf into :: bufs) in
+         this :: rest
+       end else begin
+-        (ofs, buf) :: (chop_into_aligned alignment Int64.(add ofs (of_int (Cstruct.len buf))) bufs)
++        (ofs, buf) :: (chop_into_aligned alignment Int64.(add ofs (of_int (Cstruct.length buf))) bufs)
+       end
+ 
+   type work = {
+@@ -1171,7 +1171,7 @@ module Make(Base: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+     with_deadline t describe_fn time_30s
+       (fun () ->
+         let open Lwt_error.Infix in
+-        Counter.inc (Metrics.reads t.config.Config.id) (float_of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len bufs);
++        Counter.inc (Metrics.reads t.config.Config.id) (float_of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.length bufs);
+         let sectors_per_cluster = (1 lsl t.cluster_bits) / t.sector_size in
+         let client = Locks.Client.make describe_fn in
+         let cluster_size = 1L <| t.cluster_bits in
+@@ -1236,7 +1236,7 @@ module Make(Base: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+     else with_deadline t describe_fn time_30s
+       (fun () ->
+         let open Lwt_write_error.Infix in
+-        Counter.inc (Metrics.writes t.config.Config.id) (float_of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.len bufs);
++        Counter.inc (Metrics.writes t.config.Config.id) (float_of_int @@ List.fold_left (+) 0 @@ List.map Cstruct.length bufs);
+         let cluster_size = 1L <| t.cluster_bits in
+         let client = Locks.Client.make describe_fn in
+         let sectors_per_cluster = (1 lsl t.cluster_bits) / t.sector_size in
+diff --git a/ocaml/qcow-tool/lib/qcow_bitmap.ml b/ocaml/qcow-tool/lib/qcow_bitmap.ml
+index 2f478a571..8dfaeed60 100644
+--- a/ocaml/qcow-tool/lib/qcow_bitmap.ml
++++ b/ocaml/qcow-tool/lib/qcow_bitmap.ml
+@@ -38,7 +38,7 @@ let make_full ~initial_size:len ~maximum_size:max_len =
+   { buf; len; max_len }
+ 
+ let copy t =
+-  let bytes_required = Cstruct.len t.buf in
++  let bytes_required = Cstruct.length t.buf in
+   let buf = Cstruct.create bytes_required in
+   Cstruct.blit t.buf 0 buf 0 bytes_required;
+   let len = t.len in
+@@ -55,7 +55,7 @@ let increase t n =
+   let bytes_required = (len + 7) / 8 in
+   let buf = Cstruct.create bytes_required in
+   Cstruct.memset buf 0;
+-  Cstruct.blit t.buf 0 buf 0 (Cstruct.len t.buf);
++  Cstruct.blit t.buf 0 buf 0 (Cstruct.length t.buf);
+   t.buf <- buf;
+   t.len <- len
+ 
+diff --git a/ocaml/qcow-tool/lib/qcow_block_cache.ml b/ocaml/qcow-tool/lib/qcow_block_cache.ml
+index e53147010..e8d86cea3 100644
+--- a/ocaml/qcow-tool/lib/qcow_block_cache.ml
++++ b/ocaml/qcow-tool/lib/qcow_block_cache.ml
+@@ -177,8 +177,8 @@ module Make(B: Qcow_s.RESIZABLE_BLOCK) = struct
+     | b :: bs ->
+       let open Lwt.Infix in
+       let rec loop sector remaining =
+-        if Cstruct.len remaining = 0 then Lwt.return (Ok sector) else begin
+-          assert (Cstruct.len remaining >= sector_size);
++        if Cstruct.length remaining = 0 then Lwt.return (Ok sector) else begin
++          assert (Cstruct.length remaining >= sector_size);
+           let first = Cstruct.sub remaining 0 sector_size in
+           f sector first
+           >>= function
+@@ -232,7 +232,7 @@ module Make(B: Qcow_s.RESIZABLE_BLOCK) = struct
+             (fun () ->
+               per_sector t.sector_size start bufs
+                 (fun sector buf ->
+-                  assert (Cstruct.len buf = t.sector_size);
++                  assert (Cstruct.length buf = t.sector_size);
+                   if not(Int64.Map.mem sector t.cache) then begin
+                     t.in_cache <- Int64.IntervalSet.(add i t.in_cache);
+                     t.zeros <- Int64.IntervalSet.(remove i t.zeros);
+diff --git a/ocaml/qcow-tool/lib/qcow_cstructs.ml b/ocaml/qcow-tool/lib/qcow_cstructs.ml
+index bc0a68de4..4e5a8c802 100644
+--- a/ocaml/qcow-tool/lib/qcow_cstructs.ml
++++ b/ocaml/qcow-tool/lib/qcow_cstructs.ml
+@@ -22,7 +22,7 @@ let pp_t ppf t =
+       Format.fprintf ppf "[%d,%d](%d)" t.Cstruct.off t.Cstruct.len (Bigarray.Array1.dim t.Cstruct.buffer)
+     ) t
+ 
+-let len = List.fold_left (fun acc c -> Cstruct.len c + acc) 0
++let len = List.fold_left (fun acc c -> Cstruct.length c + acc) 0
+ 
+ let err fmt =
+   let b = Buffer.create 20 in                         (* for thread safety. *)
+@@ -34,7 +34,7 @@ let rec shift t x =
+   if x = 0 then t else match t with
+     | [] -> err "Cstructs.shift %a %d" pp_t t x
+     | y :: ys ->
+-      let y' = Cstruct.len y in
++      let y' = Cstruct.length y in
+       if y' > x
+       then Cstruct.shift y x :: ys
+       else shift ys (x - y')
+@@ -51,7 +51,7 @@ let sub t off len =
+     | 0, _ -> List.rev acc
+     | _, [] -> err "invalid bounds in Cstructs.sub %a off=%d len=%d" pp_t t off len
+     | n, t :: ts ->
+-      let to_take = min (Cstruct.len t) n in
++      let to_take = min (Cstruct.length t) n in
+       (* either t is consumed and we only need ts, or t has data remaining in which
+          case we're finished *)
+       trim (Cstruct.sub t 0 to_take :: acc) ts (remaining - to_take) in
+@@ -69,17 +69,17 @@ let get f t off len =
+   match t' with
+   | x :: xs ->
+     (* Return a reference to the existing buffer *)
+-    if Cstruct.len x >= len
++    if Cstruct.length x >= len
+     then Cstruct.sub x 0 len
+     else begin
+       (* Copy into a fresh buffer *)
+       let rec copy remaining frags =
+-        if Cstruct.len remaining > 0
++        if Cstruct.length remaining > 0
+         then match frags with
+           | [] ->
+             err "invalid bounds in Cstructs.%s %a off=%d len=%d" f pp_t t off len
+           | x :: xs ->
+-            let to_copy = min (Cstruct.len x) (Cstruct.len remaining) in
++            let to_copy = min (Cstruct.length x) (Cstruct.length remaining) in
+             Cstruct.blit x 0 remaining 0 to_copy;
+             (* either we've copied all of x, or we've filled the remaining buffer *)
+             copy (Cstruct.shift remaining to_copy) xs in
+diff --git a/ocaml/qcow-tool/lib/qcow_header.ml b/ocaml/qcow-tool/lib/qcow_header.ml
+index 994a9f707..344563196 100644
+--- a/ocaml/qcow-tool/lib/qcow_header.ml
++++ b/ocaml/qcow-tool/lib/qcow_header.ml
+@@ -132,10 +132,10 @@ module Feature = struct
+ 
+   let read_all rest =
+     let rec loop acc rest =
+-      if Cstruct.len rest = 0
++      if Cstruct.length rest = 0
+       then Ok (List.rev acc)
+       else begin
+-        if Cstruct.len rest < 48
++        if Cstruct.length rest < 48
+         then error_msg "Trailing garbage in feature area: %s" (String.Ascii.escape (Cstruct.to_string rest))
+         else begin
+           read rest
+@@ -205,7 +205,7 @@ let sizeof t =
+   base + additional + extensions
+ 
+ let write t rest =
+-  let initial_buffer_length = Cstruct.len rest in
++  let initial_buffer_length = Cstruct.length rest in
+   big_enough_for "Header" rest (sizeof t)
+   >>= fun () ->
+   Int8.write (int_of_char 'Q') rest
+@@ -263,7 +263,7 @@ let write t rest =
+     Int32.write e.refcount_order rest
+     >>= fun rest ->
+     (* The extensions are not counted in the header_length *)
+-    let header_length = Int32.of_int (4 + initial_buffer_length - (Cstruct.len rest)) in
++    let header_length = Int32.of_int (4 + initial_buffer_length - (Cstruct.length rest)) in
+     Int32.write header_length rest
+     >>= fun rest ->
+     let write_extension rest = function
+diff --git a/ocaml/qcow-tool/lib/qcow_int64.ml b/ocaml/qcow-tool/lib/qcow_int64.ml
+index b31bd0088..aec6292bc 100644
+--- a/ocaml/qcow-tool/lib/qcow_int64.ml
++++ b/ocaml/qcow-tool/lib/qcow_int64.ml
+@@ -18,7 +18,7 @@ open Sexplib.Std
+ open Qcow_error
+ 
+ let big_enough_for name buf needed =
+-  let length = Cstruct.len buf in
++  let length = Cstruct.length buf in
+   if length < needed
+   then error_msg "%s: buffer too small (%d < %d)" name length needed
+   else return ()
+diff --git a/ocaml/qcow-tool/lib/qcow_metadata.ml b/ocaml/qcow-tool/lib/qcow_metadata.ml
+index 4c27fec53..c72ede1ba 100644
+--- a/ocaml/qcow-tool/lib/qcow_metadata.ml
++++ b/ocaml/qcow-tool/lib/qcow_metadata.ml
+@@ -84,7 +84,7 @@ module Physical = struct
+       | None -> ()
+     end;
+     Qcow_physical.write v (Cstruct.shift t.data (8 * n))
+-  let len t = Cstruct.len t.data / 8
++  let len t = Cstruct.length t.data / 8
+ end
+ 
+ let erase cluster = Cstruct.memset cluster.data 0
+diff --git a/ocaml/qcow-tool/lib/qcow_recycler.ml b/ocaml/qcow-tool/lib/qcow_recycler.ml
+index cce72feba..0dbbeea3c 100644
+--- a/ocaml/qcow-tool/lib/qcow_recycler.ml
++++ b/ocaml/qcow-tool/lib/qcow_recycler.ml
+@@ -162,7 +162,7 @@ module Make(B: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+   let erase t remaining =
+     let open Lwt.Infix in
+     let intervals = Cluster.IntervalSet.fold (fun i acc -> i :: acc) remaining [] in
+-    let buffer_size_clusters = Int64.of_int (Cstruct.len t.zero_buffer) |> t.cluster_bits in
++    let buffer_size_clusters = Int64.of_int (Cstruct.length t.zero_buffer) |> t.cluster_bits in
+ 
+     Lwt_list.fold_left_s
+       (fun acc i -> match acc with
+diff --git a/ocaml/qcow-tool/lib/qcow_types.ml b/ocaml/qcow-tool/lib/qcow_types.ml
+index ae2931dea..b0c6f6afc 100644
+--- a/ocaml/qcow-tool/lib/qcow_types.ml
++++ b/ocaml/qcow-tool/lib/qcow_types.ml
+@@ -18,7 +18,7 @@ open Sexplib.Std
+ open Qcow_error
+ 
+ let big_enough_for name buf needed =
+-  let length = Cstruct.len buf in
++  let length = Cstruct.length buf in
+   if length < needed
+   then error_msg "%s: buffer too small (%d < %d)" name length needed
+   else return ()

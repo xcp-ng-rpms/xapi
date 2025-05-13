@@ -1,0 +1,31 @@
+From 154ff439969dfa6f0f00b216f9195b45a41695a7 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 30 Apr 2025 09:28:31 +0100
+Subject: [PATCH] ocaml-qcow: Fix malloc page allocation calculation
+
+A page is 1<<12 (4096) bytes. A cluster is 1<<cluster_bits bytes.
+A single cluster fits 1<<(cluster_bits-12) pages, not
+cluster_bits<<(cluster_bits-12) pages.
+
+This error would allocate cluster_bits more pages than needed. For a 16-bit
+cluster_bits value (65536 bytes), for example, malloc would allocate 256=16*16
+pages instead of the required 16.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-tool/lib/qcow.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/qcow-tool/lib/qcow.ml b/ocaml/qcow-tool/lib/qcow.ml
+index 0217f9263..800295edd 100644
+--- a/ocaml/qcow-tool/lib/qcow.ml
++++ b/ocaml/qcow-tool/lib/qcow.ml
+@@ -141,7 +141,7 @@ module Make (Base : Qcow_s.RESIZABLE_BLOCK) (Time : Mirage_time.S) = struct
+ 
+   let malloc t =
+     let cluster_bits = Int32.to_int t.Header.cluster_bits in
+-    let npages = max 1 (cluster_bits lsl (cluster_bits - 12)) in
++    let npages = max 1 (1 lsl (cluster_bits - 12)) in
+     let pages = Io_page.(to_cstruct (get npages)) in
+     Cstruct.sub pages 0 (1 lsl cluster_bits)
+ 

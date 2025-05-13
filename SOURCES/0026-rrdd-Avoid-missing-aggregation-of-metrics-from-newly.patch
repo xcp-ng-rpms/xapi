@@ -28,9 +28,9 @@ Also use sequences more thoroughly in the code for transformations
 Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
 ---
  ocaml/xcp-rrdd/bin/rrdd/rrdd_monitor.ml       |   1 -
- ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml           | 258 +++++++++---------
+ ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml           | 260 +++++++++---------
  ocaml/xcp-rrdd/test/rrdd/test_rrdd_monitor.ml |  19 +-
- 3 files changed, 140 insertions(+), 138 deletions(-)
+ 3 files changed, 141 insertions(+), 139 deletions(-)
 
 diff --git a/ocaml/xcp-rrdd/bin/rrdd/rrdd_monitor.ml b/ocaml/xcp-rrdd/bin/rrdd/rrdd_monitor.ml
 index 4bd0c4d43..825c55c16 100644
@@ -195,6 +195,12 @@ index b5e111f69..0f67c1edb 100644
                  )
 -            with Not_found -> None
 -        in
+-        List.concat
+-          [
+-            main_mem_ds :: Option.to_list other_ds
+-          ; Option.to_list mem_target_ds
+-          ; acc
+-          ]
 +          | Error msg ->
 +              let _ =
 +                error "%s: retrieving  Dom0 free memory failed: %s" __FUNCTION__
@@ -214,15 +220,6 @@ index b5e111f69..0f67c1edb 100644
 +                  ~default:true ()
 +              )
 +          with Not_found -> None
-+      in
-+      let metrics =
-         List.concat
--          [
--            main_mem_ds :: Option.to_list other_ds
--          ; Option.to_list mem_target_ds
--          ; acc
--          ]
-+          [main_mem_ds :: Option.to_list other_ds; Option.to_list mem_target_ds]
        in
 -      (* CA-34383: Memory updates from paused domains serve no useful purpose.
 -         During a migrate such updates can also cause undesirable
@@ -231,6 +228,10 @@ index b5e111f69..0f67c1edb 100644
 -      if dom.Xenctrl.paused then acc else add_vm_metrics ()
 -    )
 -    [] doms
++      let metrics =
++        List.concat
++          [main_mem_ds :: Option.to_list other_ds; Option.to_list mem_target_ds]
++      in
 +      Some (List.to_seq metrics)
 +    in
 +    (* CA-34383: Memory updates from paused domains serve no useful purpose.

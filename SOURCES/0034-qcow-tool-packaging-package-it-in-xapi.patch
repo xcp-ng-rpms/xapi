@@ -1,0 +1,238 @@
+From d096cf19da71316fa0fd6819aea90eb17cb4b089 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 18 Mar 2025 18:42:47 +0100
+Subject: [PATCH] [qcow-tool packaging] package it in xapi
+
+remove dune-project from `ocaml/qcow-tool` that was here from the first
+import. Now we are building qcow-tool with xapi. This patch creates
+the package in the toplevel dune-project and removes uneeded build
+stuff from the original repository.
+
+To be able to build qcow-tool we added the following packages to xs-opam:
+  - asetmap
+  - ezjsonm
+  - mirage-block-combinators
+  - mirage-types (deprecated)
+  - mirage-types-lwt (deprecated)
+  - prometheus
+  - unix-type-representations
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/qcow-tool/cli/dune       | 37 ++++++++++++++++----
+ ocaml/qcow-tool/dune-project   |  2 --
+ ocaml/qcow-tool/lib/dune       | 28 ++++++++++-----
+ ocaml/qcow-tool/qcow-tool.opam | 44 ------------------------
+ ocaml/qcow-tool/qcow.opam      | 63 ----------------------------------
+ 5 files changed, 50 insertions(+), 124 deletions(-)
+ delete mode 100644 ocaml/qcow-tool/dune-project
+ delete mode 100644 ocaml/qcow-tool/qcow-tool.opam
+ delete mode 100644 ocaml/qcow-tool/qcow.opam
+
+diff --git a/ocaml/qcow-tool/cli/dune b/ocaml/qcow-tool/cli/dune
+index 7d7890a93..ecb8844d6 100644
+--- a/ocaml/qcow-tool/cli/dune
++++ b/ocaml/qcow-tool/cli/dune
+@@ -1,8 +1,31 @@
+ (executable
+- (name main)
+- (public_name qcow-tool)
+- (package qcow-tool)
+- (libraries qcow io-page logs logs.fmt sha unix-type-representations
+-   cmdliner sexplib mirage-block-combinators)
+- (preprocess
+-  (pps ppx_sexp_conv)))
++  (name main)
++  (libraries
++    astring
++    cmdliner
++    cstruct
++    cstruct-lwt
++    fmt
++    io-page logs
++    logs.fmt
++    lwt
++    lwt.unix
++    mirage-block
++    mirage-block-unix
++    mirage-block-combinators
++    mirage-time
++    qcow
++    sexplib
++    sha
++    unix-type-representations
++    )
++  (preprocess
++    (pps ppx_sexp_conv)
++  )
++)
++
++(install
++  (package qcow-tool)
++  (section bin)
++  (files (main.exe as qcow-tool))
++)
+diff --git a/ocaml/qcow-tool/dune-project b/ocaml/qcow-tool/dune-project
+deleted file mode 100644
+index 9101d7fb3..000000000
+--- a/ocaml/qcow-tool/dune-project
++++ /dev/null
+@@ -1,2 +0,0 @@
+-(lang dune 1.0)
+-(name qcow)
+diff --git a/ocaml/qcow-tool/lib/dune b/ocaml/qcow-tool/lib/dune
+index 94d007727..a2a00dd91 100644
+--- a/ocaml/qcow-tool/lib/dune
++++ b/ocaml/qcow-tool/lib/dune
+@@ -1,12 +1,24 @@
+ (library
+- (name qcow)
+- (public_name qcow)
+- (libraries astring cstruct logs lwt mirage-block mirage-block-unix
+-   mirage-types.lwt prometheus io-page sexplib stdlib-shims
+-   mirage-time)
+- (wrapped false)
+- (preprocess
+-  (pps ppx_sexp_conv)))
++  (name qcow)
++  (libraries
++    astring
++    cstruct
++    logs
++    lwt
++    mirage-block
++    mirage-block-unix
++    mirage-types.lwt
++    prometheus
++    io-page
++    sexplib
++    stdlib-shims
++    mirage-time fmt
++    )
++  (wrapped false)
++  (preprocess
++    (pps ppx_sexp_conv)
++  )
++)
+ 
+ (rule
+  (targets qcow_word_size.ml)
+diff --git a/ocaml/qcow-tool/qcow-tool.opam b/ocaml/qcow-tool/qcow-tool.opam
+deleted file mode 100644
+index 33d9edd35..000000000
+--- a/ocaml/qcow-tool/qcow-tool.opam
++++ /dev/null
+@@ -1,44 +0,0 @@
+-opam-version: "2.0"
+-maintainer: "dave@recoil.org"
+-authors: ["David Scott"]
+-license: "ISC"
+-homepage: "https://github.com/mirage/ocaml-qcow"
+-dev-repo: "git+https://github.com/mirage/ocaml-qcow.git"
+-bug-reports: "https://github.com/mirage/ocaml-qcow/issues"
+-tags: [
+-  "org:mirage"
+-]
+-
+-build: [
+-  ["dune" "subst"] {pinned}
+-  ["dune" "build" "-p" name "-j" jobs]
+-]
+-
+-depends: [
+-  "ocaml" {>= "4.03.0"}
+-  "qcow" {= version}
+-  "cmdliner"
+-  "cstruct"
+-  "result"
+-  "unix-type-representations"
+-  "mirage-types-lwt" {>= "2.6.0" & < "3.7.0"}
+-  "lwt"
+-  "mirage-block" {>= "2.0.0"}
+-  "mirage-block-unix" {>= "2.9.0"}
+-  "mirage-time"
+-  "sha" {>= "1.10"}
+-  "sexplib" {< "v0.14"}
+-  "logs"
+-  "fmt" {>= "0.8.2"}
+-  "astring"
+-  "io-page"
+-  "ounit" {with-test}
+-  "mirage-block-ramdisk" {with-test}
+-  "ezjsonm" {with-test}
+-]
+-synopsis: "A command-line tool for manipulating qcow2-formatted data"
+-url {
+-  src:
+-    "https://github.com/mirage/ocaml-qcow/releases/download/0.10.5/qcow-0.10.5.tbz"
+-  checksum: "md5=a1a86f6d6312635981d43f0b28d80621"
+-}
+diff --git a/ocaml/qcow-tool/qcow.opam b/ocaml/qcow-tool/qcow.opam
+deleted file mode 100644
+index 6f365e25c..000000000
+--- a/ocaml/qcow-tool/qcow.opam
++++ /dev/null
+@@ -1,63 +0,0 @@
+-opam-version: "2.0"
+-maintainer: "dave@recoil.org"
+-authors: ["David Scott"]
+-license: "ISC"
+-homepage: "https://github.com/mirage/ocaml-qcow"
+-dev-repo: "git+https://github.com/mirage/ocaml-qcow.git"
+-bug-reports: "https://github.com/mirage/ocaml-qcow/issues"
+-doc: "https://mirage.github.io/ocaml-qcow"
+-tags: [
+-  "org:mirage"
+-]
+-build: [
+-  ["dune" "subst"] {pinned}
+-  ["dune" "build" "-p" name "-j" jobs]
+-]
+-depends: [
+-  "ocaml" {>= "4.02.0"}
+-  "base-bytes"
+-  "cstruct" {>= "3.4.0"}
+-  "result"
+-  "io-page-unix" {>= "2.0.0"}
+-  "mirage-types-lwt" {>= "2.6.0" & < "3.7.0"}
+-  "lwt" {>= "4.0.0"}
+-  "mirage-block" {>= "2.0.0"}
+-  "mirage-block-unix" {>= "2.5.0"}
+-  "mirage-block-combinators"
+-  "mirage-time"
+-  "cmdliner"
+-  "sexplib" {< "v0.14"}
+-  "logs"
+-  "fmt" {>= "0.8.2"}
+-  "astring"
+-  "prometheus"
+-  "unix-type-representations"
+-  "stdlib-shims"
+-  "sha"
+-  "ppx_tools"
+-  "ppx_deriving"
+-  "ppx_sexp_conv" {< "v0.14"}
+-  "ppxlib" {build}
+-  "ounit" {with-test}
+-  "mirage-block-ramdisk" {with-test}
+-  "ezjsonm" {with-test}
+-]
+-synopsis: "Support for Qcow2 images"
+-description: """
+-[![Build Status](https://travis-ci.org/mirage/ocaml-qcow.png?branch=master)](https://travis-ci.org/mirage/ocaml-qcow) [![Coverage Status](https://coveralls.io/repos/mirage/ocaml-qcow/badge.png?branch=master)](https://coveralls.io/r/mirage/ocaml-qcow?branch=master)
+-
+-Please read [the API documentation](https://mirage.github.io/ocaml-qcow/).
+-
+-Features
+---------
+-
+-- supports `resize`
+-- exposes sparseness information
+-- produces files which can be understood by qemu (although not in
+-  reverse since we don't support many features)
+-
+-Example
+--------
+-
+-In a top-level like utop:
+-```ocaml"""
