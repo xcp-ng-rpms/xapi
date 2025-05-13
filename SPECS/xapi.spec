@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.5%{?xsrel}%{?dist}
+Release: 1.5.1.qcow.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -100,6 +100,29 @@ Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/6454
 Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
+
+# QCOW
+Patch1014: 0014-qcow-tool-packaging-import-qcow-tool-from-ocaml-qcow.patch
+Patch1015: 0015-qcow-tool-packaging-build-fix-use-io-page-instead-of.patch
+Patch1016: 0016-qcow-tool-packaging-build-fix-cstruct.patch
+Patch1017: 0017-qcow-tool-packaging-build-fix-remove-Unimplemented-v.patch
+Patch1018: 0018-qcow-tool-packaging-build-fix-update-cmdliner.patch
+Patch1019: 0019-qcow-tool-packaging-package-it-in-xapi.patch
+Patch1020: 0020-qcow-tool-packaging-remove-lib-test.patch
+Patch1021: 0021-qcow-tool-run-make-format.patch
+Patch1022: 0022-python-Add-qcow2-to-stdout.py-script.patch
+Patch1023: 0023-python3-qcow2-to-stdout-Update-to-handle-block-speci.patch
+Patch1024: 0024-ocaml-qcow-Update-header-parsing-with-the-new-QCOW-f.patch
+Patch1025: 0025-qcow-tool-Fix-positional-argument-parsing-in-the-CLI.patch
+Patch1026: 0026-ocaml-qcow-Fix-malloc-page-allocation-calculation.patch
+Patch1027: 0027-qcow-tool-Add-qcow_stream-module-implementation-with.patch
+Patch1028: 0028-cli-Add-stream_decode-command.patch
+Patch1029: 0029-export-import-_raw_vdi-add-qcow-as-supported-format.patch
+Patch1030: 0030-tests-unix_select-Add-Lwt_engine__fun-to-the-list-of.patch
+Patch1031: 0031-ocaml-qcow-Skip-and-cache-subsequent-clusters-when-r.patch
+Patch1032: 0032-python3-qcow2-to-stdout-Add-diff-option-to-export-on.patch
+Patch1033: 0033-export_raw_vdi-Add-support-for-differential-QCOW2-ex.patch
+
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1039,6 +1062,7 @@ done
 /opt/xensource/libexec/xe-syslog-reconfigure
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
+/opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
