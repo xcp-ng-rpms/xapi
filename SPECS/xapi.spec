@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.4%{?xsrel}%{?dist}
+Release: 1.5%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -903,7 +903,8 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 ## This (and likely the daemon-reload above) should really be fixed with XS9, though it isn't a huge issue
 /usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1 | while read plugins;
 do
-/usr/bin/systemctl restart "$plugins" 'qemu-stats@*' pvsproxy.service 2>&1 || :
+# XCP-ng: remove pvsproxy.service as it's a proprietary component
+/usr/bin/systemctl restart "$plugins" 'qemu-stats@*' 2>&1 || :
 done
 
 %files core -f core-files
@@ -1415,6 +1416,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue May 13 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.5
+- Remove pvsproxy.service from the list of units restarted on xcp-rrdd update
+
 * Wed May 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.4
 - Fix a race during VM suspend that would make the snapshot unresumable
 
