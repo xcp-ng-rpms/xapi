@@ -1,4 +1,4 @@
-From df4c2fff9c8c9633bf56b6c5481bfc973c1f9005 Mon Sep 17 00:00:00 2001
+From 4064696677f1b5237e02ef42f8882dda22fa50ea Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Tue, 6 May 2025 14:20:41 +0100
 Subject: [PATCH] xapi_xenops: Try to avoid a race during suspend
