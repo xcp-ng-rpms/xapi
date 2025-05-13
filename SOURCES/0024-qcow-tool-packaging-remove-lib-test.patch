@@ -1,0 +1,1544 @@
+From c8df97f5bd7c8af98b719931629aa97021291b24 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Fri, 21 Mar 2025 18:20:54 +0100
+Subject: [PATCH] [qcow-tool packaging] remove lib-test
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/qcow-tool/Makefile                   |   7 +-
+ ocaml/qcow-tool/lib_test/compact_random.ml | 244 -------
+ ocaml/qcow-tool/lib_test/dune              |   6 -
+ ocaml/qcow-tool/lib_test/error.ml          |  50 --
+ ocaml/qcow-tool/lib_test/error.mli         |  45 --
+ ocaml/qcow-tool/lib_test/extent.ml         |  71 --
+ ocaml/qcow-tool/lib_test/qemu.ml           |  80 ---
+ ocaml/qcow-tool/lib_test/qemu.mli          |  42 --
+ ocaml/qcow-tool/lib_test/sizes.ml          |  64 --
+ ocaml/qcow-tool/lib_test/test.ml           | 717 ---------------------
+ ocaml/qcow-tool/lib_test/utils.ml          | 115 ----
+ 11 files changed, 1 insertion(+), 1440 deletions(-)
+ delete mode 100644 ocaml/qcow-tool/lib_test/compact_random.ml
+ delete mode 100644 ocaml/qcow-tool/lib_test/dune
+ delete mode 100644 ocaml/qcow-tool/lib_test/error.ml
+ delete mode 100644 ocaml/qcow-tool/lib_test/error.mli
+ delete mode 100644 ocaml/qcow-tool/lib_test/extent.ml
+ delete mode 100644 ocaml/qcow-tool/lib_test/qemu.ml
+ delete mode 100644 ocaml/qcow-tool/lib_test/qemu.mli
+ delete mode 100644 ocaml/qcow-tool/lib_test/sizes.ml
+ delete mode 100644 ocaml/qcow-tool/lib_test/test.ml
+ delete mode 100644 ocaml/qcow-tool/lib_test/utils.ml
+
+diff --git a/ocaml/qcow-tool/Makefile b/ocaml/qcow-tool/Makefile
+index 8ae4fcb49..e1358dfae 100644
+--- a/ocaml/qcow-tool/Makefile
++++ b/ocaml/qcow-tool/Makefile
+@@ -1,14 +1,9 @@
+ 
+-.PHONY: build clean test
++.PHONY: build clean
+ 
+ build:
+ 	dune build @install
+ 
+-test:
+-	dune build lib_test/compact_random.exe lib_test/test.exe
+-	./_build/default/lib_test/compact_random.exe -compact-mid-write -stop-after 16
+-	./_build/default/lib_test/test.exe -runner sequential
+-
+ install:
+ 	dune install
+ 
+diff --git a/ocaml/qcow-tool/lib_test/compact_random.ml b/ocaml/qcow-tool/lib_test/compact_random.ml
+deleted file mode 100644
+index 07367b6fc..000000000
+--- a/ocaml/qcow-tool/lib_test/compact_random.ml
++++ /dev/null
+@@ -1,244 +0,0 @@
+-(*
+- * Copyright (C) 2013 Citrix Inc
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+- * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+- * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+- * PERFORMANCE OF THIS SOFTWARE.
+- *)
+-module Lwt_error = Error.Lwt_error
+-module Lwt_write_error = Error.Lwt_write_error
+-module FromResult = Error.FromResult
+-
+-open Utils
+-
+-module Block = UnsafeBlock
+-module B = Qcow.Make(Block)(Time)
+-
+-let debug = ref false
+-
+-(* Create a file which can store [nr_clusters], then randomly write and discard,
+-   checking with read whether the expected data is in each cluster. By convention
+-   we write the cluster index into each cluster so we can detect if they
+-   permute or alias. *)
+-let random_write_discard_compact nr_clusters stop_after =
+-  (* create a large disk *)
+-  let open Lwt.Infix in
+-  let cluster_bits = 16 in (* FIXME: avoid hardcoding this *)
+-  let cluster_size = 1 lsl cluster_bits in
+-  let size = Int64.(mul nr_clusters (of_int cluster_size)) in
+-  let path = Filename.concat test_dir (Int64.to_string size) ^ ".compact" in
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    Block.connect path
+-    >>= fun block ->
+-    let keep_erased =
+-      if !B.Debug.Setting.compact_mid_write
+-      then None (* running compact mid write races with the eraser thread *)
+-      else Some 2048L in
+-    let config = B.Config.create ?keep_erased ~discard:true ~runtime_asserts:true () in
+-    B.create block ~size ~lazy_refcounts:false ~config ()
+-    >>= function
+-    | Error _ -> failwith "B.create failed"
+-    | Ok qcow ->
+-    B.get_info qcow
+-    >>= fun info ->
+-    let sectors_per_cluster = cluster_size / info.Mirage_block.sector_size in
+-    let nr_sectors = Int64.(div size (of_int info.Mirage_block.sector_size)) in
+-
+-    (* add to this set on write, remove on discard *)
+-    let module SectorSet = Qcow_diet.Make(Qcow_types.Int64) in
+-    let written = ref SectorSet.empty in
+-    let i = SectorSet.Interval.make 0L (Int64.pred info.Mirage_block.size_sectors) in
+-    let empty = ref SectorSet.(add i empty) in
+-    let nr_iterations = ref 0 in
+-
+-    let buffer_size = 1048576 in (* perform 1MB of I/O at a time, maximum *)
+-    let buffer_size_sectors = Int64.of_int (buffer_size / info.Mirage_block.sector_size) in
+-    let write_buffer = Io_page.(to_cstruct @@ get (buffer_size / page_size)) in
+-    let read_buffer = Io_page.(to_cstruct @@ get (buffer_size / page_size)) in
+-
+-    let write x n =
+-      assert (Int64.add x n <= nr_sectors);
+-      let one_write x n =
+-        assert (n <= buffer_size_sectors);
+-        let buf = Cstruct.sub write_buffer 0 (Int64.to_int n * info.Mirage_block.sector_size) in
+-        let rec for_each_sector x remaining =
+-          if Cstruct.len remaining = 0 then () else begin
+-            let cluster = Int64.(div x (of_int sectors_per_cluster)) in
+-            let sector = Cstruct.sub remaining 0 512 in
+-            (* Only write the first byte *)
+-            Cstruct.BE.set_uint64 sector 0 cluster;
+-            for_each_sector (Int64.succ x) (Cstruct.shift remaining 512)
+-          end in
+-        for_each_sector x buf;
+-        B.write qcow x [ buf ]
+-        >>= function
+-        | Error _ -> failwith "write"
+-        | Ok () -> Lwt.return_unit in
+-      let rec loop x n =
+-        if n = 0L then Lwt.return_unit else begin
+-          let n' = min buffer_size_sectors n in
+-          one_write x n'
+-          >>= fun () ->
+-          loop (Int64.add x n') (Int64.sub n n')
+-        end in
+-      loop x n
+-      >>= fun () ->
+-      if n > 0L then begin
+-        let y = Int64.(add x (pred n)) in
+-        let i = SectorSet.Interval.make x y in
+-        written := SectorSet.add i !written;
+-        empty := SectorSet.remove i !empty;
+-      end;
+-      Lwt.return_unit in
+-
+-    let discard x n =
+-      assert (Int64.add x n <= nr_sectors);
+-      let y = Int64.(add x (pred n)) in
+-      B.discard qcow ~sector:x ~n ()
+-      >>= function
+-      | Error _ -> failwith "discard"
+-      | Ok () ->
+-      if n > 0L then begin
+-        let i = SectorSet.Interval.make x y in
+-        written := SectorSet.remove i !written;
+-        empty := SectorSet.add i !empty;
+-      end;
+-      Lwt.return_unit in
+-    let check_contents sector buf expected =
+-      (* Only check the first byte: assume the rest of the sector are the same *)
+-      let actual = Cstruct.BE.get_uint64 buf 0 in
+-      if actual <> expected
+-      then failwith (Printf.sprintf "contents of sector %Ld incorrect: expected %Ld but actual %Ld" sector expected actual) in
+-    let check_all_clusters () =
+-      let rec check p set = match SectorSet.choose set with
+-        | i ->
+-          let x = SectorSet.Interval.x i in
+-          let y = SectorSet.Interval.y i in
+-          begin
+-            let n = Int64.(succ (sub y x)) in
+-            assert (Int64.add x n <= nr_sectors);
+-            let one_read x n =
+-              assert (n <= buffer_size_sectors);
+-              let buf = Cstruct.sub read_buffer 0 (Int64.to_int n * info.Mirage_block.sector_size) in
+-              B.read qcow x [ buf ]
+-              >>= function
+-              | Error _ -> failwith "read"
+-              | Ok () ->
+-                let rec for_each_sector x remaining =
+-                  if Cstruct.len remaining = 0 then () else begin
+-                    let cluster = Int64.(div x (of_int sectors_per_cluster)) in
+-                    let expected = p cluster in
+-                    let sector = Cstruct.sub remaining 0 512 in
+-                    check_contents x sector expected;
+-                    for_each_sector (Int64.succ x) (Cstruct.shift remaining 512)
+-                  end in
+-                for_each_sector x buf;
+-                Lwt.return_unit in
+-            let rec loop x n =
+-              if n = 0L then Lwt.return_unit else begin
+-                let n' = min buffer_size_sectors n in
+-                one_read x n'
+-                >>= fun () ->
+-                loop (Int64.add x n') (Int64.sub n n')
+-              end in
+-            loop x n
+-            >>= fun () ->
+-            check p (SectorSet.remove i set)
+-          end
+-        | exception Not_found ->
+-          Lwt.return_unit in
+-      Lwt.pick [
+-        check (fun _ -> 0L) !empty;
+-        Lwt_unix.sleep 30. >>= fun () -> Lwt.fail (Failure "check empty")
+-      ]
+-      >>= fun () ->
+-      Lwt.pick [
+-        check (fun x -> x) !written;
+-        Lwt_unix.sleep 30. >>= fun () -> Lwt.fail (Failure "check written")
+-      ] in
+-    Random.init 0;
+-    let rec loop () =
+-      incr nr_iterations;
+-      B.Debug.assert_no_leaked_blocks qcow;
+-      B.Debug.assert_cluster_map_in_sync qcow
+-      >>= fun () ->
+-      if !nr_iterations = stop_after then Lwt.return (Ok ()) else begin
+-        (* Call flush so any erased blocks become reusable *)
+-        B.flush qcow
+-        >>= function
+-        | Error _ -> failwith "flush"
+-        | Ok () ->
+-        let r = Random.int 21 in
+-        (* A random action: mostly a write or a discard, occasionally a compact *)
+-        ( if 0 <= r && r < 10 then begin
+-            let sector = Random.int64 nr_sectors in
+-            let n = Random.int64 (Int64.sub nr_sectors sector) in
+-            if !debug then Printf.fprintf stderr "write %Ld %Ld\n%!" sector n;
+-            Printf.printf ".%!";
+-            Lwt.pick [
+-              write sector n;
+-              Lwt_unix.sleep 30. >>= fun () -> Lwt.fail (Failure "write timeout")
+-            ]
+-          end else begin
+-            let sector = Random.int64 nr_sectors in
+-            let n = Random.int64 (Int64.sub nr_sectors sector) in
+-            if !debug then Printf.fprintf stderr "discard %Ld %Ld\n%!" sector n;
+-            Printf.printf "-%!";
+-            Lwt.pick [
+-              discard sector n;
+-              Lwt_unix.sleep 30. >>= fun () -> Lwt.fail (Failure "discard timeout")
+-            ]
+-          end )
+-        >>= fun () ->
+-        check_all_clusters ();
+-        >>= fun () ->
+-        loop ()
+-      end in
+-    Lwt.catch loop
+-      (fun e ->
+-        Printf.fprintf stderr "Test failed on iteration # %d\n%!" !nr_iterations;
+-        Printexc.print_backtrace stderr;
+-        let s = Sexplib.Sexp.to_string_hum (SectorSet.sexp_of_t !written) in
+-        Lwt_io.open_file ~flags:[Unix.O_CREAT; Unix.O_TRUNC; Unix.O_WRONLY ] ~perm:0o644 ~mode:Lwt_io.output "/tmp/written.sexp"
+-        >>= fun oc ->
+-        Lwt_io.write oc s
+-        >>= fun () ->
+-        Lwt_io.close oc
+-        >>= fun () ->
+-        let s = Sexplib.Sexp.to_string_hum (SectorSet.sexp_of_t !empty) in
+-        Lwt_io.open_file ~flags:[Unix.O_CREAT; Unix.O_TRUNC; Unix.O_WRONLY ] ~perm:0o644 ~mode:Lwt_io.output "/tmp/empty.sexp"
+-        >>= fun oc ->
+-        Lwt_io.write oc s
+-        >>= fun () ->
+-        Lwt_io.close oc
+-        >>= fun () ->
+-        Printf.fprintf stderr ".qcow2 file is at: %s\n" path;
+-        Lwt.fail e
+-      ) in
+-  or_failwith @@ Lwt_main.run t
+-
+-let _ =
+-  Logs.set_reporter (Logs_fmt.reporter ());
+-  let clusters = ref 128 in
+-  let stop_after = ref 1024 in
+-  Arg.parse [
+-    "-clusters", Arg.Set_int clusters, Printf.sprintf "Total number of clusters (default %d)" !clusters;
+-    "-stop-after", Arg.Set_int stop_after, Printf.sprintf "Number of iterations to stop after (default: 1024, 0 means never)";
+-    "-debug", Arg.Set debug, "enable debug";
+-    "-compact-mid-write", Arg.Set B.Debug.Setting.compact_mid_write, "Enable the compact-mid-write debug option";
+-  ] (fun x ->
+-      Printf.fprintf stderr "Unexpected argument: %s\n" x;
+-      exit 1
+-    ) "Perform random read/write/discard/compact operations on a qcow file";
+-
+-  random_write_discard_compact (Int64.of_int !clusters) (!stop_after)
+diff --git a/ocaml/qcow-tool/lib_test/dune b/ocaml/qcow-tool/lib_test/dune
+deleted file mode 100644
+index cdfee0bc7..000000000
+--- a/ocaml/qcow-tool/lib_test/dune
++++ /dev/null
+@@ -1,6 +0,0 @@
+-(executables
+- (names test compact_random)
+- (libraries qcow io-page.unix logs logs.fmt oUnit ezjsonm
+-   mirage-block-ramdisk mirage-block-combinators)
+- (preprocess
+-  (pps ppx_sexp_conv)))
+diff --git a/ocaml/qcow-tool/lib_test/error.ml b/ocaml/qcow-tool/lib_test/error.ml
+deleted file mode 100644
+index 0308cff8b..000000000
+--- a/ocaml/qcow-tool/lib_test/error.ml
++++ /dev/null
+@@ -1,50 +0,0 @@
+-(*
+- * Copyright (C) 2016 David Scott <dave.scott@unikernel.com>
+- *
+- * Permission to use, copy, modify, and distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+- *
+- *)
+-open Lwt.Infix
+-
+-module Lwt_error = struct
+-  open Lwt.Infix
+-  module Infix = struct
+-    let ( >>= ) m f = m >>= function
+-      | Ok x -> f x
+-      | Error `Disconnected -> Lwt.fail_with "Disconnected"
+-      | Error _ -> Lwt.fail_with "Unknown error"
+-  end
+-end
+-
+-module Lwt_write_error = struct
+-  module Infix = struct
+-    open Lwt.Infix
+-    let ( >>= ) m f = m >>= function
+-      | Ok x -> f x
+-      | Error `Is_read_only -> Lwt.fail_with "Is_read_only"
+-      | Error `Disconnected -> Lwt.fail_with "Disconnected"
+-      | Error _ -> Lwt.fail_with "Unknown error"
+-  end
+-end
+-
+-module Infix = struct
+-  let (>>=) m f = m >>= function
+-    | Error e -> Lwt.return (Error e)
+-    | Ok x -> f x
+-end
+-
+-module FromResult = struct
+-  let (>>=) m f = match m with
+-    | Result.Error x -> Lwt.return (Error x)
+-    | Result.Ok x -> f x
+-end
+diff --git a/ocaml/qcow-tool/lib_test/error.mli b/ocaml/qcow-tool/lib_test/error.mli
+deleted file mode 100644
+index d4ca7bfd6..000000000
+--- a/ocaml/qcow-tool/lib_test/error.mli
++++ /dev/null
+@@ -1,45 +0,0 @@
+-(*
+- * Copyright (C) 2016 David Scott <dave.scott@unikernel.com>
+- *
+- * Permission to use, copy, modify, and distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+- *
+- *)
+-open Result
+-
+-module Lwt_error: sig
+-  module Infix : sig
+-    val ( >>= ) :
+-      ('a, [> `Disconnected ]) result Lwt.t ->
+-      ('a -> 'b Lwt.t) -> 'b Lwt.t
+-  end
+-end
+-
+-module Lwt_write_error: sig
+-  module Infix : sig
+-    val ( >>= ) :
+-      ('a, [> `Is_read_only | `Disconnected ]) result Lwt.t ->
+-      ('a -> 'b Lwt.t) -> 'b Lwt.t
+-  end
+-end
+-
+-module Infix: sig
+-  val ( >>= ) : ('a, 'b) result Lwt.t ->
+-    ('a -> ('c, 'b) result Lwt.t) -> ('c, 'b) result Lwt.t
+-
+-end
+-
+-module FromResult: sig
+-  val ( >>= ) :
+-             ('a, 'b) result ->
+-             ('a -> ('c, 'b) result Lwt.t) -> ('c, 'b) result Lwt.t
+-end
+diff --git a/ocaml/qcow-tool/lib_test/extent.ml b/ocaml/qcow-tool/lib_test/extent.ml
+deleted file mode 100644
+index 9e6ce47b6..000000000
+--- a/ocaml/qcow-tool/lib_test/extent.ml
++++ /dev/null
+@@ -1,71 +0,0 @@
+-(*
+- * Copyright (C) 2013 Citrix Inc
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+- * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+- * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+- * PERFORMANCE OF THIS SOFTWARE.
+- *)
+-open Sexplib.Std
+-open Int64
+-
+-type t = {
+-  start: int64;
+-  length: int64;
+-} [@@deriving sexp]
+-type ts = t list [@@deriving sexp]
+-
+-let to_string t = Sexplib.Sexp.to_string_hum (sexp_of_ts t)
+-
+-type overlap =
+-  | AABB
+-  | BBAA
+-  | BABA
+-  | BAAB
+-  | ABBA
+-  | ABAB
+-[@@deriving sexp]
+-
+-let classify { start = a_start; length = a_length } { start = b_start; length = b_length } =
+-  let a_end = add a_start a_length in
+-  let b_end = add b_start b_length in
+-  if b_end < a_start
+-  then BBAA
+-  else if a_end < b_start
+-  then AABB
+-  else begin
+-    (* there is some overlap *)
+-    if b_start < a_start then begin
+-      if b_end < a_end then BABA else BAAB
+-    end else begin
+-      if b_end < a_end then ABBA else ABAB
+-    end
+-  end
+-
+-let difference ({ start = a_start; length = a_length } as a) ({ start = b_start; length = b_length } as b) =
+-  let a_end = add a_start a_length in
+-  let b_end = add b_start b_length in
+-  match classify a b with
+-  | BBAA | AABB -> [ a ]
+-  | BABA -> [ { start = b_end; length = sub a_end b_end } ]
+-  | BAAB -> [ ]
+-  | ABBA -> [ { start = a_start; length = sub b_start a_start; };
+-              { start = b_end; length = sub a_end b_end } ]
+-  | ABAB -> [ { start = a_start; length = sub b_start a_start } ]
+-
+-let intersect ({ start = a_start; length = a_length } as a) ({ start = b_start; length = b_length } as b) : t list =
+-  let a_end = add a_start a_length in
+-  let b_end = add b_start b_length in
+-  match classify a b with
+-  | BBAA | AABB -> [ ]
+-  | BABA -> [ { start = a_start; length = sub b_end a_start } ]
+-  | BAAB -> [ { start = a_start; length = sub a_end a_start } ]
+-  | ABBA -> [ { start = b_start; length = sub b_end b_start } ]
+-  | ABAB -> [ { start = b_start; length = sub a_end b_start } ]
+diff --git a/ocaml/qcow-tool/lib_test/qemu.ml b/ocaml/qcow-tool/lib_test/qemu.ml
+deleted file mode 100644
+index 837c16a1d..000000000
+--- a/ocaml/qcow-tool/lib_test/qemu.ml
++++ /dev/null
+@@ -1,80 +0,0 @@
+-(*
+- * Copyright (C) 2016 Unikernel Systems
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+- * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+- * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+- * PERFORMANCE OF THIS SOFTWARE.
+- *)
+-
+-(* Wrappers for qemu-img, qemu-nbd to allow us to compare the contents of
+-   ocaml-qcow images and qemu-produced images. *)
+-open Utils
+-
+-module Img = struct
+-  let create file size =
+-    ignore_output @@ run "qemu-img" [ "create"; "-f"; "qcow2"; "-o"; "lazy_refcounts=on"; file; Int64.to_string size ];
+-    (* workaround for https://github.com/mirage/mirage-block-unix/issues/59 *)
+-    Lwt_main.run begin
+-      let open Lwt.Infix in
+-      Lwt_unix.LargeFile.stat file
+-      >>= fun stat ->
+-      let bytes = stat.Lwt_unix.LargeFile.st_size in
+-      let remainder = Int64.rem bytes 512L in
+-      let padding_required = if remainder = 0L then 0L else Int64.sub 512L remainder in
+-      Lwt_unix.openfile file [ Lwt_unix.O_WRONLY; Lwt_unix.O_APPEND ] 0o0
+-      >>= fun fd ->
+-      let buf = Cstruct.create (Int64.to_int padding_required) in
+-      Cstruct.memset buf 0;
+-      Lwt_cstruct.complete (Lwt_cstruct.write fd) buf
+-      >>= fun () ->
+-      Lwt_unix.close fd
+-    end
+-
+-  let check file =
+-    ignore_output @@ run "qemu-img" [ "check"; file ]
+-
+-  type info = {
+-    virtual_size: int64;
+-    filename: string;
+-    cluster_size: int;
+-    actual_size: int;
+-    compat: string;
+-    lazy_refcounts: bool option;
+-    refcount_bits: int option;
+-    corrupt: bool option;
+-    dirty_flag: bool;
+-  }
+-
+-  let info file =
+-    let lines, _ = run "qemu-img" [ "info"; "--output"; "json"; file ] in
+-    let json = Ezjsonm.(get_dict @@ from_string @@ String.concat "\n" lines) in
+-    let find name json =
+-      if List.mem_assoc name json
+-      then List.assoc name json
+-      else failwith (Printf.sprintf "Failed to find '%s' in %s" name (String.concat "\n" lines)) in
+-    let virtual_size = Ezjsonm.get_int64 @@ find "virtual-size" json in
+-    let filename = Ezjsonm.get_string @@ find "filename" json in
+-    let cluster_size = Ezjsonm.get_int @@ find "cluster-size" json in
+-    let format = Ezjsonm.get_string @@ find "format" json in
+-    if format <> "qcow2" then failwith (Printf.sprintf "Expected qcow2 format, got %s" format);
+-    let actual_size = Ezjsonm.get_int @@ find "actual-size" json in
+-    let specific = Ezjsonm.get_dict @@ find "format-specific" json in
+-    let ty = Ezjsonm.get_string @@ find "type" specific in
+-    if ty <> "qcow2" then failwith (Printf.sprintf "Expected qcow2 type, got %s" ty);
+-    let data = Ezjsonm.get_dict @@ find "data" specific in
+-    let compat = Ezjsonm.get_string @@ find "compat" data in
+-    let lazy_refcounts = try Some (Ezjsonm.get_bool @@ find "lazy-refcounts" data) with _ -> None in
+-    let refcount_bits = try Some (Ezjsonm.get_int @@ find "refcount-bits" data) with _ -> None in
+-    let corrupt = try Some (Ezjsonm.get_bool @@ find "corrupt" data) with _ -> None in
+-    let dirty_flag = Ezjsonm.get_bool @@ find "dirty-flag" json in
+-    { virtual_size; filename; cluster_size; actual_size; compat;
+-      lazy_refcounts; refcount_bits; corrupt; dirty_flag }
+-end
+diff --git a/ocaml/qcow-tool/lib_test/qemu.mli b/ocaml/qcow-tool/lib_test/qemu.mli
+deleted file mode 100644
+index b8339968f..000000000
+--- a/ocaml/qcow-tool/lib_test/qemu.mli
++++ /dev/null
+@@ -1,42 +0,0 @@
+-(*
+- * Copyright (C) 2016 Unikernel Systems
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+- * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+- * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+- * PERFORMANCE OF THIS SOFTWARE.
+- *)
+-
+-(** Wrappers for qemu-img to allow us to compare the contents of
+-   ocaml-qcow images and qemu-produced images. *)
+-
+-module Img: sig
+-
+-  val create: string -> int64 -> unit
+-  (** [create path size] creates a qcow2 format image at [path] with size [size] *)
+-
+-  val check: string -> unit
+-  (** [check path] runs "qemu-img check" on the given qcow2 image. *)
+-
+-  type info = {
+-    virtual_size: int64;
+-    filename: string;
+-    cluster_size: int;
+-    actual_size: int;
+-    compat: string;
+-    lazy_refcounts: bool option;
+-    refcount_bits: int option;
+-    corrupt: bool option;
+-    dirty_flag: bool;
+-  }
+-
+-  val info: string -> info
+-  (** [info path] returns metadata associated with the given qcow2 image. *)
+-end
+diff --git a/ocaml/qcow-tool/lib_test/sizes.ml b/ocaml/qcow-tool/lib_test/sizes.ml
+deleted file mode 100644
+index 3734927bc..000000000
+--- a/ocaml/qcow-tool/lib_test/sizes.ml
++++ /dev/null
+@@ -1,64 +0,0 @@
+-(*
+- * Copyright (C) 2013 Citrix Inc
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+- * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+- * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+- * PERFORMANCE OF THIS SOFTWARE.
+- *)
+-
+-let mib = Int64.mul 1024L 1024L
+-let gib = Int64.mul mib 1024L
+-let tib = Int64.mul gib 1024L
+-let pib = Int64.mul tib 1024L
+-
+-let boundaries cluster_bits =
+-  let cluster_size = Int64.shift_left 1L cluster_bits in
+-  let pointers_in_cluster = Int64.(div cluster_size 8L) in [
+-    "0", 0L;
+-    Printf.sprintf "one %Ld byte cluster" cluster_size, cluster_size;
+-    Printf.sprintf "one L2 table (containing %Ld 8-byte pointers to cluster)"
+-      pointers_in_cluster,
+-    Int64.(mul cluster_size pointers_in_cluster);
+-    Printf.sprintf "one L1 table (containing %Ld 8-byte pointers to L2 tables)"
+-      pointers_in_cluster,
+-    Int64.(mul (mul cluster_size pointers_in_cluster) pointers_in_cluster)
+-  ]
+-
+-let sizes sector_size cluster_bits = [
+-  "one sector", Int64.of_int sector_size;
+-  "one page", 4096L;
+-  "one cluster", Int64.shift_left 1L cluster_bits;
+-]
+-
+-let off_by ((label', offset'), (label, offset)) = [
+-  label, offset;
+-  label ^ " + " ^ label', Int64.add offset offset';
+-  label ^ " - " ^ label', Int64.sub offset offset';
+-  label ^ " + 2 * " ^ label', Int64.(add offset (mul 2L offset'));
+-]
+-
+-let rec cross xs ys = match xs, ys with
+-  | [], _ -> []
+-  | x :: xs, ys -> List.map (fun y -> x, y) ys @ (cross xs ys)
+-
+-(* Parameterise over sector, page, cluster, more *)
+-let interesting_ranges sector_size size_sectors cluster_bits =
+-  let size_bytes = Int64.(mul size_sectors (of_int sector_size)) in
+-  let starts = List.concat (List.map off_by (cross (sizes sector_size cluster_bits) (boundaries cluster_bits))) in
+-  let all = starts @ (List.map (fun (label, offset) -> label ^ " from the end", Int64.sub size_bytes offset) starts) in
+-  (* add lengths *)
+-  let all = List.map (fun ((label', length'), (label, offset)) ->
+-      label' ^ " @ " ^ label, offset, length'
+-    ) (cross (sizes sector_size cluster_bits) all) in
+-  List.filter
+-    (fun (_label, offset, length) ->
+-       offset >= 0L && (Int64.add offset length <= size_bytes)
+-    ) all
+diff --git a/ocaml/qcow-tool/lib_test/test.ml b/ocaml/qcow-tool/lib_test/test.ml
+deleted file mode 100644
+index fb9878a41..000000000
+--- a/ocaml/qcow-tool/lib_test/test.ml
++++ /dev/null
+@@ -1,717 +0,0 @@
+-(*
+- * Copyright (C) 2013 Citrix Inc
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+- * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+- * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+- * PERFORMANCE OF THIS SOFTWARE.
+- *)
+-module Lwt_error = Error.Lwt_error
+-module Lwt_write_error = Error.Lwt_write_error
+-module FromResult = Error.FromResult
+-
+-open Qcow
+-open Lwt
+-open OUnit
+-open Utils
+-open Sizes
+-
+-module Block = UnsafeBlock
+-
+-let repair_refcounts path =
+-  let module B = Qcow.Make(Block)(Time) in
+-  let t =
+-    Block.connect path
+-    >>= fun raw ->
+-    B.connect raw
+-    >>= fun qcow ->
+-    let open Lwt_write_error.Infix in
+-    B.rebuild_refcount_table qcow
+-    >>= fun () ->
+-    let open Lwt.Infix in
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect raw
+-    >>= fun () ->
+-    Lwt.return (Ok ()) in
+-  t >>= function
+-  | Ok () -> Lwt.return ()
+-  | Error (`Msg x) -> failwith x
+-
+-(* qemu-img will set version = `Three and leave an extra cluster
+-   presumably for extension headers *)
+-
+-let read_write_header name size =
+-  let module B = Qcow.Make(Block)(Time) in
+-  let path = Filename.concat test_dir (Printf.sprintf "read_write_header.%s.%Ld" name size) in
+-
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    Block.connect path
+-    >>= fun raw ->
+-    B.create raw ~size ()
+-    >>= fun _b ->
+-    let open Lwt.Infix in
+-    repair_refcounts path
+-    >>= fun () ->
+-    Qemu.Img.check path;
+-
+-    let page = Io_page.(to_cstruct (get 1)) in
+-    let open Lwt_error.Infix in
+-    Block.read raw 0L [ page ]
+-    >>= fun () ->
+-    let open FromResult in
+-    Qcow.Header.read page
+-    >>= fun (hdr, _) ->
+-    Lwt.return (Ok hdr) in
+-  match Lwt_main.run t with
+-  | Ok x -> x
+-  | Error _ -> failwith "read_write_header"
+-
+-let additional = Some {
+-  Qcow.Header.dirty = true;
+-  corrupt = false;
+-  lazy_refcounts = true;
+-  autoclear_features = 0L;
+-  refcount_order = 4l;
+-}
+-
+-let create_1K () =
+-  let hdr = read_write_header "1K" 1024L in
+-  let expected = {
+-    Qcow.Header.version = `Three; backing_file_offset = 0L;
+-    backing_file_size = 0l; cluster_bits = 16l; size = 1024L;
+-    crypt_method = `None; l1_size = 1l; l1_table_offset = Qcow.Physical.make ~is_mutable:false 131072;
+-    refcount_table_offset = Qcow.Physical.make ~is_mutable:false 65536; refcount_table_clusters = 1l;
+-    nb_snapshots = 0l; snapshots_offset = 0L; additional;
+-    extensions = [ `Feature_name_table Qcow.Header.Feature.understood ];
+-  } in
+-  let cmp a b = Qcow.Header.compare a b = 0 in
+-  let printer = Qcow.Header.to_string in
+-  assert_equal ~printer ~cmp expected hdr
+-
+-let create_1M () =
+-  let hdr = read_write_header "1M" 1048576L in
+-  let expected = {
+-    Qcow.Header.version = `Three; backing_file_offset = 0L;
+-    backing_file_size = 0l; cluster_bits = 16l; size = 1048576L;
+-    crypt_method = `None; l1_size = 1l; l1_table_offset = Qcow.Physical.make ~is_mutable:false 131072;
+-    refcount_table_offset = Qcow.Physical.make ~is_mutable:false 65536; refcount_table_clusters = 1l;
+-    nb_snapshots = 0l; snapshots_offset = 0L; additional;
+-    extensions = [ `Feature_name_table Qcow.Header.Feature.understood ];
+-  } in
+-  let cmp a b = Qcow.Header.compare a b = 0 in
+-  let printer = Qcow.Header.to_string in
+-  assert_equal ~printer ~cmp expected hdr
+-
+-let create_1P () =
+-  let hdr = read_write_header "1P" pib in
+-  let expected = {
+-    Qcow.Header.version = `Three; backing_file_offset = 0L;
+-    backing_file_size = 0l; cluster_bits = 16l; size = pib;
+-    crypt_method = `None; l1_size = 2097152l; l1_table_offset = Qcow.Physical.make ~is_mutable:false 131072;
+-    refcount_table_offset = Qcow.Physical.make ~is_mutable:false 65536; refcount_table_clusters = 1l;
+-    nb_snapshots = 0l; snapshots_offset = 0L; additional;
+-    extensions = [ `Feature_name_table Qcow.Header.Feature.understood ];
+-  } in
+-  let cmp a b = Qcow.Header.compare a b = 0 in
+-  let printer = Qcow.Header.to_string in
+-  assert_equal ~printer ~cmp expected hdr
+-
+-let get_id =
+-  let next = ref 1 in
+-  fun () ->
+-    let this = !next in
+-    incr next;
+-    this
+-
+-let rec fragment into remaining =
+-  if into >= Cstruct.len remaining
+-  then [ remaining ]
+-  else
+-    let this = Cstruct.sub remaining 0 into in
+-    let rest = Cstruct.shift remaining into in
+-    this :: (fragment into rest)
+-
+-let check_file_contents path id _sector_size _size_sectors (start, length) () =
+-  let module RawReader = Block in
+-  let module Reader = Qcow.Make(RawReader)(Time) in
+-  let sector = Int64.div start 512L in
+-  (* This is the range that we expect to see written *)
+-  RawReader.connect path
+-  >>= fun raw ->
+-  Reader.connect raw
+-  >>= fun b ->
+-  let expected = { Extent.start = sector; length = Int64.(div (of_int length) 512L) } in
+-  let open Lwt_error.Infix in
+-  let module F = Mirage_block_combinators.Fast_fold(Reader) in
+-  F.mapped_s
+-    ~f:(fun bytes_seen ofs data ->
+-        let actual = { Extent.start = ofs; length = Int64.of_int (Cstruct.len data / 512) } in
+-        (* Any data we read now which wasn't expected must be full of zeroes *)
+-        let extra = Extent.difference actual expected in
+-        List.iter
+-          (fun { Extent.start; length } ->
+-             let buf = Cstruct.sub data (512 * Int64.(to_int (sub start ofs))) (Int64.to_int length * 512) in
+-             for i = 0 to Cstruct.len buf - 1 do
+-               assert_equal ~printer:string_of_int ~cmp:(fun a b -> a = b) 0 (Cstruct.get_uint8 buf i);
+-             done;
+-          ) extra;
+-        let common = Extent.intersect actual expected in
+-        List.iter
+-          (fun { Extent.start; length } ->
+-             let buf = Cstruct.sub data (512 * Int64.(to_int (sub start ofs))) (Int64.to_int length * 512) in
+-             for i = 0 to Cstruct.len buf - 1 do
+-               assert_equal ~printer:string_of_int ~cmp:(fun a b -> a = b) (id mod 256) (Cstruct.get_uint8 buf i)
+-             done;
+-          ) common;
+-        let seen_this_time = 512 * List.(fold_left (+) 0 (map (fun e -> Int64.to_int e.Extent.length) common)) in
+-        return (bytes_seen + seen_this_time)
+-      ) 0  b
+-  >>= fun total_bytes_seen ->
+-  assert_equal ~printer:string_of_int length total_bytes_seen;
+-  Reader.Debug.check_no_overlaps b
+-  >>= fun () ->
+-  let open Lwt.Infix in
+-  Reader.disconnect b
+-  >>= fun () ->
+-  RawReader.disconnect raw
+-  >>= fun () ->
+-  Lwt.return (Ok ())
+-
+-let write_read_native sector_size size_sectors (start, length) () =
+-  let module RawWriter = Block in
+-  let module Writer = Qcow.Make(RawWriter)(Time) in
+-  let path = Filename.concat test_dir (Printf.sprintf "write_read_native.%Ld.%Ld.%d" size_sectors start length) in
+-
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    RawWriter.connect path
+-    >>= fun raw ->
+-    let open Lwt_write_error.Infix in
+-    Writer.create raw ~size:Int64.(mul size_sectors (of_int sector_size)) ()
+-    >>= fun b ->
+-
+-    let sector = Int64.div start 512L in
+-    let id = get_id () in
+-    let buf = malloc length in
+-    Cstruct.memset buf (id mod 256);
+-    Writer.write b sector (fragment 4096 buf)
+-    >>= fun () ->
+-    let buf' = malloc length in
+-    let open Lwt_error.Infix in
+-    Writer.read b sector (fragment 4096 buf')
+-    >>= fun () ->
+-    let cmp a b = Cstruct.compare a b = 0 in
+-    assert_equal ~printer:(fun x -> String.escaped (Cstruct.to_string x)) ~cmp buf buf';
+-    let open Lwt.Infix in
+-    Writer.disconnect b
+-    >>= fun () ->
+-    RawWriter.disconnect raw
+-    >>= fun () ->
+-    repair_refcounts path
+-    >>= fun () ->
+-    Qemu.Img.check path;
+-    check_file_contents path id sector_size size_sectors (start, length) () in
+-  or_failwith @@ Lwt_main.run t
+-
+-let write_discard_read_native sector_size size_sectors (start, length) () =
+-  let module RawWriter = Block in
+-  let module Writer = Qcow.Make(RawWriter)(Time) in
+-  let path = Filename.concat test_dir (Printf.sprintf "write_discard_read_native.%Ld.%Ld.%d" size_sectors start length) in
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    let open Lwt.Infix in
+-    RawWriter.connect path
+-    >>= fun raw ->
+-    let config = Writer.Config.create ~discard:true ~runtime_asserts:true ~id:"id" () in
+-    let open Lwt_write_error.Infix in
+-    Writer.create raw ~size:Int64.(mul size_sectors (of_int sector_size)) ~config ()
+-    >>= fun b ->
+-
+-    let sector = Int64.div start 512L in
+-    let id = get_id () in
+-    let buf = malloc length in
+-    Cstruct.memset buf (id mod 256);
+-    Writer.write b sector (fragment 4096 buf)
+-    >>= fun () ->
+-    Writer.discard b ~sector ~n:(Int64.of_int (length / 512)) ()
+-    >>= fun () ->
+-    let buf' = malloc length in
+-    let open Lwt_error.Infix in
+-    Writer.read b sector (fragment 4096 buf')
+-    >>= fun () ->
+-    (* Data has been discarded, so assume the implementation now guarantees
+-       zero (cf ATA RZAT) *)
+-    for i = 0 to Cstruct.len buf' - 1 do
+-      if Cstruct.get_uint8 buf' i <> 0 then failwith "I did not Read Zero After TRIM"
+-    done;
+-    let open Lwt.Infix in
+-    Writer.Debug.assert_cluster_map_in_sync b
+-    >>= fun () ->
+-    Writer.disconnect b
+-    >>= fun () ->
+-    RawWriter.disconnect raw
+-    >>= fun () ->
+-    repair_refcounts path
+-    >>= fun () ->
+-    Qemu.Img.check path;
+-    check_file_contents path id sector_size size_sectors (0L, 0) () in
+-
+-  or_failwith @@ Lwt_main.run t
+-
+-let check_refcount_table_allocation () =
+-  let module B = Qcow.Make(Ramdisk)(Time) in
+-  let t =
+-    Ramdisk.destroy ~name:"test";
+-    Ramdisk.connect ~name:"test"
+-    >>= fun ramdisk ->
+-    let open Lwt_write_error.Infix in
+-    B.create ramdisk ~size:pib ()
+-    >>= fun b ->
+-
+-    let h = B.header b in
+-    (* let max_cluster = Int64.shift_right h.Header.size (Int32.to_int h.Header.cluster_bits) in
+-    B.Debug.set_next_cluster b (Int64.pred max_cluster); *)
+-    let length = 1 lsl (Int32.to_int h.Header.cluster_bits) in
+-    let sector = 0L in
+-
+-    let buf = malloc length in
+-    B.write b sector (fragment 4096 buf)
+-    >>= fun () ->
+-    Lwt.return (Ok ()) in
+-  or_failwith @@ Lwt_main.run t
+-
+-let check_full_disk () =
+-  let module B = Qcow.Make(Ramdisk)(Time) in
+-  let t =
+-    Ramdisk.destroy ~name:"test";
+-    Ramdisk.connect ~name:"test"
+-    >>= fun ramdisk ->
+-    let open Lwt_write_error.Infix in
+-    let config = B.Config.create ~runtime_asserts:true ~id:"id" () in
+-    B.create ramdisk ~size:gib ~config ()
+-    >>= fun b ->
+-
+-    let open Lwt.Infix in
+-    B.get_info b
+-    >>= fun info ->
+-
+-    let buf = malloc 512 in
+-    let h = B.header b in
+-    let sectors_per_cluster = Int64.(div (shift_left 1L (Int32.to_int h.Header.cluster_bits)) 512L) in
+-    let rec loop sector =
+-      if sector >= info.Mirage_block.size_sectors
+-      then Lwt.return (Ok ())
+-      else begin
+-        let open Lwt_write_error.Infix in
+-        B.write b sector [ buf ]
+-        >>= fun () ->
+-        loop Int64.(add sector sectors_per_cluster)
+-      end in
+-    loop 0L in
+-  or_failwith @@ Lwt_main.run t
+-
+-(* Compare the output of this code against qemu *)
+-let virtual_sizes = [
+-  mib;
+-  gib;
+-  tib;
+-]
+-
+-let check_file path size =
+-  let open Lwt.Infix in
+-  let info = Qemu.Img.info path in
+-  assert_equal ~printer:Int64.to_string size info.Qemu.Img.virtual_size;
+-  let module M = Qcow.Make(Block)(Time) in
+-  repair_refcounts path
+-  >>= fun () ->
+-  Qemu.Img.check path;
+-  Block.connect path
+-  >>= fun b ->
+-  M.connect b
+-  >>= fun qcow ->
+-  let h = M.header qcow in
+-  assert_equal ~printer:Int64.to_string size h.Qcow.Header.size;
+-  (* Unfortunately qemu-img info doesn't query the dirty flag:
+-     https://github.com/djs55/qemu/commit/9ac8f24fde855c66b1378cee30791a4aef5c33ba
+-  assert_equal ~printer:string_of_bool dirty info.Qemu.Img.dirty_flag;
+-  *)
+-  M.disconnect qcow
+-  >>= fun () ->
+-  Block.disconnect b
+-  >>= fun () ->
+-  Lwt.return (Ok ())
+-
+-let qemu_img size =
+-  let path = Filename.concat test_dir (Int64.to_string size) in
+-  Qemu.Img.create path size;
+-  or_failwith @@ Lwt_main.run @@ check_file path size
+-
+-let qemu_img_suite =
+-  List.map (fun size ->
+-      Printf.sprintf "check that qemu-img creates files and we can read the metadata, size = %Ld bytes" size >:: (fun () -> qemu_img size)
+-    ) virtual_sizes
+-
+-
+-let qcow_tool size =
+-  let open Lwt.Infix in
+-  let module B = Qcow.Make(Block)(Time) in
+-  let path = Filename.concat test_dir (Int64.to_string size) in
+-
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    Block.connect path
+-    >>= fun block ->
+-    let open Lwt_write_error.Infix in
+-    let config = B.Config.create ~runtime_asserts:true ~id:"id" () in
+-    B.create block ~size ~config ()
+-    >>= fun qcow ->
+-    let open Lwt.Infix in
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect block
+-    >>= fun () ->
+-    check_file path size in
+-  or_failwith @@ Lwt_main.run t
+-
+-let qcow_tool_resize ?ignore_data_loss size_from size_to =
+-  let open Lwt.Infix in
+-  let module B = Qcow.Make(Block)(Time) in
+-  let path = Filename.concat test_dir (Int64.to_string size_from) in
+-
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    Block.connect path
+-    >>= fun block ->
+-    let open Lwt_write_error.Infix in
+-    let config = B.Config.create ~runtime_asserts:true ~id:"id" () in
+-    B.create block ~size:size_from ~config ()
+-    >>= fun qcow ->
+-    B.resize qcow ~new_size:size_to ?ignore_data_loss ()
+-    >>= fun () ->
+-    let open Lwt.Infix in
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect block
+-    >>= fun () ->
+-    check_file path size_to in
+-  or_failwith @@ Lwt_main.run t
+-
+-let qcow_tool_bad_resize size_from size_to =
+-  let open Lwt.Infix in
+-  let module B = Qcow.Make(Block)(Time) in
+-  let path = Filename.concat test_dir (Int64.to_string size_from) in
+-
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    Block.connect path
+-    >>= fun block ->
+-    let open Lwt_write_error.Infix in
+-    let config = B.Config.create ~runtime_asserts:true ~id:"id" () in
+-    B.create block ~size:size_from ~config ()
+-    >>= fun qcow ->
+-    let open Lwt.Infix in
+-    B.resize qcow ~new_size:size_to ()
+-    >>= fun result ->
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect block
+-    >>= fun () ->
+-    match result with
+-    | Ok () -> failwith (Printf.sprintf "Resize succeeded when it shouldn't: size_from = %Ld; size_to = %Ld" size_from size_to)
+-    | Error _ -> Lwt.return (Ok ()) in
+-  or_failwith @@ Lwt_main.run t
+-
+-let create_resize_equals_create size_from size_to =
+-  let open Lwt.Infix in
+-  let module B = Qcow.Make(Block)(Time) in
+-  let path1 = Filename.concat test_dir (Int64.to_string size_from) in
+-  let path2 = path1 ^ ".resized" in
+-  let t =
+-    truncate path2
+-    >>= fun () ->
+-    Block.connect path2
+-    >>= fun block ->
+-    let open Lwt_write_error.Infix in
+-    let config = B.Config.create ~runtime_asserts:true ~id:"id" () in
+-    B.create block ~size:size_from ~config ()
+-    >>= fun qcow ->
+-    B.resize qcow ~new_size:size_to ()
+-    >>= fun () ->
+-    let open Lwt.Infix in
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect block
+-    >>= fun () ->
+-    truncate path1
+-    >>= fun () ->
+-    Block.connect path1
+-    >>= fun block ->
+-    let open Lwt_write_error.Infix in
+-    let config = B.Config.create ~runtime_asserts:true ~id:"id" () in
+-    B.create block ~size:size_to ~config ()
+-    >>= fun qcow ->
+-    let open Lwt.Infix in
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect block
+-    >>= fun () ->
+-    ignore(Utils.run "diff" [ path1; path2 ]);
+-    Lwt.return (Ok ()) in
+-  or_failwith @@ Lwt_main.run t
+-
+-let range from upto =
+-  let rec loop acc n = if n = upto then acc else loop (n :: acc) (Int64.succ n) in
+-  loop [] from
+-
+-let create_write_discard_all_compact clusters () =
+-  (* create a large disk *)
+-  let open Lwt.Infix in
+-  let module B = Qcow.Make(Block)(Time) in
+-  let size = gib in
+-  let path = Filename.concat test_dir (Int64.to_string size) ^ ".compact" in
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    Block.connect path
+-    >>= fun block ->
+-    let config = B.Config.create ~discard:true ~runtime_asserts:true ~id:"id" () in
+-    let open Lwt_write_error.Infix in
+-    B.create block ~size ~config ()
+-    >>= fun qcow ->
+-    let h = B.header qcow in
+-    let cluster_size = 1 lsl (Int32.to_int h.Qcow.Header.cluster_bits) in
+-    let open Lwt.Infix in
+-    B.get_info qcow
+-    >>= fun info ->
+-    let sectors_per_cluster = cluster_size / info.Mirage_block.sector_size in
+-    (* write a bunch of clusters at the beginning *)
+-    let write_cluster idx =
+-      let cluster = malloc cluster_size in (* don't care about the contents *)
+-      B.write qcow Int64.(mul idx (of_int sectors_per_cluster)) [ cluster ]
+-      >>= function
+-      | Error _ -> failwith "write"
+-      | Ok () ->
+-        Lwt.return_unit in
+-    Lwt_list.iter_s write_cluster (range 0L clusters)
+-    >>= fun () ->
+-    (* discard everything *)
+-    ( B.discard qcow ~sector:0L ~n:info.Mirage_block.size_sectors ()
+-      >>= function
+-      | Error _ -> failwith "discard"
+-      | Ok () -> Lwt.return_unit )
+-    >>= fun () ->
+-    (* compact *)
+-    let open Lwt_write_error.Infix in
+-    B.compact qcow ()
+-    >>= fun _report ->
+-    let open Lwt.Infix in
+-    B.Debug.assert_cluster_map_in_sync qcow
+-    >>= fun () ->
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect block
+-    >>= fun () ->
+-    Lwt.return (Ok ()) in
+-  or_failwith @@ Lwt_main.run t
+-
+-let create_write_discard_compact () =
+-  (* create a large disk *)
+-  let open Lwt.Infix in
+-  let module B = Qcow.Make(Block)(Time) in
+-  let size = gib in
+-  let path = Filename.concat test_dir (Int64.to_string size) ^ ".compact" in
+-  let t =
+-    truncate path
+-    >>= fun () ->
+-    Block.connect path
+-    >>= fun block ->
+-    let config = B.Config.create ~discard:true ~runtime_asserts:true ~id:"id" () in
+-    let open Lwt_write_error.Infix in
+-    B.create block ~size ~config ()
+-    >>= fun qcow ->
+-    (* write a bunch of clusters at the beginning *)
+-    let h = B.header qcow in
+-    let cluster_size = 1 lsl (Int32.to_int h.Qcow.Header.cluster_bits) in
+-    let open Lwt.Infix in
+-    B.get_info qcow
+-    >>= fun info ->
+-    let sectors_per_cluster = cluster_size / info.Mirage_block.sector_size in
+-    let make_cluster idx =
+-      let cluster = malloc cluster_size in
+-      for i = 0 to cluster_size / 8 - 1 do
+-        Cstruct.BE.set_uint64 cluster (i * 8) idx
+-      done;
+-      cluster in
+-    let write_cluster idx =
+-      let cluster = make_cluster idx in
+-      B.write qcow Int64.(mul idx (of_int sectors_per_cluster)) [ cluster ]
+-      >>= function
+-      | Error _ -> failwith "write"
+-      | Ok () ->
+-        Lwt.return_unit in
+-    let discard_cluster idx =
+-      B.discard qcow ~sector:Int64.(mul idx (of_int sectors_per_cluster)) ~n:(Int64.of_int sectors_per_cluster) ()
+-      >>= function
+-      | Error _ -> failwith "discard"
+-      | Ok () ->
+-        Lwt.return_unit in
+-    let read_cluster idx =
+-      let cluster = malloc cluster_size in
+-      B.read qcow Int64.(mul idx (of_int sectors_per_cluster)) [ cluster ]
+-      >>= function
+-      | Error _ -> failwith "read"
+-      | Ok () ->
+-        Lwt.return cluster in
+-    let check_contents cluster expected =
+-      for i = 0 to cluster_size / 8 - 1 do
+-        let actual = Cstruct.BE.get_uint64 cluster (i * 8) in
+-        assert (actual = expected)
+-      done in
+-    (* write a bunch of clusters at the beginning *)
+-    let first = [ 0L; 1L; 2L; 3L; 4L; 5L; 6L; 7L ] in
+-    Lwt_list.iter_s write_cluster first
+-    >>= fun () ->
+-    Lwt_list.iter_s
+-      (fun idx ->
+-        read_cluster idx
+-        >>= fun data ->
+-        check_contents data idx;
+-        Lwt.return_unit
+-      ) first
+-    >>= fun () ->
+-    (* write a bunch of clusters near the end. Note we write one fewer cluster
+-    than we discard because we expect one of the block allocations to be a
+-    metadata block and we want to test the rewriting. *)
+-    let second = List.tl @@ List.map Int64.(add (div (div gib (of_int cluster_size)) 2L)) first in
+-    Lwt_list.iter_s write_cluster second
+-    >>= fun () ->
+-    Lwt_list.iter_s
+-      (fun idx ->
+-        read_cluster idx
+-        >>= fun data ->
+-        check_contents data idx;
+-        Lwt.return_unit
+-      ) second
+-    >>= fun () ->
+-    (* discard the clusters at the beginning *)
+-    Lwt_list.iter_s discard_cluster first
+-    >>= fun () ->
+-    (* check all the values are as expected *)
+-    Lwt_list.iter_s
+-      (fun idx ->
+-        read_cluster idx
+-        >>= fun data ->
+-        check_contents data 0L;
+-        Lwt.return_unit
+-      ) first
+-    >>= fun () ->
+-    Lwt_list.iter_s
+-      (fun idx ->
+-        read_cluster idx
+-        >>= fun data ->
+-        check_contents data idx;
+-        Lwt.return_unit
+-      ) second
+-    >>= fun () ->
+-    (* compact *)
+-    let open Lwt_write_error.Infix in
+-    B.compact qcow ()
+-    >>= fun _report ->
+-    let open Lwt.Infix in
+-    (* check all the values are as expected *)
+-    Lwt_list.iter_s
+-      (fun idx ->
+-        read_cluster idx
+-        >>= fun data ->
+-        check_contents data 0L;
+-        Lwt.return_unit
+-      ) first
+-    >>= fun () ->
+-    Lwt_list.iter_s
+-      (fun idx ->
+-        read_cluster idx
+-        >>= fun data ->
+-        check_contents data idx;
+-        Lwt.return_unit
+-      ) second
+-    >>= fun () ->
+-    B.Debug.assert_cluster_map_in_sync qcow
+-    >>= fun () ->
+-    B.disconnect qcow
+-    >>= fun () ->
+-    Block.disconnect block
+-    >>= fun () ->
+-    Lwt.return (Ok ()) in
+-  or_failwith @@ Lwt_main.run t
+-
+-let qcow_tool_suite =
+-  let create =
+-    List.map (fun size ->
+-        Printf.sprintf "check that qcow-tool creates files and we can read the metadata, size = %Ld bytes" size >:: (fun () -> qcow_tool size)
+-      ) virtual_sizes in
+-  let ok_resize =
+-    let ok = List.filter (fun (a, b) -> a < b) (cross virtual_sizes virtual_sizes) in
+-    List.map (fun (size_from, size_to) ->
+-      Printf.sprintf "check that qcow-tool can make files bigger and we can read the metadata, from = %Ld bytes to = %Ld bytes" size_from size_to >:: (fun () -> qcow_tool_resize size_from size_to)
+-    ) ok in
+-  let bad_resize =
+-    let bad = List.filter (fun (a, b) -> a > b) (cross virtual_sizes virtual_sizes) in
+-    List.map (fun (size_from, size_to) ->
+-      Printf.sprintf "check that qcow-tool refuses to make files smaller and we can read the metadata, from = %Ld bytes to = %Ld bytes" size_from size_to >:: (fun () -> qcow_tool_bad_resize size_from size_to)
+-    ) bad in
+-  let ignore_data_loss_resize =
+-    let bad = List.filter (fun (a, b) -> a > b) (cross virtual_sizes virtual_sizes) in
+-    List.map (fun (size_from, size_to) ->
+-      Printf.sprintf "check that qcow-tool can be forced to make files smaller and we can read the metadata, from = %Ld bytes to = %Ld bytes" size_from size_to >:: (fun () -> qcow_tool_resize ~ignore_data_loss:true size_from size_to)
+-    ) bad in
+-  let create_resize_equals_create =
+-    let good = List.filter (fun (a, b) -> a < b) (cross virtual_sizes virtual_sizes) in
+-    List.map (fun (size_from, size_to) ->
+-      Printf.sprintf "check that create then resize creates the same result as create, from = %Ld bytes to = %Ld bytes" size_from size_to >:: (fun () -> create_resize_equals_create size_from size_to)
+-    ) good in
+-  create @ ok_resize @ bad_resize @ ignore_data_loss_resize @ create_resize_equals_create
+-
+-let _ =
+-  Logs.set_reporter (Logs_fmt.reporter ());
+-  let sector_size = 512 in
+-  (* Test with a 1 PiB disk, bigger than we'll need for a while. *)
+-  let size_sectors = Int64.div pib 512L in
+-  let cluster_bits = 16 in
+-  let interesting_native_reads = List.map
+-      (fun (label, start, length) -> label >:: write_read_native sector_size size_sectors (start, Int64.to_int length))
+-      (interesting_ranges sector_size size_sectors cluster_bits) in
+-  let interesting_native_discards = List.map
+-      (fun (label, start, length) -> label >:: write_discard_read_native sector_size size_sectors (start, Int64.to_int length))
+-      (interesting_ranges sector_size size_sectors cluster_bits) in
+-  let diet_tests = List.map (fun (name, fn) -> name >:: fn) Qcow_diet.Test.all in
+-  let bitmap_tests = List.map (fun (name, fn) -> name >:: fn) Qcow_bitmap.Test.all in
+-  let suite = "qcow2" >::: (diet_tests @ bitmap_tests @ [
+-      "check we can fill the disk" >:: check_full_disk;
+-      "check we can reallocate the refcount table" >:: check_refcount_table_allocation;
+-      "create 1K" >:: create_1K;
+-      "create 1M" >:: create_1M;
+-      "create 1P" >:: create_1P;
+-      "compact" >:: create_write_discard_compact;
+-      "discard all then compact 0L" >:: create_write_discard_all_compact 0L;
+-      "discard all then compact 1L" >:: create_write_discard_all_compact 1L;
+-      "discard all then compact 2L" >:: create_write_discard_all_compact 2L;
+-      "discard all then compact 16384L" >:: create_write_discard_all_compact 16384L;
+-    ] @ interesting_native_reads @ interesting_native_discards @ qemu_img_suite @ qcow_tool_suite) in
+-  OUnit2.run_test_tt_main (ounit2_of_ounit1 suite);
+-  (* If no error, delete the directory *)
+-  ignore(run "rm" [ "-rf"; test_dir ])
+diff --git a/ocaml/qcow-tool/lib_test/utils.ml b/ocaml/qcow-tool/lib_test/utils.ml
+deleted file mode 100644
+index 4633798b1..000000000
+--- a/ocaml/qcow-tool/lib_test/utils.ml
++++ /dev/null
+@@ -1,115 +0,0 @@
+-(*
+- * Copyright (C) 2016 Unikernel Systems
+- *
+- * Permission to use, copy, modify, and/or distribute this software for any
+- * purpose with or without fee is hereby granted, provided that the above
+- * copyright notice and this permission notice appear in all copies.
+- *
+- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+- * REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+- * AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+- * INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+- * LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+- * OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+- * PERFORMANCE OF THIS SOFTWARE.
+- *)
+-
+-let debug fmt =
+-  Printf.ksprintf (fun s ->
+-      Printf.fprintf stderr "%s\n%!" s
+-    ) fmt
+-
+-let read_lines oc =
+-  let rec aux acc =
+-    let line =
+-      try Some (input_line oc)
+-      with End_of_file -> None
+-    in
+-    match line with
+-    | Some l -> aux (l :: acc)
+-    | None   -> List.rev acc
+-  in
+-  aux []
+-
+-let or_failwith = function
+-  | Ok x -> x
+-  | Error (`Msg m) -> failwith m
+-
+-let ignore_output (_: (string list * string list)) = ()
+-
+-type process = int * (in_channel * out_channel * in_channel) * string
+-
+-let check_exit_status cmdline = function
+-  | Unix.WEXITED 0 -> Ok ()
+-  | Unix.WEXITED n -> debug "%s failed" cmdline; Error (`Msg (cmdline ^ ": " ^ (string_of_int n)))
+-  | Unix.WSIGNALED n -> debug "%s killed by signal %d" cmdline n; Error (`Msg (cmdline ^ " killed by signal %d" ^ (string_of_int n)))
+-  | Unix.WSTOPPED n -> debug "%s stopped by signal %d" cmdline n; Error (`Msg (cmdline ^ " stopped by signal %d" ^ (string_of_int n)))
+-
+-let start cmd args : process =
+-  let stdin_r, stdin_w = Unix.pipe () in
+-  let stdout_r, stdout_w = Unix.pipe () in
+-  let stderr_r, stderr_w = Unix.pipe () in
+-  let pid = Unix.create_process cmd (Array.of_list (cmd :: args)) stdin_r stdout_w stderr_w in
+-  Unix.close stdin_r;
+-  Unix.close stdout_w;
+-  Unix.close stderr_w;
+-  let ic = Unix.out_channel_of_descr stdin_w in
+-  let oc = Unix.in_channel_of_descr stdout_r in
+-  let ec = Unix.in_channel_of_descr stderr_r in
+-  pid, (oc, ic, ec), Printf.sprintf "%s %s" cmd (String.concat " " args)
+-
+-let signal (pid, _, _) s = Unix.kill pid s
+-
+-let wait' (pid, (oc, ic, ec), cmdline) =
+-  close_out ic;
+-  close_in oc;
+-  close_in ec;
+-  let _, exit_status =
+-    let rec loop () =
+-      try
+-        Unix.waitpid [] pid
+-      with Unix.Unix_error(Unix.EINTR, _, _) -> loop () in
+-    loop () in
+-  check_exit_status cmdline exit_status
+-
+-let wait (pid, (oc, ic, ec), cmdline) =
+-  or_failwith @@ wait' (pid, (oc, ic, ec), cmdline)
+-
+-let run cmd args =
+-  let pid, (oc, ic, ec), cmdline = start cmd args in
+-  let out = read_lines oc in
+-  let err = read_lines ec in
+-  match wait' (pid, (oc, ic, ec), cmdline) with
+-  | Ok _ -> out, err
+-  | Error (`Msg m) -> failwith (m ^ "\n" ^ (String.concat "\n" out) ^ "\n" ^ (String.concat "\n" err))
+-
+-(* No need for data integrity during tests *)
+-module UnsafeBlock = struct
+-  include Block
+-  let flush _ = Lwt.return (Ok ())
+-end
+-
+-let truncate path =
+-  let open Lwt.Infix in
+-  Lwt_unix.openfile path [ Unix.O_CREAT; Unix.O_TRUNC ] 0o0644
+-  >>= fun fd ->
+-  Lwt_unix.close fd
+-
+-(* Create a temporary directory for our images. We want these to be
+-   manually examinable afterwards, so we give images human-readable names *)
+-let test_dir =
+-  (* a bit racy but if we lose, the test will simply fail *)
+-  let path = Filename.temp_file "ocaml-qcow" "" in
+-  Unix.unlink path;
+-  Unix.mkdir path 0o0755;
+-  debug "Creating temporary files in %s" path;
+-  path
+-
+-let malloc (length: int) =
+-  let npages = (length + 4095)/4096 in
+-  Cstruct.sub Io_page.(to_cstruct (get npages)) 0 length
+-
+-module Time = struct
+-  type 'a io = 'a Lwt.t
+-  let sleep_ns ns = Lwt_unix.sleep (Int64.to_float ns /. 1_000_000_000.0)
+-end

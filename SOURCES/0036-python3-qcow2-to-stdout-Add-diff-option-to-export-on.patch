@@ -1,0 +1,160 @@
+From b27183589a051f14075f84d54821ccada3888847 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 15 May 2025 11:16:30 +0100
+Subject: [PATCH] python3/qcow2-to-stdout: Add --diff option to export only
+ changed clusters
+
+When specified, only the clusters that have changed between diff_file_name and
+input_file will be allocated and exported in a sparse manner.
+
+This is analogous to vhd-tool's --relative-to option.
+
+Example usage:
+```
+Create an empty raw file:
+$ dd if=/dev/zero of=disk.before.img bs=1M count=100
+
+Fill the first three clusters with random data
+$ dd if=/dev/random conv=notrunc of=disk.before.img bs=65536 count=3
+$ python3/libexec/qcow2-to-stdout.py disk.before.img > disk.before.qcow2
+
+Check that only the first three clusters are allocated (each is 0x10000 in length)
+$ qemu-img map disk.before.qcow2
+Offset          Length          Mapped to       File
+0               0x30000         0x50000         disk.before.qcow2
+
+Overwrite the 2nd and 3rd clusters with new data
+$ cp disk.before.img disk.after.img
+$ dd if=/dev/random conv=notrunc of=disk.after.img bs=65536 count=2 oseek=1
+
+Export the difference, verifying that only the 2nd and 3rd clusters are allocated
+$ python3/libexec/qcow2-to-stdout.py disk.after.img --diff disk.before.img > disk.diff.qcow2
+$ qemu-img map disk.diff.qcow2
+Offset          Length          Mapped to       File
+0x10000         0x20000         0x50000         disk.diff.qcow2
+
+The image can be recreated if the base is imported first, with the difference
+overwriting it
+$ qemu-img convert -f qcow2 -O raw disk.before.qcow2 disk.test.img
+$ qemu-img convert -f qcow2 -O raw disk.diff.qcow2 disk.test.img --target-is-zero -n
+$ diff disk.test.img disk.after.img
+<the same>
+
+```
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ python3/libexec/qcow2-to-stdout.py | 62 +++++++++++++++++++++++++-----
+ 1 file changed, 53 insertions(+), 9 deletions(-)
+
+diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
+index 089a31ca8..bfc55b3b6 100755
+--- a/python3/libexec/qcow2-to-stdout.py
++++ b/python3/libexec/qcow2-to-stdout.py
+@@ -137,7 +137,8 @@ def write_features(cluster, offset, data_file_name):
+         offset += 48
+ 
+ 
+-def write_qcow2_content(input_file, cluster_size, refcount_bits, data_file_name, data_file_raw):
++def write_qcow2_content(input_file, cluster_size, refcount_bits,
++                        data_file_name, data_file_raw, diff_file_name):
+     # Some basic values
+     l1_entries_per_table = cluster_size // 8
+     l2_entries_per_table = cluster_size // 8
+@@ -173,17 +174,17 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits, data_file_name,
+         for idx in range(total_data_clusters):
+             bitmap_set(l2_bitmap, idx)
+     else:
+-        zero_cluster = bytes(cluster_size)
+-        last_cluster = align_up(block_device_size, cluster_size) // cluster_size
+-        # Read all the clusters that contain data
+-        for idx in range(0, last_cluster):
+-            cluster = os.pread(fd, cluster_size, cluster_size * idx)
++        # Allocates a cluster in the appropriate bitmaps if it's different
++        # from cluster_to_compare_with
++        def check_cluster_allocate(idx, cluster, cluster_to_compare_with):
++            nonlocal allocated_data_clusters
++            nonlocal allocated_l2_tables
+             # If the last cluster is smaller than cluster_size pad it with zeroes
+             if len(cluster) < cluster_size:
+                 cluster += bytes(cluster_size - len(cluster))
+-            # If a cluster has non-zero data then it must be allocated
+-            # in the output file and its L2 entry must be set
+-            if cluster != zero_cluster:
++            # If a cluster has different data from the cluster_to_compare_with then it
++            # must be allocated in the output file and its L2 entry must be set
++            if cluster != cluster_to_compare_with:
+                 bitmap_set(l2_bitmap, idx)
+                 allocated_data_clusters += 1
+                 # Allocated data clusters also need their corresponding L1 entry and L2 table
+@@ -192,6 +193,36 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits, data_file_name,
+                     bitmap_set(l1_bitmap, l1_idx)
+                     allocated_l2_tables += 1
+ 
++        zero_cluster = bytes(cluster_size)
++        last_cluster = align_up(block_device_size, cluster_size) // cluster_size
++        if diff_file_name:
++            # Read all the clusters that differ from the diff_file_name
++            diff_fd = os.open(diff_file_name, os.O_RDONLY)
++            diff_block_device_size = os.lseek(diff_fd, 0, os.SEEK_END)
++            last_diff_cluster = align_up(diff_block_device_size, cluster_size) // cluster_size
++            # In case input_file is bigger than diff_file_name, first check
++            # if clusters from diff_file_name differ, and then check if the
++            # rest contain data
++            for idx in range(0, last_diff_cluster):
++                cluster = os.pread(fd, cluster_size, cluster_size * idx)
++                original_cluster = os.pread(diff_fd, cluster_size, cluster_size * idx)
++
++                # If a cluster has different data from the original_cluster
++                # then it must be allocated
++                check_cluster_allocate(idx, cluster, original_cluster)
++            for idx in range(last_diff_cluster, last_cluster):
++                cluster = os.pread(fd, cluster_size, cluster_size * idx)
++
++                # If a cluster has different data from the original_cluster
++                # then it must be allocated
++                check_cluster_allocate(idx, cluster, zero_cluster)
++        else:
++            # Read all the clusters that contain data
++            for idx in range(0, last_cluster):
++                cluster = os.pread(fd, cluster_size, cluster_size * idx)
++                # If a cluster has non-zero data then it must be allocated
++                check_cluster_allocate(idx, cluster, zero_cluster)
++
+     # Total amount of allocated clusters excluding the refcount blocks and table
+     total_allocated_clusters = 1 + allocated_l1_tables + allocated_l2_tables
+     if data_file_name is None:
+@@ -361,6 +392,15 @@ def main():
+         "and writes it to the standard output"
+     )
+     parser.add_argument("input_file", help="name of the input file")
++    parser.add_argument(
++        "--diff",
++        dest="diff_file_name",
++        metavar="diff_file_name",
++        help=("name of the original file to compare input_file against. "
++                "If specified, will only export clusters that are different "
++                "between the files"),
++        default=None,
++    )
+     parser.add_argument(
+         "-f",
+         dest="input_format",
+@@ -406,6 +446,9 @@ def main():
+     if not os.path.exists(args.input_file):
+         sys.exit(f"[Error] {args.input_file} does not exist.")
+ 
++    if args.diff_file_name and not os.path.exists(args.diff_file_name):
++        sys.exit(f"[Error] {args.input_file} does not exist.")
++
+     if args.data_file and args.input_format != "raw":
+         sys.exit("[Error] External data files can only be used with raw input images")
+ 
+@@ -428,6 +471,7 @@ def main():
+             args.refcount_bits,
+             data_file_name,
+             args.data_file_raw,
++            args.diff_file_name
+         )
+ 
+ 

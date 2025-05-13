@@ -1,0 +1,278 @@
+From 3262cdc19d6f9a9e85224d1cda5f392e802aa1d0 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 18 Mar 2025 11:44:22 +0100
+Subject: [PATCH] [qcow-tool packaging] build fix: remove Unimplemented variant
+
+In MirageOS, the Unimplemented variant was removed from the
+Mirage_block.error type in version 2.0.0. This patch removes
+all places where this varient is used. In some places we
+replace it with a Failure.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/qcow-tool/lib/qcow.ml             |  5 +----
+ ocaml/qcow-tool/lib/qcow_cluster_map.ml |  4 ++--
+ ocaml/qcow-tool/lib/qcow_debug.mli      |  4 ++--
+ ocaml/qcow-tool/lib/qcow_error.ml       |  4 ----
+ ocaml/qcow-tool/lib/qcow_error.mli      | 12 ++++++------
+ ocaml/qcow-tool/lib/qcow_metadata.ml    |  1 -
+ ocaml/qcow-tool/lib/qcow_padded.ml      |  3 +--
+ ocaml/qcow-tool/lib/qcow_recycler.ml    |  6 +-----
+ ocaml/qcow-tool/lib_test/error.ml       |  2 --
+ ocaml/qcow-tool/lib_test/error.mli      |  4 ++--
+ 10 files changed, 15 insertions(+), 30 deletions(-)
+
+diff --git a/ocaml/qcow-tool/lib/qcow.ml b/ocaml/qcow-tool/lib/qcow.ml
+index cc329e380..d58ad7f82 100644
+--- a/ocaml/qcow-tool/lib/qcow.ml
++++ b/ocaml/qcow-tool/lib/qcow.ml
+@@ -324,7 +324,6 @@ module Make(Base: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+                   let open Lwt.Infix in
+                   loop 0
+                   >>= function
+-                  | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+                   | Error `Disconnected -> Lwt.return (Error `Disconnected)
+                   | Error `Is_read_only -> Lwt.return (Error (`Msg "Device is read only"))
+                   | Error (`Msg m) -> Lwt.return (Error (`Msg m))
+@@ -1432,7 +1431,6 @@ module Make(Base: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+         (fun () ->
+           B.read base sector [ buf ]
+           >>= function
+-          | Error (#Mirage_device.error as e) -> Lwt.return_error e
+           | Error _ -> Lwt.fail_with "unknown error"
+           | Ok () -> Lwt.return (Ok buf)
+         ) (fun e ->
+@@ -1451,7 +1449,6 @@ module Make(Base: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+           (fun () ->
+             B.write base sector [ buf ]
+             >>= function
+-            | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+             | Error `Disconnected -> Lwt.return (Error `Disconnected)
+             | Error `Is_read_only -> Lwt.return (Error `Is_read_only)
+             | Error _ -> Lwt.fail_with "unknown error"
+@@ -1645,7 +1642,7 @@ module Make(Base: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+         let open Lwt_write_error.Infix in
+         ( if not(t.config.Config.discard) then begin
+             Log.err (fun f -> f "discard called but feature not implemented in configuration");
+-            Lwt.return (Error `Unimplemented)
++            Lwt.fail (Failure "Unimplemented")
+           end else Lwt.return (Ok ()) )
+         >>= fun () ->
+         Counter.inc (Metrics.discards t.config.Config.id) Int64.(to_float @@ mul n @@ of_int t.sector_size);
+diff --git a/ocaml/qcow-tool/lib/qcow_cluster_map.ml b/ocaml/qcow-tool/lib/qcow_cluster_map.ml
+index d3968ab6a..6158998ab 100644
+--- a/ocaml/qcow-tool/lib/qcow_cluster_map.ml
++++ b/ocaml/qcow-tool/lib/qcow_cluster_map.ml
+@@ -342,8 +342,8 @@ let zero =
+   let free = Qcow_bitmap.make_empty ~initial_size:0 ~maximum_size:0 in
+   let refs = Cluster.Map.empty in
+   let cache = Cache.create
+-    ~read_cluster:(fun _ -> Lwt.return (Error `Unimplemented))
+-    ~write_cluster:(fun _ _ -> Lwt.return (Error `Unimplemented))
++    ~read_cluster:(fun _ -> Lwt.fail (Failure "Unimplemented"))
++    ~write_cluster:(fun _ _ -> Lwt.fail (Failure "Unimplemented"))
+     () in
+   make ~free ~refs ~first_movable_cluster:Cluster.zero ~cache ~runtime_asserts:false ~id:None ~cluster_size:0
+ 
+diff --git a/ocaml/qcow-tool/lib/qcow_debug.mli b/ocaml/qcow-tool/lib/qcow_debug.mli
+index 503999a7c..b9bfeacf3 100644
+--- a/ocaml/qcow-tool/lib/qcow_debug.mli
++++ b/ocaml/qcow-tool/lib/qcow_debug.mli
+@@ -18,9 +18,9 @@ open Qcow_types
+ 
+ val on_duplicate_reference: Qcow_metadata.t -> Qcow_cluster_map.t -> cluster_bits:int ->
+    (int64 * int) -> (int64 * int) -> int64 ->
+-   (unit, [> `Disconnected | `Is_read_only | `Msg of string | `Unimplemented ]) result Lwt.t
++   (unit, [> `Disconnected | `Is_read_only | `Msg of string ]) result Lwt.t
+ 
+ val check_references: Qcow_metadata.t -> Qcow_cluster_map.t -> cluster_bits:int -> Cluster.t ->
+-  (unit, [> `Disconnected | `Is_read_only | `Msg of string | `Unimplemented ]) result Lwt.t
++  (unit, [> `Disconnected | `Is_read_only | `Msg of string ]) result Lwt.t
+ (** [check_references metadata map cluster_bits target] follows the back references
+     from physical offset [target], verifying the references on disk as it goes *)
+diff --git a/ocaml/qcow-tool/lib/qcow_error.ml b/ocaml/qcow-tool/lib/qcow_error.ml
+index ec950e07e..d2a016aa0 100644
+--- a/ocaml/qcow-tool/lib/qcow_error.ml
++++ b/ocaml/qcow-tool/lib/qcow_error.ml
+@@ -41,7 +41,6 @@ module Lwt_error = struct
+     let ( >>= ) m f = m >>= function
+       | Ok x -> f x
+       | Error (`Msg s) -> Lwt.return (Error (`Msg s))
+-      | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+       | Error `Disconnected -> Lwt.return (Error `Disconnected)
+   end
+ 
+@@ -49,7 +48,6 @@ module Lwt_error = struct
+     let open Lwt in
+     m >>= function
+     | Error (`Msg s) -> Lwt.fail_with s
+-    | Error `Unimplemented -> Lwt.fail_with "unimplemented"
+     | Error `Disconnected -> Lwt.fail_with "disconnected"
+     | Ok x -> Lwt.return x
+ 
+@@ -76,14 +74,12 @@ module Lwt_write_error = struct
+       | Ok x -> f x
+       | Error (`Msg s) -> Lwt.return (Error (`Msg s))
+       | Error `Is_read_only -> Lwt.return (Error `Is_read_only)
+-      | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+       | Error `Disconnected -> Lwt.return (Error `Disconnected)
+   end
+   let or_fail_with m =
+     let open Lwt in
+     m >>= function
+     | Error (`Msg s) -> Lwt.fail_with s
+-    | Error `Unimplemented -> Lwt.fail_with "unimplemented"
+     | Error `Is_read_only -> Lwt.fail_with "is read only"
+     | Error `Disconnected -> Lwt.fail_with "disconnected"
+     | Ok x -> Lwt.return x
+diff --git a/ocaml/qcow-tool/lib/qcow_error.mli b/ocaml/qcow-tool/lib/qcow_error.mli
+index ad1bdc0cd..9a3d6ef44 100644
+--- a/ocaml/qcow-tool/lib/qcow_error.mli
++++ b/ocaml/qcow-tool/lib/qcow_error.mli
+@@ -36,15 +36,15 @@ val any: (unit, 'b) result list -> (unit, 'b) result
+ module Lwt_error: sig
+   module Infix: sig
+     val ( >>= ) :
+-      ('a, [< `Disconnected | `Msg of 'b | `Unimplemented ]) result Lwt.t ->
++      ('a, [< `Disconnected | `Msg of 'b ]) result Lwt.t ->
+       ('a ->
+-       ('c, [> `Disconnected | `Msg of 'b | `Unimplemented ] as 'd) result
++       ('c, [> `Disconnected | `Msg of 'b ] as 'd) result
+          Lwt.t) ->
+       ('c, 'd) result Lwt.t
+   end
+ 
+   val or_fail_with :
+-    ('a, [< `Disconnected | `Msg of string | `Unimplemented ]) result Lwt.t ->
++    ('a, [< `Disconnected | `Msg of string ]) result Lwt.t ->
+     'a Lwt.t
+ 
+   module List: sig
+@@ -60,18 +60,18 @@ module Lwt_write_error : sig
+   module Infix: sig
+   val ( >>= ) :
+     ('a,
+-     [< `Disconnected | `Is_read_only | `Msg of 'b | `Unimplemented ])
++     [< `Disconnected | `Is_read_only | `Msg of 'b ])
+       result Lwt.t ->
+     ('a ->
+      ('c,
+-      [> `Disconnected | `Is_read_only | `Msg of 'b | `Unimplemented ]
++      [> `Disconnected | `Is_read_only | `Msg of 'b ]
+       as 'd)
+        result Lwt.t) ->
+     ('c, 'd) result Lwt.t
+ end
+   val or_fail_with :
+     ('a,
+-     [< `Disconnected | `Is_read_only | `Msg of string | `Unimplemented ])
++     [< `Disconnected | `Is_read_only | `Msg of string ])
+       result Lwt.t -> 'a Lwt.t
+ end
+ 
+diff --git a/ocaml/qcow-tool/lib/qcow_metadata.ml b/ocaml/qcow-tool/lib/qcow_metadata.ml
+index c72ede1ba..5fd614062 100644
+--- a/ocaml/qcow-tool/lib/qcow_metadata.ml
++++ b/ocaml/qcow-tool/lib/qcow_metadata.ml
+@@ -137,6 +137,5 @@ let update ?client t cluster f =
+        >>= function
+        | Error `Is_read_only -> Lwt.return (Error `Is_read_only)
+        | Error `Disconnected -> Lwt.return (Error `Disconnected)
+-       | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+        | Ok () -> Lwt.return (Ok result)
+     )
+diff --git a/ocaml/qcow-tool/lib/qcow_padded.ml b/ocaml/qcow-tool/lib/qcow_padded.ml
+index d5ae95aac..214ae72b6 100644
+--- a/ocaml/qcow-tool/lib/qcow_padded.ml
++++ b/ocaml/qcow-tool/lib/qcow_padded.ml
+@@ -21,9 +21,8 @@ module Make(B: Qcow_s.RESIZABLE_BLOCK) = struct
+   include B
+ 
+   let handle_error = function
+-    | `Unimplemented -> Lwt.return (Error `Unimplemented)
+     | `Disconnected -> Lwt.return (Error `Disconnected)
+-    | e -> Format.kasprintf Lwt.fail_with "Unknown error: %a" B.pp_error e
++    | _ -> Format.kasprintf Lwt.fail_with "Unknown error in qcow_paddle.ml"
+ 
+   let read base base_sector buf =
+     let open Lwt in
+diff --git a/ocaml/qcow-tool/lib/qcow_recycler.ml b/ocaml/qcow-tool/lib/qcow_recycler.ml
+index 0dbbeea3c..5b32c4ee0 100644
+--- a/ocaml/qcow-tool/lib/qcow_recycler.ml
++++ b/ocaml/qcow-tool/lib/qcow_recycler.ml
+@@ -81,13 +81,11 @@ module Make(B: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+     let open Lwt.Infix in
+     B.read t.base src_sector [ cluster ]
+     >>= function
+-    | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+     | Error `Disconnected -> Lwt.return (Error `Disconnected)
+     | Error e -> Format.kasprintf Lwt.fail_with "Unknown error: %a" B.pp_error e
+     | Ok () ->
+       B.write t.base dst_sector [ cluster ]
+       >>= function
+-      | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+       | Error `Disconnected -> Lwt.return (Error `Disconnected)
+       | Error `Is_read_only -> Lwt.return (Error `Is_read_only)
+       | Error e -> Format.kasprintf Lwt.fail_with "Unknown error: %a" B.pp_write_error e
+@@ -134,10 +132,9 @@ module Make(B: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+              end else begin
+                copy_already_locked t src dst
+                >>= function
+-               | Error `Unimplemented -> Lwt.return (Error `Unimplemented)
+                | Error `Disconnected -> Lwt.return (Error `Disconnected)
+                | Error `Is_read_only -> Lwt.return (Error `Is_read_only)
+-               | Error e -> Format.kasprintf Lwt.fail_with "Unknown error: %a" B.pp_write_error e
++               | Error _ -> Format.kasprintf Lwt.fail_with "Unknown error in qcow_recylcer.ml"
+                | Ok () ->
+                  Qcow_cluster_map.(set_move_state cluster_map move Copied);
+                  Lwt.return (Ok ())
+@@ -549,7 +546,6 @@ module Make(B: Qcow_s.RESIZABLE_BLOCK)(Time: Mirage_time.S) = struct
+         begin update_references t
+           >>= function
+           | Error (`Msg x) -> Lwt.fail_with x
+-          | Error `Unimplemented -> Lwt.fail_with "Unimplemented"
+           | Error `Disconnected -> Lwt.fail_with "Disconnected"
+           | Error `Is_read_only -> Lwt.fail_with "Is_read_only"
+           | Ok nr_updated ->
+diff --git a/ocaml/qcow-tool/lib_test/error.ml b/ocaml/qcow-tool/lib_test/error.ml
+index e070a7927..0308cff8b 100644
+--- a/ocaml/qcow-tool/lib_test/error.ml
++++ b/ocaml/qcow-tool/lib_test/error.ml
+@@ -21,7 +21,6 @@ module Lwt_error = struct
+   module Infix = struct
+     let ( >>= ) m f = m >>= function
+       | Ok x -> f x
+-      | Error `Unimplemented -> Lwt.fail_with "Unimplemented"
+       | Error `Disconnected -> Lwt.fail_with "Disconnected"
+       | Error _ -> Lwt.fail_with "Unknown error"
+   end
+@@ -33,7 +32,6 @@ module Lwt_write_error = struct
+     let ( >>= ) m f = m >>= function
+       | Ok x -> f x
+       | Error `Is_read_only -> Lwt.fail_with "Is_read_only"
+-      | Error `Unimplemented -> Lwt.fail_with "Unimplemented"
+       | Error `Disconnected -> Lwt.fail_with "Disconnected"
+       | Error _ -> Lwt.fail_with "Unknown error"
+   end
+diff --git a/ocaml/qcow-tool/lib_test/error.mli b/ocaml/qcow-tool/lib_test/error.mli
+index b237bd2fe..d4ca7bfd6 100644
+--- a/ocaml/qcow-tool/lib_test/error.mli
++++ b/ocaml/qcow-tool/lib_test/error.mli
+@@ -19,7 +19,7 @@ open Result
+ module Lwt_error: sig
+   module Infix : sig
+     val ( >>= ) :
+-      ('a, [> `Disconnected | `Unimplemented ]) result Lwt.t ->
++      ('a, [> `Disconnected ]) result Lwt.t ->
+       ('a -> 'b Lwt.t) -> 'b Lwt.t
+   end
+ end
+@@ -27,7 +27,7 @@ end
+ module Lwt_write_error: sig
+   module Infix : sig
+     val ( >>= ) :
+-      ('a, [> `Is_read_only | `Disconnected | `Unimplemented ]) result Lwt.t ->
++      ('a, [> `Is_read_only | `Disconnected ]) result Lwt.t ->
+       ('a -> 'b Lwt.t) -> 'b Lwt.t
+   end
+ end

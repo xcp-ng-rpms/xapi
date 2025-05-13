@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.7%{?xsrel}%{?dist}
+Release: 1.7.0.qcow2.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -107,6 +107,28 @@ Patch1014: 0014-CA-409510-Make-xenopsd-nested-Parallel-atoms-explici.patch
 Patch1015: 0015-CA-409510-Give-a-warning-if-atoms-nested-incorrectly.patch
 Patch1016: 0016-CA-410782-Add-receive_memory_queues-for-VM_receive_m.patch
 Patch1017: 0017-CA-411319-Concurrent-VM.assert_can_migrate-failure.patch
+
+Patch1018: 0018-qcow-tool-packaging-import-qcow-tool-from-ocaml-qcow.patch
+Patch1019: 0019-qcow-tool-packaging-build-fix-use-io-page-instead-of.patch
+Patch1020: 0020-qcow-tool-packaging-build-fix-cstruct.patch
+Patch1021: 0021-qcow-tool-packaging-build-fix-remove-Unimplemented-v.patch
+Patch1022: 0022-qcow-tool-packaging-build-fix-update-cmdliner.patch
+Patch1023: 0023-qcow-tool-packaging-package-it-in-xapi.patch
+Patch1024: 0024-qcow-tool-packaging-remove-lib-test.patch
+Patch1025: 0025-qcow-tool-run-make-format.patch
+Patch1026: 0026-python-Add-qcow2-to-stdout.py-script.patch
+Patch1027: 0027-python3-qcow2-to-stdout-Update-to-handle-block-speci.patch
+Patch1028: 0028-ocaml-qcow-Update-header-parsing-with-the-new-QCOW-f.patch
+Patch1029: 0029-qcow-tool-Fix-positional-argument-parsing-in-the-CLI.patch
+Patch1030: 0030-ocaml-qcow-Fix-malloc-page-allocation-calculation.patch
+Patch1031: 0031-qcow-tool-Add-qcow_stream-module-implementation-with.patch
+Patch1032: 0032-cli-Add-stream_decode-command.patch
+Patch1033: 0033-export-import-_raw_vdi-add-qcow-as-supported-format.patch
+Patch1034: 0034-tests-unix_select-Add-Lwt_engine__fun-to-the-list-of.patch
+Patch1035: 0035-ocaml-qcow-Skip-and-cache-subsequent-clusters-when-r.patch
+Patch1036: 0036-python3-qcow2-to-stdout-Add-diff-option-to-export-on.patch
+Patch1037: 0037-export_raw_vdi-Add-support-for-differential-QCOW2-ex.patch
+Patch1038: 0038-Add-qcow2-as-supported-format-by-xcp-rrdd-iostat.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1032,6 +1054,7 @@ done
 /opt/xensource/libexec/xe-syslog-reconfigure
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
+/opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel

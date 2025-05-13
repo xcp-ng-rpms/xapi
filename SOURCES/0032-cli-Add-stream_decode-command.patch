@@ -1,0 +1,84 @@
+From 17e334def4843b320664af5a37f20345c5566892 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 1 May 2025 09:07:08 +0100
+Subject: [PATCH] cli: Add stream_decode command
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-tool/cli/dune    |  6 +-----
+ ocaml/qcow-tool/cli/impl.ml |  4 ++++
+ ocaml/qcow-tool/cli/main.ml | 18 ++++++++++++++++++
+ 3 files changed, 23 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/qcow-tool/cli/dune b/ocaml/qcow-tool/cli/dune
+index ecb8844d6..6ccfb9cf0 100644
+--- a/ocaml/qcow-tool/cli/dune
++++ b/ocaml/qcow-tool/cli/dune
+@@ -15,6 +15,7 @@
+     mirage-block-combinators
+     mirage-time
+     qcow
++    qcow_stream
+     sexplib
+     sha
+     unix-type-representations
+@@ -24,8 +25,3 @@
+   )
+ )
+ 
+-(install
+-  (package qcow-tool)
+-  (section bin)
+-  (files (main.exe as qcow-tool))
+-)
+diff --git a/ocaml/qcow-tool/cli/impl.ml b/ocaml/qcow-tool/cli/impl.ml
+index 28c2db58d..02eeed327 100644
+--- a/ocaml/qcow-tool/cli/impl.ml
++++ b/ocaml/qcow-tool/cli/impl.ml
+@@ -478,6 +478,10 @@ let decode filename output =
+   in
+   Lwt_main.run t
+ 
++let stream_decode output =
++  Qcow_stream.stream_decode Unix.stdin output ;
++  `Ok ()
++
+ let encode filename output =
+   let module B = Qcow.Make (ReadWriteBlock) (Time) in
+   let open Lwt in
+diff --git a/ocaml/qcow-tool/cli/main.ml b/ocaml/qcow-tool/cli/main.ml
+index 82b866def..624518d93 100644
+--- a/ocaml/qcow-tool/cli/main.ml
++++ b/ocaml/qcow-tool/cli/main.ml
+@@ -216,6 +216,23 @@ let decode_cmd =
+   , Cmd.info "decode" ~sdocs:_common_options ~doc ~man
+   )
+ 
++let stream_decode_cmd =
++  let doc = "decode qcow2 formatted data from stdin and write a raw image" in
++  let man =
++    [
++      `S "DESCRIPTION"
++    ; `P "Decode qcow2 formatted data from stdin and write to a raw file."
++    ]
++    @ help
++  in
++  let output default =
++    let doc = Printf.sprintf "Path to the output file." in
++    Arg.(value & pos 0 string default & info [] ~doc)
++  in
++  ( Term.(ret (const Impl.stream_decode $ output "test.raw"))
++  , Cmd.info "stream_decode" ~sdocs:_common_options ~doc ~man
++  )
++
+ let encode_cmd =
+   let doc = "Convert the file from raw to qcow2" in
+   let man = [`S "DESCRIPTION"; `P "Convert a raw file to qcow2 ."] @ help in
+@@ -502,6 +519,7 @@ let cmds =
+   ; repair_cmd
+   ; encode_cmd
+   ; decode_cmd
++  ; stream_decode_cmd
+   ; write_cmd
+   ; read_cmd
+   ; mapped_cmd
