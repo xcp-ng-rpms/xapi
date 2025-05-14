@@ -1,0 +1,122 @@
+From bbb21f3dd711eff76ee20c79972cadeff1b41b91 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Wed, 14 May 2025 10:30:27 +0200
+Subject: [PATCH] [WIP] add option to specify destination format for VDI
+ migrate
+
+---
+ ocaml/xapi-cli-server/cli_frontend.ml   |  2 +-
+ ocaml/xapi-cli-server/cli_operations.ml | 12 ++++++++--
+ ocaml/xapi/xapi_host.ml                 |  6 ++++-
+ ocaml/xapi/xapi_vm_migrate.ml           | 30 ++++++++++++++++++++++++-
+ 4 files changed, 45 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index 05c9890ff..5578d68bd 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -2409,7 +2409,7 @@ let rec cmdtable_data : (string * cmd_spec) list =
+   ; ( "vdi-pool-migrate"
+     , {
+         reqd= ["uuid"; "sr-uuid"]
+-      ; optn= []
++      ; optn= ["dest-img-format"]
+       ; help=
+           "Migrate a VDI to a specified SR, while the VDI is attached to a \
+            running guest."
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 265c6f86a..9edbac387 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -2058,9 +2058,17 @@ let vdi_copy printer rpc session_id params =
+ let vdi_pool_migrate printer rpc session_id params =
+   let vdi =
+     Client.VDI.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "uuid" params)
+-  and sr =
++  in
++  let sr =
+     Client.SR.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "sr-uuid" params)
+-  and options = [] (* no options implemented yet *) in
++  in
++  let options =
++    [
++      List.assoc_opt "dest-img-format" params
++      |> Option.map (fun fmt -> ("dest_img_format", "&dest-img-format=" ^ fmt))
++    ]
++    |> List.filter_map (fun x -> x)
++  in
+   let newvdi = Client.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr ~options in
+   let newuuid = Client.VDI.get_uuid ~rpc ~session_id ~self:newvdi in
+   printer (Cli_printer.PList [newuuid])
+diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
+index ec61f37f0..3634c9e11 100644
+--- a/ocaml/xapi/xapi_host.ml
++++ b/ocaml/xapi/xapi_host.ml
+@@ -2518,7 +2518,11 @@ let sync_pif_currently_attached ~__context ~host ~bridges =
+     )
+     pifs
+ 
+-let migrate_receive ~__context ~host ~network ~options:_ =
++let migrate_receive ~__context ~host ~network ~options =
++  debug "GTNDEBUG: migrate_receive options: %s"
++    (String.concat " "
++       (List.map (fun (s1, s2) -> Printf.sprintf "(%s, %s)" s1 s2) options)
++    ) ;
+   Xapi_vm_migrate.assert_licensed_storage_motion ~__context ;
+   let session_id = Context.get_session_id __context in
+   let session_rec = Db.Session.get_record ~__context ~self:session_id in
+diff --git a/ocaml/xapi/xapi_vm_migrate.ml b/ocaml/xapi/xapi_vm_migrate.ml
+index fb0c3aba5..53cd69775 100644
+--- a/ocaml/xapi/xapi_vm_migrate.ml
++++ b/ocaml/xapi/xapi_vm_migrate.ml
+@@ -1199,6 +1199,29 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
+     ~options =
+   SMPERF.debug "vm.migrate_send called vm:%s"
+     (Db.VM.get_uuid ~__context ~self:vm) ;
++  debug "GTNDEBUG: migrate_send' options: %s"
++    (String.concat " "
++       (List.map (fun (s1, s2) -> Printf.sprintf "(%s, %s)" s1 s2) options)
++    ) ;
++  List.iter
++    (fun (_vdi_ref, sr_ref) ->
++      let sr_type = Db.SR.get_type ~__context ~self:sr_ref in
++      let sm_refs =
++        Db.SM.get_refs_where ~__context
++          ~expr:(Eq (Field "type", Literal sr_type))
++      in
++      List.iter
++        (fun sm_ref ->
++          let sm_lst =
++            Db.SM.get_supported_image_formats ~__context ~self:sm_ref
++          in
++          List.iter
++            (fun content -> debug "GTNDEBUG: SR image: %s" content)
++            sm_lst
++        )
++        sm_refs
++    )
++    vdi_map ;
+   let open Xapi_xenops in
+   let localhost = Helpers.get_localhost ~__context in
+   let remote = remote_of_dest ~__context dest in
+@@ -1756,6 +1779,11 @@ let migration_type ~__context ~remote =
+ 
+ let assert_can_migrate ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~options
+     ~vgpu_map =
++  debug "GTNDEBUG: assert_can_migrate" ;
++  debug "GTNDEBUG: assert_can_migrate options: %s"
++    (String.concat " "
++       (List.map (fun (s1, s2) -> Printf.sprintf "(%s, %s)" s1 s2) options)
++    ) ;
+   Xapi_vm_helpers.assert_no_legacy_hardware ~__context ~vm ;
+   assert_licensed_storage_motion ~__context ;
+   let remote = remote_of_dest ~__context dest in
+@@ -2034,7 +2062,7 @@ let vdi_pool_migrate ~__context ~vdi ~sr ~options =
+           ~options
+       in
+       assert_can_migrate ~__context ~vm ~dest ~live:true ~vdi_map ~vif_map:[]
+-        ~vgpu_map:[] ~options:[] ;
++        ~vgpu_map:[] ~options ;
+       assert_can_migrate_sender ~__context ~vm ~dest ~live:true ~vdi_map
+         ~vif_map:[] ~vgpu_map:[] ~options:[] ;
+       ignore
