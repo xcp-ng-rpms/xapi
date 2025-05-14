@@ -1,0 +1,52 @@
+From 243dd643491b94c3ec9600071056770dcc73ece5 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Wed, 14 May 2025 10:30:27 +0200
+Subject: [PATCH] [WIP] add option to specify destination format for VDI
+ migrate
+
+---
+ ocaml/xapi-cli-server/cli_operations.ml | 12 ++++++++++--
+ ocaml/xapi/xapi_host.ml                 |  6 +++++-
+ 2 files changed, 15 insertions(+), 3 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 265c6f86a..34762fd93 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -2058,9 +2058,17 @@ let vdi_copy printer rpc session_id params =
+ let vdi_pool_migrate printer rpc session_id params =
+   let vdi =
+     Client.VDI.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "uuid" params)
+-  and sr =
++  in
++  let sr =
+     Client.SR.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "sr-uuid" params)
+-  and options = [] (* no options implemented yet *) in
++  in
++  let dest_img_format =
++    if List.mem_assoc "dest-img-format" params then
++      "&dist-img-format=" ^ List.assoc "dest-img-format" params
++    else
++      ""
++  in
++  let options = [("dest_img_format", dest_img_format)] in
+   let newvdi = Client.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr ~options in
+   let newuuid = Client.VDI.get_uuid ~rpc ~session_id ~self:newvdi in
+   printer (Cli_printer.PList [newuuid])
+diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
+index ec61f37f0..0fb6e4260 100644
+--- a/ocaml/xapi/xapi_host.ml
++++ b/ocaml/xapi/xapi_host.ml
+@@ -2518,7 +2518,11 @@ let sync_pif_currently_attached ~__context ~host ~bridges =
+     )
+     pifs
+ 
+-let migrate_receive ~__context ~host ~network ~options:_ =
++let migrate_receive ~__context ~host ~network ~options =
++  debug "GTN migrate_receive option: %s"
++    (String.concat " "
++       (List.map (fun (s1, s2) -> Printf.sprintf "(%s, %s)" s1 s2) options)
++    ) ;
+   Xapi_vm_migrate.assert_licensed_storage_motion ~__context ;
+   let session_id = Context.get_session_id __context in
+   let session_rec = Db.Session.get_record ~__context ~self:session_id in

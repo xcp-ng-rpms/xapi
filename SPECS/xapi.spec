@@ -102,6 +102,7 @@ Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
 
 Patch1014: 0014-Adding-supported-image-formats-in-sm-list.patch
+Patch1015: 0015-WIP-add-option-to-specify-destination-format-for-VDI.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
