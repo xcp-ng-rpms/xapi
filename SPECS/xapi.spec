@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.5%{?xsrel}%{?dist}
+Release: 1.6%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -98,8 +98,13 @@ Patch1011: 0011-Check-that-there-are-no-changes-during-SR.scan.patch
 # Merged upstream, will be in v25.17.0
 Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
 
-# Posted upstream: https://github.com/xapi-project/xen-api/pull/6454
+# Modified version merged upstream in v25.18.0: https://github.com/xapi-project/xen-api/pull/6454
 Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
+
+# Backports:
+# Merged upstream, will be in v25.20.0: https://github.com/xapi-project/xen-api/pull/6469
+Patch1014: 0014-CA-409510-Make-xenopsd-nested-Parallel-atoms-explici.patch
+Patch1015: 0015-CA-409510-Give-a-warning-if-atoms-nested-incorrectly.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1416,6 +1421,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue May 20 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.6
+- Fix a deadlock in xenopsd due to atom nesting
+
 * Tue May 13 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.5
 - Remove pvsproxy.service from the list of units restarted on xcp-rrdd update
 
