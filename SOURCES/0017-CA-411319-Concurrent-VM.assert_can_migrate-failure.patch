@@ -1,0 +1,43 @@
+From 38faa27b00e1a99085e36a2b30babb04fd481643 Mon Sep 17 00:00:00 2001
+From: Bengang Yuan <bengang.yuan@cloud.com>
+Date: Tue, 20 May 2025 09:30:59 +0100
+Subject: [PATCH] CA-411319: Concurrent `VM.assert_can_migrate` failure
+
+When the customers open "Migrate VM Wizard" on XenCenter, XenCenter will call
+`VM.assert_can_migrate` to check each host in each pool connected to XenCenter
+if the VM can be migrated to it. The API `VM.assert_can_migrate` then calls
+`VM.export_metadata`. `VM.export_metadata` will lock VM. During this time, other
+`VM.export_metadata` requests will fail as they can't get VM lock.
+
+The solution is to add retry when failing to lock VM.
+
+Signed-off-by: Bengang Yuan <bengang.yuan@cloud.com>
+---
+ ocaml/xapi/export.ml | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/xapi/export.ml b/ocaml/xapi/export.ml
+index f14b75518..7cd677b83 100644
+--- a/ocaml/xapi/export.ml
++++ b/ocaml/xapi/export.ml
+@@ -713,11 +713,15 @@ open Http
+ open Client
+ 
+ let lock_vm ~__context ~vm ~task_id op =
+-  (* Note slight race here because we haven't got the master lock *)
+-  Xapi_vm_lifecycle.assert_operation_valid ~__context ~self:vm ~op ~strict:true ;
+-  (* ... small race lives here ... *)
+-  Db.VM.add_to_current_operations ~__context ~self:vm ~key:task_id ~value:op ;
+-  Xapi_vm_lifecycle.update_allowed_operations ~__context ~self:vm
++  Helpers.retry ~__context ~doc:task_id ~policy:Helpers.Policy.fail_quickly
++    (fun () ->
++      (* Note slight race here because we haven't got the master lock *)
++      Xapi_vm_lifecycle.assert_operation_valid ~__context ~self:vm ~op
++        ~strict:true ;
++      (* ... small race lives here ... *)
++      Db.VM.add_to_current_operations ~__context ~self:vm ~key:task_id ~value:op ;
++      Xapi_vm_lifecycle.update_allowed_operations ~__context ~self:vm
++  )
+ 
+ let unlock_vm ~__context ~vm ~task_id =
+   Db.VM.remove_from_current_operations ~__context ~self:vm ~key:task_id ;
