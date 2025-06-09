@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.7%{?xsrel}%{?dist}
+Release: 1.8%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -107,6 +107,18 @@ Patch1014: 0014-CA-409510-Make-xenopsd-nested-Parallel-atoms-explici.patch
 Patch1015: 0015-CA-409510-Give-a-warning-if-atoms-nested-incorrectly.patch
 Patch1016: 0016-CA-410782-Add-receive_memory_queues-for-VM_receive_m.patch
 Patch1017: 0017-CA-411319-Concurrent-VM.assert_can_migrate-failure.patch
+
+# Backports of several RRD fixes from upstream, all are in v25.20.0
+Patch1018: 0018-CA-409488-prevent-Xenctrl-exceptions-from-escaping-o.patch
+Patch1019: 0019-CA-409489-prevent-running-out-of-pages-with-lots-of-.patch
+Patch1020: 0020-rrd_file_writer-protect-against-resource-leak.patch
+Patch1021: 0021-Raise-log-level-for-rrd-thread-monitor.patch
+Patch1022: 0022-CA-410001-Check-rrdi.rrd-to-avoid-ds-duplicate.patch
+Patch1023: 0023-CA-409482-Using-computed-delay-for-RRD-loop.patch
+Patch1024: 0024-CA-411679-Runstate-metrics-return-data-over-100.patch
+Patch1025: 0025-xcp-rrdd-change-the-code-responsible-for-filtering-o.patch
+Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
+
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1423,6 +1435,16 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Jun 09 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.8
+- Fix several RRD issues and make the plugins more robust:
+  - Cap Derive values within a certain range without making them NaN
+  - Use a computed delay time for RRD loop to prevent gaps in metrics collection
+  - Avoid duplicating datasources on plugin restore
+  - Protect against a resource leak in the plugins
+  - Avoid running out of mmap-ed pages in xcp-rrdd-cpu for large numbers of domains
+  - Prevent exceptions from escaping and introducing gaps into metrics collection
+  - Avoid missing metrics from new and destroyed domains
+
 * Thu May 22 2025 Guillaume Thouvenin <guillaume.thouvenin@vates.tech> - 25.6.0-1.7
 - Fix another deadlock in xenopsd
 - Prevent xapi concurrent calls during migration from indirectly make each other fail
