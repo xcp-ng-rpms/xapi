@@ -1,0 +1,137 @@
+From 49e58e870f8f42fea0d2b7672e95fe7a17e42c3f Mon Sep 17 00:00:00 2001
+From: Bengang Yuan <bengang.yuan@cloud.com>
+Date: Thu, 8 May 2025 16:31:58 +0800
+Subject: [PATCH] CA-409482: Using computed delay for RRD loop
+
+RRD loop is executed each 5 seconds. It delays fixed 5 seconds between each
+loop. But the loop self also consumes time (The time consuming depends on CPU's
+count. If there are many CPUs, the time consuming may be hundreds milliseconds).
+This implementation leads RRD will take an offset after several loops. Then one
+of RRD data lose and a gap can be observed on XenCenter performance graph.
+
+The solution is to use a fixed deadline as each iteration start time and to use
+a computed delay (timeslice - loop time consuming) instead of fixed delay.
+
+Signed-off-by: Bengang Yuan <bengang.yuan@cloud.com>
+---
+ ocaml/xcp-rrdd/bin/rrdd/dune           |  5 ++--
+ ocaml/xcp-rrdd/bin/rrdd/rrdd_server.ml |  8 +++++--
+ ocaml/xcp-rrdd/bin/rrdd/rrdd_shared.ml | 13 ++++++-----
+ ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml    | 32 ++++++++++++++++++++------
+ 4 files changed, 41 insertions(+), 17 deletions(-)
+
+diff --git a/ocaml/xcp-rrdd/bin/rrdd/dune b/ocaml/xcp-rrdd/bin/rrdd/dune
+index b8419b12f..d84e06e46 100644
+--- a/ocaml/xcp-rrdd/bin/rrdd/dune
++++ b/ocaml/xcp-rrdd/bin/rrdd/dune
+@@ -10,8 +10,8 @@
+     http_lib
+     httpsvr
+     inotify
+-    mtime
+-    mtime.clock.os
++    clock
++    mtime.clock
+     rpclib.core
+     rrd-transport
+     rrd-transport.lib
+@@ -46,6 +46,7 @@
+     http_lib
+     httpsvr
+     inotify
++    clock
+     rpclib.core
+     rpclib.json
+     rpclib.xml
+diff --git a/ocaml/xcp-rrdd/bin/rrdd/rrdd_server.ml b/ocaml/xcp-rrdd/bin/rrdd/rrdd_server.ml
+index 3a883a569..66c3db6f1 100644
+--- a/ocaml/xcp-rrdd/bin/rrdd/rrdd_server.ml
++++ b/ocaml/xcp-rrdd/bin/rrdd/rrdd_server.ml
+@@ -716,8 +716,12 @@ module Plugin = struct
+       let next_reading (uid : P.uid) : float =
+         let open Rrdd_shared in
+         if with_lock registered_m (fun _ -> Hashtbl.mem registered uid) then
+-          with_lock last_loop_end_time_m (fun _ ->
+-              !last_loop_end_time +. !timeslice -. Unix.gettimeofday ()
++          with_lock next_iteration_start_m (fun _ ->
++              match Clock.Timer.remaining !next_iteration_start with
++              | Remaining diff ->
++                  Clock.Timer.span_to_s diff
++              | Expired diff ->
++                  Clock.Timer.span_to_s diff *. -1.
+           )
+         else
+           -1.
+diff --git a/ocaml/xcp-rrdd/bin/rrdd/rrdd_shared.ml b/ocaml/xcp-rrdd/bin/rrdd/rrdd_shared.ml
+index 883f9844c..00f33f283 100644
+--- a/ocaml/xcp-rrdd/bin/rrdd/rrdd_shared.ml
++++ b/ocaml/xcp-rrdd/bin/rrdd/rrdd_shared.ml
+@@ -20,14 +20,15 @@ module StringSet = Set.Make (String)
+ (* Whether to enable all non-default datasources *)
+ let enable_all_dss = ref false
+ 
+-(* The time between each monitoring loop. *)
+-let timeslice : float ref = ref 5.
++(* The expected time span between each monitoring loop. *)
++let timeslice : Mtime.span ref = ref Mtime.Span.(5 * s)
+ 
+-(* Timestamp of the last monitoring loop end. *)
+-let last_loop_end_time : float ref = ref neg_infinity
++(* A timer that expires at the start of the next iteration *)
++let next_iteration_start : Clock.Timer.t ref =
++  ref (Clock.Timer.start ~duration:!timeslice)
+ 
+-(* The mutex that protects the last_loop_end_time against data corruption. *)
+-let last_loop_end_time_m : Mutex.t = Mutex.create ()
++(* The mutex that protects the next_iteration_start against data corruption. *)
++let next_iteration_start_m : Mutex.t = Mutex.create ()
+ 
+ (** Cache memory/target values *)
+ let memory_targets : (int, int64) Hashtbl.t = Hashtbl.create 20
+diff --git a/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml b/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
+index 9afa0dd6d..2252c1f05 100644
+--- a/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
++++ b/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
+@@ -538,17 +538,35 @@ let monitor_write_loop writers =
+           while true do
+             try
+               do_monitor_write xc writers ;
+-              with_lock Rrdd_shared.last_loop_end_time_m (fun _ ->
+-                  Rrdd_shared.last_loop_end_time := Unix.gettimeofday ()
++              with_lock Rrdd_shared.next_iteration_start_m (fun _ ->
++                  Rrdd_shared.next_iteration_start :=
++                    Clock.Timer.extend_by !Rrdd_shared.timeslice
++                      !Rrdd_shared.next_iteration_start
+               ) ;
+-              Thread.delay !Rrdd_shared.timeslice
++              match Clock.Timer.remaining !Rrdd_shared.next_iteration_start with
++              | Remaining remaining ->
++                  Thread.delay (Clock.Timer.span_to_s remaining)
++              | Expired missed_by ->
++                  warn
++                    "%s: Monitor write iteration missed cycle by %a, skipping \
++                     the delay"
++                    __FUNCTION__ Debug.Pp.mtime_span missed_by ;
++                  (* To avoid to use up 100% CPU when the timer is already
++                     expired, still delay 1s *)
++                  Thread.delay 1.
+             with e ->
+               warn
+-                "Monitor/write thread caught an exception. Pausing for 10s, \
+-                 then restarting: %s"
+-                (Printexc.to_string e) ;
++                "%s: Monitor/write thread caught an exception. Pausing for \
++                 10s, then restarting: %s"
++                __FUNCTION__ (Printexc.to_string e) ;
+               log_backtrace () ;
+-              Thread.delay 10.
++              Thread.delay 10. ;
++              with_lock Rrdd_shared.next_iteration_start_m (fun _ ->
++                  Rrdd_shared.next_iteration_start :=
++                    Clock.Timer.extend_by
++                      Mtime.Span.(10 * s)
++                      !Rrdd_shared.next_iteration_start
++              )
+           done
+       )
+     )

@@ -1,0 +1,83 @@
+From cb22028524852597c232373f69bfb59bfa987c9f Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Edwin=20T=C3=B6r=C3=B6k?= <edwin.torok@cloud.com>
+Date: Fri, 11 Apr 2025 10:37:48 +0100
+Subject: [PATCH] CA-409489: prevent running out of pages with lots of domains
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+When this plugin was part of xcp-rrdd the shared memory protocol wasn't
+used for transfering data (it was transferred by direct function call).
+The shared memory protocol has a limitation that you need to declare a
+maximum size from the beginning, or carefully grow the file itself
+dynamically.
+
+We support max 1024 VMs/host, and if each one needs 5 pages,
+that'd be 20Mib/host, so always use that as the minimum number of pages.
+
+Fixes: b3ea09222 ("IH-615: Move CPU-related data-source collection into a separate RRDD plugin")
+Signed-off-by: Edwin Török <edwin.torok@cloud.com>
+---
+ ocaml/xapi-idl/rrd/rrd_interface.ml     |  2 ++
+ ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml     |  4 ++--
+ ocaml/xcp-rrdd/bin/rrdp-cpu/rrdp_cpu.ml | 10 ++++++++--
+ 3 files changed, 12 insertions(+), 4 deletions(-)
+
+diff --git a/ocaml/xapi-idl/rrd/rrd_interface.ml b/ocaml/xapi-idl/rrd/rrd_interface.ml
+index bee3c646d..1cfa1e39a 100644
+--- a/ocaml/xapi-idl/rrd/rrd_interface.ml
++++ b/ocaml/xapi-idl/rrd/rrd_interface.ml
+@@ -29,6 +29,8 @@ let default_sockets_dir = "/var/lib/xcp"
+ 
+ let daemon_name = "xcp-rrdd"
+ 
++let max_supported_vms = 1024
++
+ let default_path = ref (Filename.concat default_sockets_dir daemon_name)
+ 
+ let forwarded_path =
+diff --git a/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml b/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
+index afca11c3c..977a9ecec 100644
+--- a/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
++++ b/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
+@@ -225,11 +225,11 @@ let dss_mem_host xc =
+ (** estimate the space needed to serialize all the dss_mem_vms in a host. the
+     json-like serialization for the 3 dss in dss_mem_vms takes 622 bytes. these
+     bytes plus some overhead make 1024 bytes an upper bound. *)
+-let max_supported_vms = 1024
+ 
+ let bytes_per_mem_vm = 1024
+ 
+-let mem_vm_writer_pages = ((max_supported_vms * bytes_per_mem_vm) + 4095) / 4096
++let mem_vm_writer_pages =
++  ((Rrd_interface.max_supported_vms * bytes_per_mem_vm) + 4095) / 4096
+ 
+ let res_error fmt = Printf.ksprintf Result.error fmt
+ 
+diff --git a/ocaml/xcp-rrdd/bin/rrdp-cpu/rrdp_cpu.ml b/ocaml/xcp-rrdd/bin/rrdp-cpu/rrdp_cpu.ml
+index 998ab7776..e3b86db97 100644
+--- a/ocaml/xcp-rrdd/bin/rrdp-cpu/rrdp_cpu.ml
++++ b/ocaml/xcp-rrdd/bin/rrdp-cpu/rrdp_cpu.ml
+@@ -233,14 +233,20 @@ let generate_cpu_ds_list xc () =
+   let _, domains, _ = Xenctrl_lib.domain_snapshot xc in
+   dss_pcpus xc @ dss_vcpus xc domains @ dss_loadavg () @ dss_hostload xc domains
+ 
++(* 32 vCPUS ~8659 bytes, so 64 vCPUs should fit in 5 *)
++let cpu_pages_per_vm = 5
++
+ let _ =
+   Xenctrl.with_intf (fun xc ->
+       let _, domains, _ = Xenctrl_lib.domain_snapshot xc in
+       Process.initialise () ;
+       (* Share one page per PCPU and dom each *)
+       let physinfo = Xenctrl.physinfo xc in
+-      let shared_page_count = physinfo.Xenctrl.nr_cpus + List.length domains in
+-      (* TODO: Can run out of pages if a lot of domains are added at runtime *)
++      let shared_page_count =
++        physinfo.Xenctrl.nr_cpus
++        + Int.max Rrd_interface.max_supported_vms (List.length domains)
++          * cpu_pages_per_vm
++      in
+       Process.main_loop ~neg_shift:0.5
+         ~target:(Reporter.Local shared_page_count) ~protocol:Rrd_interface.V2
+         ~dss_f:(generate_cpu_ds_list xc)

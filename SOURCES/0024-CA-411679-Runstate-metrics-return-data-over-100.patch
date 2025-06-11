@@ -1,0 +1,48 @@
+From 8606e9d9bba2205a7e44b0ee58ab3a6d61bad0b7 Mon Sep 17 00:00:00 2001
+From: Bengang Yuan <bengang.yuan@cloud.com>
+Date: Tue, 3 Jun 2025 04:22:56 +0100
+Subject: [PATCH] CA-411679: Runstate metrics return data over 100%
+
+To handle deviations in CPU rates, Derive values exceeding the maximum
+by up to 5% are capped at the maximum; others are marked as unknown.
+This logic is specific to Derive data sources because they represent
+rates derived from differences over time, which can occasionally
+exceed expected bounds due to measurement inaccuracies.
+
+Signed-off-by: Bengang Yuan <bengang.yuan@cloud.com>
+---
+ ocaml/libs/xapi-rrd/lib/rrd.ml | 20 ++++++++++++++++----
+ 1 file changed, 16 insertions(+), 4 deletions(-)
+
+diff --git a/ocaml/libs/xapi-rrd/lib/rrd.ml b/ocaml/libs/xapi-rrd/lib/rrd.ml
+index 7af7554a3..9ec1a853f 100644
+--- a/ocaml/libs/xapi-rrd/lib/rrd.ml
++++ b/ocaml/libs/xapi-rrd/lib/rrd.ml
+@@ -468,11 +468,23 @@ let ds_update rrd timestamp valuesandtransforms new_rrd =
+               in
+               (* Apply the transform after the raw value has been calculated *)
+               let raw = apply_transform_function transform raw in
++
+               (* Make sure the values are not out of bounds after all the processing *)
+-              if raw < ds.ds_min || raw > ds.ds_max then
+-                (i, nan)
+-              else
+-                (i, raw)
++              match (ds.ds_ty, raw) with
++              | Derive, _ when raw > ds.ds_max && raw < ds.ds_max *. (1. +. 0.05)
++                ->
++                  (* CA-411679: To handle deviations in CPU rates, Derive values
++                     exceeding the maximum by up to 5% are capped at the maximum;
++                     others are marked as unknown. This logic is specific to
++                     Derive data sources because they represent rates derived
++                     from differences over time, which can occasionally exceed
++                     expected bounds due to measurement inaccuracies. *)
++                  (i, ds.ds_max)
++              | (Derive | Gauge | Absolute), _
++                when raw < ds.ds_min || raw > ds.ds_max ->
++                  (i, nan)
++              | (Derive | Gauge | Absolute), _ ->
++                  (i, raw)
+           )
+           valuesandtransforms
+       in
