@@ -122,6 +122,8 @@ Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
 # Fix from upstream in v25.10.0 (https://github.com/xapi-project/xen-api/pull/6328)
 Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
+# AMD pci MMIO Writeback workaround
+Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1438,6 +1440,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jun 27 2025 Anthoine Bourgeois <anthoine.bourgeois@vates.tech> - 25.6.0-1.10
+- Add xen-platform-pci-bar-uc key in xenstore to activate AMD caching workaround
+
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
 
