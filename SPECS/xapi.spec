@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.8%{?xsrel}%{?dist}
+Release: 1.9%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -118,6 +118,7 @@ Patch1023: 0023-CA-409482-Using-computed-delay-for-RRD-loop.patch
 Patch1024: 0024-CA-411679-Runstate-metrics-return-data-over-100.patch
 Patch1025: 0025-xcp-rrdd-change-the-code-responsible-for-filtering-o.patch
 Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
+Patch1027: 0001-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
 
 %{?_cov_buildrequires}
@@ -1435,6 +1436,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jun 18 2025 Anthoine Bourgeois <anthoine.bourgeois@vates.tech> - 25.6.0-1.9
+- Add xen-platform-pci-bar-uc key in xenstore to activate AMD caching workaround
+
 * Mon Jun 09 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.8
 - Fix several RRD issues and make the plugins more robust:
   - Cap Derive values within a certain range without making them NaN

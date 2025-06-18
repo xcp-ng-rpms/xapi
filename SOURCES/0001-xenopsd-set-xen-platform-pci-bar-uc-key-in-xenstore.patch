@@ -1,0 +1,440 @@
+From e2249fd3c2ee6de30733fe454967915563741f9c Mon Sep 17 00:00:00 2001
+From: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
+Date: Wed, 18 Jun 2025 16:17:17 +0200
+Subject: [PATCH] xenopsd: set xen-platform-pci-bar-uc key in xenstore
+
+Signed-off-by: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
+---
+ ocaml/idl/datamodel_common.ml           |  2 +-
+ ocaml/idl/datamodel_vm.ml               | 27 +++++++++++++++++++++++++
+ ocaml/idl/schematest.ml                 |  2 +-
+ ocaml/tests/common/test_common.ml       |  4 ++--
+ ocaml/xapi-cli-server/cli_operations.ml |  6 +++---
+ ocaml/xapi-cli-server/records.ml        |  7 +++++++
+ ocaml/xapi-idl/xen/xenops_types.ml      |  1 +
+ ocaml/xapi/create_misc.ml               |  4 +++-
+ ocaml/xapi/import.ml                    |  6 ++++++
+ ocaml/xapi/message_forwarding.ml        |  5 +++++
+ ocaml/xapi/xapi_db_upgrade.ml           | 13 ++++++++++++
+ ocaml/xapi/xapi_vm.ml                   | 16 +++++++++++++--
+ ocaml/xapi/xapi_vm.mli                  |  4 ++++
+ ocaml/xapi/xapi_vm_clone.ml             |  1 +
+ ocaml/xapi/xapi_xenops.ml               |  1 +
+ ocaml/xenopsd/cli/xn.ml                 |  7 +++++++
+ ocaml/xenopsd/cli/xn_cfg_types.ml       |  2 ++
+ ocaml/xenopsd/test/test.ml              |  1 +
+ ocaml/xenopsd/xc/domain.ml              |  3 +++
+ ocaml/xenopsd/xc/domain.mli             |  1 +
+ ocaml/xenopsd/xc/xenops_server_xen.ml   |  1 +
+ 21 files changed, 104 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
+index 819b7c611..4786d2d32 100644
+--- a/ocaml/idl/datamodel_common.ml
++++ b/ocaml/idl/datamodel_common.ml
+@@ -10,7 +10,7 @@ open Datamodel_roles
+               to leave a gap for potential hotfixes needing to increment the schema version.*)
+ let schema_major_vsn = 5
+ 
+-let schema_minor_vsn = 786
++let schema_minor_vsn = 787
+ 
+ (* Historical schema versions just in case this is useful later *)
+ let rio_schema_major_vsn = 5
+diff --git a/ocaml/idl/datamodel_vm.ml b/ocaml/idl/datamodel_vm.ml
+index 44ca1466d..58673e9e2 100644
+--- a/ocaml/idl/datamodel_vm.ml
++++ b/ocaml/idl/datamodel_vm.ml
+@@ -2124,6 +2124,21 @@ let set_has_vendor_device =
+       ]
+     ~allowed_roles:_R_VM_ADMIN ~doc_tags:[Windows] ()
+ 
++let set_xen_platform_pci_bar_uc =
++  call ~name:"set_xen_platform_pci_bar_uc"
++    ~lifecycle: []
++    ~doc:
++      "Controls whether, when the VM starts in HVM mode, the Xen PCI MMIO used \
++       by grant tables is mapped as Uncached (UC, the default) or WriteBack \
++       (WB, the workaround). WB mapping could improve performance of devices \
++       using grant tables. This is useful on AMD platform only."
++    ~params:
++      [
++        (Ref _vm, "self", "The VM on which to set this flag")
++      ; (Bool, "value", "False to enable WB MMIO bar.")
++      ]
++    ~allowed_roles:_R_VM_ADMIN ()
++
+ let import =
+   call ~name:"import"
+     ~lifecycle:[(Published, rel_dundee, "Import an XVA from a URI")]
+@@ -2557,6 +2572,7 @@ let t =
+       ; set_blocked_operations
+       ; add_to_blocked_operations
+       ; remove_from_blocked_operations
++      ; set_xen_platform_pci_bar_uc
+       ]
+     ~contents:
+       ([
+@@ -3083,6 +3099,17 @@ let t =
+             "When an HVM guest starts, this controls the presence of the \
+              emulated C000 PCI device which triggers Windows Update to fetch \
+              or update PV drivers."
++        ; field ~qualifier:RW
++            ~lifecycle:
++              [
++                ( Published
++                , rel_ely
++                , "Controls whether, when the VM starts in HVM mode, the MMIO is mapped as UC or WB.")
++              ]
++            ~default_value:(Some (VBool true)) ~ty:Bool
++            "xen_platform_pci_bar_uc"
++            "Controls whether, when the VM starts in HVM mode, the MMIO is \
++             mapped as UC or WB."
+         ; field ~qualifier:DynamicRO ~ty:Bool
+             ~lifecycle:[(Published, rel_ely, "")]
+             ~default_value:(Some (VBool false)) "requires_reboot"
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index 06feb3674..24ce3a0c7 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "6f6230f87a92572b68ebd742196ffd0e"
++let last_known_schema_hash = "3a1ecf08ae78b20d2f59ffec50016ee1"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/tests/common/test_common.ml b/ocaml/tests/common/test_common.ml
+index 3ff9bea23..0f7bf7a48 100644
+--- a/ocaml/tests/common/test_common.ml
++++ b/ocaml/tests/common/test_common.ml
+@@ -148,7 +148,7 @@ let make_vm ~__context ?(name_label = "name_label")
+     ?(hardware_platform_version = 0L) ?has_vendor_device:_
+     ?(has_vendor_device = false) ?(reference_label = "") ?(domain_type = `hvm)
+     ?(nVRAM = []) ?(last_booted_record = "") ?(last_boot_CPU_flags = [])
+-    ?(power_state = `Halted) () =
++    ?(power_state = `Halted) ?(xen_platform_pci_bar_uc = true) () =
+   Xapi_vm.create ~__context ~name_label ~name_description ~user_version
+     ~is_a_template ~affinity ~memory_target ~memory_static_max
+     ~memory_dynamic_max ~memory_dynamic_min ~memory_static_min ~vCPUs_params
+@@ -162,7 +162,7 @@ let make_vm ~__context ?(name_label = "name_label")
+     ~shutdown_delay ~order ~suspend_SR ~suspend_VDI ~snapshot_schedule
+     ~is_vmss_snapshot ~version ~generation_id ~hardware_platform_version
+     ~has_vendor_device ~reference_label ~domain_type ~last_booted_record
+-    ~last_boot_CPU_flags ~power_state
++    ~last_boot_CPU_flags ~power_state ~xen_platform_pci_bar_uc
+ 
+ let make_host ~__context ?(uuid = make_uuid ()) ?(name_label = "host")
+     ?(name_description = "description") ?(hostname = "localhost")
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 431cc76fa..95fbde7ee 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -2859,9 +2859,9 @@ let vm_create printer rpc session_id params =
+       ~snapshot_schedule:Ref.null ~is_vmss_snapshot:false ~appliance:Ref.null
+       ~start_delay:0L ~shutdown_delay:0L ~order:0L ~suspend_SR:Ref.null
+       ~suspend_VDI:Ref.null ~version:0L ~generation_id:""
+-      ~hardware_platform_version:0L ~has_vendor_device:false ~reference_label:""
+-      ~domain_type:`unspecified ~nVRAM:[] ~last_booted_record:""
+-      ~last_boot_CPU_flags:[] ~power_state:`Halted
++      ~hardware_platform_version:0L ~has_vendor_device:false ~xen_platform_pci_bar_uc:true ~reference_label:""
++      ~domain_type:`unspecified ~nVRAM:[]
++      ~last_booted_record:"" ~last_boot_CPU_flags:[] ~power_state:`Halted
+   in
+   let uuid = Client.VM.get_uuid ~rpc ~session_id ~self:vm in
+   printer (Cli_printer.PList [uuid])
+diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
+index da839d1e3..8a7995270 100644
+--- a/ocaml/xapi-cli-server/records.ml
++++ b/ocaml/xapi-cli-server/records.ml
+@@ -2590,6 +2590,13 @@ let vm_record rpc session_id vm =
+               ~value:(safe_bool_of_string "has-vendor-device" x)
+           )
+           ()
++      ; make_field ~name:"xen-platform-pci-bar-uc"
++          ~get:(fun () -> string_of_bool (x ()).API.vM_xen_platform_pci_bar_uc)
++          ~set:(fun x ->
++            Client.VM.set_xen_platform_pci_bar_uc ~rpc ~session_id ~self:vm
++              ~value:(safe_bool_of_string "xen-platform-pci-bar-uc" x)
++          )
++          ()
+       ; make_field ~name:"requires-reboot"
+           ~get:(fun () -> string_of_bool (x ()).API.vM_requires_reboot)
+           ()
+diff --git a/ocaml/xapi-idl/xen/xenops_types.ml b/ocaml/xapi-idl/xen/xenops_types.ml
+index 2ed03daf7..6fb921d52 100644
+--- a/ocaml/xapi-idl/xen/xenops_types.ml
++++ b/ocaml/xapi-idl/xen/xenops_types.ml
+@@ -171,6 +171,7 @@ module Vm = struct
+     ; pci_msitranslate: bool
+     ; pci_power_mgmt: bool
+     ; has_vendor_device: bool [@default false]
++    ; xen_platform_pci_bar_uc: bool [@default true]
+     ; generation_id: string option
+   }
+   [@@deriving rpcty, sexp]
+diff --git a/ocaml/xapi/create_misc.ml b/ocaml/xapi/create_misc.ml
+index cd0a97b41..ded299c09 100644
+--- a/ocaml/xapi/create_misc.ml
++++ b/ocaml/xapi/create_misc.ml
+@@ -290,7 +290,9 @@ and create_domain_zero_record ~__context ~domain_zero_ref (host_info : host_info
+     ~snapshot_schedule:Ref.null ~is_vmss_snapshot:false ~appliance:Ref.null
+     ~start_delay:0L ~shutdown_delay:0L ~order:0L ~suspend_SR:Ref.null
+     ~version:0L ~generation_id:"" ~hardware_platform_version:0L
+-    ~has_vendor_device:false ~requires_reboot:false ~reference_label:""
++    ~has_vendor_device:false
++    ~xen_platform_pci_bar_uc:true
++    ~requires_reboot:false ~reference_label:""
+     ~domain_type:Xapi_globs.domain_zero_domain_type ~nVRAM:[]
+     ~pending_guidances:[] ~recommended_guidances:[]
+     ~pending_guidances_recommended:[] ~pending_guidances_full:[] ;
+diff --git a/ocaml/xapi/import.ml b/ocaml/xapi/import.ml
+index 91a900ded..1ff1e5d8c 100644
+--- a/ocaml/xapi/import.ml
++++ b/ocaml/xapi/import.ml
+@@ -622,6 +622,12 @@ module VM : HandlerTools = struct
+         else
+           {vm_record with API.vM_has_vendor_device= false}
+       in
++      let vm_record =
++        if vm_has_field ~x ~name:"xen_platform_pci_bar_uc" then
++          vm_record
++        else
++          {vm_record with API.vM_xen_platform_pci_bar_uc= true}
++      in
+       let vm_record =
+         {
+           vm_record with
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index dc77569e6..06000452b 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -2023,6 +2023,11 @@ functor
+           (vm_uuid ~__context self) value ;
+         Local.VM.set_has_vendor_device ~__context ~self ~value
+ 
++      let set_xen_platform_pci_bar_uc ~__context ~self ~value =
++        info "VM.set_xen_platform_pci_bar_uc: VM = '%s' to %b"
++          (vm_uuid ~__context self) value ;
++        Local.VM.set_xen_platform_pci_bar_uc ~__context ~self ~value
++
+       let set_xenstore_data ~__context ~self ~value =
+         info "VM.set_xenstore_data: VM = '%s'" (vm_uuid ~__context self) ;
+         Db.VM.set_xenstore_data ~__context ~self ~value ;
+diff --git a/ocaml/xapi/xapi_db_upgrade.ml b/ocaml/xapi/xapi_db_upgrade.ml
+index f41027829..aa72ef7d6 100644
+--- a/ocaml/xapi/xapi_db_upgrade.ml
++++ b/ocaml/xapi/xapi_db_upgrade.ml
+@@ -530,6 +530,18 @@ let default_has_vendor_device_false =
+       )
+   }
+ 
++let default_xen_platform_pci_bar_uc_true =
++  {
++    description= "Defaulting xen_platform_pci_bar_uc true"
++  ; version= (fun x -> x < (5, 787))
++  ; fn=
++      (fun ~__context ->
++        List.iter
++          (fun self -> Db.VM.set_xen_platform_pci_bar_uc ~__context ~self ~value:false)
++          (Db.VM.get_all ~__context)
++      )
++  }
++
+ let default_pv_drivers_detected_false =
+   {
+     description= "Defaulting PV_drivers_detected false"
+@@ -995,6 +1007,7 @@ let rules =
+   ; empty_pool_uefi_certificates
+   ; upgrade_update_guidance
+   ; upgrade_ca_fingerprints
+   ; fill_tunnel_protocol
++  ; default_xen_platform_pci_bar_uc_true
+   ]
+ 
+ (* Maybe upgrade most recent db *)
+diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
+index 408c28d0a..db2ecfc2d 100644
+--- a/ocaml/xapi/xapi_vm.ml
++++ b/ocaml/xapi/xapi_vm.ml
+@@ -582,7 +582,8 @@ let create ~__context ~name_label ~name_description ~power_state ~user_version
+     ~blocked_operations:_ ~protection_policy:_ ~is_snapshot_from_vmpp:_
+     ~snapshot_schedule:_ ~is_vmss_snapshot:_ ~appliance ~start_delay
+     ~shutdown_delay ~order ~suspend_SR ~version ~generation_id
+-    ~hardware_platform_version ~has_vendor_device ~reference_label ~domain_type
++    ~hardware_platform_version ~has_vendor_device
++    ~xen_platform_pci_bar_uc ~reference_label ~domain_type
+     ~nVRAM : API.ref_VM =
+   (* Add random mac_seed if there isn't one specified already *)
+   let other_config =
+@@ -661,7 +662,8 @@ let create ~__context ~name_label ~name_description ~power_state ~user_version
+     ~is_snapshot_from_vmpp:false ~snapshot_schedule:Ref.null
+     ~is_vmss_snapshot:false ~appliance ~start_delay ~shutdown_delay ~order
+     ~suspend_SR ~version ~generation_id ~hardware_platform_version
+-    ~has_vendor_device ~requires_reboot:false ~reference_label ~domain_type
++    ~has_vendor_device
++    ~xen_platform_pci_bar_uc:true ~requires_reboot:false ~reference_label ~domain_type
+     ~pending_guidances:[] ~recommended_guidances:[]
+     ~pending_guidances_recommended:[] ~pending_guidances_full:[] ;
+   Xapi_vm_lifecycle.update_allowed_operations ~__context ~self:vm_ref ;
+@@ -1581,6 +1583,16 @@ let set_has_vendor_device ~__context ~self ~value =
+   Db.VM.set_has_vendor_device ~__context ~self ~value ;
+   update_vm_virtual_hardware_platform_version ~__context ~vm:self
+ 
++let set_xen_platform_pci_bar_uc ~__context ~self ~value =
++  (* Not inherently dangerous to modify this param outside halted state.
++     This assert helps to avoid confusion. This parameter will not change
++     dynamically the performance of a running domain. It's only checked
++     at boot. *)
++  Xapi_vm_lifecycle.assert_initial_power_state_is ~__context ~self
++    ~expected:`Halted ;
++  Db.VM.set_xen_platform_pci_bar_uc ~__context ~self ~value ;
++  update_vm_virtual_hardware_platform_version ~__context ~vm:self
++
+ let set_domain_type ~__context ~self ~value =
+   if value = `unspecified then
+     invalid_value "domain_type" (Record_util.domain_type_to_string value) ;
+diff --git a/ocaml/xapi/xapi_vm.mli b/ocaml/xapi/xapi_vm.mli
+index 8559293df..c4bf79cc3 100644
+--- a/ocaml/xapi/xapi_vm.mli
++++ b/ocaml/xapi/xapi_vm.mli
+@@ -199,6 +199,7 @@ val create :
+   -> generation_id:string
+   -> hardware_platform_version:int64
+   -> has_vendor_device:bool
++  -> xen_platform_pci_bar_uc:bool
+   -> reference_label:string
+   -> domain_type:API.domain_type
+   -> nVRAM:(string * string) list
+@@ -402,6 +403,9 @@ val call_plugin :
+ val set_has_vendor_device :
+   __context:Context.t -> self:API.ref_VM -> value:bool -> unit
+ 
++val set_xen_platform_pci_bar_uc :
++  __context:Context.t -> self:API.ref_VM -> value:bool -> unit
++
+ val import :
+      __context:Context.t
+   -> url:string
+diff --git a/ocaml/xapi/xapi_vm_clone.ml b/ocaml/xapi/xapi_vm_clone.ml
+index 09ae3431f..57022f04c 100644
+--- a/ocaml/xapi/xapi_vm_clone.ml
++++ b/ocaml/xapi/xapi_vm_clone.ml
+@@ -395,6 +395,7 @@ let copy_vm_record ?snapshot_info_record ~__context ~vm ~disk_op ~new_name
+     ~has_vendor_device:all.Db_actions.vM_has_vendor_device
+     ~requires_reboot:false ~reference_label:all.Db_actions.vM_reference_label
+     ~domain_type:all.Db_actions.vM_domain_type ~nVRAM:all.Db_actions.vM_NVRAM
++    ~xen_platform_pci_bar_uc:all.Db_actions.vM_xen_platform_pci_bar_uc
+     ~pending_guidances:[] ~recommended_guidances:[]
+     ~pending_guidances_recommended:[] ~pending_guidances_full:[] ;
+   (* update the VM's parent field in case of snapshot. Note this must be done after "ref"
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index ce98dcd3a..7f4a213a2 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -1302,6 +1302,7 @@ module MD = struct
+     ; pci_power_mgmt= false
+     ; has_vendor_device= vm.API.vM_has_vendor_device
+     ; generation_id
++    ; xen_platform_pci_bar_uc= vm.API.vM_xen_platform_pci_bar_uc
+     }
+ end
+ 
+diff --git a/ocaml/xenopsd/cli/xn.ml b/ocaml/xenopsd/cli/xn.ml
+index a6ed6a884..fdd63def0 100644
+--- a/ocaml/xenopsd/cli/xn.ml
++++ b/ocaml/xenopsd/cli/xn.ml
+@@ -585,6 +585,12 @@ let add' _copts x () =
+             else
+               false
+           in
++          let xen_platform_pci_bar_uc =
++            if mem _vm_xen_platform_pci_bar_uc then
++              find _vm_xen_platform_pci_bar_uc |> bool
++            else
++              false
++          in
+           let vm =
+             {
+               id= uuid
+@@ -618,6 +624,7 @@ let add' _copts x () =
+             ; pci_power_mgmt
+             ; has_vendor_device
+             ; generation_id= None
++            ; xen_platform_pci_bar_uc
+             }
+           in
+           let (id : Vm.id) = Client.VM.add dbg vm in
+diff --git a/ocaml/xenopsd/cli/xn_cfg_types.ml b/ocaml/xenopsd/cli/xn_cfg_types.ml
+index 5bcf8fc48..c04b4c23a 100644
+--- a/ocaml/xenopsd/cli/xn_cfg_types.ml
++++ b/ocaml/xenopsd/cli/xn_cfg_types.ml
+@@ -86,4 +86,6 @@ let _vm_pci_power_mgmt = "pci_power_mgmt"
+ 
+ let _vm_has_vendor_device = "has_vendor_device"
+ 
++let _vm_xen_platform_pci_bar_uc = "xen_platform_pci_bar_uc"
++
+ let _vtpm = "vtpm"
+diff --git a/ocaml/xenopsd/test/test.ml b/ocaml/xenopsd/test/test.ml
+index f392964af..57b6352bf 100644
+--- a/ocaml/xenopsd/test/test.ml
++++ b/ocaml/xenopsd/test/test.ml
+@@ -252,6 +252,7 @@ let create_vm vmid =
+   ; pci_msitranslate= true
+   ; pci_power_mgmt= false
+   ; has_vendor_device= false
++  ; xen_platform_pci_bar_uc= true
+   ; generation_id= None
+   }
+ 
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 19f28e419..789043082 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -122,6 +122,7 @@ type create_info = {
+   ; has_vendor_device: bool
+   ; is_uefi: bool
+   ; pci_passthrough: bool
++  ; xen_platform_pci_bar_uc: bool
+ }
+ [@@deriving rpcty]
+ 
+@@ -501,6 +502,8 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+     xs.Xs.writev (dom_path ^ "/bios-strings") vm_info.bios_strings ;
+     if vm_info.is_uefi then
+       xs.Xs.write (dom_path ^ "/hvmloader/bios") "ovmf" ;
++    if vm_info.xen_platform_pci_bar_uc = false then
++      xs.Xs.write (dom_path ^ "/hvmloader/pci/xen-platform-pci-bar-uc") "0" ;
+     (* If a toolstack sees a domain which it should own in this state then the
+        domain is not completely setup and should be shutdown. *)
+     xs.Xs.write (dom_path ^ "/action-request") "poweroff" ;
+diff --git a/ocaml/xenopsd/xc/domain.mli b/ocaml/xenopsd/xc/domain.mli
+index c8f83b099..8753dae8f 100644
+--- a/ocaml/xenopsd/xc/domain.mli
++++ b/ocaml/xenopsd/xc/domain.mli
+@@ -87,6 +87,7 @@ type create_info = {
+   ; has_vendor_device: bool
+   ; is_uefi: bool
+   ; pci_passthrough: bool
++  ; xen_platform_pci_bar_uc: bool
+ }
+ 
+ val typ_of_create_info : create_info Rpc.Types.typ
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 3d6b5cf72..8e6157786 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -1400,6 +1400,7 @@ module VM = struct
+     ; has_vendor_device= vm.has_vendor_device
+     ; is_uefi
+     ; pci_passthrough
++    ; xen_platform_pci_bar_uc= vm.xen_platform_pci_bar_uc
+     }
+ 
+   let xen_platform_of ~vm ~vmextra =
+-- 
+2.49.0
+
