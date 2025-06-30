@@ -122,6 +122,13 @@ Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
 # Fix from upstream in v25.10.0 (https://github.com/xapi-project/xen-api/pull/6328)
 Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
+# Add supported image format
+Patch1028: 0028-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1029: 0029-Allow-selection-of-image-format-during-VM-migration.patch
+Patch1030: 0030-Allow-selection-of-image-format-during-VDI-pool-migr.patch
+Patch1031: 0031-Bumping-database-schema-version.patch
+Patch1032: 0032-fixup-Allow-selection-of-image-format-during-VM-migr.patch
+Patch1033: 0033-fixup-Allow-selection-of-image-format-during-VM-migr.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
