@@ -406,7 +406,7 @@ Requires: libnl3
 # XCP-ng: remove Requires to proprietary component
 # Requires: pvsproxy
 Requires: bridge-utils
-Requires: dhclient
+Requires: dhcp-client
 Requires: openvswitch
 
 %description -n xcp-networkd
@@ -1493,6 +1493,7 @@ Coverage files from unit tests
 - list identified missing Requires
 - Don't rely on upstream mechanism for the version
 - HACK replace $sha-dirty strings with $version
+- Require dhcp-client not dhclient
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
