@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.9.0.ydi.3%{?xsrel}%{?dist}
+Release: 1.9.0.ydi.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -416,7 +416,7 @@ Requires: libnl3
 # XCP-ng: remove Requires to proprietary component
 # Requires: pvsproxy
 Requires: bridge-utils
-Requires: dhclient
+#Requires: dhclient
 Requires: openvswitch
 
 %description -n xcp-networkd
@@ -1468,13 +1468,14 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Jul 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.3
+* Wed Jul 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.4
 - Test rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
 - use GIT_CEILING_DIRECTORIES to shield dune-build-info from the source-repo .git
 - Don't rely on upstream mechanism for the version
 - HACK replace $sha-dirty strings with $version
+- Comment out Requires: dhclient since that's not installable in Alma 10
 
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
