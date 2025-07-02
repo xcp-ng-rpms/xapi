@@ -389,7 +389,7 @@ Requires: libnl3
 # XCP-ng: remove Requires to proprietary component
 # Requires: pvsproxy
 Requires: bridge-utils
-Requires: dhclient
+Requires: dhcp-client
 Requires: openvswitch
 
 %description -n xcp-networkd
@@ -1465,6 +1465,7 @@ Coverage files from unit tests
 - use GIT_CEILING_DIRECTORIES to shield dune-build-info from the source-repo .git
 - Don't rely on upstream mechanism for the version
 - HACK replace $sha-dirty strings with $version
+- Require dhcp-client not dhclient
 
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
