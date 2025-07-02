@@ -446,7 +446,11 @@ Requires: libnl3
 # XCP-ng: remove Requires to proprietary component
 # Requires: pvsproxy
 Requires: bridge-utils
+%if 0%{?xcpng}
+Requires: dhcp-client
+%else
 Requires: dhclient
+%endif
 Requires: openvswitch
 
 %description -n xcp-networkd
@@ -1543,6 +1547,8 @@ Coverage files from unit tests
 - Add in core directories whose lack blocks startup:
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - Fix extra_file logic used for xenserver9.conf
+- Hacks and temporary measures:
+  - On XCP-ng 9, require dhcp-client not dhclient
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
