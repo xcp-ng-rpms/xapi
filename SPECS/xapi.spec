@@ -124,7 +124,7 @@ Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
 # more flaky tests
 Patch2000: 0001-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
-Patch2001: 0001-Increase-timeout-for-flaky-scheduler-tests.patch
+#Patch2001: 0001-Increase-timeout-for-flaky-scheduler-tests.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
