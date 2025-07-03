@@ -14,7 +14,7 @@
 # XS9 requires extra configration
 %bcond_without extra_config
 # XS9 reset all epoch to 0
-%define qemu_epoch 0
+%define qemu_epoch 2
 %else
 %bcond_without python2_compat
 %define qemu_epoch 2
@@ -1543,6 +1543,7 @@ Coverage files from unit tests
 - Don't rely on upstream mechanism for the version
 - HACK replace $sha-dirty strings with $version
 - On XCP-ng 9, require dhcp-client not dhclient
+- Hack the qemu epoch to stay compatible with current qemu
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
