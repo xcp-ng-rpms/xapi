@@ -12,7 +12,7 @@
 %bcond_without dnf_plugin
 %bcond_without own_yum_dir
 # XS9 reset all epoch to 0
-%define qemu_epoch 0
+%define qemu_epoch 2
 %else
 %bcond_without python2_compat
 %define qemu_epoch 2
@@ -1466,6 +1466,7 @@ Coverage files from unit tests
 - Don't rely on upstream mechanism for the version
 - HACK replace $sha-dirty strings with $version
 - Require dhcp-client not dhclient
+- Hack the qemu epoch to stay compatible with current qemu
 
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
