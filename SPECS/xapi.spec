@@ -962,7 +962,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 ## upgrades. This is because there is no way to distinguish upgrades from other kinds of transactions
 ## in RPM < 4.12, see https://pagure.io/packaging-committee/issue/1051.
 ## This (and likely the daemon-reload above) should really be fixed with XS9, though it isn't a huge issue
-/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1 | while read plugins;
+/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /usr/bin/cut -d' ' -f1 | while read plugins;
 do
 # XCP-ng: remove pvsproxy.service as it's a proprietary component
 /usr/bin/systemctl restart "$plugins" 'qemu-stats@*' 2>&1 || :
@@ -1511,6 +1511,7 @@ Coverage files from unit tests
 - HACK replace $sha-dirty strings with $version
 - Require dhcp-client not dhclient
 - Hack the qemu epoch to stay compatible with current qemu
+- Fix xcp-rrdd posttans parsing of systemctl output
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
