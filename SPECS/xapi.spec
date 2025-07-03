@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.9.0.ydi.5%{?xsrel}%{?dist}
+Release: 1.9.0.ydi.6%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -956,7 +956,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 ## upgrades. This is because there is no way to distinguish upgrades from other kinds of transactions
 ## in RPM < 4.12, see https://pagure.io/packaging-committee/issue/1051.
 ## This (and likely the daemon-reload above) should really be fixed with XS9, though it isn't a huge issue
-/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1 | while read plugins;
+/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /usr/bin/cut -d' ' -f1 | while read plugins;
 do
 # XCP-ng: remove pvsproxy.service as it's a proprietary component
 /usr/bin/systemctl restart "$plugins" 'qemu-stats@*' 2>&1 || :
@@ -1471,7 +1471,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Thu Jul 03 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.5
+* Thu Jul 03 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.6
 - Test rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
@@ -1481,6 +1481,7 @@ Coverage files from unit tests
 - Comment out Requires: dhclient since that's not installable in Alma 10
 - Add patch for timer calibration for flaky scheduler tests (Pau)
 - Hack the qemu epoch to stay compatible with current qemu
+- Fix xcp-rrdd posttans parsing of systemctl output
 
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
