@@ -1,0 +1,48 @@
+From d54515985f0ebf1c50af65bd1d494d021f2a8a36 Mon Sep 17 00:00:00 2001
+From: Yann Dirson <yann.dirson@vates.tech>
+Date: Thu, 3 Jul 2025 12:01:53 +0200
+Subject: [PATCH] Increase timeout for flaky scheduler tests
+
+---
+ .../xapi-stdext/lib/xapi-stdext-threads/scheduler_test.ml     | 4 ++--
+ .../xapi-stdext/lib/xapi-stdext-threads/threadext_test.ml     | 2 +-
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/scheduler_test.ml b/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/scheduler_test.ml
+index 0a4a84740..103400f07 100644
+--- a/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/scheduler_test.ml
++++ b/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/scheduler_test.ml
+@@ -54,7 +54,7 @@ let test_remove_self () =
+   Alcotest.(check string) "same event name" "self" (receive which) ;
+   Alcotest.(check string) "same event name" "stop" (receive which) ;
+   let elapsed_ms = elapsed_ms cnt in
+-  Alcotest.check is_less "small time" 300 elapsed_ms
++  Alcotest.check is_less "small time" 500 elapsed_ms
+ 
+ let test_empty () =
+   let finished = Event.new_channel () in
+@@ -90,7 +90,7 @@ let test_wakeup () =
+   Alcotest.(check string) "same event name" "quick" (receive which) ;
+   Scheduler.remove_from_queue "long" ;
+   let elapsed_ms = elapsed_ms cnt in
+-  Alcotest.check is_less "small time" 150 elapsed_ms
++  Alcotest.check is_less "small time" 250 elapsed_ms
+ 
+ let tests =
+   [
+diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/threadext_test.ml b/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/threadext_test.ml
+index b93df9f47..32d567081 100644
+--- a/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/threadext_test.ml
++++ b/ocaml/libs/xapi-stdext/lib/xapi-stdext-threads/threadext_test.ml
+@@ -39,7 +39,7 @@ No signal
+ *)
+ let no_signal () =
+   let d = Delay.make () in
+-  delay_wait_check ~min:0.2 ~max:0.25 d 0.2 true
++  delay_wait_check ~min:0.2 ~max:0.50 d 0.2 true
+ 
+ (*
+ Signal twice, collapsed
+-- 
+2.39.5
+

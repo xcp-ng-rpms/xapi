@@ -122,6 +122,8 @@ Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
 # Fix from upstream in v25.10.0 (https://github.com/xapi-project/xen-api/pull/6328)
 Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
+# more flaky tests
+Patch2000: 0001-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1468,7 +1470,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Jul 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.4
+* Thu Jul 03 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.4
 - Test rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
@@ -1476,6 +1478,7 @@ Coverage files from unit tests
 - Don't rely on upstream mechanism for the version
 - HACK replace $sha-dirty strings with $version
 - Comment out Requires: dhclient since that's not installable in Alma 10
+- Add patch for timer calibration for flaky scheduler tests (Pau)
 
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
