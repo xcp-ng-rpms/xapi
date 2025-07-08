@@ -122,6 +122,7 @@ Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
 # Fix from upstream in v25.10.0 (https://github.com/xapi-project/xen-api/pull/6328)
 Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
+Patch1028: 0027-add-debug-message-to-observer.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

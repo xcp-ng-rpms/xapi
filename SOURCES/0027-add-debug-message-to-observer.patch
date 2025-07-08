@@ -1,0 +1,38 @@
+From 926e71b25250b6c26ad087a7c18e772f6db8fe22 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 8 Jul 2025 16:31:50 +0200
+Subject: [PATCH] add debug message to observer
+
+---
+ ocaml/xapi/sm_exec.ml | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/ocaml/xapi/sm_exec.ml b/ocaml/xapi/sm_exec.ml
+index 1da0c6c7e..ecb157a3d 100644
+--- a/ocaml/xapi/sm_exec.ml
++++ b/ocaml/xapi/sm_exec.ml
+@@ -348,6 +348,7 @@ let with_session sr f =
+ let exec_xmlrpc ~dbg ?context:_ ?(needs_session = true) (driver : string)
+     (call : call) =
+   with_dbg ~name:call.cmd ~dbg @@ fun di ->
++  debug "GTNDEBUG: exec_xmlrpc called" ;
+   let do_call call =
+     let xml = xmlrpc_of_call call in
+     let name = Printf.sprintf "sm_exec: %s" call.cmd in
+@@ -360,13 +361,16 @@ let exec_xmlrpc ~dbg ?context:_ ?(needs_session = true) (driver : string)
+             let args = [Xml.to_string xml] in
+             let output, stderr =
+               let env, exe, args =
++                debug "GTNDEBUG: check if smapi is enabled" ;
+                 match Xapi_observer_components.is_smapi_enabled () with
+                 | false ->
+                     (Some env_vars, exe, args)
+                 | true ->
++                    debug "GTNDEBUG: it is enabled... call the observer" ;
+                     Xapi_observer_components.env_exe_args_of ~env_vars
+                       ~component:Xapi_observer_components.SMApi ~exe ~args
+               in
++              debug "GTNDEBUG: exe %s args %s" exe (String.concat " " args) ;
+               Forkhelpers.execute_command_get_output ?tracing:di.tracing ?env
+                 exe args
+             in
