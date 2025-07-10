@@ -1,5 +1,5 @@
-%global package_speccommit a02ae80cd9f51693f189fa63b408ce171cf9b0a4
-%global package_srccommit v25.17.0
+%global package_speccommit 51480d73a0da5ae9b086f58b4da03d5da8c960db
+%global package_srccommit v25.20.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -11,8 +11,6 @@
 # In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
 %bcond_without dnf_plugin
 %bcond_without own_yum_dir
-# Enable corosync3 by default
-%bcond_without corosync3
 # XS9 reset all epoch to 0
 %define qemu_epoch 0
 %else
@@ -27,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.17.0
+Version: 25.20.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.17.0.tar.gz
+Source0: xen-api-25.20.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -552,11 +550,6 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-%if %{with corosync3}
-echo 1 > %{buildroot}/etc/xenserver/features.d/corosync3
-%else
-echo 0 > %{buildroot}/etc/xenserver/features.d/corosync3
-%endif
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -700,18 +693,6 @@ systemctl kill -s HUP rsyslog 2> /dev/null || true
 
 %post -n message-switch
 %systemd_post message-switch.service
-if [ $1 -gt 1 ] ; then
-  # upgrade from SysV, see http://0pointer.de/public/systemd-man/daemon.html
-  # except %triggerun doesn't work since previous package had no systemd,
-  # and don't transition in 2 steps
-  if /sbin/chkconfig --level 5 message-switch ; then
-    /bin/systemctl --no-reload enable message-switch.service >/dev/null 2>&1 || :
-    /sbin/chkconfig --del message-switch >/dev/null 2>&1 || :
-  else
-    # remove broken symlinks that a previous version of the package may have forgotten to remove
-    find /etc/rc.d -name "*message-switch" -delete >/dev/null 2>&1 || :
-  fi
-fi
 
 %post -n forkexecd
 %systemd_post forkexecd.service
@@ -1377,6 +1358,61 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri May 23 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.20.0-1
+- CA-409949 CA-408048 remove unavailable SM types at startup
+- CP-307933: database: do not marshal/unmarshal every time
+- CP-307865 Support SHA-512 Certificates for XenServer Hosts
+- gencert testing: use human-readable errors for validation
+- CA-409510: xenopsd operations time out due to deadlock
+- CA-411122: do not call set-iscsi-initiator with an empty string for IQN
+- CA-410782: Add receive_memory_queues for VM_receive_memory operations
+- xapi: Cleanup unused functions
+- CP-308075 document changing paths for SM plugins in XS9
+- CP-53642: change default NUMA placement policy to best-effort
+- CP-54275: Add a blocklist mechanism to avoid incorrect/old repo config.
+- CP-307922: Implement SMAPIv3 outbound migration
+- CA-409482: Using computed delay for RRD loop
+- CA-411319: Concurrent `VM.assert_can_migrate` failure
+
+* Thu May 15 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.19.0-1
+- [maintenance]: bool is a keyword in newer C versions, cannot be a parameter
+- CP-307947: cleanup database interface
+- Mux mirror failure check for SXM
+- Bring back DATA.MIRROR.list and DATA.MIRROR.stat
+- Add more debugging to storage_smapiv1_migrate
+- CP-307958: database: small lock and RPC tweaks + benchmarks
+- CA-408492: Keep backwards compatibility for SMAPIv2
+
+
+* Fri May 09 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.18.0-1
+- CP-52880: [XSI-1763]: Xapi_vdi.update_allowed_operations is slow
+- Add additional tracing to VBD plug/unplug
+- CP-53554: Split plug xenopsd atomic into attach/activate
+- CP-53555: Split unplug atomic into deactivate/detach
+- Move update_snapshot_info_dest to storage_mux
+- Refactor Storage_smapiv1.find_vdi
+- Use the new scan2
+- Add new interface for mirror operation in SMAPIv3
+- Add more states for SXM
+- Remove receive_start(2) from storage_migrate
+- Change how receive_start2 is called
+- Add qcow2 as supported format by xcp-rrdd-iostat
+- CA-404946: NBD: increase timeout to match iSCSI timeout and use persistent connections
+- Update datamodel_lifecycle
+- [maintenance]: reformat dune files in sdk-gen
+- build: avoid race condition on install
+- [maintenance]: drop sexprpp
+- XAPI website link updated in README
+- xapi-log/test: Package the cram test in xapi-log
+- CA-409710: Modify the default backup parameters
+- xenopsd: Don't balloon down memory on same-host migration
+- CA-410001: Check rrdi.rrd to avoid ds duplicate
+- xapi_xenops: Avoid a race during suspend
+- CP-54828: RBAC: Avoid raising exception on happy path
+- CP-54827: Optimize pool object
+- CP-54826: Mutex.execute: avoid costly backtrace formatting in finally
+- CA-403867: Block pool join if IP not configured on cluster network
+
 * Thu Apr 24 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.17.0-1
 - xe-reset-networking: Avoid truncating IPv6 addresses
 - networkd: simplify parsing of config
