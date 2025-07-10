@@ -1,5 +1,5 @@
-%global package_speccommit eb8c32b9c45197bb2a605a09af38d142841f5659
-%global package_srccommit v25.14.0
+%global package_speccommit e30449abf74600428fd48d0809deff735a404dea
+%global package_srccommit v25.15.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.14.0
-Release: 1%{?xsrel}%{?dist}
+Version: 25.15.0
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.14.0.tar.gz
+Source0: xen-api-25.15.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1138,10 +1138,6 @@ done
 %exclude %{ocaml_libdir}/xapi-inventory/*.cmt
 %exclude %{ocaml_libdir}/xapi-inventory/*.cmti
 
-%{ocaml_libdir}/xapi-stdext-date/*
-%exclude %{ocaml_libdir}/xapi-stdext-date/*.cmt
-%exclude %{ocaml_libdir}/xapi-stdext-date/*.cmti
-
 %{ocaml_libdir}/xapi-stdext-encodings/*
 %exclude %{ocaml_libdir}/xapi-stdext-encodings/*.cmt
 %exclude %{ocaml_libdir}/xapi-stdext-encodings/*.cmti
@@ -1377,6 +1373,45 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Apr 08 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.15.0-2
+- Bump release and rebuild
+
+* Tue Apr 08 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.15.0-1
+- CP-53313: Add field services in VM_guest_metrics
+- CP-53314: Read and watch <domain>/data/service in xenstore to DB
+- Define SR_CACHING capability
+- CP-52365 fix up driver-tool invocations
+- CA-408339: Respect xenopsd's NUMA-placement-policy default
+- Use records when accumulating events
+- Remove mutable last_generation from Xapi_event
+- Factor out event reification
+- Use record type for individual event entries
+- xenctrlext: do not truncate the amount of memory in claims to 32 bits
+- CA-407177: Fix swtpm's use of SHA1 on XS9
+- forkexecd: do not tie vfork_helper to the forkexec package
+- opam: add missing dependencies to packages
+- Simplify code by using get_trace_context
+- CA-404460: Expose Stunnel_verify_error for mismatched or corrupted certificate, and expose ssl_verify_error during update syncing
+- CA-408550: XSI-1834: Host netbios name should be added to local
+- CP-54020: Refactor sxm and storage_mux code
+- CA-408500: Remove ListFile with Xapi_stdext_unix.Unixext
+- CP-53472: Create parent for add_module spans
+- xapi-stdext-threads, test: use stable testing interface
+- CA-408841 rrd: don't update rrds when ds_update is called with an empty datasource array
+- Remove xapi-stdext-date
+- CP-50836: Add VM_migrate_downtime and request_shutdown spans
+- opam: move all opam files to the opam subdir
+- numa: add test binary that prints changes in free memory and domain lifetime
+- CP-53658: adapt claim_pages to new version with numa node parameter
+- xenctrl: Don't use numa_node in domain_claim_pages calls
+- xenopsd: log_reraise doesn't ignore the result
+- CP-54065, xenopsd: use domain_claim_pages on a single node, if possible
+- xenopsd/xc: Do not try to allocate pages to a particular NUMA node
+- xapi_vm_migrate: Avoid duplicate, overly-strict CBT check on VDIs
+- Update datamodel lifecycle VM_guest_metrics.services
+- CA-408048 add library to represent version strings
+- CA-408048 remove SM plugins from DB if unavailable
+
 * Tue Mar 18 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.14.0-1
 - IH-533: Remove usage of forkexecd daemon to execute processes
 - Add opam local switch in gitignore
