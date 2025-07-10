@@ -5,7 +5,7 @@ inventory=/etc/xensource-inventory
 search-path=/usr/libexec/xen/bin:/usr/libexec/xen/boot:/usr/lib64/xen/bin:/usr/libexec/xenopsd:/usr/lib/xen/boot
 
 # Number of threads which will service the VM operation queues
-worker-pool-size=16
+worker-pool-size=25
 
 # Omit some sources of log-spam by default
 disable-logging-for=http tracing tracing_export

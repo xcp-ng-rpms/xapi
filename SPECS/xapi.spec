@@ -1,5 +1,5 @@
-%global package_speccommit 56b4e6460879ce5d09616c669e322f20354a4ef3
-%global package_srccommit v25.6.0
+%global package_speccommit eb8c32b9c45197bb2a605a09af38d142841f5659
+%global package_srccommit v25.14.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.6.0
+Version: 25.14.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.6.0.tar.gz
+Source0: xen-api-25.14.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -120,6 +120,7 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
+Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
@@ -129,8 +130,10 @@ Requires: upgrade-pbis-to-winbind
 Requires: net-tools
 %else
 Requires: dnf
-# This is for dnf/yum plugin
-Requires: python3-urlgrabber
+# This is for the following dnf5 plugin which are used by xapi
+Requires: libdnf5-plugin-ptoken
+Requires: libdnf5-plugin-accesstoken
+Requires: libdnf5-plugin-xapitoken
 # For dnf plugins like config-manager
 Requires: dnf5-plugins
 %endif
@@ -520,22 +523,22 @@ done
 %endif
 
 %if %{with dnf_plugin}
-# For xs9, use dnf instead of yum
-echo "%{python3_sitelib}/dnf-plugins/*" >> core-files
-# use dnf instead of yum, clean yum stuff
+# For xs9, use dnf instead of yum, clean yum stuff
 rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
 rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
+rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/xapitoken.py
 rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
 rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
+rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/xapitoken.conf
 %else
 # For xs8, use yum
 echo "/etc/yum/pluginconf.d/accesstoken.conf" >> core-files
 echo "/etc/yum/pluginconf.d/ptoken.conf" >> core-files
+echo "/etc/yum/pluginconf.d/xapitoken.conf" >> core-files
 echo "/usr/lib/yum-plugins/accesstoken.py" >> core-files
 echo "/usr/lib/yum-plugins/ptoken.py" >> core-files
+echo "/usr/lib/yum-plugins/xapitoken.py" >> core-files
 echo "/usr/lib/yum-plugins/__pycache__/*" >> core-files
-# clean the dnf-plugin as not required by XS8
-rm -rf %{buildroot}/%{python3_sitelib}/dnf-plugins/
 %endif
 
 %if %{with own_yum_dir}
@@ -598,6 +601,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 
 # Refer to https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/
 %py_byte_compile %{_pythonpath} %{buildroot}/opt/xensource/libexec
+%py_byte_compile %{_pythonpath} %{buildroot}/opt/xensource/debug
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_usr}/libexec/xenopsd
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_sysconfdir}/xapi.d/plugins
 
@@ -650,6 +654,9 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 
 # remove old stunnel config file
 rm -f /etc/xensource/xapi-ssl.conf
+
+# for now don't use vfork and continue to use forkexecd
+touch /etc/xensource/forkexec-uses-daemon
 
 # On upgrade, migrate from the old statefile to the new statefile so that
 # services are not rerun.
@@ -1216,6 +1223,10 @@ done
 %{_tmpfilesdir}/xcp-rrdd.conf
 %{python3_sitelib}/rrdd.py*
 %{python3_sitelib}/__pycache__/rrdd.*.pyc
+/opt/xensource/debug/metrics.py
+/opt/xensource/debug/metricsgraph.py
+/opt/xensource/debug/__pycache__/metrics.*.pyc
+/opt/xensource/debug/__pycache__/metricsgraph.*.pyc
 
 %files -n xcp-rrdd-devel
 %{ocaml_docdir}/rrd-transport/*
@@ -1295,6 +1306,7 @@ done
 %{_sbindir}/forkexecd
 %{_sbindir}/forkexecd-cli
 %{_unitdir}/forkexecd.service
+%{_libexecdir}/xapi/vfork_helper
 %config(noreplace) %{_sysconfdir}/sysconfig/forkexecd
 
 %files -n forkexecd-devel
@@ -1365,6 +1377,120 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Mar 18 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.14.0-1
+- IH-533: Remove usage of forkexecd daemon to execute processes
+- Add opam local switch in gitignore
+- xenopsd: start vncterm for PVH guests
+
+* Mon Mar 17 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.13.0-1
+- CP-48824: Increase xenopsd worker-pool-size to 25
+- CP-52074: Add systemctl enable and disable API
+- CP-53161: Pass `baggage` back into `xapi` from `smapi`.
+- CA-405864: Drop usage of init.d functions
+- doc: Update xapi storage layer code links
+- CA-405864: Fix shellcheck warnings
+- CP-53827, xenopsd: claim pages for domain on pre_build phase
+- CI: fix compile_commands.json caching
+- Resolve build failure in message_forwarding.ml
+- CP-48676: Reuse pool sessions on slave logins.
+- xapi-stdext-date: replace all usages to use clock instead
+- CA-408126 follow-up: Fix negative ds_min and RRD values in historical archives
+
+* Wed Mar 12 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.12.0-1
+- Revert "CA-403851 stop management server in Pool.eject ()"
+
+* Tue Mar 11 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.11.0-1
+- Design proposal for supported image formats
+- (docs) Describe the flows of setting NUMA node affinity in Xen by Xenopsd
+- CA-407687/XSI-1834: get_subject_information_from_identifier should
+- CA-408126 - rrd: Do not lose ds_min/max when adding to the RRD
+- Change Ocaml version in readme
+- CA-403851 stop management server in Pool.eject ()
+
+* Fri Mar 07 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.10.0-1
+- CA-407328: Change vm parameter names of SXM calls
+- CP-53708: Expose the existing PCI vendor/device IDs
+- CP-53444: For XenServer 9, remove python dnf plugins
+- XSI-1821: Add pre-condition for host.emergency_reenable_tls_verification
+- CP-50934: fix qemu cgroups to be compatible with cgroupv2
+- opam: move stunnel metadata to dune-project
+- stdext: replace all ignore_type with annotated ignores
+- xapi_vdi_helpers: actually write raw vdi when possible
+- CA-399631: Increase the max size of xcp-rrdd-plugins for bug-tool
+- CP-53779: Guard all `Tgroup` library call behind `tgroups-enabaled`
+- CI: add a codechecker workflow
+- [maintenance] xa_auth.h: avoid using reserved macro names
+- unixpwd.c: fix error path file descriptor leak
+- [maintenance] syslog_stubs.c: avoid using reserved identifier names
+- [maintenance] blkgetsize64: avoid warning about uninit value
+- CP-53747 document PEM/Certificate relation
+- c_stubs: use 'new' acquire and release runtime functions
+- Hoist value access outside section without lock
+- CA-407370: Use remote.conf for customer rsyslog forwarding rules
+- Revert: Refactor Xapi_event #6306
+
+* Mon Mar 03 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.9.0-2
+- Bump release and rebuild
+
+* Thu Feb 27 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.9.0-1
+- Design proposal to support import/export of Qcow2 VDI
+- message_forwarding: Change call_slave_... functions to reduce repetition
+- Revert "CA-403867: Block pool join if IP not configured on cluster network"
+
+* Wed Feb 26 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.8.0-1
+- CP-52744: Thread `TraceContext` as json inside debug_info
+- Use records when accumulating events
+- Remove mutable last_generation from Xapi_event
+- Use record type for individual event entries
+- CA-403867: Block pool join if IP not configured on cluster network
+- CA-403744: Implement other_config operations
+- CP-45795: Decompress compressed trace files without Forkexecd
+- CP-53362: Rename hcp_nss to nss_override_id
+- CP-52365 adjust interface to dmv-utils
+- CA-407033: Call `receive_finalize2` synchronously
+- Add internal links to XenAPI reference
+- CA-405643: Update DNF to DNF5
+- Add filter_by to Dm_api
+- Use Cmdliner for gen_api_main.exe
+- CA-407322 - libs/rrd: Keep lastupdate XML field as int, XenCenter relies on it
+
+* Mon Feb 24 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.7.0-2
+- Bump release and rebuild
+
+* Tue Feb 18 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.7.0-1
+- CP-51393: Datamodel: update Repository for syncing from a remote pool (#6049)
+- CP-51835: Keep the HTTP /repository handler enabled
+- CP-50789: Enable verified rpc to external host
+- CP-51836: Restrict/check binary_url of remote_pool repository
+- CP-51391: Implement handling for /repository/enabled
+- CP-51988: Fix functions not work for remote_pool repo
+- CP-50787 CP-51347: Support pool.sync_updates from remote_pool repo
+- CP-52245: Temp disable repo_gpgcheck when syncing from remote_pool repo
+- Revert "CP-52245: Temp disable repo_gpgcheck when syncing from remote_pool repo"
+- python3: Add previously unused API classes to Python stubs used during testing
+- CA-404660: Refine repository enabling error message
+- doc: walkthroughs/VM.start: Update the xenguest chapter (domain build)
+- debug traces for is_component_enabled
+- CP-53470 Additional spans in & around the pause section in VM.migrate
+- Hugo docs: Support dark themes: Invert images to match the theme
+- README: Submission: Add DCO, issues & remove the disabled xen-api list
+- docs/xenopsd: List the child pages using the children shortcode
+- CA-405820 guard /etc/init.d/functions in xe-toolstack-restart
+- Simplify cases of may_be_side_effecting
+- Drop count_mandatory_message_parameters
+- message-switch/unix: simplify the scheduler
+- docs: Add dedicated walk-throughs for VM.build and xenguest
+- xenopsd docs: Add Walk-through descriptions, show them on the index page
+- python3: Resurrect metrics.py helper script
+- python3: Resurrect a metricsgraph.py helper script
+- CA-406403: Do not return HTTP 500 when Accept header can't be parsed
+- Replace startswith and endswith with stdlib calls
+- Domain.build docs: Improve notes on node_affinity, move to new page
+- (docs) VM.migrate.md: Rephrase and simplify, improve readability
+
+* Wed Feb 12 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.6.0-2
+- Bump release and rebuild
+
 * Mon Feb 10 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.6.0-1
 - CP-52114: Add pool.license_server for pool level licensing
 - CP-52116: Support pool level licensing data in Host.apply_edition
