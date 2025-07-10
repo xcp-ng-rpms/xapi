@@ -1,5 +1,5 @@
-%global package_speccommit e30449abf74600428fd48d0809deff735a404dea
-%global package_srccommit v25.15.0
+%global package_speccommit a02ae80cd9f51693f189fa63b408ce171cf9b0a4
+%global package_srccommit v25.17.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.15.0
-Release: 2%{?xsrel}%{?dist}
+Version: 25.17.0
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.15.0.tar.gz
+Source0: xen-api-25.17.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1106,6 +1106,10 @@ done
 %exclude %{ocaml_libdir}/xml-light2/*.cmt
 %exclude %{ocaml_libdir}/xml-light2/*.cmti
 
+%{ocaml_libdir}/tgroup/*
+%exclude %{ocaml_libdir}/tgroup/*.cmt
+%exclude %{ocaml_libdir}/tgroup/*.cmti
+
 %{ocaml_libdir}/zstd/*
 %exclude %{ocaml_libdir}/zstd/*.cmt
 %exclude %{ocaml_libdir}/zstd/*.cmti
@@ -1373,6 +1377,53 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Apr 24 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.17.0-1
+- xe-reset-networking: Avoid truncating IPv6 addresses
+- networkd: simplify parsing of config
+- networkd: read IPv6 entries in the firstboot management config file
+- xapi: Log exceptions in check_network_reset
+- CA-408230: Enable destroy op for HA statefile VDI after HA is disabled
+- CP-52131/CP-53474: Reorder operations during pci_add
+- xapi_guest_agent: Update xenstore keys for Windows PV drivers versions
+- tests: Add Windows PV driver version parsing test to test_guest_agent
+- Explicitly define failures for SXM
+- Define the utility function for choosing the backend
+- Move the copying function to storage_smapiv1_migrate
+- Move MigrateRemote before MigrateLocal
+- Move `find_local_vdi` utility function
+- Split Storage_migrate.start
+- Remove duplicate Storage_migrate.stop impl
+- Implement send_start for SMAPIv1
+- doc: Add sxm mux design
+- doc: Add an overview of SXM
+- doc: Add error handling of SXM
+- CA-409628: Do not lose the original backtrace in log_backtrace
+- Update cluster-stack-version lifecycle
+- CP-54034: Expose `expected_votes` in Cluster object
+
+* Tue Apr 15 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.16.0-1
+- CP-54072: Create template for storage_smapi{v1,v3}_migrate
+- CA-401023: Remove smapi observer config if smapi is set as experimental
+- xapi_message: Implement proper expression handling in get_all_records_where
+- CP-54026: option to control VM-internal shutdown behaviour under HA
+- CP-53951: Drop SSL and Lwt dependency from XAPI
+- quicktest: Add a test verifying Message.get_all_records_where filtering
+- CI: allow XAPI linking with Lwt for now
+- Check that there are no changes during SR.scan
+- CA-408843: XSI-1852: Set encryption type of machine account
+- CP-52745: Add `ThreadLocalStorage` in `Threadext`
+- CA-409488: prevent Xenctrl exceptions from escaping on VM boot/shutdown races
+- CA-409489: prevent running out of pages with lots of domains
+- rrd_file_writer: protect against resource leak
+- Raise log level for rrd thread monitor
+- xapi-aux: Add function to return all management ip addresses
+- gencert: Allow adding more than one IP as the certificate subject
+- network_server: add gateway and dns options to DHCP6
+- opam: update xapi-storage-cli metadata
+
+* Fri Apr 11 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.15.0-3
+- Bump release and rebuild
+
 * Tue Apr 08 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.15.0-2
 - Bump release and rebuild
 
