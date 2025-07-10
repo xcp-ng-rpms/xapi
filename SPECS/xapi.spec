@@ -1,5 +1,5 @@
-%global package_speccommit 51480d73a0da5ae9b086f58b4da03d5da8c960db
-%global package_srccommit v25.20.0
+%global package_speccommit 6c89eaf3cd1090f3cffcac17583a0d771a986d58
+%global package_srccommit v25.21.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -25,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.20.0
-Release: 1%{?xsrel}%{?dist}
+Version: 25.21.0
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.20.0.tar.gz
+Source0: xen-api-25.21.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -165,6 +165,11 @@ Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
+%if 0%{?xenserver} < 9
+# sysprep plugin/API
+Requires: genisoimage
+%endif
+
 
 %description core
 This package contains the xapi toolstack.
@@ -550,6 +555,7 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+echo 0 > %{buildroot}/etc/xenserver/features.d/hard_numa
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -863,6 +869,7 @@ done
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 /etc/xenserver/features.d
+/etc/xenserver/features.d/hard_numa
 %dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/IPMI.py
@@ -1358,6 +1365,44 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jun 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-2
+- Bump release and rebuild
+
+* Fri Jun 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-1
+- CP-53477 Update host/pool datamodel to support SSH status query and configure
+- CP-53802: Restore SSH service to default state in pool eject
+- CP-53711: Apply SSH settings in joiner before update_non_vm_metadata
+- CP-53723 Implement Console timeout configure API for Dom0 SSH control
+- CP-53478: Implement SSH enabeld timeout API for Dom0 SSH control
+- CP-53725 Create SSH-related xe CLI for Dom0 SSH control
+- CP-54138: Sync SSH status during XAPI startup
+- CP-308049: rrdview tool
+- CA-410948 Avoid rasie full Exception when disable/enable ssh failed
+- CA-409949 CA-408048 XSI-1912 remove unabailable SM plugin by ref
+- xapi-types: remove dev errors when adding features
+- xenctrlext: add function to set the hard-affinity for vcpus
+- xenopsd: pass the hard-affinity map to pre_build
+- xenopsd: do not send hard affinities to xenguest when not needed
+- xenopsd: set the hard affinities directly when set by the user
+- xenopsd: expose a best-effort mode that set the hard affinity mask (CP-54234)
+- xapi: use hard-pinning with best-effort as an experimental feature (CP-54234)
+- CA-411679: Runstate metrics return data over 100%
+- Modify doc mistakes
+- CONTRIBUTING: add some initial guidelines
+- Removed PowerShell 5.x build due to the retirement of windows-2019.
+- Add file-upload support to xe host-call-plugin
+- CP-53475 Update release number to latest tag
+- XSI-1918: Host can not join pool after enable external auth
+- xapi_vif: Guarantee the device parameter is an unsigned decimal integer
+- xapi-idl: Avoid printing cli output when testing
+- xapi-storage-script: avoid output when running python tests
+- CA-411766: Detach VBDs right after VM Halted
+- datamodel_lifecycle: automatic update
+
+
+* Fri May 23 2025 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 25.20.0-2
+- Bump release and rebuild
+
 * Fri May 23 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.20.0-1
 - CA-409949 CA-408048 remove unavailable SM types at startup
 - CP-307933: database: do not marshal/unmarshal every time
