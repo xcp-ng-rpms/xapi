@@ -1,0 +1,31 @@
+From d7d251553204d68becad46725b8dadcf6bc7ad42 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Fri, 11 Jul 2025 10:19:55 +0100
+Subject: [PATCH 30/34] xapi/nm: Send non-empty dns to networkd when using IPv6
+ autoconf
+
+Because Autoconf is not DHCP, networkd uses the dns value to write to
+resolv.conf. This is done on ocaml/networkd/bin/network_server.ml line 745
+
+This allows to have non-empty resolv.conf when using IPv6 autoconf.
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/xapi/nm.ml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/ocaml/xapi/nm.ml b/ocaml/xapi/nm.ml
+index 1483106ac..69d866d96 100644
+--- a/ocaml/xapi/nm.ml
++++ b/ocaml/xapi/nm.ml
+@@ -642,6 +642,7 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+                     rc.API.pIF_ip_configuration_mode = `Static
+                 | `IPv6 ->
+                     rc.API.pIF_ipv6_configuration_mode = `Static
++                    || rc.API.pIF_ipv6_configuration_mode = `Autoconf
+               in
+               let dns =
+                 match (static, rc.API.pIF_DNS) with
+-- 
+2.51.0
+

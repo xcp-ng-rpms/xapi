@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.9%{?xsrel}%{?dist}
+Release: 1.9.1.ipv6autoconf%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -122,6 +122,14 @@ Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
 # Fix from upstream in v25.10.0 (https://github.com/xapi-project/xen-api/pull/6328)
 Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
+# IPv6 patches
+Patch1028: 0028-networkd-simplify-parsing-of-config.patch
+Patch1029: 0029-networkd-read-IPv6-entries-in-the-firstboot-manageme.patch
+Patch1030: 0030-xapi-nm-Send-non-empty-dns-to-networkd-when-using-IP.patch
+Patch1031: 0031-xapi-idl-network-Remove-code-duplication-for-DNS-per.patch
+Patch1032: 0032-dune-project-create-opam-metadata-for-xapi-consts-an.patch 
+Patch1033: 0033-xapi_globs-allow-default-args-to-be-deserialized-to-.patch 
+Patch1034: 0034-xapi_globs-remove-duplicate-arguments.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1438,6 +1446,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 11 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25.6.0-1.0.9.ipv6autoconf
+- Fix writing empty resolv.conf when using ipv6 autoconf mode
+
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
 

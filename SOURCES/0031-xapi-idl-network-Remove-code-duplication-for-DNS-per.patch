@@ -1,0 +1,219 @@
+From a1bb16f399b77b4754bdd93d2a92ca7a6a6385c9 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Fri, 11 Jul 2025 12:03:05 +0100
+Subject: [PATCH 31/34] xapi-idl/network: Remove code duplication for DNS
+ persistence decisions
+
+Previously both xapi and networkd had to inspect the IP configuration to decide
+whether the DNS values should be persistend into /etc/resolv.conf. This
+actually lead to a mismatch in them. Instead use an option value for DNS that
+simply means that if there's a value, it must be persisted.
+
+Now xapi decides the instances where these values are written.
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/networkd/bin/network_server.ml        | 18 +++++--------
+ ocaml/networkd/bin_db/networkd_db.ml        | 29 ++++++++++++---------
+ ocaml/networkd/lib/network_config.ml        | 15 ++++++-----
+ ocaml/xapi-idl/network/network_interface.ml |  7 +++--
+ ocaml/xapi/nm.ml                            | 16 +++++-------
+ 5 files changed, 43 insertions(+), 42 deletions(-)
+
+diff --git a/ocaml/networkd/bin/network_server.ml b/ocaml/networkd/bin/network_server.ml
+index 8cc5e9ea9..2ca726517 100644
+--- a/ocaml/networkd/bin/network_server.ml
++++ b/ocaml/networkd/bin/network_server.ml
+@@ -543,7 +543,8 @@ module Interface = struct
+   let set_dns _ dbg ~name ~nameservers ~domains =
+     Debug.with_thread_associated dbg
+       (fun () ->
+-        update_config name {(get_config name) with dns= (nameservers, domains)} ;
++        update_config name
++          {(get_config name) with dns= Some (nameservers, domains)} ;
+         debug "Configuring DNS for %s: nameservers: [%s]; domains: [%s]" name
+           (String.concat ", " (List.map Unix.string_of_inet_addr nameservers))
+           (String.concat ", " domains) ;
+@@ -716,7 +717,7 @@ module Interface = struct
+                   ; ipv6_conf
+                   ; ipv6_gateway
+                   ; ipv4_routes
+-                  ; dns= nameservers, domains
++                  ; dns
+                   ; mtu
+                   ; ethtool_settings
+                   ; ethtool_offload
+@@ -725,16 +726,11 @@ module Interface = struct
+                 ) ) ->
+                 update_config name c ;
+                 exec (fun () ->
+-                    (* We only apply the DNS settings when not in a DHCP mode
+-                       to avoid conflicts. The `dns` field
+-                       should really be an option type so that we don't have to
+-                       derive the intention of the caller by looking at other
+-                       fields. *)
+-                    match (ipv4_conf, ipv6_conf) with
+-                    | Static4 _, _ | _, Static6 _ | _, Autoconf6 ->
+-                        set_dns () dbg ~name ~nameservers ~domains
+-                    | _ ->
++                    match dns with
++                    | None | Some ([], []) ->
+                         ()
++                    | Some (nameservers, domains) ->
++                        set_dns () dbg ~name ~nameservers ~domains
+                 ) ;
+                 exec (fun () -> set_ipv4_conf dbg name ipv4_conf) ;
+                 exec (fun () ->
+diff --git a/ocaml/networkd/bin_db/networkd_db.ml b/ocaml/networkd/bin_db/networkd_db.ml
+index f62021828..bffe93a32 100644
+--- a/ocaml/networkd/bin_db/networkd_db.ml
++++ b/ocaml/networkd/bin_db/networkd_db.ml
+@@ -74,20 +74,25 @@ let _ =
+                     [("gateway", Unix.string_of_inet_addr addr)]
+               in
+               let dns =
+-                let dns' =
+-                  List.map Unix.string_of_inet_addr (fst interface_config.dns)
+-                in
+-                if dns' = [] then
+-                  []
+-                else
+-                  [("dns", String.concat "," dns')]
++                interface_config.dns
++                |> Option.map fst
++                |> Option.map (List.map Unix.string_of_inet_addr)
++                |> Option.fold ~none:[] ~some:(function
++                     | [] ->
++                         []
++                     | dns' ->
++                         [("dns", String.concat "," dns')]
++                     )
+               in
+               let domains =
+-                let domains' = snd interface_config.dns in
+-                if domains' = [] then
+-                  []
+-                else
+-                  [("domain", String.concat "," domains')]
++                interface_config.dns
++                |> Option.map snd
++                |> Option.fold ~none:[] ~some:(function
++                     | [] ->
++                         []
++                     | domains' ->
++                         [("domain", String.concat "," domains')]
++                     )
+               in
+               mode @ addrs @ gateway @ dns @ domains
+           | None4 ->
+diff --git a/ocaml/networkd/lib/network_config.ml b/ocaml/networkd/lib/network_config.ml
+index 56eef61ce..3d034f052 100644
+--- a/ocaml/networkd/lib/network_config.ml
++++ b/ocaml/networkd/lib/network_config.ml
+@@ -37,7 +37,6 @@ let bridge_naming_convention (device : string) =
+ let get_list_from ~sep ~key args =
+   List.assoc_opt key args
+   |> Option.map (fun v -> Astring.String.cuts ~empty:false ~sep v)
+-  |> Option.value ~default:[]
+ 
+ let parse_ipv4_config args = function
+   | Some "static" ->
+@@ -73,11 +72,13 @@ let parse_ipv6_config args = function
+       (None6, None)
+ 
+ let parse_dns_config args =
+-  let nameservers =
+-    get_list_from ~sep:"," ~key:"DNS" args |> List.map Unix.inet_addr_of_string
++  let ( let* ) = Option.bind in
++  let* nameservers =
++    get_list_from ~sep:"," ~key:"DNS" args
++    |> Option.map (List.map Unix.inet_addr_of_string)
+   in
+-  let domains = get_list_from ~sep:" " ~key:"DOMAIN" args in
+-  (nameservers, domains)
++  let* domains = get_list_from ~sep:" " ~key:"DOMAIN" args in
++  Some (nameservers, domains)
+ 
+ let read_management_conf () =
+   try
+@@ -103,7 +104,7 @@ let read_management_conf () =
+     let device =
+       (* Take 1st member of bond *)
+       match (bond_mode, bond_members) with
+-      | None, _ | _, [] -> (
++      | None, _ | _, (None | Some []) -> (
+         match List.assoc_opt "LABEL" args with
+         | Some x ->
+             x
+@@ -111,7 +112,7 @@ let read_management_conf () =
+             error "%s: missing LABEL in %s" __FUNCTION__ management_conf ;
+             raise Read_error
+       )
+-      | _, hd :: _ ->
++      | _, Some (hd :: _) ->
+           hd
+     in
+     Inventory.reread_inventory () ;
+diff --git a/ocaml/xapi-idl/network/network_interface.ml b/ocaml/xapi-idl/network/network_interface.ml
+index 6b27e31f5..e8ca43dd3 100644
+--- a/ocaml/xapi-idl/network/network_interface.ml
++++ b/ocaml/xapi-idl/network/network_interface.ml
+@@ -158,7 +158,10 @@ type interface_config_t = {
+   ; ipv6_conf: ipv6 [@default None6]
+   ; ipv6_gateway: Unix.inet_addr option [@default None]
+   ; ipv4_routes: ipv4_route_t list [@default []]
+-  ; dns: Unix.inet_addr list * string list [@default [], []]
++  ; dns: (Unix.inet_addr list * string list) option [@default None]
++        (** the list
++  of nameservers and domains to persist in /etc/resolv.conf. Must be None when
++  using a DHCP mode *)
+   ; mtu: int [@default 1500]
+   ; ethtool_settings: (string * string) list [@default []]
+   ; ethtool_offload: (string * string) list [@default [("lro", "off")]]
+@@ -200,7 +203,7 @@ let default_interface =
+   ; ipv6_conf= None6
+   ; ipv6_gateway= None
+   ; ipv4_routes= []
+-  ; dns= ([], [])
++  ; dns= None
+   ; mtu= 1500
+   ; ethtool_settings= []
+   ; ethtool_offload= [("lro", "off")]
+diff --git a/ocaml/xapi/nm.ml b/ocaml/xapi/nm.ml
+index 69d866d96..552651ea1 100644
+--- a/ocaml/xapi/nm.ml
++++ b/ocaml/xapi/nm.ml
+@@ -647,24 +647,20 @@ let bring_pif_up ~__context ?(management_interface = false) (pif : API.ref_PIF)
+               let dns =
+                 match (static, rc.API.pIF_DNS) with
+                 | false, _ | true, "" ->
+-                    ([], [])
++                    None
+                 | true, pif_dns ->
+                     let nameservers =
+                       List.map Unix.inet_addr_of_string
+-                        (String.split ',' pif_dns)
++                        (String.split_on_char ',' pif_dns)
+                     in
+                     let domains =
+                       match List.assoc_opt "domain" rc.API.pIF_other_config with
+-                      | None ->
++                      | None | Some "" ->
+                           []
+-                      | Some domains -> (
+-                        try String.split ',' domains
+-                        with _ ->
+-                          warn "Invalid DNS search domains: %s" domains ;
+-                          []
+-                      )
++                      | Some domains ->
++                          String.split_on_char ',' domains
+                     in
+-                    (nameservers, domains)
++                    Some (nameservers, domains)
+               in
+               let mtu = determine_mtu rc net_rc in
+               let ethtool_settings, ethtool_offload =
+-- 
+2.51.0
+

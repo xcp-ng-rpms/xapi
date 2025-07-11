@@ -1,0 +1,91 @@
+From 5b917c81f95726956bc415471e9db3a215e9488a Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Thu, 17 Jul 2025 11:02:24 +0100
+Subject: [PATCH 34/34] xapi_globs: remove duplicate arguments
+
+These arguments were already defined elsewhere, one in xcp_service, and the
+other on the file list. These can be dropped because the other already does the
+right thing.
+
+This removes 2 very long message every time xapi starts up:
+
+```
+Jul 12 22:30:41 vega xapi: [ warn||0 ||xapi] Duplicate configuration keys in Xcp_service.configure: disable-logging-for in [ use-switch; switch-path; search-path; pidfile; log; daemon; disable-logging-for; loglevel; inventory; config; config-dir; master_connection_reset_timeout; master_connection_retry_timeout; master_connection_default_timeout; qemu_dm_ready_timeout; hotplug_timeout; pif_reconfigure_ip_timeout; pool_db_sync_interval; pool_data_sync_interval; domain_shutdown_total_timeout; emergency_reboot_delay_base; emergency_reboot_delay_extra; ha_xapi_healthcheck_interval; ha_xapi_healthcheck_timeout; ha_xapi_restart_attempts; ha_xapi_restart_timeout; logrotate_check_interval; rrd_backup_interval; session_revalidation_interval; update_all_subjects_interval; wait_memory_target_timeout; snapshot_with_quiesce_timeout; host_heartbeat_interval; host_assumed_dead_interval; fuse_time; db_restore_fuse_time; inactive_session_timeout; pending_task_timeout; completed_task_timeout; minimum_time_between_bounces; minimum_time_between_reboot_with_no_added_delay; ha_monitor_interval; ha_monitor_plan_interval; ha_monitor_startup_timeout; ha_default_timeout_base; guest_liveness_timeout; permanent_master_failure_retry_interval; redo_log_max_block_time_empty; redo_log_max_block_time_read; redo_log_max_block_time_writedelta; redo_log_max_block_time_writedb; redo_log_max_startup_time; redo_log_connect_delay; default-vbd3-polling-duration; default-vbd3-polling-idle-threshold; vm_call_plugin_interval; xapi_clusterd_port; max_active_sr_scans; winbind_debug_level; winbind_cache_time; winbind_machine_pwd_timeout; winbind_update_closest_kdc_interval; header_read_timeout_tcp; header_total_timeout_tcp; max_header_length_tcp; conn_limit_tcp; conn_limit_unix; sm-plugins; hotfix-fingerprint; logconfig; writereadyfile; writeinitcomplete; nowatchdog; log-getter; onsystemboot; relax-xsm-sr-check; migration-https-only; disable-logging-for; disable-dbsync-for; xenopsd-queues; xenopsd-default; nvidia-whitelist; igd-passthru-vendor-whitelist; gvt-g-whitelist; mxgpu-whitelist; pass-through-pif-carrier; cluster-stack-default; gpumon_stop_timeout; reboot_required_hfxs; xen_livepatch_list; kpatch_list; modprobe_path; db_idempotent_map; nvidia_multi_vgpu_enabled_driver_versions; nvidia_t4_sriov; create-tools-sr; winbind_kerberos_encryption_type; website-https-only; extauth_ad_backend; allow-host-sched-gran-modification; post-install-scripts-dir; gpg-homedir; xen-cmdline; cluster-stack-root; web-dir; sm-dir; udhcpd-skel; db-config-file; pool_config_file; set-iscsi-initiator; generate_ssl_cert; alert-certificate-check; systemctl; list_domains; fcoe-driver; xen-cmdline-script; static-vdis; xsh; xe-toolstack-restart; xe; host-restore; host-backup; upload-wrapper; update-mh-info; logs-download; xe-syslog-reconfigure; set-hostname; host-bugreport-upload; fence; vhd-tool; sparse_dd; redo-log-block-device-io; pbis-force-domain-leave-script; busybox; startup-script-hook; rolling-upgrade-script-hook; xapi-message-script; non-managed-pifs; domain_join_cli_cmd; update-issue; killall; nbd-firewall-config; firewall-port-config; nbd_client_manager; varstore-rm; varstore_dir; nvidia-sriov-manage; gen_pool_secret_script; samba administration tool; Samba TDB (Trivial Database) management tool; winbind query tool; ntlm auth utility; SQLite database  management tool; pool_secret_path; udhcpd-conf; remote-db-conf-file; logconfig; cpu-info-file; server-cert-path; iscsi_initiatorname; master-scripts-dir; packs-dir; xapi-hooks-root; xapi-plugins-root; xapi-extensions-root; static-vdis-root; tools-sr-dir ]
+```
+
+They also become errors when using Xcp_service.configure2, so this change is
+needed to adopt cmdliner.
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/xapi/xapi_globs.ml | 14 +-------------
+ ocaml/xapi/xapi_main.ml  |  7 -------
+ 2 files changed, 1 insertion(+), 20 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index b2df28b69..c169ac01e 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -875,8 +875,6 @@ let default_auth_dir = ref "/usr/share/varstored"
+ 
+ let allow_custom_uefi_certs = ref false
+ 
+-let disable_logging_for = ref []
+-
+ let nvidia_whitelist = ref "/usr/share/nvidia/vgpu/vgpuConfig.xml"
+ 
+ let nvidia_sriov_manage_script = ref "/usr/lib/nvidia/sriov-manage"
+@@ -1351,11 +1349,6 @@ let other_options =
+     , (fun () -> !trusted_patch_key)
+     , "Fingerprint of the key used for signed hotfixes"
+     )
+-  ; ( "logconfig"
+-    , Arg.Set_string log_config_file
+-    , (fun () -> !log_config_file)
+-    , "Log config file to use"
+-    )
+   ; ( "writereadyfile"
+     , Arg.Set_string ready_file
+     , (fun () -> !ready_file)
+@@ -1387,11 +1380,6 @@ let other_options =
+     , "allow storage migration when SRs have been mirrored out-of-band (and \
+        have matching SR uuids)"
+     )
+-  ; gen_list_option "disable-logging-for"
+-      "space-separated list of modules to suppress logging from"
+-      (fun s -> s)
+-      (fun s -> s)
+-      disable_logging_for
+   ; gen_list_option "disable-dbsync-for"
+       "space-separated list of database synchronisation actions to skip"
+       (fun s -> s)
+@@ -1922,7 +1910,7 @@ module Resources = struct
+       , remote_db_conf_fragment_path
+       , "Where to store information about remote databases"
+       )
+-    ; ("logconfig", log_config_file, "Configure the logging policy")
++    ; ("logconfig", log_config_file, "File location for logging policy")
+     ; ("cpu-info-file", cpu_info_file, "Where to cache boot-time CPU info")
+     ; ("server-cert-path", server_cert_path, "Path to server ssl certificate")
+     ; ( "server-cert-internal-path"
+diff --git a/ocaml/xapi/xapi_main.ml b/ocaml/xapi/xapi_main.ml
+index 0107fe37f..b1ea1a0af 100644
+--- a/ocaml/xapi/xapi_main.ml
++++ b/ocaml/xapi/xapi_main.ml
+@@ -22,13 +22,6 @@ let _ =
+   Debug.set_facility Syslog.Local5 ;
+   Sys.enable_runtime_warnings true ;
+   init_args () ;
+-  (* Disable logging for the module requested in the config *)
+-  List.iter
+-    (fun m ->
+-      D.debug "Disabling logging for: %s" m ;
+-      Debug.disable m
+-    )
+-    !Xapi_globs.disable_logging_for ;
+   Unixext.pidfile_write "/var/run/xapi.pid" ;
+   (* chdir to /var/lib/xcp/debug so that's where xapi coredumps go
+      (in the unlikely event that there are any ;) *)
+-- 
+2.51.0
+

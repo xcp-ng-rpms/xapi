@@ -1,0 +1,43 @@
+From defb2114620ef837eb0ee4f41eb8e61cc51050fb Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Thu, 17 Jul 2025 10:45:26 +0100
+Subject: [PATCH 33/34] xapi_globs: allow default args to be deserialized to
+ the Arg type
+
+This is needed to be able to use Xcp_service.configure2, which uses cmdliner
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/xapi/xapi_globs.ml | 11 +++++++++--
+ 1 file changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index c7a440523..b2df28b69 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -1245,13 +1245,20 @@ let option_of_xapi_globs_spec ?(description = None) (name, ty) =
+         Arg.Int (fun y -> x := Mtime.Span.(y * s))
+   in
+   let read_default () =
++    (* The string produced must be able to be converted back to the original
++       Arg type (Int, Float, etc) *)
+     match ty with
+     | Float x ->
+         string_of_float !x
+     | Int x ->
+         string_of_int !x
+-    | ShortDurationFromSeconds x | LongDurationFromSeconds x ->
+-        Fmt.str "%Luns (%a)" (Mtime.Span.to_uint64_ns !x) Mtime.Span.pp !x
++    | ShortDurationFromSeconds x ->
++        !x |> Clock.Timer.span_to_s |> Float.to_string
++    | LongDurationFromSeconds x ->
++        !x
++        |> Mtime.Span.to_uint64_ns
++        |> Fun.flip Int64.div 1_000_000_000L
++        |> Int64.to_string
+   in
+   let description =
+     let default = Printf.sprintf "Set the value of '%s'" name in
+-- 
+2.51.0
+
