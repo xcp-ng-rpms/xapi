@@ -70,58 +70,23 @@ Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature  v25.6.0..v25.6.0-8.3
+#   - git format-patch --no-numbered --no-signature v25.24.0..v25.24.0-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
-# Disable flaky test, see af3989235e62f5887a8cac08f4c1977726839297
-Patch1003: 0003-xcp-ng-disable-cancellable-sleep.patch
-# #6280: traces to see observer not working on smapi component
-Patch1004: 0004-xcp-ng-add-debug-info-in-observer.patch
-Patch1005: 0005-xcp-ng-fix-IPv6-import.patch
+Patch1003: 0003-xcp-ng-fix-IPv6-import.patch
 # check if https://github.com/xapi-project/xen-api/pull/4188 is fixed
-Patch1006: 0006-xcp-ng-open-close-openflow-port.patch
+Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
-Patch1007: 0007-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
-# Backports:
-# Fix metrics issues - cherry-picked from v25.11.0
-Patch1008: 0008-CA-408126-rrd-Do-not-lose-ds_min-max-when-adding-to-.patch
-# Fix metrics issues - cherry-picked from v25.13.0
-Patch1009: 0009-CA-408126-follow-up-Fix-negative-ds_min-and-RRD-valu.patch
-# Fix metrics issues - cherry-picked from v25.15.0
-Patch1010: 0010-CA-408841-rrd-don-t-update-rrds-when-ds_update-is-ca.patch
-# Fix SR.scan not atomic - cherry-picked from v25.16.0
-Patch1011: 0011-Check-that-there-are-no-changes-during-SR.scan.patch
-
-# Merged upstream, will be in v25.17.0
-Patch1012: 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch
-
-# Modified version merged upstream in v25.18.0: https://github.com/xapi-project/xen-api/pull/6454
-Patch1013: 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch
+Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 
 # Backports:
-# Merged upstream, will be in v25.20.0: https://github.com/xapi-project/xen-api/pull/6469
-Patch1014: 0014-CA-409510-Make-xenopsd-nested-Parallel-atoms-explici.patch
-Patch1015: 0015-CA-409510-Give-a-warning-if-atoms-nested-incorrectly.patch
-Patch1016: 0016-CA-410782-Add-receive_memory_queues-for-VM_receive_m.patch
-Patch1017: 0017-CA-411319-Concurrent-VM.assert_can_migrate-failure.patch
+# Backport a fix for a flaky test from upstream v25.25.0
+# (https://github.com/xapi-project/xen-api/pull/6568/commits/c725281e3a2ae0a60c3b181cc469d163315965bb)
+Patch1006: 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
 
-# Backports of several RRD fixes from upstream, all are in v25.20.0
-Patch1018: 0018-CA-409488-prevent-Xenctrl-exceptions-from-escaping-o.patch
-Patch1019: 0019-CA-409489-prevent-running-out-of-pages-with-lots-of-.patch
-Patch1020: 0020-rrd_file_writer-protect-against-resource-leak.patch
-Patch1021: 0021-Raise-log-level-for-rrd-thread-monitor.patch
-Patch1022: 0022-CA-410001-Check-rrdi.rrd-to-avoid-ds-duplicate.patch
-Patch1023: 0023-CA-409482-Using-computed-delay-for-RRD-loop.patch
-Patch1024: 0024-CA-411679-Runstate-metrics-return-data-over-100.patch
-Patch1025: 0025-xcp-rrdd-change-the-code-responsible-for-filtering-o.patch
-Patch1026: 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch
-
-# Fix from upstream in v25.10.0 (https://github.com/xapi-project/xen-api/pull/6328)
-Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
-
-# AMD pci MMIO Writeback workaround
-Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
+# AMD pci MMIO Writeback workaround, upstream in v25.26.0
+Patch1007: 0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1465,6 +1430,35 @@ Coverage files from unit tests
 %changelog
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1
 - Update to upstream 25.24.0-1
+- Rename 0005-xcp-ng-fix-IPv6-import.patch to 0003-xcp-ng-fix-IPv6-import.patch
+- Rename 0006-xcp-ng-open-close-openflow-port.patch to 0004-xcp-ng-open-close-openflow-port.patch
+- Rename 0007-xcp-ng-update-db-tunnel-protocol-from-other-config.patch to
+  0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
+- Drop 0003-xcp-ng-disable-cancellable-sleep.patch, replace with an alternative
+  fix from upstream in 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
+- Rename 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch to
+  0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
+- Drop 0004-xcp-ng-add-debug-info-in-observer.patch, merged upstream
+- Drop 0008-CA-408126-rrd-Do-not-lose-ds_min-max-when-adding-to-.patch, merged upstream
+- Drop 0009-CA-408126-follow-up-Fix-negative-ds_min-and-RRD-valu.patch, merged upstream
+- Drop 0010-CA-408841-rrd-don-t-update-rrds-when-ds_update-is-ca.patch, merged upstream
+- Drop 0011-Check-that-there-are-no-changes-during-SR.scan.patch, merged upstream
+- Drop 0012-xapi_guest_agent-Update-xenstore-keys-for-Windows-PV.patch, merged upstream
+- Drop 0013-xapi_xenops-Try-to-avoid-a-race-during-suspend.patch, merged upstream
+- Drop 0014-CA-409510-Make-xenopsd-nested-Parallel-atoms-explici.patch, merged upstream
+- Drop 0015-CA-409510-Give-a-warning-if-atoms-nested-incorrectly.patch, merged upstream
+- Drop 0016-CA-410782-Add-receive_memory_queues-for-VM_receive_m.patch, merged upstream
+- Drop 0017-CA-411319-Concurrent-VM.assert_can_migrate-failure.patch, merged upstream
+- Drop 0018-CA-409488-prevent-Xenctrl-exceptions-from-escaping-o.patch, merged upstream
+- Drop 0019-CA-409489-prevent-running-out-of-pages-with-lots-of-.patch, merged upstream
+- Drop 0020-rrd_file_writer-protect-against-resource-leak.patch, merged upstream
+- Drop 0021-Raise-log-level-for-rrd-thread-monitor.patch, merged upstream
+- Drop 0022-CA-410001-Check-rrdi.rrd-to-avoid-ds-duplicate.patch, merged upstream
+- Drop 0023-CA-409482-Using-computed-delay-for-RRD-loop.patch, merged upstream
+- Drop 0024-CA-411679-Runstate-metrics-return-data-over-100.patch, merged upstream
+- Drop 0025-xcp-rrdd-change-the-code-responsible-for-filtering-o.patch, merged upstream
+- Drop 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch, merged upstream
+- Drop 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch, merged upstream
 - *** Upstream changelog ***
   * Sun Jul 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.24.0-1
   - CA-410965: Modify default ref of console
