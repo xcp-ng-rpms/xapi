@@ -1,4 +1,4 @@
-From bc17adc4bba4f5a8adc425f4f0f4f5b2cfd13848 Mon Sep 17 00:00:00 2001
+From 624b17000b671e506b590666affc4f90fb5a9a9c Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
 Date: Thu, 5 Jun 2025 16:16:38 +0100
 Subject: [PATCH] xcp-rrdd: change the code responsible for filtering out
@@ -19,7 +19,7 @@ Signed-off-by: Pau Ruiz Safont <pau.ruizsafont@cloud.com>
  3 files changed, 84 insertions(+), 90 deletions(-)
 
 diff --git a/ocaml/xcp-rrdd/bin/rrdd/rrdd_monitor.ml b/ocaml/xcp-rrdd/bin/rrdd/rrdd_monitor.ml
-index 4be1152d8..4bd0c4d43 100644
+index 5872fb5b6..72fe076b4 100644
 --- a/ocaml/xcp-rrdd/bin/rrdd/rrdd_monitor.ml
 +++ b/ocaml/xcp-rrdd/bin/rrdd/rrdd_monitor.ml
 @@ -155,9 +155,8 @@ let convert_to_owner_map dss =
@@ -58,7 +58,7 @@ index 4be1152d8..4bd0c4d43 100644
                       | None ->
                           debug "%s: Creating fresh RRD for VM uuid=%s"
 diff --git a/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml b/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
-index 2252c1f05..b5e111f69 100644
+index 751084659..2528c0098 100644
 --- a/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
 +++ b/ocaml/xcp-rrdd/bin/rrdd/xcp_rrdd.ml
 @@ -258,71 +258,80 @@ let mem_available () =
