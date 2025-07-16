@@ -1,2 +1,5 @@
 # Omit some sources of log-spam by default
 disable-logging-for=tracing tracing_export
+observer-endpoint-http-enabled=true
+observer-endpoint-https-enabled=true
+observer-experimental-components=""
