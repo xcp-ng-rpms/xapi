@@ -1,0 +1,142 @@
+From b87453328d82595c8fcee9e12cd35788e4b9f31a Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Wed, 25 Jun 2025 11:01:09 +0200
+Subject: [PATCH] Allow selection of image format during VDI pool migration
+
+This patch add a new parameter to `VDI.pool-migrate`. This new parameter
+allows to provide a string that is the destination format. This string is used
+to check whether the destination SR supports the expected format. If the check
+fails or cannot be performed due to missing information on the destination SR,
+an error is returned.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/idl/datamodel.ml                  |  4 ++++
+ ocaml/xapi-cli-server/cli_frontend.ml   |  6 +++---
+ ocaml/xapi-cli-server/cli_operations.ml |  6 +++++-
+ ocaml/xapi/message_forwarding.ml        | 11 +++++++----
+ ocaml/xapi/xapi_vm_migrate.ml           | 10 ++++++----
+ 5 files changed, 25 insertions(+), 12 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 7fb449166..f2034d908 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -5364,6 +5364,10 @@ module VDI = struct
+         [
+           (Ref _vdi, "vdi", "The VDI to migrate")
+         ; (Ref _sr, "sr", "The destination SR")
++        ; ( String
++          , "dest_img_format"
++          , "The image format to use on destination SR"
++          )
+         ; (Map (String, String), "options", "Other parameters")
+         ]
+       ~result:(Ref _vdi, "The new reference of the migrated VDI.")
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index 67bec4dfb..862f71a60 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -2412,10 +2412,10 @@ let rec cmdtable_data : (string * cmd_spec) list =
+   ; ( "vdi-pool-migrate"
+     , {
+         reqd= ["uuid"; "sr-uuid"]
+-      ; optn= []
++      ; optn= ["dest-img-format"]
+       ; help=
+-          "Migrate a VDI to a specified SR, while the VDI is attached to a \
+-           running guest."
++          "Migrate a VDI to a specified SR, while it is attached to a running \
++           guest. You can specify the image format for the destination."
+       ; implementation= No_fd Cli_operations.vdi_pool_migrate
+       ; flags= []
+       }
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index c960d74d7..519ae5928 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -2060,8 +2060,12 @@ let vdi_pool_migrate printer rpc session_id params =
+     Client.VDI.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "uuid" params)
+   and sr =
+     Client.SR.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "sr-uuid" params)
++  and dest_img_format =
++    List.assoc_opt "dest-img-format" params |> Option.value ~default:""
+   and options = [] (* no options implemented yet *) in
+-  let newvdi = Client.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr ~options in
++  let newvdi =
++    Client.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr ~dest_img_format ~options
++  in
+   let newuuid = Client.VDI.get_uuid ~rpc ~session_id ~self:newvdi in
+   printer (Cli_printer.PList [newuuid])
+ 
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index e04d50b4f..43d3b54c0 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -5455,7 +5455,7 @@ functor
+                 ~prefer_slaves:true op
+         )
+ 
+-      let pool_migrate ~__context ~vdi ~sr ~options =
++      let pool_migrate ~__context ~vdi ~sr ~dest_img_format ~options =
+         let vbds =
+           let expr =
+             Xapi_database.Db_filter_types.(
+@@ -5475,7 +5475,9 @@ functor
+           ("__internal__vm", Ref.string_of vm)
+           :: List.remove_assoc "__internal__vm" options
+         in
+-        let local_fn = Local.VDI.pool_migrate ~vdi ~sr ~options in
++        let local_fn =
++          Local.VDI.pool_migrate ~vdi ~sr ~dest_img_format ~options
++        in
+         let force =
+           try bool_of_string (List.assoc "force" options) with _ -> false
+         in
+@@ -5510,11 +5512,12 @@ functor
+             in
+             let op session_id rpc =
+               let sync_op () =
+-                Client.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr ~options
++                Client.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr
++                  ~dest_img_format ~options
+               in
+               let async_op () =
+                 Client.InternalAsync.VDI.pool_migrate ~rpc ~session_id ~vdi ~sr
+-                  ~options
++                  ~dest_img_format ~options
+               in
+               Helpers.try_internal_async ~__context API.ref_VDI_of_rpc async_op
+                 sync_op
+diff --git a/ocaml/xapi/xapi_vm_migrate.ml b/ocaml/xapi/xapi_vm_migrate.ml
+index 20c75476e..88d81d485 100644
+--- a/ocaml/xapi/xapi_vm_migrate.ml
++++ b/ocaml/xapi/xapi_vm_migrate.ml
+@@ -2030,7 +2030,7 @@ let migrate_send ~__context ~vm ~dest ~live ~vdi_map ~vif_map ~options ~vgpu_map
+         ~vgpu_map ~options
+   )
+ 
+-let vdi_pool_migrate ~__context ~vdi ~sr ~options =
++let vdi_pool_migrate ~__context ~vdi ~sr ~dest_img_format ~options =
+   if Db.VDI.get_type ~__context ~self:vdi = `cbt_metadata then (
+     error "VDI.pool_migrate: the specified VDI has type cbt_metadata (at %s)"
+       __LOC__ ;
+@@ -2116,13 +2116,15 @@ let vdi_pool_migrate ~__context ~vdi ~sr ~options =
+         XenAPI.Host.migrate_receive ~rpc ~session_id ~host:dest_host ~network
+           ~options
+       in
+-      assert_can_migrate ~__context ~vm ~dest ~live:true ~vdi_map ~vif_map:[]
+-        ~vgpu_map:[] ~options:[] ;
++      assert_can_migrate ~__context ~vm ~dest ~live:true ~vdi_map
++        ~vdi_format_map:[(vdi, dest_img_format)]
++        ~vif_map:[] ~vgpu_map:[] ~options:[] ;
+       assert_can_migrate_sender ~__context ~vm ~dest ~live:true ~vdi_map
+         ~vif_map:[] ~vgpu_map:[] ~options:[] ;
+       ignore
+         (migrate_send ~__context ~vm ~dest ~live:true ~vdi_map
+-           ~vdi_format_map:[] ~vif_map:[] ~vgpu_map:[] ~options
++           ~vdi_format_map:[(vdi, dest_img_format)]
++           ~vif_map:[] ~vgpu_map:[] ~options
+         )
+   ) ;
+   Db.VBD.get_VDI ~__context ~self:vbd

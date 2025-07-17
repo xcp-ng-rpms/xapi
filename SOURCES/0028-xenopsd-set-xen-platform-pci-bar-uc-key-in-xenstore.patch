@@ -1,4 +1,4 @@
-From 83a48882655d36daa6f6593603e9ab95a39ee664 Mon Sep 17 00:00:00 2001
+From e88d854be29d51e95b789d9d44ced6ea43203a09 Mon Sep 17 00:00:00 2001
 From: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
 Date: Fri, 27 Jun 2025 10:48:26 +0200
 Subject: [PATCH] xenopsd: set xen-platform-pci-bar-uc key in xenstore
@@ -21,7 +21,7 @@ Signed-off-by: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
  3 files changed, 19 insertions(+)
 
 diff --git a/ocaml/xenopsd/lib/xenopsd.ml b/ocaml/xenopsd/lib/xenopsd.ml
-index 5ad640173..275cdcb79 100644
+index cb79fd209..4d24159fe 100644
 --- a/ocaml/xenopsd/lib/xenopsd.ml
 +++ b/ocaml/xenopsd/lib/xenopsd.ml
 @@ -49,6 +49,8 @@ let default_vbd_backend_kind = ref "vbd"
@@ -49,10 +49,10 @@ index 5ad640173..275cdcb79 100644
      , Arg.Set_float additional_ballooning_timeout
      , (fun () -> string_of_float !additional_ballooning_timeout)
 diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
-index 287c1c77b..5e335874f 100644
+index 9f89e84fa..d91ab142c 100644
 --- a/ocaml/xenopsd/xc/domain.ml
 +++ b/ocaml/xenopsd/xc/domain.ml
-@@ -501,6 +501,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+@@ -503,6 +503,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
      xs.Xs.writev (dom_path ^ "/bios-strings") vm_info.bios_strings ;
      if vm_info.is_uefi then
        xs.Xs.write (dom_path ^ "/hvmloader/bios") "ovmf" ;
@@ -76,6 +76,3 @@ index e80194c1f..447d6cde5 100644
 +# (WB, the workaround). WB mapping could improve performance of devices
 +# using grant tables. This is useful on AMD platform only.
 +# xen-platform-pci-bar-uc=true
--- 
-2.49.1
-

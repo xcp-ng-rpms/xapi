@@ -1,0 +1,868 @@
+From 9be5e62aa850950edcc24985541ce0e1db4f1400 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Wed, 25 Jun 2025 10:56:30 +0200
+Subject: [PATCH] Allow selection of image format during VM migration
+
+This patch allows specifying the destination format for individual VDIs
+mapped to a destination SR. It adds a new parameter to `VM.migrate_send`
+and `VM.assert_can_migrate` API. It also adds a new parameter to XE CLI.
+The format to specify the image format is `image-format:<source VDI
+UUID>=<destination image format>`. If the given image format cannot be
+validated, an error is returned.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/idl/datamodel_vm.ml                   |  14 +++
+ ocaml/xapi-cli-server/cli_frontend.ml       |   5 +-
+ ocaml/xapi-cli-server/cli_operations.ml     |  15 ++-
+ ocaml/xapi-idl/storage/storage_interface.ml |  35 ++++--
+ ocaml/xapi-idl/storage/storage_skeleton.ml  |   7 +-
+ ocaml/xapi-storage-cli/main.ml              |  13 ++-
+ ocaml/xapi/message_forwarding.ml            |  19 ++--
+ ocaml/xapi/storage_migrate.ml               |  44 +++++---
+ ocaml/xapi/storage_mux.ml                   |  39 ++++---
+ ocaml/xapi/storage_smapiv1.ml               |  11 +-
+ ocaml/xapi/storage_smapiv1_wrapper.ml       |  35 +++---
+ ocaml/xapi/xapi_vm_migrate.ml               | 119 +++++++++++++++++---
+ 12 files changed, 264 insertions(+), 92 deletions(-)
+
+diff --git a/ocaml/idl/datamodel_vm.ml b/ocaml/idl/datamodel_vm.ml
+index 44ca1466d..ab8baf214 100644
+--- a/ocaml/idl/datamodel_vm.ml
++++ b/ocaml/idl/datamodel_vm.ml
+@@ -1714,6 +1714,13 @@ let migrate_send =
+         ; param_release= inverness_release
+         ; param_default= Some (VMap [])
+         }
++      ; {
++          param_type= Map (Ref _vdi, String)
++        ; param_name= "vdi_format_map"
++        ; param_doc= "Map of source VDI to an image format"
++        ; param_release= numbered_release "25.6.0-next"
++        ; param_default= Some (VMap [])
++        }
+       ]
+     ~result:
+       (Ref _vm, "The reference of the newly created VM in the destination pool")
+@@ -1781,6 +1788,13 @@ let assert_can_migrate =
+         ; param_release= inverness_release
+         ; param_default= Some (VMap [])
+         }
++      ; {
++          param_type= Map (Ref _vdi, String)
++        ; param_name= "vdi_format_map"
++        ; param_doc= "Map of source VDI to its expected type on destination"
++        ; param_release= numbered_release "25.6.0-next"
++        ; param_default= Some (VMap [])
++        }
+       ]
+     ~allowed_roles:_R_VM_POWER_ADMIN
+     ~errs:[Api_errors.license_restriction]
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index 05c9890ff..67bec4dfb 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -1574,6 +1574,7 @@ let rec cmdtable_data : (string * cmd_spec) list =
+           ; "compress"
+           ; "vif:"
+           ; "vdi:"
++          ; "image-format:"
+           ]
+       ; help=
+           "Migrate the selected VM(s). The parameter '--live' will migrate the \
+@@ -1587,7 +1588,9 @@ let rec cmdtable_data : (string * cmd_spec) list =
+            'copy=true' will enable the copy mode so that a stopped vm can be \
+            copied, instead of migrating, to the destination pool. The vif and \
+            vdi mapping parameters take the form 'vif:<source vif uuid>=<dest \
+-           network uuid>' and 'vdi:<source vdi uuid>=<dest sr uuid>'. \
++           network uuid>' and 'vdi:<source vdi uuid>=<dest sr uuid>'. You can \
++           also specify the destination image format of the VDI using \
++           image-format:<source vdi uuid>=<destination image format>. \
+            Unfortunately, destination uuids cannot be tab-completed."
+       ; implementation= No_fd Cli_operations.vm_migrate
+       ; flags= [Standard; Vm_selectors]
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 265c6f86a..c960d74d7 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -4544,6 +4544,7 @@ let vm_migrate_sxm_params =
+   ; "remote-network"
+   ; "vdi"
+   ; "vgpu"
++  ; "image-format"
+   ]
+ 
+ let vm_migrate printer rpc session_id params =
+@@ -4691,6 +4692,17 @@ let vm_migrate printer rpc session_id params =
+             )
+             (read_map_params "vdi" params)
+         in
++        let vdi_format_map =
++          List.map
++            (fun (vdi_uuid, vdi_fmt) ->
++              let vdi =
++                Client.VDI.get_by_uuid ~rpc ~session_id ~uuid:vdi_uuid
++              in
++              debug "GTNDEBUG: add image format %s,%s" vdi_uuid vdi_fmt ;
++              (vdi, vdi_fmt)
++            )
++            (read_map_params "image-format" params)
++        in
+         let vgpu_map =
+           List.map
+             (fun (vgpu_uuid, gpu_group_uuid) ->
+@@ -4853,7 +4865,8 @@ let vm_migrate printer rpc session_id params =
+             rpc session_id
+             (fun vm ->
+               Client.VM.migrate_send ~rpc ~session_id ~vm:(vm.getref ())
+-                ~dest:token ~live:true ~vdi_map ~vif_map ~options ~vgpu_map
++                ~dest:token ~live:true ~vdi_map ~vdi_format_map ~vif_map
++                ~options ~vgpu_map
+             )
+             params
+             (["host"; "host-uuid"; "host-name"; "live"; "force"; "copy"]
+diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
+index d2cebc351..eafb2ed9f 100644
+--- a/ocaml/xapi-idl/storage/storage_interface.ml
++++ b/ocaml/xapi-idl/storage/storage_interface.ml
+@@ -251,6 +251,8 @@ let string_of_vdi_info (x : vdi_info) = Jsonrpc.to_string (rpc_of vdi_info x)
+     "datapaths". *)
+ type dp = string [@@deriving rpcty]
+ 
++type image_format = string [@@deriving rpcty]
++
+ type sock_path = string [@@deriving rpcty]
+ 
+ type dp_stat_t = {
+@@ -277,6 +279,8 @@ type probe_result =
+ module Mirror = struct
+   type id = string [@@deriving rpcty]
+ 
++  type image_format = string [@@deriving rpcty]
++
+   type state = Receiving | Sending | Copying [@@deriving rpcty]
+ 
+   type t = {source_vdi: Vdi.t; dest_vdi: Vdi.t; state: state list; failed: bool}
+@@ -998,6 +1002,8 @@ module StorageAPI (R : RPC) = struct
+         )
+ 
+     module MIRROR = struct
++      let image_format_p = Param.mk ~name:"image_format" image_format
++
+       let mirror_vm_p = Param.mk ~name:"mirror_vm" Vm.t
+ 
+       let copy_vm_p = Param.mk ~name:"copy_vm" Vm.t
+@@ -1009,6 +1015,7 @@ module StorageAPI (R : RPC) = struct
+           (dbg_p
+           @-> sr_p
+           @-> vdi_p
++          @-> image_format_p
+           @-> dp_p
+           @-> mirror_vm_p
+           @-> copy_vm_p
+@@ -1034,6 +1041,9 @@ module StorageAPI (R : RPC) = struct
+         Use the receive_start2 function instead. 
+       *)
+       let receive_start =
++        let image_format_p =
++          Param.mk ~name:"image_format" Mirror.image_format
++        in
+         let similar_p = Param.mk ~name:"similar" Mirror.similars in
+         let result = Param.mk ~name:"result" Mirror.mirror_receive_result in
+         declare "DATA.MIRROR.receive_start" []
+@@ -1041,6 +1051,7 @@ module StorageAPI (R : RPC) = struct
+           @-> sr_p
+           @-> VDI.vdi_info_p
+           @-> id_p
++          @-> image_format_p
+           @-> similar_p
+           @-> returning result err
+           )
+@@ -1048,6 +1059,9 @@ module StorageAPI (R : RPC) = struct
+       (** Called on the receiving end to prepare for receipt of the storage. This
+       function should be used in conjunction with [receive_finalize2]*)
+       let receive_start2 =
++        let image_format_p =
++          Param.mk ~name:"image_format" Mirror.image_format
++        in
+         let similar_p = Param.mk ~name:"similar" Mirror.similars in
+         let result = Param.mk ~name:"result" Mirror.mirror_receive_result in
+         declare "DATA.MIRROR.receive_start2" []
+@@ -1055,6 +1069,7 @@ module StorageAPI (R : RPC) = struct
+           @-> sr_p
+           @-> VDI.vdi_info_p
+           @-> id_p
++          @-> image_format_p
+           @-> similar_p
+           @-> vm_p
+           @-> returning result err
+@@ -1420,6 +1435,7 @@ module type Server_impl = sig
+         -> dbg:debug_info
+         -> sr:sr
+         -> vdi:vdi
++        -> image_format:string
+         -> dp:dp
+         -> mirror_vm:vm
+         -> copy_vm:vm
+@@ -1438,6 +1454,7 @@ module type Server_impl = sig
+         -> sr:sr
+         -> vdi_info:vdi_info
+         -> id:Mirror.id
++        -> image_format:Mirror.image_format
+         -> similar:Mirror.similars
+         -> Mirror.mirror_receive_result
+ 
+@@ -1447,6 +1464,7 @@ module type Server_impl = sig
+         -> sr:sr
+         -> vdi_info:vdi_info
+         -> id:Mirror.id
++        -> image_format:Mirror.image_format
+         -> similar:Mirror.similars
+         -> vm:vm
+         -> Mirror.mirror_receive_result
+@@ -1633,17 +1651,20 @@ module Server (Impl : Server_impl) () = struct
+         Impl.DATA.copy () ~dbg ~sr ~vdi ~vm ~url ~dest ~verify_dest
+     ) ;
+     S.DATA.MIRROR.start
+-      (fun dbg sr vdi dp mirror_vm copy_vm url dest verify_dest ->
+-        Impl.DATA.MIRROR.start () ~dbg ~sr ~vdi ~dp ~mirror_vm ~copy_vm ~url
+-          ~dest ~verify_dest
++      (fun dbg sr vdi image_format dp mirror_vm copy_vm url dest verify_dest ->
++        Impl.DATA.MIRROR.start () ~dbg ~sr ~vdi ~image_format ~dp ~mirror_vm
++          ~copy_vm ~url ~dest ~verify_dest
+     ) ;
+     S.DATA.MIRROR.stop (fun dbg id -> Impl.DATA.MIRROR.stop () ~dbg ~id) ;
+     S.DATA.MIRROR.stat (fun dbg id -> Impl.DATA.MIRROR.stat () ~dbg ~id) ;
+-    S.DATA.MIRROR.receive_start (fun dbg sr vdi_info id similar ->
+-        Impl.DATA.MIRROR.receive_start () ~dbg ~sr ~vdi_info ~id ~similar
++    S.DATA.MIRROR.receive_start (fun dbg sr vdi_info id image_format similar ->
++        Impl.DATA.MIRROR.receive_start () ~dbg ~sr ~vdi_info ~id ~image_format
++          ~similar
+     ) ;
+-    S.DATA.MIRROR.receive_start2 (fun dbg sr vdi_info id similar vm ->
+-        Impl.DATA.MIRROR.receive_start2 () ~dbg ~sr ~vdi_info ~id ~similar ~vm
++    S.DATA.MIRROR.receive_start2
++      (fun dbg sr vdi_info id image_format similar vm ->
++        Impl.DATA.MIRROR.receive_start2 () ~dbg ~sr ~vdi_info ~id ~image_format
++          ~similar ~vm
+     ) ;
+     S.DATA.MIRROR.receive_cancel (fun dbg id ->
+         Impl.DATA.MIRROR.receive_cancel () ~dbg ~id
+diff --git a/ocaml/xapi-idl/storage/storage_skeleton.ml b/ocaml/xapi-idl/storage/storage_skeleton.ml
+index ab84ed771..9b60758ba 100644
+--- a/ocaml/xapi-idl/storage/storage_skeleton.ml
++++ b/ocaml/xapi-idl/storage/storage_skeleton.ml
+@@ -157,17 +157,18 @@ module DATA = struct
+   module MIRROR = struct
+     (** [start task sr vdi url sr2] creates a VDI in remote [url]'s [sr2] and
+         writes data synchronously. It returns the id of the VDI.*)
+-    let start ctx ~dbg ~sr ~vdi ~dp ~mirror_vm ~copy_vm ~url ~dest =
++    let start ctx ~dbg ~sr ~vdi ~image_format ~dp ~mirror_vm ~copy_vm ~url ~dest
++        =
+       u "DATA.MIRROR.start"
+ 
+     let stop ctx ~dbg ~id = u "DATA.MIRROR.stop"
+ 
+     let stat ctx ~dbg ~id = u "DATA.MIRROR.stat"
+ 
+-    let receive_start ctx ~dbg ~sr ~vdi_info ~id ~similar =
++    let receive_start ctx ~dbg ~sr ~vdi_info ~id ~image_format ~similar =
+       u "DATA.MIRROR.receive_start"
+ 
+-    let receive_start2 ctx ~dbg ~sr ~vdi_info ~id ~similar ~vm =
++    let receive_start2 ctx ~dbg ~sr ~vdi_info ~id ~image_format ~similar ~vm =
+       u "DATA.MIRROR.receive_start2"
+ 
+     let receive_finalize ctx ~dbg ~id = u "DATA.MIRROR.receive_finalize"
+diff --git a/ocaml/xapi-storage-cli/main.ml b/ocaml/xapi-storage-cli/main.ml
+index c64a4f6fc..1cee36b7c 100644
+--- a/ocaml/xapi-storage-cli/main.ml
++++ b/ocaml/xapi-storage-cli/main.ml
+@@ -315,15 +315,19 @@ let mirror_vm = Vm.of_string "SXM_mirror"
+ 
+ let copy_vm = Vm.of_string "SXM_copy"
+ 
+-let mirror_start common_opts sr vdi dp url dest verify_dest =
++let mirror_start common_opts sr vdi dp url dest verify_dest dest_img_format =
+   on_vdi'
+     (fun sr vdi ->
+       let get_opt x err = match x with Some y -> y | None -> failwith err in
+       let dp = get_opt dp "Need a local data path" in
+       let url = get_opt url "Need a URL" in
+       let dest = get_opt dest "Need a destination SR" in
++      let image_format =
++        match dest_img_format with Some s -> s | None -> ""
++      in
+       let task =
+-        Client.DATA.MIRROR.start dbg sr vdi dp mirror_vm copy_vm url
++        Client.DATA.MIRROR.start dbg sr vdi image_format dp mirror_vm copy_vm
++          url
+           (Storage_interface.Sr.of_string dest)
+           verify_dest
+       in
+@@ -528,6 +532,10 @@ let mirror_start_cmd =
+     let doc = "Verify certicate of remote server" in
+     Arg.(value & pos 5 bool false & info [] ~docv:"VERIFYDEST" ~doc)
+   in
++  let dest_img_format =
++    let doc = "Specify the image format on the destination SR" in
++    Arg.(value & pos 6 (some string) None & info [] ~docv:"IMAGEFORMAT" ~doc)
++  in
+   ( Term.(
+       ret
+         (const mirror_start
+@@ -538,6 +546,7 @@ let mirror_start_cmd =
+         $ url
+         $ dest
+         $ verify_dest
++        $ dest_img_format
+         )
+     )
+   , Cmd.info "mirror-start" ~sdocs:_common_options ~doc ~man
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index c843b5639..e04d50b4f 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -2536,26 +2536,26 @@ functor
+              assuming it can ignore this check."
+ 
+       let assert_can_migrate ~__context ~vm ~dest ~live ~vdi_map ~vif_map
+-          ~options ~vgpu_map =
++          ~options ~vgpu_map ~vdi_format_map =
+         info "VM.assert_can_migrate: VM = '%s'" (vm_uuid ~__context vm) ;
+         (* Run the checks that can be done using just the DB directly on the master *)
+-        Local.VM.assert_can_migrate ~__context ~vm ~dest ~live ~vdi_map ~vif_map
+-          ~vgpu_map ~options ;
++        Local.VM.assert_can_migrate ~__context ~vm ~dest ~live ~vdi_map
++          ~vdi_format_map ~vif_map ~vgpu_map ~options ;
+         (* Run further checks on the sending host *)
+         assert_can_migrate_sender ~__context ~vm ~dest ~live ~vdi_map ~vif_map
+           ~vgpu_map ~options
+ 
+       let migrate_send ~__context ~vm ~dest ~live ~vdi_map ~vif_map ~options
+-          ~vgpu_map =
++          ~vgpu_map ~vdi_format_map =
+         info "VM.migrate_send: VM = '%s'" (vm_uuid ~__context vm) ;
+         let source_host = Db.VM.get_resident_on ~__context ~self:vm in
+         let local_fn =
+-          Local.VM.migrate_send ~vm ~dest ~live ~vdi_map ~vif_map ~vgpu_map
+-            ~options
++          Local.VM.migrate_send ~vm ~dest ~live ~vdi_map ~vdi_format_map
++            ~vif_map ~vgpu_map ~options
+         in
+         let op session_id rpc =
+           Client.VM.migrate_send ~rpc ~session_id ~vm ~dest ~live ~vdi_map
+-            ~vif_map ~options ~vgpu_map
++            ~vdi_format_map ~vif_map ~options ~vgpu_map
+         in
+         let migration_type =
+           if Xapi_vm_lifecycle_helpers.is_live ~__context ~self:vm then
+@@ -2575,7 +2575,8 @@ functor
+                 Helpers.try_internal_async ~__context API.ref_VM_of_rpc
+                   (fun () ->
+                     Client.InternalAsync.VM.migrate_send ~rpc ~session_id ~vm
+-                      ~dest ~live ~vdi_map ~vif_map ~options ~vgpu_map
++                      ~dest ~live ~vdi_map ~vdi_format_map ~vif_map ~options
++                      ~vgpu_map
+                   )
+                   (fun () -> op session_id rpc)
+             )
+@@ -2614,7 +2615,7 @@ functor
+               Server_helpers.exec_with_subtask ~__context
+                 "VM.assert_can_migrate" (fun ~__context ->
+                   assert_can_migrate ~__context ~vm ~dest ~live ~vdi_map
+-                    ~vif_map ~vgpu_map ~options
++                    ~vdi_format_map ~vif_map ~vgpu_map ~options
+               ) ;
+               forward_migrate_send ()
+           )
+diff --git a/ocaml/xapi/storage_migrate.ml b/ocaml/xapi/storage_migrate.ml
+index 6f153515e..246d44bb7 100644
+--- a/ocaml/xapi/storage_migrate.ml
++++ b/ocaml/xapi/storage_migrate.ml
+@@ -700,7 +700,7 @@ module MigrateLocal = struct
+               ) ;
+               vdi_clone
+           | None ->
+-              debug "Creating a blank remote VDI" ;
++              debug "Creating a blank remote VDI <1>" ;
+               Remote.VDI.create dbg dest {local_vdi with sm_config= []}
+         in
+         let remote_copy =
+@@ -721,8 +721,8 @@ module MigrateLocal = struct
+     | e ->
+         raise (Storage_error (Internal_error (Printexc.to_string e)))
+ 
+-  let start ~task ~dbg ~sr ~vdi ~dp ~mirror_vm ~copy_vm ~url ~dest ~verify_dest
+-      =
++  let start ~task ~dbg ~sr ~vdi ~image_format ~dp ~mirror_vm ~copy_vm ~url ~dest
++      ~verify_dest =
+     SXM.info
+       "%s sr:%s vdi:%s dp: %s mirror_vm: %s copy_vm: %s url:%s dest:%s \
+        verify_dest:%B"
+@@ -786,8 +786,8 @@ module MigrateLocal = struct
+            )
+         ) ;
+       let (Mirror.Vhd_mirror result) =
+-        Remote.DATA.MIRROR.receive_start2 dbg dest local_vdi mirror_id similars
+-          mirror_vm
++        Remote.DATA.MIRROR.receive_start2 dbg dest local_vdi mirror_id
++          image_format similars mirror_vm
+       in
+       (* Enable mirroring on the local machine *)
+       let mirror_dp = result.Mirror.mirror_datapath in
+@@ -1122,7 +1122,7 @@ end
+ (** module [MigrateRemote] is similar to [MigrateLocal], but most of these functions
+ tend to be executed on the receiver side. *)
+ module MigrateRemote = struct
+-  let receive_start_common ~dbg ~sr ~vdi_info ~id ~similar ~vm =
++  let receive_start_common ~dbg ~sr ~vdi_info ~id ~image_format ~similar ~vm =
+     let on_fail : (unit -> unit) list ref = ref [] in
+     let vdis = Local.SR.scan dbg sr in
+     (* We drop cbt_metadata VDIs that do not have any actual data *)
+@@ -1183,9 +1183,19 @@ module MigrateRemote = struct
+                   vdi_info.virtual_size new_size
+             ) ;
+             vdi_clone
+-        | None ->
+-            debug "Creating a blank remote VDI" ;
+-            Local.VDI.create dbg sr vdi_info
++        | None -> (
++            debug "Creating a blank remote VDI <2>" ;
++            debug "image_format is set to <%s>" image_format ;
++            match image_format with
++            | "" ->
++                Local.VDI.create dbg sr vdi_info
++            | _ ->
++                Local.VDI.create dbg sr
++                  {
++                    vdi_info with
++                    sm_config= ("type", image_format) :: vdi_info.sm_config
++                  }
++          )
+       in
+       debug "Parent disk content_id=%s" parent.content_id ;
+       State.add id
+@@ -1221,11 +1231,12 @@ module MigrateRemote = struct
+         !on_fail ;
+       raise e
+ 
+-  let receive_start ~dbg ~sr ~vdi_info ~id ~similar =
+-    receive_start_common ~dbg ~sr ~vdi_info ~id ~similar ~vm:(Vm.of_string "0")
++  let receive_start ~dbg ~sr ~vdi_info ~id ~image_format ~similar =
++    receive_start_common ~dbg ~sr ~vdi_info ~id ~image_format ~similar
++      ~vm:(Vm.of_string "0")
+ 
+-  let receive_start2 ~dbg ~sr ~vdi_info ~id ~similar ~vm =
+-    receive_start_common ~dbg ~sr ~vdi_info ~id ~similar ~vm
++  let receive_start2 ~dbg ~sr ~vdi_info ~id ~image_format ~similar ~vm =
++    receive_start_common ~dbg ~sr ~vdi_info ~image_format ~id ~similar ~vm
+ 
+   let receive_finalize ~dbg ~id =
+     let recv_state = State.find_active_receive_mirror id in
+@@ -1446,10 +1457,11 @@ let copy ~dbg ~sr ~vdi ~vm ~url ~dest ~verify_dest =
+         ~dest ~verify_dest
+   )
+ 
+-let start ~dbg ~sr ~vdi ~dp ~mirror_vm ~copy_vm ~url ~dest ~verify_dest =
++let start ~dbg ~sr ~vdi ~image_format ~dp ~mirror_vm ~copy_vm ~url ~dest
++    ~verify_dest =
+   with_task_and_thread ~dbg (fun task ->
+-      MigrateLocal.start ~task ~dbg:dbg.Debug_info.log ~sr ~vdi ~dp ~mirror_vm
+-        ~copy_vm ~url ~dest ~verify_dest
++      MigrateLocal.start ~task ~dbg:dbg.Debug_info.log ~sr ~vdi ~image_format
++        ~dp ~mirror_vm ~copy_vm ~url ~dest ~verify_dest
+   )
+ 
+ (* XXX: PR-1255: copy the xenopsd 'raise Exception' pattern *)
+diff --git a/ocaml/xapi/storage_mux.ml b/ocaml/xapi/storage_mux.ml
+index b36d4b6ba..d58116e66 100644
+--- a/ocaml/xapi/storage_mux.ml
++++ b/ocaml/xapi/storage_mux.ml
+@@ -836,16 +836,16 @@ module Mux = struct
+       with_dbg ~name:"DATA.copy" ~dbg @@ fun dbg -> Storage_migrate.copy ~dbg
+ 
+     module MIRROR = struct
+-      let start () ~dbg ~sr ~vdi ~dp ~mirror_vm ~copy_vm ~url ~dest ~verify_dest
+-          =
++      let start () ~dbg ~sr ~vdi ~image_format ~dp ~mirror_vm ~copy_vm ~url
++          ~dest ~verify_dest =
+         with_dbg ~name:"DATA.MIRROR.start" ~dbg @@ fun di ->
+         info
+-          "%s dbg:%s sr: %s vdi: %s dp:%s mirror_vm: %s copy_vm: %s url: %s \
+-           dest sr: %s verify_dest: %B"
+-          __FUNCTION__ dbg (s_of_sr sr) (s_of_vdi vdi) dp (s_of_vm mirror_vm)
+-          (s_of_vm copy_vm) url (s_of_sr dest) verify_dest ;
+-        Storage_migrate.start ~dbg:di ~sr ~vdi ~dp ~mirror_vm ~copy_vm ~url
+-          ~dest ~verify_dest
++          "%s dbg:%s sr: %s vdi: %s image_format: %s dp: %s mirror_vm: %s \
++           copy_vm: %s url: %s dest sr: %s verify_dest: %B"
++          __FUNCTION__ dbg (s_of_sr sr) (s_of_vdi vdi) image_format dp
++          (s_of_vm mirror_vm) (s_of_vm copy_vm) url (s_of_sr dest) verify_dest ;
++        Storage_migrate.start ~dbg:di ~sr ~vdi ~image_format ~dp ~mirror_vm
++          ~copy_vm ~url ~dest ~verify_dest
+ 
+       let stop () ~dbg ~id =
+         with_dbg ~name:"DATA.MIRROR.stop" ~dbg @@ fun di ->
+@@ -862,26 +862,31 @@ module Mux = struct
+         info "%s dbg: %s mirror_id: %s" __FUNCTION__ di.log id ;
+         Storage_migrate.stat ~dbg:di.log ~id
+ 
+-      let receive_start () ~dbg ~sr ~vdi_info ~id ~similar =
++      let receive_start () ~dbg ~sr ~vdi_info ~id ~image_format ~similar =
+         with_dbg ~name:"DATA.MIRROR.receive_start" ~dbg @@ fun di ->
+-        info "%s dbg: %s sr: %s vdi_info: %s mirror_id: %s similar: %s"
++        info
++          "%s dbg: %s sr: %s vdi_info: %s mirror_id: %s image_format: %s \
++           similar: %s"
+           __FUNCTION__ dbg (s_of_sr sr)
+           (string_of_vdi_info vdi_info)
+-          id
++          id image_format
+           (String.concat ";" similar) ;
+-        Storage_migrate.receive_start ~dbg:di.log ~sr ~vdi_info ~id ~similar
++        Storage_migrate.receive_start ~dbg:di.log ~sr ~vdi_info ~id
++          ~image_format ~similar
+ 
+-      let receive_start2 () ~dbg ~sr ~vdi_info ~id ~similar ~vm =
++      let receive_start2 () ~dbg ~sr ~vdi_info ~id ~image_format ~similar ~vm =
+         with_dbg ~name:"DATA.MIRROR.receive_start2" ~dbg @@ fun di ->
+-        info "%s dbg: %s sr: %s vdi_info: %s mirror_id: %s similar: %s vm: %s"
++        info
++          "%s dbg: %s sr: %s vdi_info: %s mirror_id: %s image_format: %s \
++           similar: %s vm: %s"
+           __FUNCTION__ dbg (s_of_sr sr)
+           (string_of_vdi_info vdi_info)
+-          id
++          id image_format
+           (String.concat ";" similar)
+           (s_of_vm vm) ;
+         info "%s dbg:%s" __FUNCTION__ dbg ;
+-        Storage_migrate.receive_start2 ~dbg:di.log ~sr ~vdi_info ~id ~similar
+-          ~vm
++        Storage_migrate.receive_start2 ~dbg:di.log ~sr ~vdi_info ~id
++          ~image_format ~similar ~vm
+ 
+       let receive_finalize () ~dbg ~id =
+         with_dbg ~name:"DATA.MIRROR.receive_finalize" ~dbg @@ fun di ->
+diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
+index d8f5bf05a..562e3437d 100644
+--- a/ocaml/xapi/storage_smapiv1.ml
++++ b/ocaml/xapi/storage_smapiv1.ml
+@@ -1213,8 +1213,8 @@ module SMAPIv1 : Server_impl = struct
+       assert false
+ 
+     module MIRROR = struct
+-      let start _context ~dbg:_ ~sr:_ ~vdi:_ ~dp:_ ~mirror_vm:_ ~copy_vm:_
+-          ~url:_ ~dest:_ ~verify_dest:_ =
++      let start _context ~dbg:_ ~sr:_ ~vdi:_ ~image_format:_ ~dp:_ ~mirror_vm:_
++          ~copy_vm:_ ~url:_ ~dest:_ ~verify_dest:_ =
+         assert false
+ 
+       let stop _context ~dbg:_ ~id:_ = assert false
+@@ -1223,11 +1223,12 @@ module SMAPIv1 : Server_impl = struct
+ 
+       let stat _context ~dbg:_ ~id:_ = assert false
+ 
+-      let receive_start _context ~dbg:_ ~sr:_ ~vdi_info:_ ~id:_ ~similar:_ =
++      let receive_start _context ~dbg:_ ~sr:_ ~vdi_info:_ ~id:_ ~image_format:_
++          ~similar:_ =
+         assert false
+ 
+-      let receive_start2 _context ~dbg:_ ~sr:_ ~vdi_info:_ ~id:_ ~similar:_
+-          ~vm:_ =
++      let receive_start2 _context ~dbg:_ ~sr:_ ~vdi_info:_ ~id:_ ~image_format:_
++          ~similar:_ ~vm:_ =
+         assert false
+ 
+       let receive_finalize _context ~dbg:_ ~id:_ = assert false
+diff --git a/ocaml/xapi/storage_smapiv1_wrapper.ml b/ocaml/xapi/storage_smapiv1_wrapper.ml
+index f71e2b21d..fbb8aee04 100644
+--- a/ocaml/xapi/storage_smapiv1_wrapper.ml
++++ b/ocaml/xapi/storage_smapiv1_wrapper.ml
+@@ -1143,11 +1143,14 @@ functor
+         Impl.DATA.copy context ~dbg ~sr ~vdi ~vm ~url ~dest
+ 
+       module MIRROR = struct
+-        let start context ~dbg ~sr ~vdi ~dp ~mirror_vm ~copy_vm ~url ~dest =
+-          info "DATA.MIRROR.start dbg:%s sr:%s vdi:%s url:%s dest:%s" dbg
+-            (s_of_sr sr) (s_of_vdi vdi) url (s_of_sr dest) ;
+-          Impl.DATA.MIRROR.start context ~dbg ~sr ~vdi ~dp ~mirror_vm ~copy_vm
+-            ~url ~dest
++        let start context ~dbg ~sr ~vdi ~image_format ~dp ~mirror_vm ~copy_vm
++            ~url ~dest =
++          info
++            "DATA.MIRROR.start dbg:%s sr:%s vdi:%s image_format:%s url:%s \
++             dest:%s"
++            dbg (s_of_sr sr) (s_of_vdi vdi) image_format url (s_of_sr dest) ;
++          Impl.DATA.MIRROR.start context ~dbg ~sr ~vdi ~image_format ~dp
++            ~mirror_vm ~copy_vm ~url ~dest
+ 
+         let stop context ~dbg ~id =
+           info "DATA.MIRROR.stop dbg:%s id:%s" dbg id ;
+@@ -1161,20 +1164,26 @@ functor
+           info "DATA.MIRROR.stat dbg:%s id:%s" dbg id ;
+           Impl.DATA.MIRROR.stat context ~dbg ~id
+ 
+-        let receive_start context ~dbg ~sr ~vdi_info ~id ~similar =
+-          info "DATA.MIRROR.receive_start dbg:%s sr:%s id:%s similar:[%s]" dbg
+-            (s_of_sr sr) id
++        let receive_start context ~dbg ~sr ~vdi_info ~id ~image_format ~similar
++            =
++          info
++            "DATA.MIRROR.receive_start dbg:%s sr:%s id:%s image_format:%s \
++             similar:[%s]"
++            dbg (s_of_sr sr) id image_format
+             (String.concat "," similar) ;
+-          Impl.DATA.MIRROR.receive_start context ~dbg ~sr ~vdi_info ~id ~similar
++          Impl.DATA.MIRROR.receive_start context ~dbg ~sr ~vdi_info ~id
++            ~image_format ~similar
+ 
+-        let receive_start2 context ~dbg ~sr ~vdi_info ~id ~similar ~vm =
++        let receive_start2 context ~dbg ~sr ~vdi_info ~id ~image_format ~similar
++            ~vm =
+           info
+-            "DATA.MIRROR.receive_start2 dbg:%s sr:%s id:%s similar:[%s] vm:%s"
+-            dbg (s_of_sr sr) id
++            "DATA.MIRROR.receive_start2 dbg:%s sr:%s id:%s image_format:%s \
++             similar:[%s] vm:%s"
++            dbg (s_of_sr sr) id image_format
+             (String.concat "," similar)
+             (s_of_vm vm) ;
+           Impl.DATA.MIRROR.receive_start2 context ~dbg ~sr ~vdi_info ~id
+-            ~similar ~vm
++            ~image_format ~similar ~vm
+ 
+         let receive_finalize context ~dbg ~id =
+           info "DATA.MIRROR.receive_finalize dbg:%s id:%s" dbg id ;
+diff --git a/ocaml/xapi/xapi_vm_migrate.ml b/ocaml/xapi/xapi_vm_migrate.ml
+index fb0c3aba5..20c75476e 100644
+--- a/ocaml/xapi/xapi_vm_migrate.ml
++++ b/ocaml/xapi/xapi_vm_migrate.ml
+@@ -216,12 +216,76 @@ let assert_sr_support_operations ~__context ~vdi_map ~remote ~local_ops
+          op_supported_on_dest_sr sr remote_ops sm_record remote
+      )
+ 
++(** [get_vdi_type vdi_ref vdi_format_map] returns the vdi type found in the 
++    [vdi_format_map] mapping for a given [vdi_ref]. If no type is found None
++    is returned. *)
++let get_vdi_type ~vdi_ref ~vdi_format_map =
++  List.assoc_opt vdi_ref vdi_format_map
++
++(** [assert_vdi_format_is_supported] checks that all VDIs in [vdi_map] are included in the list of
++    supported image format of their corresponding SM. The type of the VDI is found in [vdi_format_map].
++    - If no VDI type is specified we just returned so no error is raised.
++    - If an SM reports an empty list of supported formats, we cannot verify compatibility and no error
++      is raised. So if the format is not actually supported, the failure will be detected later when
++      attempting to create the VDI using that image format. *)
++let assert_vdi_format_is_supported ~__context ~vdi_map ~vdi_format_map =
++  List.iter
++    (fun (vdi_ref, sr_ref) ->
++      let vdi_uuid = Db.VDI.get_uuid ~__context ~self:vdi_ref in
++      let sr_uuid = Db.SR.get_uuid ~__context ~self:sr_ref in
++      match List.assoc_opt vdi_ref vdi_format_map with
++      | None ->
++          debug "GTNDEBUG: read vdi %s, sr %s. No type specified for the VDI"
++            vdi_uuid sr_uuid
++      | Some ty -> (
++          (* To get the supported image format from SM we need the SR type because both have
++             the same type. *)
++          let sr_type = Db.SR.get_type ~__context ~self:sr_ref in
++          let sm_refs =
++            Db.SM.get_refs_where ~__context
++              ~expr:(Eq (Field "type", Literal sr_type))
++          in
++          match sm_refs with
++          | [sm_ref] ->
++              debug "GTNDEBUG: read vdi %s, sr %s. Type is %s" vdi_uuid sr_uuid
++                ty ;
++              let sm_formats =
++                Db.SM.get_supported_image_formats ~__context ~self:sm_ref
++              in
++              if sm_formats <> [] && not (List.mem ty sm_formats) then
++                raise
++                  Api_errors.(
++                    Server_error
++                      ( vdi_incompatible_type
++                      , [
++                          Printf.sprintf
++                            "Image format %s is not supported by %s" ty sr_uuid
++                        ]
++                      )
++                  )
++          | _ ->
++              raise
++                Api_errors.(
++                  Server_error
++                    ( vdi_incompatible_type
++                    , [
++                        Printf.sprintf
++                          "Found more than one SM ref (%d) when checking type \
++                           (%s)of VDI."
++                          (List.length sm_refs) ty
++                      ]
++                    )
++                )
++        )
++    )
++    vdi_map
++
+ (** Check that none of the VDIs that are mapped to a different SR have CBT
+     or encryption enabled. This function must be called with the complete
+     [vdi_map], which contains all the VDIs of the VM.
+     [check_vdi_map] should be called before this function to verify that this
+     is the case. *)
+-let assert_can_migrate_vdis ~__context ~vdi_map =
++let assert_can_migrate_vdis ~__context ~vdi_map ~vdi_format_map =
+   let assert_cbt_not_enabled vdi =
+     if Db.VDI.get_cbt_enabled ~__context ~self:vdi then
+       raise Api_errors.(Server_error (vdi_cbt_enabled, [Ref.string_of vdi]))
+@@ -231,6 +295,7 @@ let assert_can_migrate_vdis ~__context ~vdi_map =
+     if List.exists (fun (key, _value) -> key = "key_hash") sm_config then
+       raise Api_errors.(Server_error (vdi_is_encrypted, [Ref.string_of vdi]))
+   in
++  assert_vdi_format_is_supported ~__context ~vdi_map ~vdi_format_map ;
+   List.iter
+     (fun (vdi, target_sr) ->
+       if target_sr <> Db.VDI.get_SR ~__context ~self:vdi then (
+@@ -378,6 +443,7 @@ let pool_migrate ~__context ~vm ~host ~options =
+     info "This is a localhost migration" ;
+   let open Xapi_xenops_queue in
+   let queue_name = queue_of_vm ~__context ~self:vm in
++  debug "GTNDEBUG: queue_name is %s" queue_name ;
+   let module XenopsAPI = (val make_client queue_name : XENOPS) in
+   let session_id = Ref.string_of (Context.get_session_id __context) in
+   (* If `network` provided in `options`, try to get `xenops_url` on this network *)
+@@ -721,6 +787,8 @@ let update_snapshot_info ~__context ~dbg ~url ~vdi_map ~snapshots_map
+ type vdi_mirror = {
+     vdi: [`VDI] API.Ref.t
+   ; (* The API reference of the local VDI *)
++    vdi_format: string
++  ; (* The image format of the VDI the must be used during its creation *)
+     dp: string
+   ; (* The datapath the VDI will be using if the VM is running *)
+     location: Storage_interface.Vdi.t
+@@ -813,8 +881,11 @@ let get_vdi_mirror __context vm vdi do_mirror =
+   let mirror_vm =
+     Ref.string_of vm |> hash |> ( ^ ) "MIR" |> Storage_interface.Vm.of_string
+   in
++  (* vdi_format will be set later in migrate_send *)
++  let vdi_format = "" in
+   {
+     vdi
++  ; vdi_format
+   ; dp
+   ; location
+   ; sr
+@@ -842,8 +913,8 @@ let vdi_filter __context allow_mirror vbd =
+     let vdi = Db.VBD.get_VDI ~__context ~self:vbd in
+     Some (get_vdi_mirror __context vm vdi do_mirror)
+ 
+-let vdi_copy_fun __context dbg vdi_map remote is_intra_pool remote_vdis so_far
+-    total_size copy vconf continuation =
++let vdi_copy_fun __context dbg vdi_map vdi_format_map remote is_intra_pool
++    remote_vdis so_far total_size copy vconf continuation =
+   TaskHelper.exn_if_cancelling ~__context ;
+   let dest_sr_ref = List.assoc vconf.vdi vdi_map in
+   let dest_sr_uuid =
+@@ -1031,8 +1102,9 @@ let vdi_copy_fun __context dbg vdi_map remote is_intra_pool remote_vdis so_far
+           (Vm.string_of vconf.copy_vm) ;
+         (* Layering violation!! *)
+         ignore (Storage_access.register_mirror __context id) ;
+-        SMAPI.DATA.MIRROR.start dbg vconf.sr vconf.location new_dp
+-          vconf.mirror_vm vconf.copy_vm remote.sm_url dest_sr is_intra_pool
++        SMAPI.DATA.MIRROR.start dbg vconf.sr vconf.location vconf.vdi_format
++          new_dp vconf.mirror_vm vconf.copy_vm remote.sm_url dest_sr
++          is_intra_pool
+     in
+     let mapfn x =
+       let total = Int64.to_float total_size in
+@@ -1195,8 +1267,8 @@ let check_vdi_map ~__context vms_vdis vdi_map =
+       vms_vdis
+   )
+ 
+-let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
+-    ~options =
++let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vdi_format_map ~vif_map
++    ~vgpu_map ~options =
+   SMPERF.debug "vm.migrate_send called vm:%s"
+     (Db.VM.get_uuid ~__context ~self:vm) ;
+   let open Xapi_xenops in
+@@ -1374,10 +1446,21 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
+       extra_vdis
+   in
+   let vdi_map = vdi_map @ extra_vdi_map in
+-  let all_vdis = vms_vdis @ extra_vdis in
++  let all_vdis =
++    List.map
++      (fun vm ->
++        match get_vdi_type vm.vdi vdi_format_map with
++        | None ->
++            vm
++        | Some vdi_type ->
++            {vm with vdi_format= vdi_type}
++      )
++      vms_vdis
++    @ extra_vdis
++  in
+   (* This is a good time to check our VDIs, because the vdi_map should be
+      complete at this point; it should include all the VDIs in the all_vdis list. *)
+-  assert_can_migrate_vdis ~__context ~vdi_map ;
++  assert_can_migrate_vdis ~__context ~vdi_map ~vdi_format_map ;
+   let dbg = Context.string_of_task_and_tracing __context in
+   let open Xapi_xenops_queue in
+   let queue_name = queue_of_vm ~__context ~self:vm in
+@@ -1413,8 +1496,8 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
+     let so_far = ref 0L in
+     let new_vm =
+       with_many
+-        (vdi_copy_fun __context dbg vdi_map remote is_intra_pool remote_vdis
+-           so_far total_size copy
++        (vdi_copy_fun __context dbg vdi_map vdi_format_map remote is_intra_pool
++           remote_vdis so_far total_size copy
+         )
+         all_vdis
+       @@ fun all_map ->
+@@ -1755,7 +1838,7 @@ let migration_type ~__context ~remote =
+     `cross_pool
+ 
+ let assert_can_migrate ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~options
+-    ~vgpu_map =
++    ~vgpu_map ~vdi_format_map =
+   Xapi_vm_helpers.assert_no_legacy_hardware ~__context ~vm ;
+   assert_licensed_storage_motion ~__context ;
+   let remote = remote_of_dest ~__context dest in
+@@ -1922,7 +2005,7 @@ let assert_can_migrate ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~options
+     )
+   ) ;
+   (* check_vdi_map above has already verified that all VDIs are in the vdi_map *)
+-  assert_can_migrate_vdis ~__context ~vdi_map
++  assert_can_migrate_vdis ~__context ~vdi_map ~vdi_format_map
+ 
+ let assert_can_migrate_sender ~__context ~vm ~dest ~live:_ ~vdi_map:_ ~vif_map:_
+     ~vgpu_map ~options:_ =
+@@ -1941,10 +2024,10 @@ let assert_can_migrate_sender ~__context ~vm ~dest ~live:_ ~vdi_map:_ ~vif_map:_
+       ~vm ~vgpu_map ~host:remote.dest_host ?remote:remote_for_migration_type ()
+ 
+ let migrate_send ~__context ~vm ~dest ~live ~vdi_map ~vif_map ~options ~vgpu_map
+-    =
++    ~vdi_format_map =
+   with_migrate (fun () ->
+-      migrate_send' ~__context ~vm ~dest ~live ~vdi_map ~vif_map ~vgpu_map
+-        ~options
++      migrate_send' ~__context ~vm ~dest ~live ~vdi_map ~vdi_format_map ~vif_map
++        ~vgpu_map ~options
+   )
+ 
+ let vdi_pool_migrate ~__context ~vdi ~sr ~options =
+@@ -2038,8 +2121,8 @@ let vdi_pool_migrate ~__context ~vdi ~sr ~options =
+       assert_can_migrate_sender ~__context ~vm ~dest ~live:true ~vdi_map
+         ~vif_map:[] ~vgpu_map:[] ~options:[] ;
+       ignore
+-        (migrate_send ~__context ~vm ~dest ~live:true ~vdi_map ~vif_map:[]
+-           ~vgpu_map:[] ~options:[]
++        (migrate_send ~__context ~vm ~dest ~live:true ~vdi_map
++           ~vdi_format_map:[] ~vif_map:[] ~vgpu_map:[] ~options
+         )
+   ) ;
+   Db.VBD.get_VDI ~__context ~self:vbd

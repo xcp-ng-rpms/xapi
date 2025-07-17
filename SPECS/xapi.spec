@@ -125,6 +125,14 @@ Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 # AMD pci MMIO Writeback workaround
 Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
+Patch1029: 0029-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1030: 0030-Allow-selection-of-image-format-during-VM-migration.patch
+Patch1031: 0031-Allow-selection-of-image-format-during-VDI-pool-migr.patch
+Patch1032: 0032-Bumping-database-schema-version.patch
+Patch1033: 0033-fixup-Allow-selection-of-image-format-during-VM-migr.patch
+Patch1034: 0034-fixup-Allow-selection-of-image-format-during-VM-migr.patch
+Patch1035: 0035-fixup-Allow-selection-of-image-format-during-VDI-poo.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

@@ -21,7 +21,7 @@ index cc64a3030..de84881d6 100644
 -  conf_file=/etc/syslog.conf
 -  service=syslog
 -fi
- 
+-
 -if [ -r /etc/rsyslog.conf ]; then
 -  conf_file=/etc/rsyslog.conf
 -  service=rsyslog
@@ -36,7 +36,7 @@ index cc64a3030..de84881d6 100644
 -  echo "Error: unable to determine syslog service" >&2
 -  exit 1
 -fi
--
+ 
 -sed -e '/^\*\.\*.*[@~]/ d' $conf_file >/etc/syslog.$$
  if [ $remote -eq 1 ]; then
 -  echo -e "*.* @$host\n*.* ~" >>/etc/syslog.$$
