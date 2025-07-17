@@ -1,0 +1,81 @@
+From 83a48882655d36daa6f6593603e9ab95a39ee664 Mon Sep 17 00:00:00 2001
+From: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
+Date: Fri, 27 Jun 2025 10:48:26 +0200
+Subject: [PATCH] xenopsd: set xen-platform-pci-bar-uc key in xenstore
+
+This patch add a new parameter named 'xen-platform-pci-bar-uc' in
+xenopsd config file who has a default value of 'true' to keep the
+default behavior of hvmloader.  Putting 'false' to this parameter will
+tell xenopsd to add a xenstore key of '0' in:
+'/local/domain/<domid>/hvmloader/pci/xen-platform-pci-bar-uc'.
+Only this key set to 0 will change the behavior of hvmloader.
+
+This changeset is link to this xen commit:
+https://xenbits.xen.org/gitweb/?p=xen.git;a=commit;h=22650d6054625be10172fe0c78b9cadd1a39bd63
+
+Signed-off-by: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
+---
+ ocaml/xenopsd/lib/xenopsd.ml | 10 ++++++++++
+ ocaml/xenopsd/xc/domain.ml   |  3 +++
+ ocaml/xenopsd/xenopsd.conf   |  6 ++++++
+ 3 files changed, 19 insertions(+)
+
+diff --git a/ocaml/xenopsd/lib/xenopsd.ml b/ocaml/xenopsd/lib/xenopsd.ml
+index 5ad640173..275cdcb79 100644
+--- a/ocaml/xenopsd/lib/xenopsd.ml
++++ b/ocaml/xenopsd/lib/xenopsd.ml
+@@ -49,6 +49,8 @@ let default_vbd_backend_kind = ref "vbd"
+ 
+ let ca_140252_workaround = ref false
+ 
++let xen_platform_pci_bar_uc = ref true
++
+ let action_after_qemu_crash = ref None
+ 
+ let additional_ballooning_timeout = ref 120.
+@@ -207,6 +209,14 @@ let options =
+     , (fun () -> string_of_bool !ca_140252_workaround)
+     , "Workaround for evtchn misalignment for legacy PV tools"
+     )
++  ; ( "xen-platform-pci-bar-uc"
++    , Arg.Bool (fun x -> xen_platform_pci_bar_uc := x)
++    , (fun () -> string_of_bool !xen_platform_pci_bar_uc)
++    , "Controls whether, when the VM starts in HVM mode, the Xen PCI MMIO used \
++       by grant tables is mapped as Uncached (UC, the default) or WriteBack \
++       (WB, the workaround). WB mapping could improve performance of devices \
++       using grant tables. This is useful on AMD platform only."
++    )
+   ; ( "additional-ballooning-timeout"
+     , Arg.Set_float additional_ballooning_timeout
+     , (fun () -> string_of_float !additional_ballooning_timeout)
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 287c1c77b..5e335874f 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -501,6 +501,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+     xs.Xs.writev (dom_path ^ "/bios-strings") vm_info.bios_strings ;
+     if vm_info.is_uefi then
+       xs.Xs.write (dom_path ^ "/hvmloader/bios") "ovmf" ;
++    xs.Xs.write
++      (dom_path ^ "/hvmloader/pci/xen-platform-pci-bar-uc")
++      (if !Xenopsd.xen_platform_pci_bar_uc then "1" else "0") ;
+     (* If a toolstack sees a domain which it should own in this state then the
+        domain is not completely setup and should be shutdown. *)
+     xs.Xs.write (dom_path ^ "/action-request") "poweroff" ;
+diff --git a/ocaml/xenopsd/xenopsd.conf b/ocaml/xenopsd/xenopsd.conf
+index e80194c1f..447d6cde5 100644
+--- a/ocaml/xenopsd/xenopsd.conf
++++ b/ocaml/xenopsd/xenopsd.conf
+@@ -108,3 +108,9 @@ disable-logging-for=http tracing tracing_export
+ # time to wait for in-guest PV drivers to acknowledge a shutdown request
+ # before we conclude that the drivers have failed
+ # domain_shutdown_ack_timeout = 60
++
++# Controls whether, when the VM starts in HVM mode, the Xen PCI MMIO used
++# by grant tables is mapped as Uncached (UC, the default) or WriteBack
++# (WB, the workaround). WB mapping could improve performance of devices
++# using grant tables. This is useful on AMD platform only.
++# xen-platform-pci-bar-uc=true
+-- 
+2.49.1
+
