@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.10%{?xsrel}%{?dist}
+Release: 1.11%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -618,6 +618,8 @@ mkdir -m 755 -p %{buildroot}/%{yum_dir}
 
 ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
 mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
+# XCP-ng: add /etc/xenopsd.conf.d
+mkdir $RPM_BUILD_ROOT/etc/xenopsd.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
@@ -1254,7 +1256,8 @@ done
 %{_libexecdir}/xenopsd/igmp_query_injector.py
 %{_usr}/libexec/xenopsd/__pycache__/*
 %config(noreplace) %{_sysconfdir}/sysconfig/xenopsd
-%config(noreplace) %{_sysconfdir}/xenopsd.conf
+# XCP-ng: ensure our changes are always applied
+%config %{_sysconfdir}/xenopsd.conf
 
 %exclude %{ocaml_dir}
 
@@ -1266,6 +1269,8 @@ done
 /opt/xensource/libexec/fence.bin
 /opt/xensource/debug/suspend-image-viewer
 %{_bindir}/list_domains
+# XCP-ng: add /etc/xenopsd.conf.d
+%dir /etc/xenopsd.conf.d
 
 %files -n xenopsd-cli
 %{_sbindir}/xenops-cli
@@ -1440,6 +1445,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 18 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.11
+- Packaging changes associated with the "xenopsd: set xen-platform-pci-bar-uc key"
+  improvement to allow for custom user xenopsd configuration
+
 * Wed Jul 16 2025 Anthoine Bourgeois <anthoine.bourgeois@vates.tech> - 25.6.0-1.10
 - Cherry-pick 83a48882655d "xenopsd: set xen-platform-pci-bar-uc key in xenstore",
   commit is upsteam in 25.26.0.
