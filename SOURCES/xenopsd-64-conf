@@ -1,3 +1,7 @@
+# WARNING: any changes made to this file may be overwritten by future
+# updates of the xenopsd RPM.
+# You may want to create a file in the /etc/xenopsd.conf.d/ directory instead
+
 # Configuration file for xenopsd
 
 inventory=/etc/xensource-inventory
