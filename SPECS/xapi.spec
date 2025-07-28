@@ -375,6 +375,7 @@ developing applications that use xcp-rrdd.
 %package -n rrdd-plugins
 Summary:   RRDD metrics plugin
 Requires:  jemalloc
+Requires:  sysstat
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
 # Requires Xen support for querying domain VCPU runnable and nonaffine running time
@@ -1496,6 +1497,7 @@ Coverage files from unit tests
 - Require dhcp-client not dhclient
 - Hack the qemu epoch to stay compatible with current qemu
 - Fix xcp-rrdd posttans parsing of systemctl output
+- Add missing rrdd-plugins dep on sysstat (iostat)
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
