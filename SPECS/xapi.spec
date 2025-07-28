@@ -158,10 +158,12 @@ Requires: yum-utils >= 1.1.31
 Requires: net-tools
 %else
 Requires: dnf
-# This is for the following dnf5 plugin which are used by xapi
-Requires: libdnf5-plugin-ptoken
-Requires: libdnf5-plugin-accesstoken
-Requires: libdnf5-plugin-xapitoken
+# XCP-ng BEGIN: remove Requires for xs-specific plugins
+# # This is for the following dnf5 plugin which are used by xapi
+# Requires: libdnf5-plugin-ptoken
+# Requires: libdnf5-plugin-accesstoken
+# Requires: libdnf5-plugin-xapitoken
+# XCP-ng END
 # For dnf plugins like config-manager
 Requires: dnf5-plugins
 Requires: dmv-utils
@@ -602,12 +604,10 @@ done
 
 %if %{with dnf_plugin}
 # For xs9, use dnf instead of yum, clean yum stuff
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/xapitoken.py
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/xapitoken.conf
+## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
+rm -r %{buildroot}/etc/yum/pluginconf.d/
+rm -r %{buildroot}/%{_usr}/lib/yum-plugins/
+## XCP-ng END
 %else
 ## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
 ## # For xs8, use yum
