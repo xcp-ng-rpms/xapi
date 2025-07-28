@@ -152,6 +152,8 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
+# Requires c_rehash from openssl-perl
+Requires: openssl-perl
 # XCP-ng: hcp_nss was renamed to nss-override-id. We don't use it at the moment.
 #Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
@@ -1514,6 +1516,7 @@ Coverage files from unit tests
 - Hack the qemu epoch to stay compatible with current qemu
 - Fix xcp-rrdd posttans parsing of systemctl output
 - Add missing rrdd-plugins dep on sysstat (iostat)
+- Add missing core dep on openssl-perl (c_rehash)
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
