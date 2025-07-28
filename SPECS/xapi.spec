@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.9.0.ydi.7%{?xsrel}%{?dist}
+Release: 1.9.0.ydi.8%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -402,6 +402,7 @@ Summary:   RRDD metrics plugin
 Requires:  jemalloc
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
+Requires:  sysstat
 
 %description -n rrdd-plugins
 This packages contains plugins registering to the RRD daemon and exposing various metrics.
@@ -1471,7 +1472,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Thu Jul 03 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.7
+* Thu Jul 03 2025 Yann Dirson <yann.dirson@vates.tech> - 25.6.0-1.9.0.ydi.8
 - Test rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
@@ -1482,6 +1483,7 @@ Coverage files from unit tests
 - Add patch for timer calibration for flaky scheduler tests (Pau)
 - Hack the qemu epoch to stay compatible with current qemu
 - Fix xcp-rrdd posttans parsing of systemctl output
+- Add missing rrdd-plugins dep on sysstat (iostat)
 
 * Wed Jun 25 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.9
 - Fix remote syslog configuration being broken on updates
