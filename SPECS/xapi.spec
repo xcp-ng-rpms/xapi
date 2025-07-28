@@ -618,12 +618,12 @@ done
 
 %if %{with dnf_plugin}
 # For xs9, use dnf instead of yum
-echo "%{python3_sitelib}/dnf-plugins/*" >> core-files
-# use dnf instead of yum, clean yum stuff
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
+## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
+## echo "%{python3_sitelib}/dnf-plugins/*" >> core-files
+rm -r %{buildroot}/etc/yum/pluginconf.d/
+rm -r %{buildroot}/%{_usr}/lib/yum-plugins/
+rm -r %{buildroot}/%{python3_sitelib}/dnf-plugins/
+## XCP-ng END
 %else
 ## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
 ## # For xs8, use yum
