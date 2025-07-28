@@ -372,6 +372,7 @@ Summary:   RRDD metrics plugin
 Requires:  jemalloc
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
+Requires:  sysstat
 
 %description -n rrdd-plugins
 This packages contains plugins registering to the RRD daemon and exposing various metrics.
@@ -1468,6 +1469,7 @@ Coverage files from unit tests
 - Require dhcp-client not dhclient
 - Hack the qemu epoch to stay compatible with current qemu
 - Fix xcp-rrdd posttans parsing of systemctl output
+- Add missing rrdd-plugins dep on sysstat (iostat)
 
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
