@@ -602,6 +602,14 @@ rm -rf %{buildroot}
 export OCAMLPATH=%{_ocamlpath}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
+mkdir -p \
+    $RPM_BUILD_ROOT/usr/libexec/xapi/cluster-stack \
+    $RPM_BUILD_ROOT/opt/xensource/www \
+    $RPM_BUILD_ROOT/var/lib/xcp
+echo /usr/libexec/xapi/cluster-stack >> core-files
+echo /opt/xensource/www >> core-files
+echo /var/lib/xcp >> core-files
+
 # HACK: fix dune-build-info's job: replace $sha-dirty strings with version
 dirtystr=$(git describe --always --dirty --abbrev=7)
 dirtylen=${#dirtystr}
@@ -1550,6 +1558,8 @@ Coverage files from unit tests
 - Fix xcp-rrdd posttans parsing of systemctl output
 - Add missing rrdd-plugins dep on sysstat (iostat)
 - Add missing core dep on openssl-perl (c_rehash)
+- Add in core directories whose lack blocks startup:
+  /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
