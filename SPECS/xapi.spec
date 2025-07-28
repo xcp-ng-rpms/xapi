@@ -403,6 +403,7 @@ developing applications that use xcp-rrdd.
 %package -n rrdd-plugins
 Summary:   RRDD metrics plugin
 Requires:  jemalloc
+Requires:  sysstat
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
 # Requires Xen support for querying domain VCPU runnable and nonaffine running time
@@ -1545,6 +1546,7 @@ Coverage files from unit tests
 - On XCP-ng 9, require dhcp-client not dhclient
 - Hack the qemu epoch to stay compatible with current qemu
 - Fix xcp-rrdd posttans parsing of systemctl output
+- Add missing rrdd-plugins dep on sysstat (iostat)
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
