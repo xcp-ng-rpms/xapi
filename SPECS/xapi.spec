@@ -1,5 +1,5 @@
-%global package_speccommit 6c89eaf3cd1090f3cffcac17583a0d771a986d58
-%global package_srccommit v25.21.0
+%global package_speccommit bae592b3761114db110b09e9ff829d62cfc8a801
+%global package_srccommit v25.24.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -25,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.21.0
-Release: 2%{?xsrel}%{?dist}
+Version: 25.24.0
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.21.0.tar.gz
+Source0: xen-api-25.24.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -555,7 +555,10 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
+%if 0%{?xenserver} >= 9
+# make the experimental feature available on XS9
 echo 0 > %{buildroot}/etc/xenserver/features.d/hard_numa
+%endif
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -563,6 +566,11 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/xenopsd-simulator.service
 %{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
 %{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/xenopsd.conf
+
+%if 0%{?xenserver} < 9
+# reuse the flag to disable numa placemet by default in XS8
+echo -e "\nnuma-placement=false" >> %{buildroot}%{_sysconfdir}/xenopsd.conf
+%endif
 
 %{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/squeezed.service
 %{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
@@ -654,8 +662,10 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 # remove old stunnel config file
 rm -f /etc/xensource/xapi-ssl.conf
 
-# for now don't use vfork and continue to use forkexecd
+%if 0%{?xenserver} < 9
+# for XS8 don't use vfork and continue to use forkexecd
 touch /etc/xensource/forkexec-uses-daemon
+%endif
 
 # On upgrade, migrate from the old statefile to the new statefile so that
 # services are not rerun.
@@ -869,7 +879,10 @@ done
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 /etc/xenserver/features.d
+%if 0%{?xenserver} >= 9
+# make the experimental feature available on XS9
 /etc/xenserver/features.d/hard_numa
+%endif
 %dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/IPMI.py
@@ -969,6 +982,7 @@ done
 /opt/xensource/libexec/xe-syslog-reconfigure
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
+/opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
@@ -1365,6 +1379,87 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Sun Jul 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.24.0-1
+- CA-410965: Modify default ref of console
+- Design proposal for supported image formats (v3)
+- CA-411477: Fix SM API version check failure
+- CP-54207: Move VBD_attach outside of VM migrate downtime
+- xenopsd/xc: upstream more NUMA changes
+- idl: Remove unused vm_lacks_feature_* errors
+- python: Add qcow2-to-stdout.py script
+- Move collection of memory metrics from xcp-rrdd to rrdp-squeezed
+- Move common retry_econnrefused function to xcp_client
+- CA-412636: hostname changed to localhost with static IP and reboot
+- Add mlis for observer_helpers and observer_skeleton
+- CP-308455 Toolstack VM.sysprep API
+- `xapi_vm_lifecycle`: Improve feature handling, avoid crashes
+- CA-413304: Restore VBD.unplug function to keep old functionality
+
+
+* Wed Jun 25 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.23.0-1
+- Improve the xapi_observer debug logs by adding more context
+- Reduce code duplication by using a common Observer Interface
+- CA-409431: Use an Observer forwarder for xapi-storage-script
+- xapi: Move cpu_info keys to xapi-consts from xapi_globs to be used across modules
+- Improve xapi-cli-server
+- Improve `xe-cli` completion
+- xapi/helpers: Note that get_localhost can fail while the database is starting up
+- xapi_host: missing UEFI certificates warrant a warning, not an error
+- CA-412164: XSI-1901: uid-info does not support `:` in gecos
+- CP-47063: Instrument message-switch functions
+- CA-412313: DT spans not exported on host evacuation (XAPI shutdown)
+- xenopsd: Allow to override the default NUMA placement
+- Fix `message-switch` opam metadata
+- opam: generate xapi-log with dune
+- xapi-log: remove circular dependency on tests
+- datamodel_lifecycle: automatic update
+- CA-412146 Filter out VF when scan
+- Update datamodel_host
+- Update XE_SR_ERRORCODES from SM
+- CP-308253: `Task.destroy` spans should no longer be orphaned
+- CP-308392: Create specialized functions
+- xapi-idl: Clean up xenops-related interfaces
+- xapi_xenops: Remove unnecessary Helpers.get_localhost call
+- xapi_xenops: Split update_vm internals into a separate function
+- CA-408552: Improve bootstrom performance by save db ops
+- xenops_server_plugin: Refer to the type alias instead of its definition
+- xapi-idl/updates: Make filterfn in inject_barrier only look at keys
+- xapi_xenops: Refactor update_vm_internal
+- CP-308253: Instrument `Consumers` Spans in `Message-switch`.
+- CP-50001: Add instrumentation to `xapi_xenops.ml`
+- CA-406770: Improve error message
+- xenopsd: Remove data/updated from the list of watched paths
+- xapi_xenops: Simplify update_* functions
+- CP-308201: make unimplemented function more obvious
+
+
+* Thu Jun 12 2025 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 25.22.0-2
+- Bump release and rebuild
+
+* Wed Jun 11 2025 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 25.22.0-1
+- xcp-rrdd: change the code responsible for filtering out paused domains
+- Update datamodel_lifecycle (25.21.0)
+- CA-410085: Improving clearing cgroup after vfork
+- Adapt code to new mirage-crypto (CP-308222)
+- CP-308252 add VM.call_host_plugin
+- xapi-client: Add Tasks.wait_for_all_with_callback
+- xapi_host: Parallelize host evacuation even more
+- github: keep scheduled yangtze's runs working
+- rrdd: Avoid missing aggregation of metrics from newly destroyed domains
+- xapi-aux: remove cstruct usage from networking_info
+- xapi-cli-server: Expose evacuate-batch-size parameter in the CLI
+- [maintenance]: add forkexecd C objects to .gitignore
+- unixext: Add a raise_with_preserved_backtrace function
+- xapi_vgpu_type: Don't pollute the logs with non-critical errors
+- networkd: Add ENOENT to the list of expected errors in Sysfs.read_one_line
+- xenguestHelper: Don't dump errors on End_of_file
+
+* Tue Jun 10 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-4
+- Bump release and rebuild
+
+* Mon Jun 09 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-3
+- Bump release and rebuild
+
 * Fri Jun 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-2
 - Bump release and rebuild
 
