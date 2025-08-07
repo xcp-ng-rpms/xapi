@@ -1,4 +1,4 @@
-From f5b85bbf4aa04ef5c3a81db223ee957ec21fc9ca Mon Sep 17 00:00:00 2001
+From 87433efe6ea6279ba828176f6c0edde87d66ba9f Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 14:59:05 +0200
 Subject: [PATCH] [xcp-ng] fix IPv6 import
@@ -12,10 +12,10 @@ Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
  1 file changed, 17 insertions(+), 1 deletion(-)
 
 diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
-index 9631c03a8..3cbc844b4 100644
+index f53f506e5..73312052d 100644
 --- a/ocaml/xapi/xapi_vm.ml
 +++ b/ocaml/xapi/xapi_vm.ml
-@@ -1534,7 +1534,23 @@ let rec import_inner n ~__context ~url ~sr ~full_restore ~force =
+@@ -1526,7 +1526,23 @@ let rec import_inner n ~__context ~url ~sr ~full_restore ~force =
              Cohttp.Request.Make (Cohttp_posix_io.Unbuffered_IO) in
            let module Response =
              Cohttp.Response.Make (Cohttp_posix_io.Unbuffered_IO) in
