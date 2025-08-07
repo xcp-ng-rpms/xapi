@@ -1,5 +1,5 @@
-%global package_speccommit 56b4e6460879ce5d09616c669e322f20354a4ef3
-%global package_srccommit v25.6.0
+%global package_speccommit bae592b3761114db110b09e9ff829d62cfc8a801
+%global package_srccommit v25.24.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -11,8 +11,6 @@
 # In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
 %bcond_without dnf_plugin
 %bcond_without own_yum_dir
-# Enable corosync3 by default
-%bcond_without corosync3
 # XS9 reset all epoch to 0
 %define qemu_epoch 0
 %else
@@ -27,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.6.0
-Release: 1.11%{?xsrel}%{?dist}
+Version: 25.24.0
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.6.0.tar.gz
+Source0: xen-api-25.24.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -175,6 +173,7 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
+Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
@@ -185,8 +184,10 @@ Requires: yum-utils >= 1.1.31
 Requires: net-tools
 %else
 Requires: dnf
-# This is for dnf/yum plugin
-Requires: python3-urlgrabber
+# This is for the following dnf5 plugin which are used by xapi
+Requires: libdnf5-plugin-ptoken
+Requires: libdnf5-plugin-accesstoken
+Requires: libdnf5-plugin-xapitoken
 # For dnf plugins like config-manager
 Requires: dnf5-plugins
 %endif
@@ -223,6 +224,11 @@ Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
+%if 0%{?xenserver} < 9
+# sysprep plugin/API
+Requires: genisoimage
+%endif
+
 
 # XCP-ng: add missing requires towards nbd
 Requires: nbd
@@ -585,24 +591,28 @@ done
 %endif
 
 %if %{with dnf_plugin}
-# For xs9, use dnf instead of yum
-echo "%{python3_sitelib}/dnf-plugins/*" >> core-files
-# use dnf instead of yum, clean yum stuff
+# For xs9, use dnf instead of yum, clean yum stuff
 rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
 rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
+rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/xapitoken.py
 rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
 rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
+rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/xapitoken.conf
 %else
 ## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
 ## # For xs8, use yum
 ## echo "/etc/yum/pluginconf.d/accesstoken.conf" >> core-files
 ## echo "/etc/yum/pluginconf.d/ptoken.conf" >> core-files
+## echo "/etc/yum/pluginconf.d/xapitoken.conf" >> core-files
 ## echo "/usr/lib/yum-plugins/accesstoken.py" >> core-files
 ## echo "/usr/lib/yum-plugins/ptoken.py" >> core-files
+## echo "/usr/lib/yum-plugins/xapitoken.py" >> core-files
 ## echo "/usr/lib/yum-plugins/__pycache__/*" >> core-files
 rm -f %{buildroot}/etc/yum/pluginconf.d/accesstoken.conf
 rm -f %{buildroot}/etc/yum/pluginconf.d/ptoken.conf
+rm -f %{buildroot}/etc/yum/pluginconf.d/xapitoken.conf
 rm -f %{buildroot}/usr/lib/yum-plugins/accesstoken.py
+rm -f %{buildroot}/usr/lib/yum-plugins/xapitoken.py
 rm -f %{buildroot}/usr/lib/yum-plugins/ptoken.py
 ## XCP-ng END
 
@@ -623,10 +633,9 @@ mkdir $RPM_BUILD_ROOT/etc/xenopsd.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-%if %{with corosync3}
-echo 1 > %{buildroot}/etc/xenserver/features.d/corosync3
-%else
-echo 0 > %{buildroot}/etc/xenserver/features.d/corosync3
+%if 0%{?xenserver} >= 9
+# make the experimental feature available on XS9
+echo 0 > %{buildroot}/etc/xenserver/features.d/hard_numa
 %endif
 
 mkdir -p %{buildroot}%{_sbindir}
@@ -635,6 +644,11 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/xenopsd-simulator.service
 %{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
 %{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/xenopsd.conf
+
+%if 0%{?xenserver} < 9
+# reuse the flag to disable numa placemet by default in XS8
+echo -e "\nnuma-placement=false" >> %{buildroot}%{_sysconfdir}/xenopsd.conf
+%endif
 
 %{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/squeezed.service
 %{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
@@ -672,6 +686,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 
 # Refer to https://docs.fedoraproject.org/en-US/packaging-guidelines/Python_Appendix/
 %py_byte_compile %{_pythonpath} %{buildroot}/opt/xensource/libexec
+%py_byte_compile %{_pythonpath} %{buildroot}/opt/xensource/debug
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_usr}/libexec/xenopsd
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_sysconfdir}/xapi.d/plugins
 
@@ -725,6 +740,11 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 # remove old stunnel config file
 rm -f /etc/xensource/xapi-ssl.conf
 
+%if 0%{?xenserver} < 9
+# for XS8 don't use vfork and continue to use forkexecd
+touch /etc/xensource/forkexec-uses-daemon
+%endif
+
 # On upgrade, migrate from the old statefile to the new statefile so that
 # services are not rerun.
 if [ $1 -gt 1 ] ; then
@@ -767,18 +787,6 @@ systemctl kill -s HUP rsyslog 2> /dev/null || true
 
 %post -n message-switch
 %systemd_post message-switch.service
-if [ $1 -gt 1 ] ; then
-  # upgrade from SysV, see http://0pointer.de/public/systemd-man/daemon.html
-  # except %triggerun doesn't work since previous package had no systemd,
-  # and don't transition in 2 steps
-  if /sbin/chkconfig --level 5 message-switch ; then
-    /bin/systemctl --no-reload enable message-switch.service >/dev/null 2>&1 || :
-    /sbin/chkconfig --del message-switch >/dev/null 2>&1 || :
-  else
-    # remove broken symlinks that a previous version of the package may have forgotten to remove
-    find /etc/rc.d -name "*message-switch" -delete >/dev/null 2>&1 || :
-  fi
-fi
 
 %post -n forkexecd
 %systemd_post forkexecd.service
@@ -952,6 +960,10 @@ done
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 /etc/xenserver/features.d
+%if 0%{?xenserver} >= 9
+# make the experimental feature available on XS9
+/etc/xenserver/features.d/hard_numa
+%endif
 %dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/IPMI.py
@@ -1051,6 +1063,7 @@ done
 /opt/xensource/libexec/xe-syslog-reconfigure
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
+/opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
@@ -1176,6 +1189,10 @@ done
 %exclude %{ocaml_libdir}/xml-light2/*.cmt
 %exclude %{ocaml_libdir}/xml-light2/*.cmti
 
+%{ocaml_libdir}/tgroup/*
+%exclude %{ocaml_libdir}/tgroup/*.cmt
+%exclude %{ocaml_libdir}/tgroup/*.cmti
+
 %{ocaml_libdir}/zstd/*
 %exclude %{ocaml_libdir}/zstd/*.cmt
 %exclude %{ocaml_libdir}/zstd/*.cmti
@@ -1207,10 +1224,6 @@ done
 %{ocaml_libdir}/xapi-inventory/*
 %exclude %{ocaml_libdir}/xapi-inventory/*.cmt
 %exclude %{ocaml_libdir}/xapi-inventory/*.cmti
-
-%{ocaml_libdir}/xapi-stdext-date/*
-%exclude %{ocaml_libdir}/xapi-stdext-date/*.cmt
-%exclude %{ocaml_libdir}/xapi-stdext-date/*.cmti
 
 %{ocaml_libdir}/xapi-stdext-encodings/*
 %exclude %{ocaml_libdir}/xapi-stdext-encodings/*.cmt
@@ -1296,6 +1309,10 @@ done
 %{_tmpfilesdir}/xcp-rrdd.conf
 %{python3_sitelib}/rrdd.py*
 %{python3_sitelib}/__pycache__/rrdd.*.pyc
+/opt/xensource/debug/metrics.py
+/opt/xensource/debug/metricsgraph.py
+/opt/xensource/debug/__pycache__/metrics.*.pyc
+/opt/xensource/debug/__pycache__/metricsgraph.*.pyc
 
 %files -n xcp-rrdd-devel
 %{ocaml_docdir}/rrd-transport/*
@@ -1375,6 +1392,7 @@ done
 %{_sbindir}/forkexecd
 %{_sbindir}/forkexecd-cli
 %{_unitdir}/forkexecd.service
+%{_libexecdir}/xapi/vfork_helper
 %config(noreplace) %{_sysconfdir}/sysconfig/forkexecd
 
 %files -n forkexecd-devel
@@ -1445,6 +1463,379 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1
+- Update to upstream 25.24.0-1
+- *** Upstream changelog ***
+  * Sun Jul 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.24.0-1
+  - CA-410965: Modify default ref of console
+  - Design proposal for supported image formats (v3)
+  - CA-411477: Fix SM API version check failure
+  - CP-54207: Move VBD_attach outside of VM migrate downtime
+  - xenopsd/xc: upstream more NUMA changes
+  - idl: Remove unused vm_lacks_feature_* errors
+  - python: Add qcow2-to-stdout.py script
+  - Move collection of memory metrics from xcp-rrdd to rrdp-squeezed
+  - Move common retry_econnrefused function to xcp_client
+  - CA-412636: hostname changed to localhost with static IP and reboot
+  - Add mlis for observer_helpers and observer_skeleton
+  - CP-308455 Toolstack VM.sysprep API
+  - `xapi_vm_lifecycle`: Improve feature handling, avoid crashes
+  - CA-413304: Restore VBD.unplug function to keep old functionality
+
+  * Wed Jun 25 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.23.0-1
+  - Improve the xapi_observer debug logs by adding more context
+  - Reduce code duplication by using a common Observer Interface
+  - CA-409431: Use an Observer forwarder for xapi-storage-script
+  - xapi: Move cpu_info keys to xapi-consts from xapi_globs to be used across modules
+  - Improve xapi-cli-server
+  - Improve `xe-cli` completion
+  - xapi/helpers: Note that get_localhost can fail while the database is starting up
+  - xapi_host: missing UEFI certificates warrant a warning, not an error
+  - CA-412164: XSI-1901: uid-info does not support `:` in gecos
+  - CP-47063: Instrument message-switch functions
+  - CA-412313: DT spans not exported on host evacuation (XAPI shutdown)
+  - xenopsd: Allow to override the default NUMA placement
+  - Fix `message-switch` opam metadata
+  - opam: generate xapi-log with dune
+  - xapi-log: remove circular dependency on tests
+  - datamodel_lifecycle: automatic update
+  - CA-412146 Filter out VF when scan
+  - Update datamodel_host
+  - Update XE_SR_ERRORCODES from SM
+  - CP-308253: `Task.destroy` spans should no longer be orphaned
+  - CP-308392: Create specialized functions
+  - xapi-idl: Clean up xenops-related interfaces
+  - xapi_xenops: Remove unnecessary Helpers.get_localhost call
+  - xapi_xenops: Split update_vm internals into a separate function
+  - CA-408552: Improve bootstrom performance by save db ops
+  - xenops_server_plugin: Refer to the type alias instead of its definition
+  - xapi-idl/updates: Make filterfn in inject_barrier only look at keys
+  - xapi_xenops: Refactor update_vm_internal
+  - CP-308253: Instrument `Consumers` Spans in `Message-switch`.
+  - CP-50001: Add instrumentation to `xapi_xenops.ml`
+  - CA-406770: Improve error message
+  - xenopsd: Remove data/updated from the list of watched paths
+  - xapi_xenops: Simplify update_* functions
+  - CP-308201: make unimplemented function more obvious
+
+  * Thu Jun 12 2025 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 25.22.0-2
+  - Bump release and rebuild
+
+  * Wed Jun 11 2025 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 25.22.0-1
+  - xcp-rrdd: change the code responsible for filtering out paused domains
+  - Update datamodel_lifecycle (25.21.0)
+  - CA-410085: Improving clearing cgroup after vfork
+  - Adapt code to new mirage-crypto (CP-308222)
+  - CP-308252 add VM.call_host_plugin
+  - xapi-client: Add Tasks.wait_for_all_with_callback
+  - xapi_host: Parallelize host evacuation even more
+  - github: keep scheduled yangtze's runs working
+  - rrdd: Avoid missing aggregation of metrics from newly destroyed domains
+  - xapi-aux: remove cstruct usage from networking_info
+  - xapi-cli-server: Expose evacuate-batch-size parameter in the CLI
+  - [maintenance]: add forkexecd C objects to .gitignore
+  - unixext: Add a raise_with_preserved_backtrace function
+  - xapi_vgpu_type: Don't pollute the logs with non-critical errors
+  - networkd: Add ENOENT to the list of expected errors in Sysfs.read_one_line
+  - xenguestHelper: Don't dump errors on End_of_file
+
+  * Tue Jun 10 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-4
+  - Bump release and rebuild
+
+  * Mon Jun 09 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-3
+  - Bump release and rebuild
+
+  * Fri Jun 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-2
+  - Bump release and rebuild
+
+  * Fri Jun 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.21.0-1
+  - CP-53477 Update host/pool datamodel to support SSH status query and configure
+  - CP-53802: Restore SSH service to default state in pool eject
+  - CP-53711: Apply SSH settings in joiner before update_non_vm_metadata
+  - CP-53723 Implement Console timeout configure API for Dom0 SSH control
+  - CP-53478: Implement SSH enabeld timeout API for Dom0 SSH control
+  - CP-53725 Create SSH-related xe CLI for Dom0 SSH control
+  - CP-54138: Sync SSH status during XAPI startup
+  - CP-308049: rrdview tool
+  - CA-410948 Avoid rasie full Exception when disable/enable ssh failed
+  - CA-409949 CA-408048 XSI-1912 remove unabailable SM plugin by ref
+  - xapi-types: remove dev errors when adding features
+  - xenctrlext: add function to set the hard-affinity for vcpus
+  - xenopsd: pass the hard-affinity map to pre_build
+  - xenopsd: do not send hard affinities to xenguest when not needed
+  - xenopsd: set the hard affinities directly when set by the user
+  - xenopsd: expose a best-effort mode that set the hard affinity mask (CP-54234)
+  - xapi: use hard-pinning with best-effort as an experimental feature (CP-54234)
+  - CA-411679: Runstate metrics return data over 100%
+  - Modify doc mistakes
+  - CONTRIBUTING: add some initial guidelines
+  - Removed PowerShell 5.x build due to the retirement of windows-2019.
+  - Add file-upload support to xe host-call-plugin
+  - CP-53475 Update release number to latest tag
+  - XSI-1918: Host can not join pool after enable external auth
+  - xapi_vif: Guarantee the device parameter is an unsigned decimal integer
+  - xapi-idl: Avoid printing cli output when testing
+  - xapi-storage-script: avoid output when running python tests
+  - CA-411766: Detach VBDs right after VM Halted
+  - datamodel_lifecycle: automatic update
+
+  * Fri May 23 2025 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 25.20.0-2
+  - Bump release and rebuild
+
+  * Fri May 23 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.20.0-1
+  - CA-409949 CA-408048 remove unavailable SM types at startup
+  - CP-307933: database: do not marshal/unmarshal every time
+  - CP-307865 Support SHA-512 Certificates for XenServer Hosts
+  - gencert testing: use human-readable errors for validation
+  - CA-409510: xenopsd operations time out due to deadlock
+  - CA-411122: do not call set-iscsi-initiator with an empty string for IQN
+  - CA-410782: Add receive_memory_queues for VM_receive_memory operations
+  - xapi: Cleanup unused functions
+  - CP-308075 document changing paths for SM plugins in XS9
+  - CP-53642: change default NUMA placement policy to best-effort
+  - CP-54275: Add a blocklist mechanism to avoid incorrect/old repo config.
+  - CP-307922: Implement SMAPIv3 outbound migration
+  - CA-409482: Using computed delay for RRD loop
+  - CA-411319: Concurrent `VM.assert_can_migrate` failure
+
+  * Thu May 15 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.19.0-1
+  - [maintenance]: bool is a keyword in newer C versions, cannot be a parameter
+  - CP-307947: cleanup database interface
+  - Mux mirror failure check for SXM
+  - Bring back DATA.MIRROR.list and DATA.MIRROR.stat
+  - Add more debugging to storage_smapiv1_migrate
+  - CP-307958: database: small lock and RPC tweaks + benchmarks
+  - CA-408492: Keep backwards compatibility for SMAPIv2
+
+  * Fri May 09 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.18.0-1
+  - CP-52880: [XSI-1763]: Xapi_vdi.update_allowed_operations is slow
+  - Add additional tracing to VBD plug/unplug
+  - CP-53554: Split plug xenopsd atomic into attach/activate
+  - CP-53555: Split unplug atomic into deactivate/detach
+  - Move update_snapshot_info_dest to storage_mux
+  - Refactor Storage_smapiv1.find_vdi
+  - Use the new scan2
+  - Add new interface for mirror operation in SMAPIv3
+  - Add more states for SXM
+  - Remove receive_start(2) from storage_migrate
+  - Change how receive_start2 is called
+  - Add qcow2 as supported format by xcp-rrdd-iostat
+  - CA-404946: NBD: increase timeout to match iSCSI timeout and use persistent connections
+  - Update datamodel_lifecycle
+  - [maintenance]: reformat dune files in sdk-gen
+  - build: avoid race condition on install
+  - [maintenance]: drop sexprpp
+  - XAPI website link updated in README
+  - xapi-log/test: Package the cram test in xapi-log
+  - CA-409710: Modify the default backup parameters
+  - xenopsd: Don't balloon down memory on same-host migration
+  - CA-410001: Check rrdi.rrd to avoid ds duplicate
+  - xapi_xenops: Avoid a race during suspend
+  - CP-54828: RBAC: Avoid raising exception on happy path
+  - CP-54827: Optimize pool object
+  - CP-54826: Mutex.execute: avoid costly backtrace formatting in finally
+  - CA-403867: Block pool join if IP not configured on cluster network
+
+  * Thu Apr 24 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.17.0-1
+  - xe-reset-networking: Avoid truncating IPv6 addresses
+  - networkd: simplify parsing of config
+  - networkd: read IPv6 entries in the firstboot management config file
+  - xapi: Log exceptions in check_network_reset
+  - CA-408230: Enable destroy op for HA statefile VDI after HA is disabled
+  - CP-52131/CP-53474: Reorder operations during pci_add
+  - xapi_guest_agent: Update xenstore keys for Windows PV drivers versions
+  - tests: Add Windows PV driver version parsing test to test_guest_agent
+  - Explicitly define failures for SXM
+  - Define the utility function for choosing the backend
+  - Move the copying function to storage_smapiv1_migrate
+  - Move MigrateRemote before MigrateLocal
+  - Move `find_local_vdi` utility function
+  - Split Storage_migrate.start
+  - Remove duplicate Storage_migrate.stop impl
+  - Implement send_start for SMAPIv1
+  - doc: Add sxm mux design
+  - doc: Add an overview of SXM
+  - doc: Add error handling of SXM
+  - CA-409628: Do not lose the original backtrace in log_backtrace
+  - Update cluster-stack-version lifecycle
+  - CP-54034: Expose `expected_votes` in Cluster object
+
+  * Tue Apr 15 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.16.0-1
+  - CP-54072: Create template for storage_smapi{v1,v3}_migrate
+  - CA-401023: Remove smapi observer config if smapi is set as experimental
+  - xapi_message: Implement proper expression handling in get_all_records_where
+  - CP-54026: option to control VM-internal shutdown behaviour under HA
+  - CP-53951: Drop SSL and Lwt dependency from XAPI
+  - quicktest: Add a test verifying Message.get_all_records_where filtering
+  - CI: allow XAPI linking with Lwt for now
+  - Check that there are no changes during SR.scan
+  - CA-408843: XSI-1852: Set encryption type of machine account
+  - CP-52745: Add `ThreadLocalStorage` in `Threadext`
+  - CA-409488: prevent Xenctrl exceptions from escaping on VM boot/shutdown races
+  - CA-409489: prevent running out of pages with lots of domains
+  - rrd_file_writer: protect against resource leak
+  - Raise log level for rrd thread monitor
+  - xapi-aux: Add function to return all management ip addresses
+  - gencert: Allow adding more than one IP as the certificate subject
+  - network_server: add gateway and dns options to DHCP6
+  - opam: update xapi-storage-cli metadata
+
+  * Fri Apr 11 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.15.0-3
+  - Bump release and rebuild
+
+  * Tue Apr 08 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.15.0-2
+  - Bump release and rebuild
+
+  * Tue Apr 08 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.15.0-1
+  - CP-53313: Add field services in VM_guest_metrics
+  - CP-53314: Read and watch <domain>/data/service in xenstore to DB
+  - Define SR_CACHING capability
+  - CP-52365 fix up driver-tool invocations
+  - CA-408339: Respect xenopsd's NUMA-placement-policy default
+  - Use records when accumulating events
+  - Remove mutable last_generation from Xapi_event
+  - Factor out event reification
+  - Use record type for individual event entries
+  - xenctrlext: do not truncate the amount of memory in claims to 32 bits
+  - CA-407177: Fix swtpm's use of SHA1 on XS9
+  - forkexecd: do not tie vfork_helper to the forkexec package
+  - opam: add missing dependencies to packages
+  - Simplify code by using get_trace_context
+  - CA-404460: Expose Stunnel_verify_error for mismatched or corrupted certificate, and expose ssl_verify_error during update syncing
+  - CA-408550: XSI-1834: Host netbios name should be added to local
+  - CP-54020: Refactor sxm and storage_mux code
+  - CA-408500: Remove ListFile with Xapi_stdext_unix.Unixext
+  - CP-53472: Create parent for add_module spans
+  - xapi-stdext-threads, test: use stable testing interface
+  - CA-408841 rrd: don't update rrds when ds_update is called with an empty datasource array
+  - Remove xapi-stdext-date
+  - CP-50836: Add VM_migrate_downtime and request_shutdown spans
+  - opam: move all opam files to the opam subdir
+  - numa: add test binary that prints changes in free memory and domain lifetime
+  - CP-53658: adapt claim_pages to new version with numa node parameter
+  - xenctrl: Don't use numa_node in domain_claim_pages calls
+  - xenopsd: log_reraise doesn't ignore the result
+  - CP-54065, xenopsd: use domain_claim_pages on a single node, if possible
+  - xenopsd/xc: Do not try to allocate pages to a particular NUMA node
+  - xapi_vm_migrate: Avoid duplicate, overly-strict CBT check on VDIs
+  - Update datamodel lifecycle VM_guest_metrics.services
+  - CA-408048 add library to represent version strings
+  - CA-408048 remove SM plugins from DB if unavailable
+
+  * Tue Mar 18 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.14.0-1
+  - IH-533: Remove usage of forkexecd daemon to execute processes
+  - Add opam local switch in gitignore
+  - xenopsd: start vncterm for PVH guests
+
+  * Mon Mar 17 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.13.0-1
+  - CP-48824: Increase xenopsd worker-pool-size to 25
+  - CP-52074: Add systemctl enable and disable API
+  - CP-53161: Pass `baggage` back into `xapi` from `smapi`.
+  - CA-405864: Drop usage of init.d functions
+  - doc: Update xapi storage layer code links
+  - CA-405864: Fix shellcheck warnings
+  - CP-53827, xenopsd: claim pages for domain on pre_build phase
+  - CI: fix compile_commands.json caching
+  - Resolve build failure in message_forwarding.ml
+  - CP-48676: Reuse pool sessions on slave logins.
+  - xapi-stdext-date: replace all usages to use clock instead
+  - CA-408126 follow-up: Fix negative ds_min and RRD values in historical archives
+
+  * Wed Mar 12 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.12.0-1
+  - Revert "CA-403851 stop management server in Pool.eject ()"
+
+  * Tue Mar 11 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.11.0-1
+  - Design proposal for supported image formats
+  - (docs) Describe the flows of setting NUMA node affinity in Xen by Xenopsd
+  - CA-407687/XSI-1834: get_subject_information_from_identifier should
+  - CA-408126 - rrd: Do not lose ds_min/max when adding to the RRD
+  - Change Ocaml version in readme
+  - CA-403851 stop management server in Pool.eject ()
+
+  * Fri Mar 07 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.10.0-1
+  - CA-407328: Change vm parameter names of SXM calls
+  - CP-53708: Expose the existing PCI vendor/device IDs
+  - CP-53444: For XenServer 9, remove python dnf plugins
+  - XSI-1821: Add pre-condition for host.emergency_reenable_tls_verification
+  - CP-50934: fix qemu cgroups to be compatible with cgroupv2
+  - opam: move stunnel metadata to dune-project
+  - stdext: replace all ignore_type with annotated ignores
+  - xapi_vdi_helpers: actually write raw vdi when possible
+  - CA-399631: Increase the max size of xcp-rrdd-plugins for bug-tool
+  - CP-53779: Guard all `Tgroup` library call behind `tgroups-enabaled`
+  - CI: add a codechecker workflow
+  - [maintenance] xa_auth.h: avoid using reserved macro names
+  - unixpwd.c: fix error path file descriptor leak
+  - [maintenance] syslog_stubs.c: avoid using reserved identifier names
+  - [maintenance] blkgetsize64: avoid warning about uninit value
+  - CP-53747 document PEM/Certificate relation
+  - c_stubs: use 'new' acquire and release runtime functions
+  - Hoist value access outside section without lock
+  - CA-407370: Use remote.conf for customer rsyslog forwarding rules
+  - Revert: Refactor Xapi_event #6306
+
+  * Mon Mar 03 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.9.0-2
+  - Bump release and rebuild
+
+  * Thu Feb 27 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.9.0-1
+  - Design proposal to support import/export of Qcow2 VDI
+  - message_forwarding: Change call_slave_... functions to reduce repetition
+  - Revert "CA-403867: Block pool join if IP not configured on cluster network"
+
+  * Wed Feb 26 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.8.0-1
+  - CP-52744: Thread `TraceContext` as json inside debug_info
+  - Use records when accumulating events
+  - Remove mutable last_generation from Xapi_event
+  - Use record type for individual event entries
+  - CA-403867: Block pool join if IP not configured on cluster network
+  - CA-403744: Implement other_config operations
+  - CP-45795: Decompress compressed trace files without Forkexecd
+  - CP-53362: Rename hcp_nss to nss_override_id
+  - CP-52365 adjust interface to dmv-utils
+  - CA-407033: Call `receive_finalize2` synchronously
+  - Add internal links to XenAPI reference
+  - CA-405643: Update DNF to DNF5
+  - Add filter_by to Dm_api
+  - Use Cmdliner for gen_api_main.exe
+  - CA-407322 - libs/rrd: Keep lastupdate XML field as int, XenCenter relies on it
+
+  * Mon Feb 24 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.7.0-2
+  - Bump release and rebuild
+
+  * Tue Feb 18 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.7.0-1
+  - CP-51393: Datamodel: update Repository for syncing from a remote pool (#6049)
+  - CP-51835: Keep the HTTP /repository handler enabled
+  - CP-50789: Enable verified rpc to external host
+  - CP-51836: Restrict/check binary_url of remote_pool repository
+  - CP-51391: Implement handling for /repository/enabled
+  - CP-51988: Fix functions not work for remote_pool repo
+  - CP-50787 CP-51347: Support pool.sync_updates from remote_pool repo
+  - CP-52245: Temp disable repo_gpgcheck when syncing from remote_pool repo
+  - Revert "CP-52245: Temp disable repo_gpgcheck when syncing from remote_pool repo"
+  - python3: Add previously unused API classes to Python stubs used during testing
+  - CA-404660: Refine repository enabling error message
+  - doc: walkthroughs/VM.start: Update the xenguest chapter (domain build)
+  - debug traces for is_component_enabled
+  - CP-53470 Additional spans in & around the pause section in VM.migrate
+  - Hugo docs: Support dark themes: Invert images to match the theme
+  - README: Submission: Add DCO, issues & remove the disabled xen-api list
+  - docs/xenopsd: List the child pages using the children shortcode
+  - CA-405820 guard /etc/init.d/functions in xe-toolstack-restart
+  - Simplify cases of may_be_side_effecting
+  - Drop count_mandatory_message_parameters
+  - message-switch/unix: simplify the scheduler
+  - docs: Add dedicated walk-throughs for VM.build and xenguest
+  - xenopsd docs: Add Walk-through descriptions, show them on the index page
+  - python3: Resurrect metrics.py helper script
+  - python3: Resurrect a metricsgraph.py helper script
+  - CA-406403: Do not return HTTP 500 when Accept header can't be parsed
+  - Replace startswith and endswith with stdlib calls
+  - Domain.build docs: Improve notes on node_affinity, move to new page
+  - (docs) VM.migrate.md: Rephrase and simplify, improve readability
+
+  * Wed Feb 12 2025 Vincent Liu <shuntian.liu2@cloud.com> - 25.6.0-2
+  - Bump release and rebuild
+
 * Fri Jul 18 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.11
 - Packaging changes associated with the "xenopsd: set xen-platform-pci-bar-uc key"
   improvement to allow for custom user xenopsd configuration
