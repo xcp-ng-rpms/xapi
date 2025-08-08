@@ -1,5 +1,5 @@
 %global package_speccommit bae592b3761114db110b09e9ff829d62cfc8a801
-%global package_srccommit v25.24.0
+%global package_srccommit v25.28.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -25,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.24.0
+Version: 25.28.0
 Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.24.0.tar.gz
+Source0: xen-api-25.28.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -80,13 +80,6 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 
-# Backports:
-# Backport a fix for a flaky test from upstream v25.25.0
-# (https://github.com/xapi-project/xen-api/pull/6568/commits/c725281e3a2ae0a60c3b181cc469d163315965bb)
-Patch1006: 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
-
-# AMD pci MMIO Writeback workaround, upstream in v25.26.0
-Patch1007: 0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
