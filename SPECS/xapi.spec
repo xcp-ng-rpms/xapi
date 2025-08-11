@@ -131,6 +131,7 @@ Requires: hwdata
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
 Requires: vhd-tool
+Requires: qcow-stream-tool
 Requires: libffi
 Requires: busybox
 Requires: iproute
@@ -370,8 +371,14 @@ This packages contains plugins registering to the RRD daemon and exposing variou
 %package -n vhd-tool
 Summary: Command-line tools for manipulating and streaming .vhd format files
 
+%package -n qcow-stream-tool
+Summary: Minimal CLI wrapper for qcow-stream
+
 %description -n vhd-tool
 Simple command-line tools for manipulating and streaming .vhd format file.
+
+%description -n qcow-stream-tool
+Minimal CLI wrapper for qcow-stream
 
 %package -n xcp-networkd
 Summary:  Simple host network management service for the xapi toolstack
@@ -1313,6 +1320,9 @@ done
 /usr/libexec/xapi/get_vhd_vsize
 /opt/xensource/libexec/get_nbd_extents.py
 /opt/xensource/libexec/python_nbd_client.py
+
+%files -n qcow-stream-tool
+%{_bindir}/qcow-stream-tool
 
 %files -n xcp-networkd
 %{_sbindir}/xcp-networkd
