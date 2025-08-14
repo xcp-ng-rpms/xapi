@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.24.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.1.gtn1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -87,6 +87,11 @@ Patch1006: 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
 
 # AMD pci MMIO Writeback workaround, upstream in v25.26.0
 Patch1007: 0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
+
+# Testing supported image format
+Patch1008: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1009: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1010: 0003-Bumping-database-schema-version.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
