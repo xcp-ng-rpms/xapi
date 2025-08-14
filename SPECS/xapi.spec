@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.24.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.1.gtn4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -88,6 +88,11 @@ Patch1006: 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
 # AMD pci MMIO Writeback workaround, upstream in v25.26.0
 Patch1007: 0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
+# Testing supported image format
+Patch1008: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1009: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1010: 0003-Bumping-database-schema-version.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -138,7 +143,7 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
-Requires: nss-override-id >= 2.0.0
+#Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
@@ -534,6 +539,21 @@ rm -rf %{buildroot}
 %global xapi_storage_path _build/default/ocaml/xapi-storage/python/
 export OCAMLPATH=%{_ocamlpath}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
+
+
+# HACK: fix dune-build-info's job: replace $sha-dirty strings with version
+dirtystr=$(unset GIT_CEILING_DIRECTORIES; git describe --always --dirty --abbrev=7)
+dirtylen=${#dirtystr}
+version=%{version}
+verlen=${#version}
+# since we use sed we have to write as many bytes, so pad with spaces
+fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+    xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+# make sure the hack did its job
+! grep -r -e "-dirty"
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
