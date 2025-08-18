@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.11%{?xsrel}%{?dist}
+Release: 1.11.onlink%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -124,6 +124,9 @@ Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
 # AMD pci MMIO Writeback workaround
 Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
+
+# Use onlink
+Patch1029: 0029-network_utils-Allow-adding-a-gateway-that-doesn-t-ma.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

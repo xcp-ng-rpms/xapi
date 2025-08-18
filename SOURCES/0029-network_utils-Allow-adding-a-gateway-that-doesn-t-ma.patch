@@ -1,0 +1,48 @@
+From 29b403aa28c1dfb5f63519b1fa36870e2ac8ab45 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Wed, 13 Aug 2025 14:20:17 +0100
+Subject: [PATCH] network_utils: Allow adding a gateway that doesn't match any
+ interface prefix
+
+Currently when this happens, the ip command fails, but it's ignored, resulting
+in nothing happening.
+
+The onlink option allows to avoid the error and set the route anyway. This is
+useful on cases where a cloud provider controls the gateway of the users'
+hosts.
+
+This argument was added unconditionally to debian's ifupdown in 2016 to avoid
+this issue:
+https://salsa.debian.org/debian/ifupdown/-/commit/8b7bca9597d2f75670b182f0fc149cdbaec3544c
+
+This issue was reported by users, as well as in
+https://xcp-ng.org/forum/topic/11160/off-subnet-off-net-gateway-configuration-routing-table-fails-with-xe-network-param-set
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/networkd/lib/network_utils.ml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ocaml/networkd/lib/network_utils.ml b/ocaml/networkd/lib/network_utils.ml
+index 1c8c8cd1a..3dadb8878 100644
+--- a/ocaml/networkd/lib/network_utils.ml
++++ b/ocaml/networkd/lib/network_utils.ml
+@@ -638,6 +638,7 @@ module Ip = struct
+                ; Unix.string_of_inet_addr gateway
+                ; "dev"
+                ; dev
++               ; "onlink"
+                ]
+             )
+       | Some (ip, prefixlen) ->
+@@ -654,6 +655,7 @@ module Ip = struct
+                ; Unix.string_of_inet_addr gateway
+                ; "dev"
+                ; dev
++               ; "onlink"
+                ]
+             )
+     with _ -> ()
+-- 
+2.50.1
+
