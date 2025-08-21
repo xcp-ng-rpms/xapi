@@ -88,6 +88,9 @@ Patch1006: 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
 # AMD pci MMIO Writeback workaround, upstream in v25.26.0
 Patch1007: 0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
+# XCP-ng: FF to post-interface-rename era
+Patch2000: host-network-device-ordering-on-networkd.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1482,6 +1485,7 @@ Coverage files from unit tests
 - Add missing core dep on openssl-perl (c_rehash)
 - Add in core directories whose lack blocks startup:
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
+- Add host-network-device-ordering branch contents as a single patch
 
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.24.0-1.1
 - Update to upstream 25.24.0-1
