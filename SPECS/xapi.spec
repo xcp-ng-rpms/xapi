@@ -1,5 +1,5 @@
-%global package_speccommit bae592b3761114db110b09e9ff829d62cfc8a801
-%global package_srccommit v25.24.0
+%global package_speccommit 152a61bbe4a6c2e3f9911b65c80822966563a965
+%global package_srccommit v25.26.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -25,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.24.0
+Version: 25.26.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.24.0.tar.gz
+Source0: xen-api-25.26.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -59,13 +59,24 @@ Source23: inventory.py
 Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
 
-%if "%{dist}" == ".xsx" || "%{dist}" == ".xsr" || "%{dist}" == ".xs9"
+# Xapi compiles to a baseline of Xen 4.17
+
+# Xen 4.19
+%if "%{dist}" == ".xs9"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 %endif
 
+# Xen 4.20
+%if "%{dist}" == ".xsx"
+Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
+Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
+%endif
+
+# Xen 4.21
 %if "%{dist}" == ".xsu"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
+Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 %endif
 
 %{?_cov_buildrequires}
@@ -134,6 +145,7 @@ Requires: libdnf5-plugin-accesstoken
 Requires: libdnf5-plugin-xapitoken
 # For dnf plugins like config-manager
 Requires: dnf5-plugins
+Requires: dmv-utils
 %endif
 Requires: python3-xcp-libs
 Requires: python-pyudev
@@ -1379,6 +1391,27 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jul 16 2025 Rob Hoes <rob.hoes@citrix.com> - 25.26.0-1
+- xenopsd: set xen-platform-pci-bar-uc key in xenstore
+- CP-308455 VM.sysprep add timeout parameter
+- CP-308455 VM.sysprep wait for shutdown
+- CP-308455 VM.sysprep update documentation
+- CP-308455 VM.sysprep wait for "action" key to disappear
+- CA-413713: Change bash-completion shortcut
+- Replace `List.fold_left (||) false (List.map f lst)` with `List.exists f lst`
+- CP-308875: set Xen PCI MMIO BAR to WB
+- Add message argument to LICENSE_CHECKOUT_ERROR
+
+* Sun Jul 13 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.25.0-1
+- CA-393417: Drop device controller of cgroup v1 and fix USB passthrough for XS9
+- xapi-stdext-threads: calibrate ratio for delay times
+- Downgrade unknown SM.feature errors to warnings
+- CP-308455 VM.sysprep use watch to detect sysprep running
+- datamodel_lifecycle: automatic update
+- CA-413412: Fail to designate new master
+- XSI-1954: Only block pool join for clustering on non-management VLAN
+
+
 * Sun Jul 06 2025 Bengang Yuan <bengang.yuan@cloud.com> - 25.24.0-1
 - CA-410965: Modify default ref of console
 - Design proposal for supported image formats (v3)
