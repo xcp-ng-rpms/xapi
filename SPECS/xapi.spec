@@ -81,7 +81,7 @@ Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v25.24.0..v25.24.0-8.3
+#   - git format-patch --no-numbered --no-signature v25.26.0..v25.26.0-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -90,14 +90,6 @@ Patch1003: 0003-xcp-ng-fix-IPv6-import.patch
 Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
-
-# Backports:
-# Backport a fix for a flaky test from upstream v25.25.0
-# (https://github.com/xapi-project/xen-api/pull/6568/commits/c725281e3a2ae0a60c3b181cc469d163315965bb)
-Patch1006: 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
-
-# AMD pci MMIO Writeback workaround, upstream in v25.26.0
-Patch1007: 0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1442,15 +1434,12 @@ Coverage files from unit tests
 %changelog
 * Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.26.0-1.1
 - Update to upstream 25.26.0-1
+- Drop 0003-xcp-ng-disable-cancellable-sleep.patch, alternative fix merged upstream
+- Drop 0004-xcp-ng-add-debug-info-in-observer.patch, merged upstream
 - Rename 0005-xcp-ng-fix-IPv6-import.patch to 0003-xcp-ng-fix-IPv6-import.patch
 - Rename 0006-xcp-ng-open-close-openflow-port.patch to 0004-xcp-ng-open-close-openflow-port.patch
 - Rename 0007-xcp-ng-update-db-tunnel-protocol-from-other-config.patch to
   0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
-- Drop 0003-xcp-ng-disable-cancellable-sleep.patch, replace with an alternative
-  fix from upstream in 0006-xapi-stdext-threads-calibrate-ratio-for-delay-times.patch
-- Rename 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch to
-  0007-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
-- Drop 0004-xcp-ng-add-debug-info-in-observer.patch, merged upstream
 - Drop 0008-CA-408126-rrd-Do-not-lose-ds_min-max-when-adding-to-.patch, merged upstream
 - Drop 0009-CA-408126-follow-up-Fix-negative-ds_min-and-RRD-valu.patch, merged upstream
 - Drop 0010-CA-408841-rrd-don-t-update-rrds-when-ds_update-is-ca.patch, merged upstream
@@ -1471,6 +1460,7 @@ Coverage files from unit tests
 - Drop 0025-xcp-rrdd-change-the-code-responsible-for-filtering-o.patch, merged upstream
 - Drop 0026-rrdd-Avoid-missing-aggregation-of-metrics-from-newly.patch, merged upstream
 - Drop 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch, merged upstream
+- Drop 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch, merged upstream
 - *** Upstream changelog ***
   * Wed Jul 16 2025 Rob Hoes <rob.hoes@citrix.com> - 25.26.0-1
   - xenopsd: set xen-platform-pci-bar-uc key in xenstore
