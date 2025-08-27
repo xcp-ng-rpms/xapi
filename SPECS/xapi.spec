@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.11%{?xsrel}%{?dist}
+Release: 1.12%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -124,6 +124,10 @@ Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 
 # AMD pci MMIO Writeback workaround
 Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
+
+# XSA-474 backport to 25.6.0
+Patch1029: 0029-prepare-make-StringPool-share-safer.patch
+Patch1030: 0030-Simplify-UTF-8-decoding.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1445,6 +1449,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Sep 09 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.12
+- Backport XSA-474 fix
+
 * Fri Jul 18 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.6.0-1.11
 - Packaging changes associated with the "xenopsd: set xen-platform-pci-bar-uc key"
   improvement to allow for custom user xenopsd configuration
