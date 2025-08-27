@@ -1,0 +1,150 @@
+From d92335a825b4cbb96d406721182903c6f3af9811 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 27 Aug 2025 11:17:42 +0100
+Subject: [PATCH] xenopsd: Add a virtio-vga parameter to platform/vga
+
+virtio-vga is a modern, VGA compatible virtio device provided by QEMU, which
+the guests can be enlightened about with virtio-gpu drivers (available in
+Linux since 4.14 and on Windows as one of the signed KVM drivers).
+
+With the drivers available, this device is much faster than alternatives,
+reducing latency, allowing for higher guest display resolutions.
+
+For a similar patch against upstream xen, see the one posted at
+https://lore.kernel.org/xen-devel/95a54f6c4296b03db5265da50a98f03c53858677.1755088831.git.teddy.astie@vates.tech/
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/tests/test_xenopsd_metadata.ml  |  2 ++
+ ocaml/xapi-idl/xen/xenops_types.ml    |  1 +
+ ocaml/xapi/xapi_xenops.ml             |  2 ++
+ ocaml/xenopsd/scripts/qemu-wrapper    | 12 ++++++++++--
+ ocaml/xenopsd/xc/device.ml            |  3 +++
+ ocaml/xenopsd/xc/device.mli           |  1 +
+ ocaml/xenopsd/xc/xenops_server_xen.ml |  2 ++
+ 7 files changed, 21 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/tests/test_xenopsd_metadata.ml b/ocaml/tests/test_xenopsd_metadata.ml
+index c052de228..434bf33f0 100644
+--- a/ocaml/tests/test_xenopsd_metadata.ml
++++ b/ocaml/tests/test_xenopsd_metadata.ml
+@@ -126,6 +126,8 @@ module VideoMode = Generic.MakeStateful (struct
+           "Cirrus"
+       | Vm.Standard_VGA ->
+           "Standard_VGA"
++      | Vm.Virtio_VGA ->
++          "Virtio_VGA"
+       | Vm.Vgpu ->
+           "Vgpu"
+       | Vm.IGD_passthrough Vm.GVT_d ->
+diff --git a/ocaml/xapi-idl/xen/xenops_types.ml b/ocaml/xapi-idl/xen/xenops_types.ml
+index 2ed03daf7..50708bab7 100644
+--- a/ocaml/xapi-idl/xen/xenops_types.ml
++++ b/ocaml/xapi-idl/xen/xenops_types.ml
+@@ -71,6 +71,7 @@ module Vm = struct
+     | Cirrus
+     | Standard_VGA
+     | Vgpu
++    | Virtio_VGA
+     | IGD_passthrough of igd_passthrough
+   [@@default Cirrus] [@@deriving rpcty, sexp]
+ 
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index 0c49fbc6e..95ee2365a 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -388,6 +388,8 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
+           Standard_VGA
+       | "cirrus" ->
+           Cirrus
++      | "virtio" ->
++          Virtio_VGA
+       | x ->
+           error "Unknown platform/vga option: %s (expected 'std' or 'cirrus')" x ;
+           Cirrus
+diff --git a/ocaml/xenopsd/scripts/qemu-wrapper b/ocaml/xenopsd/scripts/qemu-wrapper
+index c044d529a..07d17a8c3 100644
+--- a/ocaml/xenopsd/scripts/qemu-wrapper
++++ b/ocaml/xenopsd/scripts/qemu-wrapper
+@@ -162,11 +162,11 @@ def main(argv):
+ 
+     vga_type = 'cirrus-vga'
+     vgamem_mb = 4
++    subvendor_string = "subvendor_id=0x5853,subsystem_id=0x0001"
+     vga_extra_props = ["addr=2"]
+     vga_extra_props += ["romfile="]
+     if trad_compat:
+-        vga_extra_props += ["rombar=1",
+-                            "subvendor_id=0x5853,subsystem_id=0x0001"]
++        vga_extra_props += ["rombar=1", subvendor_string]
+     upgraded_save_image = None
+     serial_c = ''
+     tmp_serial_c = ''
+@@ -233,6 +233,11 @@ def main(argv):
+             del qemu_args[n]
+             continue
+ 
++        if p == "-virtio-vga":
++            vga_type = 'virtio-vga'
++            del qemu_args[n]
++            continue
++
+         if p == "-vgpu":
+             vga_type = 'vgpu'
+             del qemu_args[n]
+@@ -256,6 +261,9 @@ def main(argv):
+ 
+     if vga_type == 'vgpu':
+         qemu_args += ["-device", "vgpu"]
++    elif vga_type == 'virtio-vga':
++        # virtio-vga breaks with vgamem and romfile parameters, don't include them
++        qemu_args += ["-device", ",".join([vga_type, subvendor_string])]
+     else:
+         qemu_args += ["-device", ",".join([vga_type, "vgamem_mb=%d" % vgamem_mb] \
+                                           + vga_extra_props)]
+diff --git a/ocaml/xenopsd/xc/device.ml b/ocaml/xenopsd/xc/device.ml
+index 235f64578..3486a33af 100644
+--- a/ocaml/xenopsd/xc/device.ml
++++ b/ocaml/xenopsd/xc/device.ml
+@@ -1947,6 +1947,7 @@ module Dm_Common = struct
+   type disp_intf_opt =
+     | Std_vga
+     | Cirrus
++    | Virtio_vga
+     | Vgpu of Xenops_interface.Vgpu.t list
+     | GVT_d
+ 
+@@ -2108,6 +2109,8 @@ module Dm_Common = struct
+           ["-std-vga"]
+       | Cirrus ->
+           []
++      | Virtio_vga ->
++          ["-virtio-vga"]
+       | GVT_d ->
+           ["-std-vga"]
+       (* relies on pci-passthrough *)
+diff --git a/ocaml/xenopsd/xc/device.mli b/ocaml/xenopsd/xc/device.mli
+index 887c109e2..aef0aeef7 100644
+--- a/ocaml/xenopsd/xc/device.mli
++++ b/ocaml/xenopsd/xc/device.mli
+@@ -326,6 +326,7 @@ module Dm : sig
+   type disp_intf_opt =
+     | Std_vga
+     | Cirrus
++    | Virtio_vga
+     | Vgpu of Xenops_interface.Vgpu.t list
+     | GVT_d
+ 
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 071eae2e0..0433e881d 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -1890,6 +1890,8 @@ module VM = struct
+                 Device.Dm.Cirrus
+             | Standard_VGA, [] ->
+                 Device.Dm.Std_vga
++            | Virtio_VGA, [] ->
++                Device.Dm.Virtio_vga
+             | IGD_passthrough GVT_d, [] ->
+                 Device.Dm.GVT_d
+             | Vgpu, [] ->

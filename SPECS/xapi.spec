@@ -125,6 +125,9 @@ Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 # AMD pci MMIO Writeback workaround
 Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
+# add virtio-vga platform parameter
+Patch1029: 0029-xenopsd-Add-a-virtio-vga-parameter-to-platform-vga.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
