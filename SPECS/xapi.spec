@@ -141,7 +141,7 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
-Requires: nss-override-id >= 2.0.0
+#Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
@@ -2193,10 +2193,10 @@ flaky test
 - Upstream changelog:
   * Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
   - CA-404512: Add feature flag to the new clustering interface
-  
+
   * Tue Nov 26 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-2
   - Bump release and rebuild
-  
+
   * Mon Nov 25 2024 Gang Ji <gang.ji@cloud.com> - 24.39.0-1
   - IH-728: Refactor tracing logic
   - Update datamodel_lifecycle.ml
@@ -2208,13 +2208,13 @@ flaky test
   - CA-402326: Fetch SM records from the pool to avoid race
   - CA-402654: Partially revert 3e2e970af
   - CA-402263, xapi_sr_operatrions: don't include all API storage operations in all_ops
-  
+
   * Wed Nov 13 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-3
   - Bump release and rebuild
-  
+
   * Wed Nov 13 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-2
   - Bump release and rebuild
-  
+
   * Mon Nov 11 2024 Christian Lindig <christian.lindig@cloud.com> - 24.37.0-1
   - CP-50475: Remove unnecessary Parallel atoms from the xenopsd queues
   - CP-50475: parallelize device ops during VM lifecycle ops
@@ -2245,17 +2245,17 @@ flaky test
   - CA-400060: Sm feature intersection
   - CA-400060: Reject pool join if sm features mismatch
   - Document Rbac module
-  
+
   * Tue Oct 29 2024 Christian Lindig <christian.lindig@cloud.com> - 24.36.0-1
   - CA-400559: API Error too_many_groups is not in go SDK
   - chore: annotate types for non-returning functions
   - CA-400199: open /dev/urandom on first use
-  
+
   * Wed Oct 23 2024 Christian Lindig <christian.lindig@cloud.com> - 24.35.0-1
   - CA-398341: Populate fingerprints of CA certificates on startup
   - CP-51527: Add --force option to pool-uninstall-ca-certificate
   - CA-400924 - networkd: Add bonds to `devs` in network_monitor_thread
-  
+
   * Mon Oct 21 2024 Christian Lindig <christian.lindig@cloud.com> - 24.34.0-1
   - fix(test): avoid running XAPI hooks in unit tests
   - IH-715 - rrdp-netdev: Remove double (de)serialization
@@ -2277,7 +2277,7 @@ flaky test
   - Remove now-unused Buf_io and associated tests
   - CA-400860: make CPU and netdev RRDD plugins pick up changes in domains
   - CP-51683: Make Cluster_health non-exp feature
-  
+
   * Mon Oct 14 2024 Christian Lindig <christian.lindig@cloud.com> - 24.33.0-1
   - CA-392674: nbd_client_manager retry connect on nbd device busy
   - http-lib: add backtrace to logs on connection without response
@@ -2294,7 +2294,7 @@ flaky test
   - Revert "CP-48676: Don't check resuable pool session validity by default"
   - Revert "CP-48676: Reuse pool sessions on slave logins."
   - maintenance: remove unused code from stream_vdi
-  
+
   * Thu Oct 10 2024 Christian Lindig <christian.lindig@cloud.com> - 24.32.0-1
   - xapi-stdect-unix: catch exceptions when testing the server
   - CP-51714: Remove noisy xenopsd debug logs
@@ -2304,12 +2304,12 @@ flaky test
   - CA-400124: rrd: Serialize transform parameter for data sources
   - CA-400124 - rrdd: only serialize transform when it's not default
   - XSI-1722 fix timer for host heartbeat
-  
+
   * Fri Oct 04 2024 Christian Lindig <christian.lindig@citrix.com> - 24.31.0-1
   - message-switch: remove dependency on async binaries
-  
+
   * Mon Sep 23 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.30.0-1
-  
+
   - CP-32622, CP-51483: Switch to epoll
   - CA-399187: Allow gencert to be called without groupid
   - Date: Accept all valid timezones from client, allow sub-second precision
@@ -2319,7 +2319,7 @@ flaky test
   - CA-398128: Be wary that dates in database lose precision
   - Don't use dhcp4 for none mode
   - CA-398138: Handle enum value unknown error for Go SDK
-  
+
   * Mon Sep 16 2024 Christian Lindig <christian.lindig@citrix.com> - 24.29.0-1
   - Use templates to generate `Types.java`
   - Use templates to generate Java classes
@@ -2348,7 +2348,7 @@ flaky test
   - Fix syntax in CustomDateDeserializer.java
   - CP-47509: Revisited the setting of response headers to avoid errors when multiple threads use the same session object.
   - CA-397599 XSI-1704 implement setter for blocked ops manually
-  
+
   * Tue Sep 10 2024 Christian Lindig <christian.lindig@citrix.com> - 24.28.0-1
   - Update record_util tests to the current state
   - IH-689: Include auto-generated record_util
@@ -2375,7 +2375,7 @@ flaky test
   - [maintenance]: speed up vhd tests
   - [maintenance]: reduce sleeps in concur-rpc-test.sh
   - [maintenance]: vhd_format_lwt_test: speed up by using Cstruct.compare
-  
+
   * Wed Sep 04 2024 Christian Lindig <christian.lindig@citrix.com> - 24.27.0-1
   - CA-390883 CP-46112 CP-47334 CP-47555 CP-47653 CP-47869 CP-47935 CP-48466
   - CP-49148 CP-49896 CP-49900 CP-49901 CP-49902 CP-49903 CP-49904 CP-49906
@@ -2389,10 +2389,10 @@ flaky test
   - Update VM failover planning document.
   - xe autocompletion: Only show required/optional prefixes when parameter name is
   - xe autocompletion: Exclude previously entered parameters before deciding
-  
+
   * Thu Aug 29 2024 Christian Lindig <christian.lindig@citrix.com> - 24.26.0-1
   - quicktest: disable open 1024 fds on startup for now
-  
+
   * Thu Aug 29 2024 Christian Lindig <christian.lindig@citrix.com> - 24.25.0-1
   - Quicktest: actually run the quickcheck tests too
   - xapi-fd-test: fix compatibility with old losetup
@@ -2416,12 +2416,12 @@ flaky test
   - Add feature flag to block starting VM appliances
   - Update datamodel lifecycle
   - http-lib: log reason that causes lack of response
-  
+
   * Thu Aug 22 2024 Christian Lindig <christian.lindig@citrix.com> - 24.24.0-1
   - Add temporary exception for deprecation of `xmlStringDecodeEntities`
   - new-docs: Toggle hidden documentation only on header clicks
   - Revert "CP-51042: Raise error in sr-scan when SR.stat finds an unhealthy SR"
-  
+
   * Tue Aug 20 2024 Christian Lindig <christian.lindig@citrix.com> - 24.23.0-1
   - CP-49212: Update datamodel for non-CDN update
   - CP-49212: Add UT for update datamodel for non-CDN update
@@ -2438,7 +2438,7 @@ flaky test
   - CP-49217: Bump up schema vsn
   - CP-51042: Raise error in sr-scan when SR.stat finds an unhealthy SR
   - CP-49217: Refine test_tar_ext and add copyright
-  
+
   * Thu Aug 15 2024 Ming Lu <ming.lu@cloud.com> - 24.22.0-1
   - IH-662 - helpers.ml: Move to a threadsafe Re.Pcre instead of Re.Str
   - CP-50181: Percent decode all Uri paths before using them
@@ -2481,16 +2481,16 @@ flaky test
   - Retroactively sign off 8337fa94b76097428621d1e1987
   - CA-396751: write updated RRDD data before headers
   - CA-397268: vbd.create failed: The device name is invalid
-  
+
   * Fri Jul 26 2024 Pau Ruiz Safont <pau.ruizsafont@cloud.com> - 24.21.0-1
   - Improve build and test times
   - maintenance: delete unused fields
   - xapi: update mirage-crypto version
   - mirage-rng: Initialize it only in tests and selfcert
-  
+
   * Thu Jul 25 2024 Ming Lu <ming.lu@cloud.com> - 24.20.0-2
   - Bump release and rebuild
-  
+
   * Wed Jul 24 2024 Ming Lu <ming.lu@cloud.com> - 24.20.0-1
   - xe-xentrace: fix binary location
   - scripts/xentrace: detect host CPU spikes and dump xentrace
@@ -2621,7 +2621,7 @@ flaky test
   - opam: dunify message-switch-unix's metadata
   - IH-507: xapi_xenops: raise an error when the kernel isn't allowed
   - IH-507: Do not allow guest kernels in /boot/
-  
+
   * Tue Jul 16 2024 Ming Lu <ming.lu@cloud.com> - 24.19.2-1
   - CA-395626: Fix (server status report generation report)
 
