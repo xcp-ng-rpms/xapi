@@ -1,5 +1,5 @@
-%global package_speccommit 152a61bbe4a6c2e3f9911b65c80822966563a965
-%global package_srccommit v25.26.0
+%global package_speccommit 0617f0b9b65eb61ecae866c51b1e627bf2b67978
+%global package_srccommit v25.27.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -25,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.26.0
+Version: 25.27.0
 Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.26.0.tar.gz
+Source0: xen-api-25.27.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -81,7 +81,7 @@ Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v25.26.0..v25.26.0-8.3
+#   - git format-patch --no-numbered --no-signature v25.27.0..v25.27.0-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -134,6 +134,7 @@ Requires: hwdata
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
 Requires: vhd-tool
+Requires: qcow-stream-tool
 Requires: libffi
 Requires: busybox
 Requires: iproute
@@ -185,10 +186,12 @@ Requires: python3-wrapt
 # `service iptables save`
 Requires: iptables-services
 Requires: rsync
+Requires: xapi-ssh-monitor
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
 Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
+Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
@@ -376,6 +379,12 @@ Summary: Command-line tools for manipulating and streaming .vhd format files
 
 %description -n vhd-tool
 Simple command-line tools for manipulating and streaming .vhd format file.
+
+%package -n qcow-stream-tool
+Summary: Minimal CLI wrapper for qcow-stream
+
+%description -n qcow-stream-tool
+Minimal CLI wrapper for qcow-stream
 
 %package -n xcp-networkd
 Summary:  Simple host network management service for the xapi toolstack
@@ -649,6 +658,10 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %{?_cov_install}
 
 %{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
+
+%if 0%{?xenserver} < 9
+echo "ssh-auto-mode=false" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
+%endif
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %{__install} -D -m 0644 %{SOURCE20} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
@@ -1059,6 +1072,9 @@ done
 %{_unitdir}/network-init.service
 %{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
+%if 0%{?xenserver} < 9
+%config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
+%endif
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
 %if %{with own_yum_dir}
@@ -1318,6 +1334,9 @@ done
 /opt/xensource/libexec/get_nbd_extents.py
 /opt/xensource/libexec/python_nbd_client.py
 
+%files -n qcow-stream-tool
+%{_bindir}/qcow-stream-tool
+
 %files -n xcp-networkd
 %{_sbindir}/xcp-networkd
 %{_bindir}/networkd_db
@@ -1432,8 +1451,8 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.26.0-1.1
-- Update to upstream 25.26.0-1
+* Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.27.0-1.1
+- Update to upstream 25.27.0-1
 - Drop 0003-xcp-ng-disable-cancellable-sleep.patch, alternative fix merged upstream
 - Drop 0004-xcp-ng-add-debug-info-in-observer.patch, merged upstream
 - Rename 0005-xcp-ng-fix-IPv6-import.patch to 0003-xcp-ng-fix-IPv6-import.patch
@@ -1462,6 +1481,40 @@ Coverage files from unit tests
 - Drop 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch, merged upstream
 - Drop 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch, merged upstream
 - *** Upstream changelog ***
+  * Wed Jul 23 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.27.0-1
+  - CP-54332 Update host/pool datamodel to support SSH auto mode
+  - CP-53721 Implement SSH set auto mode API for Dom0 SSH control
+  - CP-53724 Add xe CLI commands for setting and querying Dom0 SSH auto mode
+  - CP-54382 Set Different Auto-Mode Default Values for XS8 and XS9
+  - CP-54382 Reconfigure Auto mode when pool join and pool eject
+  - CA-412854 Fix ssh_expiry drift after XAPI restart
+  - CA-413328 Enable auto-mode when XAPI failed for a extend period that exceeds the timeout duration
+  - CA-413319: Ensure console timeout file exists when timeout is configured
+  - CA-413424: Enhance xe help output
+  - xapi_sr_operations: Report more useful info when raising other_operation_in_progress error
+  - xapi_cluster_helpers: Correctly report other_operation_in_progress error
+  - xapi_vm_lifecycle: Correctly report other_operation_in_progress error
+  - qcow-stream-tool: Add a minimal CLI wrapper for Qcow_stream
+  - {export,import}_raw_vdi: add qcow as supported format
+  - export_raw_vdi: Add support for differential QCOW2 export with base
+  - CP-52334 MVD - add -d option to mock driver-tool
+  - xapi_vbd_helpers: Fix operation reporting when raising other_operation_in_progress
+  - xapi_vdi: Report more useful information when raising other_operation_in_progress
+  - xapi_{vif,vusb}_helpers: Report more useful information when raising other_operation_in_progress
+  - message_forwarding: Report more info when raising other_operation_in_progress
+  - xapi_pool_helpers: Report more info when raising other_operation_in_progress error
+  - xapi_pif: Report more info when raising other_operation_in_progress error
+  - xapi_vm_appliance_lifecycle: Report more info when raising other_operation_in_progress error
+  - xapi_vbd: Report more useful info when raising other_operation_in_progress error
+  - xapi_host_helpers: Report more useful info when raising other_operation_in_progress error
+  - xapi/helpers: Fix handling of other_operation_in_progress delays
+  - idl/datamodel_errors: Add operation_{type,ref} to other_operation_in_progress
+  - Adjust tests after other_operation_in_progress refactoring
+  - CA-412420: Set vdi-type When Create snapshot on SMAPIv3 SR
+  - [doc] add documentation about tracing
+  - CP-54480 Update release number for ssh_auto_mode
+  - CA-413587: Checking feature for old FreeBSD driver
+
   * Wed Jul 16 2025 Rob Hoes <rob.hoes@citrix.com> - 25.26.0-1
   - xenopsd: set xen-platform-pci-bar-uc key in xenstore
   - CP-308455 VM.sysprep add timeout parameter
