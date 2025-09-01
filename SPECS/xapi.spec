@@ -198,8 +198,8 @@ Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
 %if 0%{?xenserver} < 9
-# sysprep plugin/API
-Requires: genisoimage
+# XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
+#Requires: genisoimage
 %endif
 
 
