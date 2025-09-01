@@ -142,7 +142,8 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
-Requires: nss-override-id >= 2.0.0
+# XCP-ng: hcp_nss was renamed to nss-override-id. We don't use it at the moment.
+#Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
