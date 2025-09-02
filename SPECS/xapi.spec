@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.27.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1.1%{?xsrel}.gtn1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -90,6 +90,11 @@ Patch1003: 0003-xcp-ng-fix-IPv6-import.patch
 Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
+
+# Testing supported image format
+Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1013: 0003-Bumping-database-schema-version.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
