@@ -125,6 +125,9 @@ Patch1027: 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch
 # AMD pci MMIO Writeback workaround
 Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 
+Patch1029: 0029-xapi_vm_migrate-Fix-reservations-not-being-cleared-o.patch
+Patch1030: 0030-xapi-Don-t-check-for-resources-on-the-destination-du.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

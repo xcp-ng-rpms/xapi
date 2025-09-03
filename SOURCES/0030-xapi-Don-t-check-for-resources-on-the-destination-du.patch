@@ -1,0 +1,115 @@
+From e238421eefb91c86e3b2459ebe4be2433a6eca02 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 3 Sep 2025 15:47:54 +0100
+Subject: [PATCH] xapi: Don't check for resources on the destination during
+ localhost migration
+
+Don't reserve memory for the VM during localhost migration either.
+
+Otherwise VDI migrations that are not changing the host of the VM might fail
+because there is not enough resources on the host that's already running the
+VM.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/message_forwarding.ml | 23 ++++++++------
+ ocaml/xapi/xapi_vm_helpers.ml    | 51 +++++++++++++++++---------------
+ 2 files changed, 41 insertions(+), 33 deletions(-)
+
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index c843b5639..afcaa815b 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -1526,15 +1526,20 @@ functor
+       (* Used by VM.start_on, VM.resume_on, VM.migrate to verify a host has enough resource and to
+          'allocate_vm_to_host' (ie set the 'scheduled_to_be_resident_on' field) *)
+       let reserve_memory_for_vm ~__context ~vm ~snapshot ~host ?host_op f =
+-        Helpers.with_global_lock (fun () ->
+-            Xapi_vm_helpers.assert_can_boot_here ~__context ~self:vm ~host
+-              ~snapshot ~do_cpuid_check:false () ;
+-            (* NB in the case of migrate although we are about to increase free memory on the sending host
+-               we ignore this because if a failure happens while a VM is in-flight it will still be considered
+-               on both hosts, potentially breaking the failover plan. *)
+-            check_vm_preserves_ha_plan ~__context ~vm ~snapshot ~host ;
+-            allocate_vm_to_host ~__context ~vm ~host ~snapshot ?host_op ()
+-        ) ;
++        let is_local_live_migration =
++          Db.VM.get_power_state ~__context ~self:vm = `Running
++          && Db.VM.get_resident_on ~__context ~self:vm = host
++        in
++        if not is_local_live_migration then
++          Helpers.with_global_lock (fun () ->
++              Xapi_vm_helpers.assert_can_boot_here ~__context ~self:vm ~host
++                ~snapshot ~do_cpuid_check:false () ;
++              (* NB in the case of migrate although we are about to increase free memory on the sending host
++                 we ignore this because if a failure happens while a VM is in-flight it will still be considered
++                 on both hosts, potentially breaking the failover plan. *)
++              check_vm_preserves_ha_plan ~__context ~vm ~snapshot ~host ;
++              allocate_vm_to_host ~__context ~vm ~host ~snapshot ?host_op ()
++          ) ;
+         finally f (fun () ->
+             Helpers.with_global_lock (fun () ->
+                 finally_clear_host_operation ~__context ~host ?host_op () ;
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index d7f36c8f4..d7ffb3829 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -695,31 +695,34 @@ let assert_can_boot_here ~__context ~self ~host ~snapshot ~do_cpuid_check
+     && not is_local_live_migration
+   then
+     assert_host_is_enabled ~__context ~host ;
+-  (* Check the host can support the VM's required version of virtual hardware platform *)
+-  assert_hardware_platform_support ~__context ~vm:self
+-    ~host:(Helpers.LocalObject host) ;
+-  if do_cpuid_check then
+-    Cpuid_helpers.assert_vm_is_compatible ~__context ~vm:(`db self) ~host ;
+-  if do_sr_check then
+-    assert_can_see_SRs ~__context ~self ~host ;
+-  assert_can_see_networks ~__context ~self ~host ;
+-  if vm_needs_iommu ~__context ~self then
+-    assert_host_has_iommu ~__context ~host ;
+-  (* Assumption: a VM can have only one vGPU *)
+-  assert_no_legacy_vgpu ~__context ~vm:self ;
+-  if has_non_allocated_vgpus ~__context ~self then
+-    assert_gpus_available ~__context ~self ~host ;
+-  assert_usbs_available ~__context ~self ~host ;
+-  assert_netsriov_available ~__context ~self ~host ;
+-  ( match Helpers.domain_type ~__context ~self with
+-  | `hvm | `pv_in_pvh | `pvh ->
+-      assert_host_supports_hvm ~__context ~self ~host
+-  | `pv ->
+-      ()
++  (* Only check availability of resources if VM is actually going to move *)
++  if not is_local_live_migration then (
++    (* Check the host can support the VM's required version of virtual hardware platform *)
++    assert_hardware_platform_support ~__context ~vm:self
++      ~host:(Helpers.LocalObject host) ;
++    if do_cpuid_check then
++      Cpuid_helpers.assert_vm_is_compatible ~__context ~vm:(`db self) ~host ;
++    if do_sr_check then
++      assert_can_see_SRs ~__context ~self ~host ;
++    assert_can_see_networks ~__context ~self ~host ;
++    if vm_needs_iommu ~__context ~self then
++      assert_host_has_iommu ~__context ~host ;
++    (* Assumption: a VM can have only one vGPU *)
++    assert_no_legacy_vgpu ~__context ~vm:self ;
++    if has_non_allocated_vgpus ~__context ~self then
++      assert_gpus_available ~__context ~self ~host ;
++    assert_usbs_available ~__context ~self ~host ;
++    assert_netsriov_available ~__context ~self ~host ;
++    ( match Helpers.domain_type ~__context ~self with
++    | `hvm | `pv_in_pvh | `pvh ->
++        assert_host_supports_hvm ~__context ~self ~host
++    | `pv ->
++        ()
++    ) ;
++    if do_memory_check then
++      assert_enough_memory_available ~__context ~self ~host ~snapshot ;
++    assert_enough_pcpus ~__context ~self ~host ()
+   ) ;
+-  if do_memory_check then
+-    assert_enough_memory_available ~__context ~self ~host ~snapshot ;
+-  assert_enough_pcpus ~__context ~self ~host () ;
+   debug "All fine, VM %s can run on host %s!" (Ref.string_of self)
+     (Ref.string_of host)
+ 

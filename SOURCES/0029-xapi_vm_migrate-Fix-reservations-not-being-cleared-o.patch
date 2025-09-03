@@ -1,0 +1,40 @@
+From 83babeffdab940918786a3b99a35ef53126b26bd Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 3 Sep 2025 13:38:42 +0100
+Subject: [PATCH] xapi_vm_migrate: Fix reservations not being cleared on halted
+ VMs
+
+Cross-pool migrations set scheduled_to_be_resident_on to the destination host,
+reserving memory and vGPUs. If the VM is still halted when migration is
+finished, the field is not cleared on the destination, preserving the
+reservations even though they're not necessarily going to be used anytime soon.
+
+Call force_state_reset_keep_current_operations in pool_migrate_complete on the
+destination to clear the reservations among other things at the end of the
+migration.
+
+This fixes an issue when VMs migrated across pools in a halted state would take
+up memory in xapi's view (but not in RRD's view), which is not intuitive and
+could prevent further migrations from claiming enough free memory on the host.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_vm_migrate.ml | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/ocaml/xapi/xapi_vm_migrate.ml b/ocaml/xapi/xapi_vm_migrate.ml
+index fb0c3aba5..5c7b92b89 100644
+--- a/ocaml/xapi/xapi_vm_migrate.ml
++++ b/ocaml/xapi/xapi_vm_migrate.ml
+@@ -488,6 +488,11 @@ let pool_migrate_complete ~__context ~vm ~host:_ =
+     ~value:`restart_device_model ;
+   let dbg = Context.string_of_task __context in
+   let queue_name = Xapi_xenops_queue.queue_of_vm ~__context ~self:vm in
++  (* Reset the state, which will update allowed operations, clear reservations
++     for halted VMs, disconnect devices *)
++  let power_state = Db.VM.get_power_state ~__context ~self:vm in
++  Xapi_vm_lifecycle.force_state_reset_keep_current_operations ~__context
++    ~self:vm ~value:power_state ;
+   if Xapi_xenops.vm_exists_in_xenopsd queue_name dbg id then (
+     remove_stale_pcis ~__context ~vm ;
+     Xapi_xenops.set_resident_on ~__context ~self:vm ;
