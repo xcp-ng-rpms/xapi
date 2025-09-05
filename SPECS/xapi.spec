@@ -187,7 +187,8 @@ Requires: python3-wrapt
 # `service iptables save`
 Requires: iptables-services
 Requires: rsync
-Requires: xapi-ssh-monitor
+# XCP-ng: remove Requires for currently proprietary xapi-ssh-monitor
+#Requires: xapi-ssh-monitor
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
