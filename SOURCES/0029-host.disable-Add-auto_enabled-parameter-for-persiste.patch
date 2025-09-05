@@ -1,0 +1,369 @@
+From 5aa51707ce88fdcbe39bee4856eb9df81c9d573e Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 8 Sep 2025 08:54:13 +0100
+Subject: [PATCH] host.disable: Add auto_enabled parameter for persistency
+
+Currently a manually disabled host will be re-enabled on toolstack restarts
+and host reboots, which will provoke VM migrations in an HA cluster. If
+maintenance requires many restarts, that could be painful.
+
+To allow for keeping a host persistently disabled across toolstack
+restarts and host reboots, add a new localdb flag "host_auto_enable"
+(set through the parameter on Host.disable). This coexists with the internal
+flag of host_disabled_until_reboot, which is only set on host poweroff
+internally and cannot be controlled by the user directly.
+
+With host_auto_enable set to false, xapi will not re-enable a host on
+its own no matter what: toolstack restarts, host reboots, calls to
+consider_enabling_host (triggered by PBD plugs etc.) will have no effect.
+Only a manual call to Host.enable will re-enable the host.
+
+Expose the new parameter in the CLI. Also fix up the comment in
+xapi_host_helpers.mli.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/idl/datamodel_errors.ml           |  5 +++
+ ocaml/idl/datamodel_host.ml             | 27 ++++++++++++-
+ ocaml/xapi-cli-server/cli_frontend.ml   |  6 ++-
+ ocaml/xapi-cli-server/cli_operations.ml |  7 +++-
+ ocaml/xapi-consts/api_errors.ml         |  2 +
+ ocaml/xapi-consts/constants.ml          |  5 +++
+ ocaml/xapi/message_forwarding.ml        | 10 +++--
+ ocaml/xapi/xapi_host.ml                 | 21 ++++++++---
+ ocaml/xapi/xapi_host.mli                |  3 +-
+ ocaml/xapi/xapi_host_helpers.ml         | 50 ++++++++++++++++++-------
+ ocaml/xapi/xapi_host_helpers.mli        |  8 ++--
+ 11 files changed, 113 insertions(+), 31 deletions(-)
+
+diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
+index 5105df678..122f08e83 100644
+--- a/ocaml/idl/datamodel_errors.ml
++++ b/ocaml/idl/datamodel_errors.ml
+@@ -665,6 +665,11 @@ let _ =
+       "The specified server is disabled and cannot be re-enabled until after \
+        it has rebooted."
+     () ;
++  error Api_errors.host_disabled_indefinitely ["host"]
++    ~doc:
++      "The specified server is disabled and can only be re-enabled manually \
++       with Host.enable."
++    () ;
+   error Api_errors.no_hosts_available []
+     ~doc:"There were no servers available to complete the specified operation."
+     () ;
+diff --git a/ocaml/idl/datamodel_host.ml b/ocaml/idl/datamodel_host.ml
+index 10607e7e3..2594a6fb2 100644
+--- a/ocaml/idl/datamodel_host.ml
++++ b/ocaml/idl/datamodel_host.ml
+@@ -625,12 +625,37 @@ let disable =
+         , "Puts the host into a state in which no new VMs can be started. \
+            Currently active VMs on the host continue to execute."
+         )
++      ; ( Changed
++        , "25.31.0"
++        , "Added auto_enable option to allow persisting the state across \
++           toolstack restarts and host reboots."
++        )
+       ]
+     ~name:"disable"
+     ~doc:
+       "Puts the host into a state in which no new VMs can be started. \
+        Currently active VMs on the host continue to execute."
+-    ~params:[(Ref _host, "host", "The Host to disable")]
++    ~versioned_params:
++      [
++        {
++          param_type= Ref _host
++        ; param_name= "host"
++        ; param_doc= "The Host to disable"
++        ; param_release= rio_release
++        ; param_default= None
++        }
++      ; {
++          param_type= Bool
++        ; param_name= "auto_enable"
++        ; param_doc=
++            "If true (default), the host will be re-enabled after a toolstack \
++             restart automatically. If false, the host will be disabled \
++             indefinitely, across toolstack restarts and host reboots, until \
++             re-enabled explicitly with Host.enable."
++        ; param_release= numbered_release "25.31.0"
++        ; param_default= Some (VBool true)
++        }
++      ]
+     ~allowed_roles:(_R_POOL_OP ++ _R_CLIENT_CERT)
+     ()
+ 
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index 05c9890ff..89f97b641 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -573,8 +573,10 @@ let rec cmdtable_data : (string * cmd_spec) list =
+   ; ( "host-disable"
+     , {
+         reqd= []
+-      ; optn= []
+-      ; help= "Disable the XE host."
++      ; optn= ["auto-enable"]
++      ; help=
++          "Disable the XE host. Setting auto-enable=false will keep the host \
++           persistently disabled until manually re-enabled with Host.enable."
+       ; implementation= No_fd Cli_operations.host_disable
+       ; flags= [Host_selectors]
+       }
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 265c6f86a..d65a6fce0 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -2237,6 +2237,9 @@ let print_assert_exception e =
+       "VM requires access to SR: " ^ Cli_util.ref_convert (get_arg 2 params)
+   | Api_errors.Server_error (code, _) when code = Api_errors.host_disabled ->
+       "Host disabled (use 'xe host-enable' to re-enable)"
++  | Api_errors.Server_error (code, _)
++    when code = Api_errors.host_disabled_indefinitely ->
++      "Host disabled indefinitely (use 'xe host-enable' to re-enable)"
+   | Api_errors.Server_error (code, _) when code = Api_errors.host_not_live ->
+       "Host down"
+   | Api_errors.Server_error (code, _)
+@@ -6534,12 +6537,14 @@ let bond_set_mode _printer rpc session_id params =
+   Client.Bond.set_mode ~rpc ~session_id ~self:bond ~value:mode
+ 
+ let host_disable _printer rpc session_id params =
++  let auto_enable = get_bool_param ~default:true params "auto-enable" in
+   ignore
+     (do_host_op rpc session_id
+        (fun _ host ->
+          Client.Host.disable ~rpc ~session_id ~host:(host.getref ())
++           ~auto_enable
+        )
+-       params []
++       params ["auto-enable"]
+     )
+ 
+ let host_sync_data _printer rpc session_id params =
+diff --git a/ocaml/xapi-consts/api_errors.ml b/ocaml/xapi-consts/api_errors.ml
+index 8d31f1e7d..f92c43ac8 100644
+--- a/ocaml/xapi-consts/api_errors.ml
++++ b/ocaml/xapi-consts/api_errors.ml
+@@ -113,6 +113,8 @@ let host_disabled = add_error "HOST_DISABLED"
+ 
+ let host_disabled_until_reboot = add_error "HOST_DISABLED_UNTIL_REBOOT"
+ 
++let host_disabled_indefinitely = add_error "HOST_DISABLED_INDEFINITELY"
++
+ let host_not_disabled = add_error "HOST_NOT_DISABLED"
+ 
+ let host_not_live = add_error "HOST_NOT_LIVE"
+diff --git a/ocaml/xapi-consts/constants.ml b/ocaml/xapi-consts/constants.ml
+index d3ee0bf85..61f00783f 100644
+--- a/ocaml/xapi-consts/constants.ml
++++ b/ocaml/xapi-consts/constants.ml
+@@ -216,6 +216,11 @@ let master_scripts = "master_scripts"
+    This will prevent anyone from re-enabling the host and starting VMs on it during shutdown. *)
+ let host_disabled_until_reboot = "host_disabled_until_reboot"
+ 
++(* This flag is set to false when the host is forcibly disabled in a
++   persistent way - it will not be re-enabled on startup (even after reboots)
++   until manually directed by the user *)
++let host_auto_enable = "host_auto_enable"
++
+ (* Set when shutting down and rebooting. If we come up and finds no new crashdump and HA is enabled,
+    we assume the host was fenced. *)
+ let host_restarted_cleanly = "host_restarted_cleanly"
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index c843b5639..ad2e845b6 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -3354,14 +3354,16 @@ functor
+           (host_uuid ~__context host) ;
+         Local.Host.get_management_interface ~__context ~host
+ 
+-      let disable ~__context ~host =
+-        info "Host.disable: host = '%s'" (host_uuid ~__context host) ;
++      let disable ~__context ~host ~auto_enable =
++        info "Host.disable: host = '%s', auto_enable = '%b'"
++          (host_uuid ~__context host)
++          auto_enable ;
+         (* Block call if this would break our VM restart plan *)
+         Xapi_ha_vm_failover.assert_host_disable_preserves_ha_plan ~__context
+           host ;
+-        let local_fn = Local.Host.disable ~host in
++        let local_fn = Local.Host.disable ~host ~auto_enable in
+         do_op_on ~local_fn ~__context ~host (fun session_id rpc ->
+-            Client.Host.disable ~rpc ~session_id ~host
++            Client.Host.disable ~rpc ~session_id ~host ~auto_enable
+         ) ;
+         Xapi_host_helpers.update_allowed_operations ~__context ~self:host
+ 
+diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
+index ec61f37f0..8a75aa277 100644
+--- a/ocaml/xapi/xapi_host.ml
++++ b/ocaml/xapi/xapi_host.ml
+@@ -74,7 +74,7 @@ let set_power_on_mode ~__context ~self ~power_on_mode ~power_on_config =
+         + HA is enabled and this host has broken storage or networking which would cause protected VMs
+         to become non-agile
+ *)
+-let assert_safe_to_reenable ~__context ~self =
++let assert_safe_to_reenable ~__context ~self ~user_request =
+   assert_startup_complete () ;
+   Repository_helpers.assert_no_host_pending_mandatory_guidance ~__context
+     ~host:self ;
+@@ -87,6 +87,14 @@ let assert_safe_to_reenable ~__context ~self =
+       (Api_errors.Server_error
+          (Api_errors.host_disabled_until_reboot, [Ref.string_of self])
+       ) ;
++  let host_auto_enable =
++    try bool_of_string (Localdb.get Constants.host_auto_enable) with _ -> true
++  in
++  if (not host_auto_enable) && not user_request then
++    raise
++      (Api_errors.Server_error
++         (Api_errors.host_disabled_indefinitely, [Ref.string_of self])
++      ) ;
+   if Db.Pool.get_ha_enabled ~__context ~self:(Helpers.get_pool ~__context) then (
+     let pbds = Db.Host.get_PBDs ~__context ~self in
+     let unplugged_pbds =
+@@ -782,20 +790,23 @@ let shutdown_agent ~__context =
+     ~reason:Xapi_hooks.reason__clean_shutdown ;
+   Xapi_fuse.light_fuse_and_dont_restart ~fuse_length:1. ()
+ 
+-let disable ~__context ~host =
++let disable ~__context ~host ~auto_enable =
+   if Db.Host.get_enabled ~__context ~self:host then (
+     info
+       "Host.enabled: setting host %s (%s) to disabled because of user request"
+       (Ref.string_of host)
+       (Db.Host.get_hostname ~__context ~self:host) ;
+     Db.Host.set_enabled ~__context ~self:host ~value:false ;
+-    Xapi_host_helpers.user_requested_host_disable := true
++    Xapi_host_helpers.user_requested_host_disable := true ;
++    if not auto_enable then
++      Localdb.put Constants.host_auto_enable "false"
+   )
+ 
+ let enable ~__context ~host =
+   if not (Db.Host.get_enabled ~__context ~self:host) then (
+-    assert_safe_to_reenable ~__context ~self:host ;
++    assert_safe_to_reenable ~__context ~self:host ~user_request:true ;
+     Xapi_host_helpers.user_requested_host_disable := false ;
++    Localdb.put Constants.host_auto_enable "true" ;
+     info "Host.enabled: setting host %s (%s) to enabled because of user request"
+       (Ref.string_of host)
+       (Db.Host.get_hostname ~__context ~self:host) ;
+@@ -3088,7 +3099,7 @@ let apply_updates ~__context ~self ~hash =
+     if Db.Pool.get_ha_enabled ~__context ~self:pool then
+       raise Api_errors.(Server_error (ha_is_enabled, [])) ;
+     if Db.Host.get_enabled ~__context ~self then (
+-      disable ~__context ~host:self ;
++      disable ~__context ~host:self ~auto_enable:true ;
+       Xapi_host_helpers.update_allowed_operations ~__context ~self
+     ) ;
+     Xapi_host_helpers.with_host_operation ~__context ~self
+diff --git a/ocaml/xapi/xapi_host.mli b/ocaml/xapi/xapi_host.mli
+index c81b4e7b2..4e31cc3f8 100644
+--- a/ocaml/xapi/xapi_host.mli
++++ b/ocaml/xapi/xapi_host.mli
+@@ -79,7 +79,8 @@ val restart_agent : __context:'a -> host:'b -> unit
+ 
+ val shutdown_agent : __context:Context.t -> unit
+ 
+-val disable : __context:Context.t -> host:[`host] Ref.t -> unit
++val disable :
++  __context:Context.t -> host:[`host] Ref.t -> auto_enable:bool -> unit
+ 
+ val enable : __context:Context.t -> host:[`host] Ref.t -> unit
+ 
+diff --git a/ocaml/xapi/xapi_host_helpers.ml b/ocaml/xapi/xapi_host_helpers.ml
+index eb707de38..2620d0a0a 100644
+--- a/ocaml/xapi/xapi_host_helpers.ml
++++ b/ocaml/xapi/xapi_host_helpers.ml
+@@ -417,17 +417,33 @@ let consider_enabling_host_nolock ~__context =
+       else
+         f ()
+     in
++    let host_auto_enable =
++      try bool_of_string (Localdb.get Constants.host_auto_enable)
++      with _ -> true
++    in
+     if !Xapi_globs.on_system_boot then (
+       debug "Host.enabled: system has just restarted" ;
+       if_no_pending_guidances (fun () ->
+           debug
+             "Host.enabled: system has just restarted and no pending mandatory \
+-             guidances: setting localhost to enabled" ;
+-          Db.Host.set_enabled ~__context ~self:localhost ~value:true ;
+-          update_allowed_operations ~__context ~self:localhost ;
++             guidances: clearing host_disabled_until_reboot" ;
+           Localdb.put Constants.host_disabled_until_reboot "false" ;
+-          (* Start processing pending VM powercycle events *)
+-          Local_work_queue.start_vm_lifecycle_queue ()
++
++          (* If the host was persistently disabled, honour it *)
++          if host_auto_enable then (
++            debug
++              "Host.enabled: system has just restarted, no pending mandatory \
++               guidances and host_auto_enable=true: setting localhost to \
++               enabled" ;
++            Db.Host.set_enabled ~__context ~self:localhost ~value:true ;
++            update_allowed_operations ~__context ~self:localhost ;
++            (* Start processing pending VM powercycle events *)
++            Local_work_queue.start_vm_lifecycle_queue ()
++          ) else
++            debug
++              "Host.enabled: system has just restarted, no pending mandatory \
++               guidances, but host_auto_enable=false: Leaving host disabled \
++               until manually re-enabled by the user"
+       )
+     ) else if
+         try bool_of_string (Localdb.get Constants.host_disabled_until_reboot)
+@@ -441,14 +457,22 @@ let consider_enabling_host_nolock ~__context =
+         "Host.enabled: system not just rebooted && host_disabled_until_reboot \
+          not set" ;
+       if_no_pending_guidances (fun () ->
+-          debug
+-            "Host.enabled: system not just rebooted && \
+-             host_disabled_until_reboot not set and no pending mandatory \
+-             guidances: setting localhost to enabled" ;
+-          Db.Host.set_enabled ~__context ~self:localhost ~value:true ;
+-          update_allowed_operations ~__context ~self:localhost ;
+-          (* Start processing pending VM powercycle events *)
+-          Local_work_queue.start_vm_lifecycle_queue ()
++          if host_auto_enable then (
++            debug
++              "Host.enabled: system not just rebooted && \
++               host_disabled_until_reboot not set and no pending mandatory \
++               guidances and host_auto_enable=true: setting localhost to \
++               enabled" ;
++            Db.Host.set_enabled ~__context ~self:localhost ~value:true ;
++            update_allowed_operations ~__context ~self:localhost ;
++            (* Start processing pending VM powercycle events *)
++            Local_work_queue.start_vm_lifecycle_queue ()
++          ) else
++            debug
++              "Host.enabled: system not just rebooted && \
++               host_disabled_until_reboot not set and no pending mandatory \
++               guidances but host_auto_enable=false: Leaving host disabled \
++               until manually re-enabled by the user"
+       )
+     ) ;
+     (* If Host has been enabled and HA is also enabled then tell the master to recompute its plan *)
+diff --git a/ocaml/xapi/xapi_host_helpers.mli b/ocaml/xapi/xapi_host_helpers.mli
+index 519aa34a5..f5a7a3193 100644
+--- a/ocaml/xapi/xapi_host_helpers.mli
++++ b/ocaml/xapi/xapi_host_helpers.mli
+@@ -76,10 +76,10 @@ val mark_host_as_dead :
+ val consider_enabling_host : __context:Context.t -> unit
+ (** [consider_enabling_host ~__context] is called at the end of the xapi
+     startup sequence. It will enable the host unless:
+-    {ul
+-    {- the user asked the host to be disabled and there was a problem}
+-    {- HA is enabled and one-or-more PBDs failed to plug}
+-    {- `disabled_until_next_reboot` is set in the local DB}}
++    - the user asked the host to be disabled and there was a problem
++    - HA is enabled and one-or-more PBDs failed to plug
++    - `host_disabled_until_reboot` is set in the local DB and the system
++      hasn't just booted up
+ *)
+ 
+ val consider_enabling_host_request : __context:Context.t -> unit
