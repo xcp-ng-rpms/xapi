@@ -1,4 +1,4 @@
-%global package_speccommit 0617f0b9b65eb61ecae866c51b1e627bf2b67978
+%global package_speccommit 63a64e044f1bc3ed826df7d1dc6e342c745f174a
 %global package_srccommit v25.27.0
 
 # This matches the location where xen installs the ocaml libraries
@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.27.0
-Release: 1.1%{?xsrel}%{?dist}
+Release: 2.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -78,6 +78,9 @@ Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 %endif
+
+# Patches that are universal
+Patch10: 0001-Simplify-UTF-8-decoding.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
@@ -1453,8 +1456,8 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.27.0-1.1
-- Update to upstream 25.27.0-1
+* Thu Aug 07 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.27.0-2.1
+- Update to upstream 25.27.0-2
 - Drop 0003-xcp-ng-disable-cancellable-sleep.patch, alternative fix merged upstream
 - Drop 0004-xcp-ng-add-debug-info-in-observer.patch, merged upstream
 - Rename 0005-xcp-ng-fix-IPv6-import.patch to 0003-xcp-ng-fix-IPv6-import.patch
@@ -1483,6 +1486,9 @@ Coverage files from unit tests
 - Drop 0027-CA-407370-Use-remote.conf-for-customer-rsyslog-forwa.patch, merged upstream
 - Drop 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch, merged upstream
 - *** Upstream changelog ***
+  * Tue Sep 02 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.27.0-2
+  - CA-411297/XSA-474: XAPI UTF8
+
   * Wed Jul 23 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.27.0-1
   - CP-54332 Update host/pool datamodel to support SSH auto mode
   - CP-53721 Implement SSH set auto mode API for Dom0 SSH control
