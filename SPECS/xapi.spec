@@ -1,4 +1,4 @@
-%global package_speccommit 0617f0b9b65eb61ecae866c51b1e627bf2b67978
+%global package_speccommit 63a64e044f1bc3ed826df7d1dc6e342c745f174a
 %global package_srccommit v25.27.0
 
 # This matches the location where xen installs the ocaml libraries
@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.27.0
-Release: 1%{?xsrel}%{?dist}
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -78,6 +78,9 @@ Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 %endif
+
+# Patches that are universal
+Patch10: 0001-Simplify-UTF-8-decoding.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1410,6 +1413,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Sep 02 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.27.0-2
+- CA-411297/XSA-474: XAPI UTF8
+
 * Wed Jul 23 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.27.0-1
 - CP-54332 Update host/pool datamodel to support SSH auto mode
 - CP-53721 Implement SSH set auto mode API for Dom0 SSH control
@@ -1955,6 +1961,9 @@ Coverage files from unit tests
 - Debug: add pretty-printing function for signals
 - CA-404597: rrd/lib_test - Verify that RRD handles non-rate data sources correctly
 - CA-404597: rrd - Pass Gauge and Absolute data source values as-is
+
+* Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
+- CA-404512: Add feature flag to the new clustering interface
 
 * Mon Jan 13 2025 Gang Ji <gang.ji@cloud.com> - 25.1.0-1
 - CA-403620: Drop the usage of fuser in stunnel client proxy
