@@ -1,35 +1,27 @@
-From 7997f8445d933a14f937816ea4cb26708c7519b8 Mon Sep 17 00:00:00 2001
-From: Andrii Sultanov <andriy.sultanov@vates.tech>
-Date: Wed, 27 Aug 2025 14:06:15 +0100
-Subject: [PATCH] Simplify UTF-8 decoding
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
+From c93e28d3d93763b5bb113646ff064796ef859294 Mon Sep 17 00:00:00 2001
+From: Christian Lindig <christian.lindig@cloud.com>
+Date: Tue, 15 Jul 2025 14:31:31 +0100
+Subject: [PATCH 1/1] Simplify UTF-8 decoding
 
 * Use the decoder from the OCaml standard library instead of
   our own implementation, which this patch removes.
 * Validate UTF-8/XML conformance for maps and sets, in addition to
   strings.
 
-This is XSA-474 / CVE-2025-58146.
-
 Signed-off-by: Christian Lindig <christian.lindig@cloud.com>
-Reviewed-by: Edwin Török <edwin.torok@cloud.com>
-
-Backport:
-Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
 ---
- ocaml/database/db_cache_impl.ml               |  32 +-
+ ocaml/database/db_cache_impl.ml               |  42 +-
  ocaml/database/string_marshall_helper.ml      |   4 +-
  ocaml/idl/ocaml_backend/gen_server.ml         |   2 +-
- .../lib/xapi-stdext-encodings/dune            |   9 +-
+ .../bench/bench_encodings.ml                  |   4 +-
+ .../lib/xapi-stdext-encodings/dune            |   8 +-
  .../lib/xapi-stdext-encodings/encodings.ml    | 167 ------
  .../lib/xapi-stdext-encodings/encodings.mli   |  84 ---
  .../lib/xapi-stdext-encodings/test.ml         | 533 ------------------
  .../lib/xapi-stdext-encodings/utf8.ml         |  74 +++
  .../lib/xapi-stdext-encodings/utf8.mli        |  31 +
  ocaml/xapi/xapi_message.ml                    |   4 +-
- 10 files changed, 137 insertions(+), 803 deletions(-)
+ 11 files changed, 138 insertions(+), 815 deletions(-)
  delete mode 100644 ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/encodings.ml
  delete mode 100644 ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/encodings.mli
  delete mode 100644 ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/test.ml
@@ -37,10 +29,10 @@ Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
  create mode 100644 ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/utf8.mli
 
 diff --git a/ocaml/database/db_cache_impl.ml b/ocaml/database/db_cache_impl.ml
-index 7bbf062bd..171e3cc7b 100644
+index e9745749a..050d43f05 100644
 --- a/ocaml/database/db_cache_impl.ml
 +++ b/ocaml/database/db_cache_impl.ml
-@@ -62,9 +62,7 @@ let read_field t tblname fldname objref =
+@@ -67,9 +67,7 @@ let read_field t tblname fldname objref =
      occurs. *)
  let ensure_utf8_xml string =
    let length = String.length string in
@@ -51,16 +43,7 @@ index 7bbf062bd..171e3cc7b 100644
    if length > String.length prefix then
      warn "string truncated to: '%s'." prefix ;
    prefix
-@@ -75,7 +73,7 @@ let write_field_locked t tblname objref fldname newval =
-   if current_val <> newval then (
-     ( match newval with
-     | Schema.Value.String s ->
--        if not (Xapi_stdext_encodings.Encodings.UTF8_XML.is_valid s) then
-+        if not (Xapi_stdext_encodings.Utf8.XML.is_valid s) then
-           raise Invalid_value
-     | _ ->
-         ()
-@@ -86,12 +84,36 @@ let write_field_locked t tblname objref fldname newval =
+@@ -86,20 +84,32 @@ let write_field_locked t tblname objref fldname newval =
        (get_database t)
    )
  
@@ -84,10 +67,18 @@ index 7bbf062bd..171e3cc7b 100644
 +      v
 +
  let write_field t tblname objref fldname newval =
-   let db = get_database t in
-   let schema = Schema.table tblname (Database.schema db) in
-   let column = Schema.Table.find fldname schema in
-   let newval = Schema.Value.unmarshal column.Schema.Column.ty newval in
+-  let newval =
+-    match newval with
+-    | Schema.Value.String s ->
+-        (* the other caller of write_field_locked only uses sets and maps,
+-           so we only need to check for String here
+-        *)
+-        if not (Xapi_stdext_encodings.Encodings.UTF8_XML.is_valid s) then
+-          raise Invalid_value ;
+-        Schema.Value.String (Share.merge s)
+-    | _ ->
+-        newval
+-  in
 -  with_lock (fun () -> write_field_locked t tblname objref fldname newval)
 +  if not @@ is_valid newval then
 +    raise Invalid_value
@@ -114,10 +105,10 @@ index ba003bee9..1add3aef7 100644
      D.warn "Whilst doing 'set' of structured field, string truncated to: '%s'."
        prefix ;
 diff --git a/ocaml/idl/ocaml_backend/gen_server.ml b/ocaml/idl/ocaml_backend/gen_server.ml
-index 31e2bbe16..93cc845ac 100644
+index 191450212..f95f5f6d9 100644
 --- a/ocaml/idl/ocaml_backend/gen_server.ml
 +++ b/ocaml/idl/ocaml_backend/gen_server.ml
-@@ -478,7 +478,7 @@ let gen_module api : O.Module.t =
+@@ -457,7 +457,7 @@ let gen_module api : O.Module.t =
                 ([
                    "let __call, __params = call.Rpc.name, call.Rpc.params in"
                  ; "List.iter (fun p -> let s = Rpc.to_string p in if not \
@@ -126,24 +117,43 @@ index 31e2bbe16..93cc845ac 100644
                  ; "raise (Api_errors.Server_error(Api_errors.invalid_value, \
                     [\"Invalid UTF-8 string in parameter\"; s])))  __params;"
                  ; "let __label = __call in"
+diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/bench/bench_encodings.ml b/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/bench/bench_encodings.ml
+index 7308c756d..bb20eed4f 100644
+--- a/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/bench/bench_encodings.ml
++++ b/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/bench/bench_encodings.ml
+@@ -1,5 +1,5 @@
+ open Bechamel
+-open Xapi_stdext_encodings.Encodings
++open Xapi_stdext_encodings
+ 
+ let test name f =
+   Test.make_indexed_with_resource ~name ~args:[10; 1000; 10000]
+@@ -10,6 +10,6 @@ let test name f =
+ 
+ let benchmarks =
+   Test.make_grouped ~name:"Encodings.validate"
+-    [test "UTF8_XML" UTF8_XML.validate]
++    [test "UTF8.XML" Utf8.XML.is_valid]
+ 
+ let () = Bechamel_simple_cli.cli benchmarks
 diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/dune b/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/dune
-index 742dd212f..f1b67b8f6 100644
+index 742dd212f..839346e35 100644
 --- a/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/dune
 +++ b/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/dune
-@@ -1,12 +1,5 @@
+@@ -1,12 +1,6 @@
  (library
    (name xapi_stdext_encodings)
    (public_name xapi-stdext-encodings)
 -  (modules :standard \ test)
--)
--
++  (modules :standard)
+ )
+ 
 -(test
 -  (name test)
 -  (package xapi-stdext-encodings)
 -  (modules test)
 -  (libraries alcotest xapi-stdext-encodings)
-+  (modules :standard)
- )
+-)
 diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/encodings.ml b/ocaml/libs/xapi-stdext/lib/xapi-stdext-encodings/encodings.ml
 deleted file mode 100644
 index 2dfd45a7d..000000000
@@ -1064,13 +1074,13 @@ index 000000000..6d8949e2f
 +      Better reject invalid UTF-8. *)
 +end
 diff --git a/ocaml/xapi/xapi_message.ml b/ocaml/xapi/xapi_message.ml
-index 2bc570925..745785318 100644
+index 408ba7acf..4c08648dc 100644
 --- a/ocaml/xapi/xapi_message.ml
 +++ b/ocaml/xapi/xapi_message.ml
 @@ -28,7 +28,7 @@
   *)
  
- module Date = Xapi_stdext_date.Date
+ module Date = Clock.Date
 -module Encodings = Xapi_stdext_encodings.Encodings
 +module Encodings = Xapi_stdext_encodings
  module Listext = Xapi_stdext_std.Listext
@@ -1085,3 +1095,6 @@ index 2bc570925..745785318 100644
      raise (Api_errors.Server_error (Api_errors.invalid_value, ["UTF8 expected"])) ;
    if not (check_uuid ~__context ~cls ~uuid:obj_uuid) then
      raise
+-- 
+2.43.0
+
