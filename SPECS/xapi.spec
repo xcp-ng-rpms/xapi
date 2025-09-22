@@ -145,7 +145,8 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
-Requires: nss-override-id >= 2.0.0
+# XCP-ng: hcp_nss was renamed to nss-override-id. We don't use it at the moment.
+#Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
 # Requires yum as package manager
 Requires: yum-utils >= 1.1.31
@@ -189,7 +190,8 @@ Requires: python3-wrapt
 # `service iptables save`
 Requires: iptables-services
 Requires: rsync
-Requires: xapi-ssh-monitor
+# XCP-ng: remove Requires for currently proprietary xapi-ssh-monitor
+#Requires: xapi-ssh-monitor
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -200,8 +202,8 @@ Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
 %if 0%{?xenserver} < 9
-# sysprep plugin/API
-Requires: genisoimage
+# XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
+#Requires: genisoimage
 %endif
 
 
