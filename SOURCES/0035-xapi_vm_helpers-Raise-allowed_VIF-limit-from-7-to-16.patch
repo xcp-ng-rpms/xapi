@@ -1,0 +1,54 @@
+From 6d5ff22ef29b3f91d25521928972b34fcd2cd266 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 4 Jul 2025 15:54:59 +0100
+Subject: [PATCH] xapi_vm_helpers: Raise allowed_VIF limit from 7 to 16
+
+With the previously hardcoded value of max_grant_frames, we could only support
+7 VIFs at most (and fewer if there were also many VBDs), since having 9 and
+more VIFs would result in grant allocation errors.
+
+Now that max_grant_frames is dynamically estimated on domain creation given the
+number of VIFs and VBDs a VM has, we can easily support 16 VIFs.
+
+Given the current behaviour of the XenServer/XCP-ng system
+(hypervisor+drivers), where more VIFs allow for higher overall networking
+throughput, this is highly beneficial - in testing overall throughput with 16
+VIFs was 18-27% higher than with 8 VIFs (tested with multiple iperf3 instances
+running on all interfaces simultaneously)
+
+Moreover, some users coming from VMWare are used to networking setups with
+dozens of VIFs, and this is a step towards allowing that without encountering
+any other bottlenecks in the system.
+
+NOTE: We are currently only allocating enough grants for 1 hotplugged VIF
+above 7. Therefore, technically we shouldn't allow creating more than one VIF
+when the VM is running (or paused), but there is currently no way in xapi to
+check how many and which VIFs were hotplugged as far as I know, and
+allowed_VIFs are honoured by clients on VIF creation, not hotplug.
+Since this is in keeping with the previous behaviour of this field (if VM has
+many VBDs, it wouldn't have been able to allocate 7 VIFs before) as an
+"advice", and not a "guarantee" or "limit", I've decided to keep it as-is.
+A more detailed technical explanation of the supported limit should be
+described elsewhere in support statements.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_vm_helpers.ml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index d7f36c8f4..88f401aef 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -1304,9 +1304,9 @@ let allowed_VBD_devices_HVM_floppy =
+     (fun x -> Device_number.(make Floppy ~disk:x ~partition:0))
+     (inclusive_range 0 1)
+ 
+-let allowed_VIF_devices_HVM = vif_inclusive_range 0 6
++let allowed_VIF_devices_HVM = vif_inclusive_range 0 15
+ 
+-let allowed_VIF_devices_PV = vif_inclusive_range 0 6
++let allowed_VIF_devices_PV = vif_inclusive_range 0 15
+ 
+ (** [possible_VBD_devices_of_string s] returns a list of Device_number.t which
+     	represent possible interpretations of [s]. *)
