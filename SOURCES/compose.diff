@@ -1,0 +1,33 @@
+diff --git a/ocaml/xapi/storage_smapiv1_migrate.ml b/ocaml/xapi/storage_smapiv1_migrate.ml
+index c850d61f8..94169c483 100644
+--- a/ocaml/xapi/storage_smapiv1_migrate.ml
++++ b/ocaml/xapi/storage_smapiv1_migrate.ml
+@@ -610,9 +610,14 @@ module MIRROR : SMAPIv2_MIRROR = struct
+         D.debug "Local VDI %s = remote VDI %s"
+           (Storage_interface.Vdi.string_of snapshot.vdi)
+           (Storage_interface.Vdi.string_of new_parent.vdi) ;
++        Remote.VDI.compose dbg dest_sr mirror_res.Mirror.copy_diffs_to mirror_res.Mirror.mirror_vdi.vdi;
++        Remote.VDI.remove_from_sm_config dbg dest_sr mirror_res.Mirror.mirror_vdi.vdi "base_mirror";
+         D.debug "Local VDI %s now mirrored to remote VDI: %s"
+           (Storage_interface.Vdi.string_of local_vdi.vdi)
+           (Storage_interface.Vdi.string_of mirror_res.Mirror.mirror_vdi.vdi) ;
++        D.debug "Destroying dummy VDI %s on remote"
++          (Storage_interface.Vdi.string_of mirror_res.Mirror.dummy_vdi) ;
++        Remote.VDI.destroy dbg dest_sr mirror_res.Mirror.dummy_vdi;
+         mirror_cleanup ~dbg ~sr ~snapshot
+ 
+   let receive_start_common ~dbg ~sr ~vdi_info ~id ~similar ~vm
+@@ -765,11 +770,11 @@ module MIRROR : SMAPIv2_MIRROR = struct
+           (Vdi.string_of r.parent_vdi)
+           (Vdi.string_of r.leaf_vdi) ;
+         SMAPI.DP.destroy2 dbg r.leaf_dp r.sr r.leaf_vdi r.mirror_vm false ;
+-        SMAPI.VDI.compose dbg r.sr r.parent_vdi r.leaf_vdi ;
++        (*SMAPI.VDI.compose dbg r.sr r.parent_vdi r.leaf_vdi ;
+         (* On SMAPIv3, compose would have removed the now invalid dummy vdi, so
+            there is no need to destroy it anymore, while this is necessary on SMAPIv1 SRs. *)
+         D.log_and_ignore_exn (fun () -> SMAPI.VDI.destroy dbg r.sr r.dummy_vdi) ;
+-        SMAPI.VDI.remove_from_sm_config dbg r.sr r.leaf_vdi "base_mirror"
++        SMAPI.VDI.remove_from_sm_config dbg r.sr r.leaf_vdi "base_mirror"*)
+       )
+       recv_state ;
+     State.remove_receive_mirror mirror_id
