@@ -1,0 +1,301 @@
+From f43d48665107d1ee4adb2cb6e73ce1e3e4c9d814 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andrii.sultanov@cloud.com>
+Date: Mon, 11 Nov 2024 15:29:08 +0000
+Subject: [PATCH] CP-40265 - xenopsd: Calculate max_grant_frames dynamically
+
+Plumb the expected number of VBDs and VIFs to xenopsd's VM_create micro-op,
+allowing the domain creation code to estimate how big max_grant_frames
+value needs to be. Previously it was hardcoded to 64 but that was found lacking
+in situations with a lot of VBDs and VIFs under load, as they'd run out of grant
+table entries and the VM would crash.
+
+Now, when fewer VIFs and VBDs are expected, fewer grant table entries are
+needed, and the other way around. An expectation of 1 hotplugged VIF and VBD
+each is accounted for as well, this can possibly be incremented in the future
+if we decide, say, 2 hotplugged devices are common enough.
+
+The VBD calculation is complex and approximate, as explained in the code.
+Size of the ring was calculated with the following program (important because
+struct sizes can change, and the code comment also outlines how this can be
+improved in the future with feature detection, in which case more constants
+would need to be considered), attaching it here because the BLK_RING_SIZE
+macro is otherwise hard to decipher by hand:
+
+```
+// Can be compiled with just gcc test.c
+// # ./test
+// 64
+// 112
+// 32
+\#include <stdint.h>
+\#include <stdio.h>
+\#include <stddef.h>
+
+struct tester {
+    unsigned int req_prod, req_event;
+    unsigned int rsp_prod, rsp_event;
+    uint8_t __pad[48];
+    int ring;
+};
+
+typedef uint32_t grant_ref_t;
+typedef uint16_t blkif_vdev_t;
+typedef uint64_t blkif_sector_t;
+\#define BLKIF_MAX_SEGMENTS_PER_REQUEST 11
+\#define BLKIF_MAX_INDIRECT_PAGES_PER_REQUEST 8
+
+struct blkif_request_segment {
+		grant_ref_t gref;
+		uint8_t     first_sect, last_sect;
+};
+
+struct blkif_request_rw {
+	uint8_t        nr_segments;
+	blkif_vdev_t   handle;
+	uint32_t       _pad1;
+	uint64_t       id;
+	blkif_sector_t sector_number;
+	struct blkif_request_segment seg[BLKIF_MAX_SEGMENTS_PER_REQUEST];
+} __attribute__((__packed__));
+
+struct blkif_request_discard {
+	uint8_t        flag;
+	blkif_vdev_t   _pad1;
+	uint32_t       _pad2;
+	uint64_t       id;
+	blkif_sector_t sector_number;
+	uint64_t       nr_sectors;
+	uint8_t        _pad3;
+} __attribute__((__packed__));
+
+struct blkif_request_other {
+	uint8_t      _pad1;
+	blkif_vdev_t _pad2;
+	uint32_t     _pad3;
+	uint64_t     id;
+} __attribute__((__packed__));
+
+struct blkif_request_indirect {
+	uint8_t        indirect_op;
+	uint16_t       nr_segments;
+	uint32_t       _pad1;
+	uint64_t       id;
+	blkif_sector_t sector_number;
+	blkif_vdev_t   handle;
+	uint16_t       _pad2;
+	grant_ref_t    indirect_grefs[BLKIF_MAX_INDIRECT_PAGES_PER_REQUEST];
+	uint32_t      _pad3;
+} __attribute__((__packed__));
+
+struct blkif_request {
+	uint8_t        operation;
+	union {
+		struct blkif_request_rw rw;
+		struct blkif_request_discard discard;
+		struct blkif_request_other other;
+		struct blkif_request_indirect indirect;
+	} u;
+} __attribute__((__packed__));
+
+union blkif_sring_entry {                                            \
+    struct blkif_request req;                                                        \
+    struct blkif_request rsp;                                                        \
+};
+
+\#define __RD2(_x)  (((_x) & 0x00000002) ? 0x2                  : ((_x) & 0x1))
+\#define __RD4(_x)  (((_x) & 0x0000000c) ? __RD2((_x)>>2)<<2    : __RD2(_x))
+\#define __RD8(_x)  (((_x) & 0x000000f0) ? __RD4((_x)>>4)<<4    : __RD4(_x))
+\#define __RD16(_x) (((_x) & 0x0000ff00) ? __RD8((_x)>>8)<<8    : __RD8(_x))
+\#define __RD32(_x) (((_x) & 0xffff0000) ? __RD16((_x)>>16)<<16 : __RD16(_x))
+
+int main () {
+	size_t offset =offsetof(struct tester, ring);
+	size_t size = sizeof(union blkif_sring_entry);
+	printf("%d\n", offset);
+	printf("%zu\n", size);
+	printf("%d\n", __RD32((4096- offset)/size));
+}
+```
+
+Signed-off-by: Andrii Sultanov <andrii.sultanov@cloud.com>
+---
+ ocaml/xenopsd/lib/xenops_server.ml           | 11 +++-
+ ocaml/xenopsd/lib/xenops_server_plugin.ml    |  2 +
+ ocaml/xenopsd/lib/xenops_server_simulator.ml |  3 +-
+ ocaml/xenopsd/xc/domain.ml                   | 65 +++++++++++++++++++-
+ ocaml/xenopsd/xc/domain.mli                  |  2 +
+ ocaml/xenopsd/xc/xenops_server_xen.ml        |  6 +-
+ 6 files changed, 82 insertions(+), 7 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 97c350f59..3606f5fde 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -2249,11 +2249,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
+       debug "VM.destroy %s" id ;
+       B.VM.destroy t (VM_DB.read_exn id)
+   | VM_create (id, memory_upper_bound, final_id, no_sharept) ->
+-      debug "VM.create %s memory_upper_bound = %s" id
++      let num_of_vbds = List.length (VBD_DB.vbds id) in
++      let num_of_vifs = List.length (VIF_DB.vifs id) in
++      debug
++        "VM.create %s memory_upper_bound = %s, num_of_vbds = %d, num_of_vifs = \
++         %d"
++        id
+         (Option.value ~default:"None"
+            (Option.map Int64.to_string memory_upper_bound)
+-        ) ;
++        )
++        num_of_vbds num_of_vifs ;
+       B.VM.create t memory_upper_bound (VM_DB.read_exn id) final_id no_sharept
++        num_of_vbds num_of_vifs
+   | VM_build (id, force) ->
+       debug "VM.build %s" id ;
+       let vbds : Vbd.t list = VBD_DB.vbds id |> vbd_plug_order in
+diff --git a/ocaml/xenopsd/lib/xenops_server_plugin.ml b/ocaml/xenopsd/lib/xenops_server_plugin.ml
+index fbeb78f36..169c17dcd 100644
+--- a/ocaml/xenopsd/lib/xenops_server_plugin.ml
++++ b/ocaml/xenopsd/lib/xenops_server_plugin.ml
+@@ -84,6 +84,8 @@ module type S = sig
+       -> Vm.t
+       -> Vm.id option
+       -> bool (* no_sharept*)
++      -> int (* num_of_vbds *)
++      -> int (* num_of_vifs *)
+       -> unit
+ 
+     val build :
+diff --git a/ocaml/xenopsd/lib/xenops_server_simulator.ml b/ocaml/xenopsd/lib/xenops_server_simulator.ml
+index c51236419..1bfd32949 100644
+--- a/ocaml/xenopsd/lib/xenops_server_simulator.ml
++++ b/ocaml/xenopsd/lib/xenops_server_simulator.ml
+@@ -547,7 +547,8 @@ module VM = struct
+ 
+   let remove _vm = ()
+ 
+-  let create _ memory_limit vm _ _ = with_lock m (create_nolock memory_limit vm)
++  let create _ memory_limit vm _ _ _ _ =
++    with_lock m (create_nolock memory_limit vm)
+ 
+   let destroy _ vm = with_lock m (destroy_nolock vm)
+ 
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 224e8a4e5..e704e49cf 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -271,7 +271,8 @@ let wait_xen_free_mem ~xc ?(maximum_wait_time_seconds = 64) required_memory_kib
+   in
+   wait 0
+ 
+-let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
++let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
++    num_of_vbds num_of_vifs =
+   let open Xenctrl in
+   let host_info = Xenctrl.physinfo xc in
+ 
+@@ -387,7 +388,67 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+     ; max_evtchn_port= -1
+     ; max_grant_frames=
+         ( try int_of_string (List.assoc "max_grant_frames" vm_info.platformdata)
+-          with _ -> 64
++          with _ ->
++            let max_per_vif = 8 in
++            (* 1 VIF takes up (256 rx entries + 256 tx entries) * 8 queues max
++               * 8 bytes per grant table entry / 4096 bytes size of frame *)
++            let reasonable_per_vbd = 1 in
++            (* (1 ring (itself taking up one granted page) + 1 ring *
++               32 requests * 11 grant refs contained in each * 8 bytes ) /
++               4096 bytes size of frame = 0.6875, rounded up *)
++            let frames_number =
++              (max_per_vif * (num_of_vifs + 1))
++              + (reasonable_per_vbd * (num_of_vbds + 1))
++            in
++            debug "estimated max_grant_frames = %d" frames_number ;
++            frames_number
++            (* max_per_vif * (num_of_vifs + 1 hotplugged future one) +
++               max_per_vbd * (num_of_vbds + 1 hotplugged future one) *)
++
++            (* NOTE: While the VIF calculation is precise, the VBD one is a
++               very rough approximation of a reasonable value of
++               RING_SIZE * MAX_SEGMENTS_PER_REQUEST + PAGES_FOR_RING_ITSELF
++               The following points should allow for a rough understanding
++               of the scale of the problem of better estimation:
++
++               1) The blkfront driver can consume different numbers of grant
++               pages depending on the features advertised by the back driver
++               (and negotiated with it). These features can differ per VBD, and
++               right now aren't even known at the time of domain creation.
++               These include:
++                 1.1) indirect segments - these contain
++                 BLKIF_MAX_INDIRECT_PAGES_PER_REQUEST grants at most, and each
++                 of these frames contains GRANTS_PER_INDIRECT_FRAME grants in
++                 turn (stored in blkif_request_segment).
++                 In practice, this means a catastrophic explosion - we should
++                 not really aim to detect if indirect requests feature is on,
++                 but turn it off to get reasonable estimates.
++                 1.2) persistent grants - these are an optimization, so
++                 shouldn't really change the calculations, worst case is none
++                 of the grants are persistent.
++                 1.3) multi-page rings - these change the RING_SIZE, but not in
++                 a trivial manner (see ring-page-order)
++                 1.4) multi-queue - these change the number of rings, adding
++                 another multiplier.
++               2) The "8 bytes" multiplier for a grant table entry only applies
++               to grants_v1. v2 grants take up 16 bytes per entry. And it's
++               impossible to detect this feature at the moment.
++               3) A dynamically-sized grant table itself could be a solution?
++               Used to exist before, caused a lot of XSAs, hard to get right.
++               4) Drivers might need to be more explicitly limited in how many
++               pages they can consume
++               5) VBD backdriver's features should be managed by XAPI on the
++               object itself and (their max bound) known at the time of domain
++               creation.
++
++               So for this estimate, there is only 1 ring which is 1 page, with
++               32 entries, each entry (request) can have up to 11 pages
++               (excluding indirect pages and other complications).
++
++               SEE: xen-blkfront.c, blkif.h, and the backdriver to understand
++               the process of negotiation (visible in xenstore, in kernel
++               module parameters in the sys filesystem afterwards)
++            *)
+         )
+     ; max_maptrack_frames=
+         ( try
+diff --git a/ocaml/xenopsd/xc/domain.mli b/ocaml/xenopsd/xc/domain.mli
+index c8f83b099..08640c6bd 100644
+--- a/ocaml/xenopsd/xc/domain.mli
++++ b/ocaml/xenopsd/xc/domain.mli
+@@ -149,6 +149,8 @@ val make :
+   -> [`VM] Uuidx.t
+   -> string option
+   -> bool (* no_sharept *)
++  -> int (* num_of_vbds *)
++  -> int (* num_of_vifs *)
+   -> domid
+ (** Create a fresh (empty) domain with a specific UUID, returning the domain ID *)
+ 
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 071eae2e0..29e3fbdd2 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -1418,7 +1418,8 @@ module VM = struct
+         in
+         (device_id, revision)
+ 
+-  let create_exn task memory_upper_bound vm final_id no_sharept =
++  let create_exn task memory_upper_bound vm final_id no_sharept num_of_vbds
++      num_of_vifs =
+     let k = vm.Vm.id in
+     with_xc_and_xs (fun xc xs ->
+         (* Ensure the DB contains something for this VM - this is to avoid a
+@@ -1547,7 +1548,8 @@ module VM = struct
+                   let create_info = generate_create_info ~xs vm persistent in
+                   let domid =
+                     Domain.make ~xc ~xs create_info vm.vcpu_max domain_config
+-                      (uuid_of_vm vm) final_id no_sharept
++                      (uuid_of_vm vm) final_id no_sharept num_of_vbds
++                      num_of_vifs
+                   in
+                   Mem.transfer_reservation_to_domain dbg domid reservation_id ;
+                   let initial_target =

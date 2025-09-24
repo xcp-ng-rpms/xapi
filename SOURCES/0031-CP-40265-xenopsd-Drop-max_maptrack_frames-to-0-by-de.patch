@@ -1,0 +1,35 @@
+From 77ab617d82d54580536c44d98b8c66b9404b050c Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andrii.sultanov@cloud.com>
+Date: Wed, 6 Nov 2024 08:42:47 +0000
+Subject: [PATCH] CP-40265 - xenopsd: Drop max_maptrack_frames to 0 by default
+ on domain creation
+
+max_maptrack_frames should only be >0 if there are reasons for other domains to
+grant pages to the domain being created, which should only be happening for Dom0
+(not handled by the toolstack), and driver domains (currently none exist).
+
+Signed-off-by: Andrii Sultanov <andrii.sultanov@cloud.com>
+Suggested-by: Andrew Cooper <andrew.cooper3@citrix.com>
+---
+ ocaml/xenopsd/xc/domain.ml | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index d91ab142c..224e8a4e5 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -392,7 +392,13 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept =
+     ; max_maptrack_frames=
+         ( try
+             int_of_string (List.assoc "max_maptrack_frames" vm_info.platformdata)
+-          with _ -> 1024
++          with _ ->
++            0
++            (* This should be >0 only for driver domains (Dom0 startup is not
++               handled by the toolstack), which currently do not exist.
++               To support these in the future, xenopsd would need to check what
++               type of domain is being started.
++            *)
+         )
+     ; max_grant_version=
+         (if List.mem CAP_Gnttab_v2 host_info.capabilities then 2 else 1)

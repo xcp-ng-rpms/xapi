@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.6.0
-Release: 1.12%{?xsrel}%{?dist}
+Release: 1.12%{?xsrel}.0.viflimit.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -128,6 +128,12 @@ Patch1028: 0028-xenopsd-set-xen-platform-pci-bar-uc-key-in-xenstore.patch
 # XSA-474 backport to 25.6.0
 Patch1029: 0029-prepare-make-StringPool-share-safer.patch
 Patch1030: 0030-Simplify-UTF-8-decoding.patch
+
+Patch1031: 0031-CP-40265-xenopsd-Drop-max_maptrack_frames-to-0-by-de.patch
+Patch1032: 0032-CP-40265-xenopsd-Calculate-max_grant_frames-dynamica.patch
+Patch1033: 0033-Treat-64-max_grant_frames-as-the-lower-bound.patch
+Patch1034: 0034-xenopsd-Don-t-iterate-over-StringMaps-twice.patch
+Patch1035: 0035-xapi_vm_helpers-Raise-allowed_VIF-limit-from-7-to-16.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

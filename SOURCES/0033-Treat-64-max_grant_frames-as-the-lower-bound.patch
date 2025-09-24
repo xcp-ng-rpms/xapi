@@ -1,0 +1,32 @@
+From 27d69158205b40f18bf0b62f848a16ad5cce547b Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andrii.sultanov@cloud.com>
+Date: Thu, 14 Nov 2024 09:01:34 +0000
+Subject: [PATCH] Treat 64 max_grant_frames as the lower bound
+
+64 was the old hard-coded value for max_grant_frames, so play it safe here and
+keep it as the lower bound - users might be used to being able to hotplug
+several VIFs below 7, for example, which would have been broken otherwise as
+we only estimate for a single hotplug with the current algorithm.
+
+Signed-off-by: Andrii Sultanov <andrii.sultanov@cloud.com>
+---
+ ocaml/xenopsd/xc/domain.ml | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index e704e49cf..670847f84 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -397,8 +397,10 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
+                32 requests * 11 grant refs contained in each * 8 bytes ) /
+                4096 bytes size of frame = 0.6875, rounded up *)
+             let frames_number =
+-              (max_per_vif * (num_of_vifs + 1))
+-              + (reasonable_per_vbd * (num_of_vbds + 1))
++              max 64
++                ((max_per_vif * (num_of_vifs + 1))
++                + (reasonable_per_vbd * (num_of_vbds + 1))
++                )
+             in
+             debug "estimated max_grant_frames = %d" frames_number ;
+             frames_number

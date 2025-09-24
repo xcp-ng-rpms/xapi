@@ -1,0 +1,91 @@
+From 5b6a6f881dc930c5ffe66751162e8856930d8085 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andrii.sultanov@cloud.com>
+Date: Tue, 19 Nov 2024 12:57:39 +0000
+Subject: [PATCH] xenopsd: Don't iterate over StringMaps twice
+
+Signed-off-by: Andrii Sultanov <andrii.sultanov@cloud.com>
+---
+ ocaml/xenopsd/lib/xenops_server.ml | 18 ++++++++++--------
+ ocaml/xenopsd/lib/xenops_utils.ml  | 25 +++++++++++++------------
+ 2 files changed, 23 insertions(+), 20 deletions(-)
+
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 3606f5fde..3dbcfa952 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -833,10 +833,11 @@ module Queues = struct
+ 
+   let get tag qs =
+     with_lock qs.m (fun () ->
+-        if StringMap.mem tag qs.qs then
+-          StringMap.find tag qs.qs
+-        else
+-          Queue.create ()
++        match StringMap.find_opt tag qs.qs with
++        | Some x ->
++            x
++        | None ->
++            Queue.create ()
+     )
+ 
+   let tags qs =
+@@ -847,10 +848,11 @@ module Queues = struct
+   let push_with_coalesce should_keep tag item qs =
+     with_lock qs.m (fun () ->
+         let q =
+-          if StringMap.mem tag qs.qs then
+-            StringMap.find tag qs.qs
+-          else
+-            Queue.create ()
++          match StringMap.find_opt tag qs.qs with
++          | Some x ->
++              x
++          | None ->
++              Queue.create ()
+         in
+         push_with_coalesce should_keep item q ;
+         qs.qs <- StringMap.add tag q qs.qs ;
+diff --git a/ocaml/xenopsd/lib/xenops_utils.ml b/ocaml/xenopsd/lib/xenops_utils.ml
+index 481ad1b61..53dc73709 100644
+--- a/ocaml/xenopsd/lib/xenops_utils.ml
++++ b/ocaml/xenopsd/lib/xenops_utils.ml
+@@ -227,11 +227,13 @@ module MemFS = struct
+       match (path, fs) with
+       | [], Dir d ->
+           d
+-      | p :: ps, Dir d ->
+-          if StringMap.mem p !d then
+-            aux ps (StringMap.find p !d)
+-          else
++      | p :: ps, Dir d -> (
++        match StringMap.find_opt p !d with
++        | Some x ->
++            aux ps x
++        | None ->
+             raise Not_dir
++      )
+       | _, Leaf _ ->
+           raise Not_dir
+     in
+@@ -285,14 +287,13 @@ module MemFS = struct
+           (fun p ->
+             let dir = dir_locked (dirname p) in
+             let deletable =
+-              if StringMap.mem (filename p) !dir then
+-                match StringMap.find (filename p) !dir with
+-                | Dir child ->
+-                    StringMap.is_empty !child
+-                | Leaf _ ->
+-                    true
+-              else
+-                false
++              match StringMap.find_opt (filename p) !dir with
++              | Some (Dir child) ->
++                  StringMap.is_empty !child
++              | Some (Leaf _) ->
++                  true
++              | None ->
++                  false
+             in
+             if deletable then dir := StringMap.remove (filename p) !dir
+           )
