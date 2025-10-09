@@ -94,6 +94,11 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 
+# Testing supported image format
+Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1013: 0003-Bumping-database-schema-version.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
