@@ -95,6 +95,9 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
 
+# XCP-ng: FF to post-interface-rename era
+Patch2000: host-network-device-ordering-on-networkd.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1527,6 +1530,7 @@ Coverage files from unit tests
 - Add missing core dep on openssl-perl (c_rehash)
 - Add in core directories whose lack blocks startup:
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
+- Add host-network-device-ordering branch contents as a single patch
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
