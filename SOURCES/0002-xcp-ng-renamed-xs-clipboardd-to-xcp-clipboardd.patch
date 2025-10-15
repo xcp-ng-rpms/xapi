@@ -1,7 +1,7 @@
-From f6787c7b50964920036edb8f3db492d7d4496a66 Mon Sep 17 00:00:00 2001
+From 9de27f3b61904a4ad8c5759004441e9734000b19 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 11:11:46 +0200
-Subject: [PATCH] [xcp-ng] renamed xs-clipboardd to xcp-clipboardd
+Subject: [PATCH 2/5] [xcp-ng] renamed xs-clipboardd to xcp-clipboardd
 
 Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
 ---
@@ -21,3 +21,6 @@ index c8acefbd3..261b5929a 100644
      subprocess.call([clipboardd, "-d", str(domid), "-s", str(s2.fileno())],
                      pass_fds=[s2.fileno()])
  
+-- 
+2.47.3
+

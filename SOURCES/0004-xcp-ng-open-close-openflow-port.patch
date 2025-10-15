@@ -1,7 +1,7 @@
-From 05beaba74de61cb743d6bcaa636b8f927f3310d5 Mon Sep 17 00:00:00 2001
+From ea72818437d8b2018632fc58327effd03bbff4e1 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 17:06:38 +0200
-Subject: [PATCH] [xcp-ng] open/close openflow port
+Subject: [PATCH 4/5] [xcp-ng] open/close openflow port
 
 Benjamin tried to upstream a way to open/close ports with SDN controller.
 The PR is here https://github.com/xapi-project/xen-api/pull/4188
@@ -32,3 +32,6 @@ index 834788cf1..9c988db03 100755
  
  
  def composeController(protocol, controllerIP, tcpport):
+-- 
+2.47.3
+

@@ -1515,6 +1515,7 @@ Coverage files from unit tests
 - Add in core directories whose lack blocks startup:
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - Add host-network-device-ordering branch contents as a single patch
+- Refresh patches from 8.3
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:

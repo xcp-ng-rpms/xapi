@@ -1,7 +1,7 @@
-From f5adceea900f2a95a7ea3b522b709131c0d826c3 Mon Sep 17 00:00:00 2001
+From 50f6bb3f3749ef724bd1637d67f4ab47dca815a3 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 17:10:15 +0200
-Subject: [PATCH] [xcp-ng] update db tunnel protocol from other config
+Subject: [PATCH 5/5] [xcp-ng] update db tunnel protocol from other config
 
 Fill new `protocol` field in a `Tunnel` record if the info is present in
 the tunnel's network's other config.
@@ -79,3 +79,6 @@ index e1f0eba63..1b1b2ac79 100644
    ]
  
  (* Maybe upgrade most recent db *)
+-- 
+2.47.3
+
