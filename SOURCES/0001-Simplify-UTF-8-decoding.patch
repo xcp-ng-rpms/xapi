@@ -1,7 +1,7 @@
-From c93e28d3d93763b5bb113646ff064796ef859294 Mon Sep 17 00:00:00 2001
+From a0a44472c2ed0e09186978df9a7b3f853c1e43ca Mon Sep 17 00:00:00 2001
 From: Christian Lindig <christian.lindig@cloud.com>
 Date: Tue, 15 Jul 2025 14:31:31 +0100
-Subject: [PATCH 1/1] Simplify UTF-8 decoding
+Subject: [PATCH] Simplify UTF-8 decoding
 
 * Use the decoder from the OCaml standard library instead of
   our own implementation, which this patch removes.
@@ -1096,5 +1096,5 @@ index 408ba7acf..4c08648dc 100644
    if not (check_uuid ~__context ~cls ~uuid:obj_uuid) then
      raise
 -- 
-2.43.0
+2.47.3
 
