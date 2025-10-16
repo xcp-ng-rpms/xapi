@@ -1,5 +1,5 @@
-%global package_speccommit 63a64e044f1bc3ed826df7d1dc6e342c745f174a
-%global package_srccommit v25.27.0
+%global package_speccommit 58dbee19adfb699e44cd002cae71f1919200ec84
+%global package_srccommit v25.30.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -25,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.27.0
-Release: 2%{?xsrel}%{?dist}
+Version: 25.30.0
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.27.0.tar.gz
+Source0: xen-api-25.30.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -61,13 +61,8 @@ Source25: xenopsd-xc-local.conf
 
 # Xapi compiles to a baseline of Xen 4.17
 
-# Xen 4.19
-%if "%{dist}" == ".xs9"
-Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
-%endif
-
 # Xen 4.20
-%if "%{dist}" == ".xsx"
+%if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 %endif
@@ -183,10 +178,7 @@ Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
-%if 0%{?xenserver} < 9
-# sysprep plugin/API
 Requires: genisoimage
-%endif
 
 
 %description core
@@ -352,6 +344,12 @@ Summary:   RRDD metrics plugin
 Requires:  jemalloc
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
+# Requires Xen support for querying domain VCPU runnable and nonaffine running time
+%if 0%{?xenserver} < 9
+Requires:  xen-dom0-libs >= 4.17.5-18
+%else
+Requires:  xen-dom0-libs >= 4.19.2-12
+%endif
 
 %description -n rrdd-plugins
 This packages contains plugins registering to the RRD daemon and exposing various metrics.
@@ -957,13 +955,18 @@ done
 /opt/xensource/bin/xe-scsi-dev-map
 /opt/xensource/bin/xe-toolstack-restart
 /opt/xensource/bin/xe-xentrace
-/opt/xensource/bin/xe-switch-network-backend
 /opt/xensource/bin/xe-enable-all-plugin-metrics
 /opt/xensource/bin/xe-install-supplemental-pack
 /opt/xensource/bin/hfx_filename
 /opt/xensource/bin/pv2hvm
 /opt/xensource/bin/xe-enable-ipv6
+%if 0%{?xenserver} >= 9
+%exclude /opt/xensource/bin/xe-switch-network-backend
+%exclude /etc/bash_completion.d/xe-switch-network-backend
+%else
+/opt/xensource/bin/xe-switch-network-backend
 /etc/bash_completion.d/xe-switch-network-backend
+%endif
 /opt/xensource/bin/xsh
 %attr(700, root, root) /opt/xensource/gpg
 /etc/xensource/bugtool/xapi.xml
@@ -1413,8 +1416,63 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Sep 02 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.27.0-2
-- CA-411297/XSA-474: XAPI UTF8
+* Tue Sep 02 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.30.0-1
+- CA-411297: XAPI UTF8
+- CA-412983: HA doesn't keep trying to start best-effort VM
+- Add Xapi_globs.ha_best_effort_max_retries to eliminate hard-coding
+- Optimize with List.compare_lengths
+- Copy dependency libraries to the output folder. Build using the project file (or the build switches in it are ignored).
+- CP-308539 Added preprocessor conditions to compile with .NET 8
+- Updated language use. Removed redundant calls and initializers. Use Properties instead of public fields.
+- CP-308539 Replaced obsolete code.
+- CP-308539 Use HttpClient for .NET as HttpWebRequest is obsolete.
+- CP-44752: propagate System.Diagnostics tracing information using W3C traceparent header.
+- Action from CA-408836: Deprecate the method SaveChanges. It is a XenCenterism and not always correct.
+- libs/log: adapt backtrace test to pass on aarch64
+- ocaml/util: delete module xapi_host_driver_helpers and tests
+- Updated dependencies for PS 5.1.
+- I forgot to initialize the Roles.
+- ci: enable experimental ocaml workflow on aarch64
+- CP-308455 VM.sysprep if CD insert fails, remove ISO
+- CP-308455 VM.sysprep declare XML content as SecretString
+- CP-308539: Updated certificate validation to support .NET 8.0 in PowerShell.
+- Revert "xapi/nm: Send non-empty dns to networkd when using IPv6 autoconf (#6586)"
+
+* Wed Aug 27 2025 Andrew Cooper <andrew.cooper3@citrix.com> - 25.29.0-2
+- Rebuild against Xen 4.20
+
+* Thu Aug 21 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.29.0-1
+- CP-40265 - xenopsd: Drop max_maptrack_frames to 0 by default on domain creation
+- CP-40265 - xenopsd: Calculate max_grant_frames dynamically
+- Treat 64 max_grant_frames as the lower bound
+- xenopsd: Don't iterate over StringMaps twice
+- xapi_vm_helpers: Raise allowed_VIF limit from 7 to 16
+- xapi/nm: Send non-empty dns to networkd when using IPv6 autoconf
+- xapi-idl/network: Remove code duplication for DNS persistence decisions
+- CI: update pre-commit config
+- CI: update diff-cover parameters
+- Minor wording improvement
+- CP-53858: Domain CPU ready RRD metric - runnable_any
+- CP-54087: Domain CPU ready RRD metric - runnable_vcpus
+- CP-308465: RRD metric "runnable_vcups": rebase on top of xen.spec/PR#481
+- python3/usb_scan: Skip empty lines in usb-policy.conf, add more comments
+- Changed the order of operations so that the sources are stored before any CI runs.
+- CA-413254: Sort and remove duplicate serialized types.
+- message_forwarding: Log which operation is added/removed from blocked_ops
+- xe-cli: Allow floppy to be autocompleted
+- CA-415952: HA can not be enabled
+
+* Wed Aug 06 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.28.0-1
+- CA-413424: Enhance xe help output
+- CP-308455 VM.sysprep CA-414158 wait for "action" key to disappear
+- Disable SARIF upload for now: they are rejected
+- CP-308455 VM.sysprep CA-414158 wait for "action" key to disappear (#6604)
+- CP-309064 Add SSH Management feature design
+- CA-414418: Detection of AD account removal does not cause logout
+- CA-414418: Perf: save user validate result and apply to sessions
+- CA-414418: Code refine for comments
+- CA-414627: increase polling duration for tapdisk
+- Update datamodel lifecycle
 
 * Wed Jul 23 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.27.0-1
 - CP-54332 Update host/pool datamodel to support SSH auto mode
@@ -1961,9 +2019,6 @@ Coverage files from unit tests
 - Debug: add pretty-printing function for signals
 - CA-404597: rrd/lib_test - Verify that RRD handles non-rate data sources correctly
 - CA-404597: rrd - Pass Gauge and Absolute data source values as-is
-
-* Tue Jan 14 2025 Vincent Liu <shuntian.liu2@cloud.com> - 24.39.1-1
-- CA-404512: Add feature flag to the new clustering interface
 
 * Mon Jan 13 2025 Gang Ji <gang.ji@cloud.com> - 25.1.0-1
 - CA-403620: Drop the usage of fuser in stunnel client proxy
