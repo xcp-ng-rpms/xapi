@@ -65,6 +65,9 @@ Source25: xenopsd-xc-local.conf
 %if "%{dist}" == ".xs9"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 %endif
+# xcp-ng
+Patch1: 0001-xenopsd-Update-domctl_create_config-definition-to-co.patch
+
 
 # Xen 4.20
 %if "%{dist}" == ".xsx"

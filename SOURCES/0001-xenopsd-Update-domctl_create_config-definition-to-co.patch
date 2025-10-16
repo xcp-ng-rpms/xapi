@@ -1,0 +1,31 @@
+From 157f7b9ac3f2b302c555ad7a40486ee83d5eabe2 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 16 Oct 2025 16:13:37 +0100
+Subject: [PATCH] xenopsd: Update domctl_create_config definition to conform to
+ xen 4.19
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xenopsd/xc/domain.ml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index de6c60888..ba7c3659a 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -108,6 +108,7 @@ type domctl_create_config = Xenctrl.domctl_create_config = {
+   ; max_grant_frames: int
+   ; max_maptrack_frames: int
+   ; max_grant_version: int
++  ; vmtrace_buf_kb: int32
+   ; cpupool_id: int32
+   ; arch: arch_domainconfig
+ }
+@@ -468,6 +469,7 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
+         )
+     ; max_grant_version=
+         (if List.mem CAP_Gnttab_v2 host_info.capabilities then 2 else 1)
++    ; vmtrace_buf_kb=0l
+     ; cpupool_id= 0l
+     ; arch= domain_config
+     }
