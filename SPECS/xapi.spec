@@ -97,6 +97,10 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 
+# ARM patches
+# Revert Runstate API changes. Can be dropped if the xen work (mixed-domain-runstates.patch) is rebased to 4.19
+Patch2001: 0001-Revert-RRD-Runstate-work.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
