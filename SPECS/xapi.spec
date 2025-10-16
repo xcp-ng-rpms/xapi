@@ -61,6 +61,9 @@ Source25: xenopsd-xc-local.conf
 
 # Xapi compiles to a baseline of Xen 4.17
 
+# xcp-ng
+Patch1: 0001-xenopsd-Update-domctl_create_config-definition-to-co.patch
+
 # Xen 4.20
 %if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
@@ -1516,6 +1519,7 @@ Coverage files from unit tests
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - Add host-network-device-ordering branch contents as a single patch
 - Refresh patches from 8.3
+- Add 4.19 compat patches from Andriy
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
