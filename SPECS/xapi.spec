@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.27.0
-Release: 2.1%{?xsrel}%{?dist}
+Release: 2.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -93,6 +93,8 @@ Patch1003: 0003-xcp-ng-fix-IPv6-import.patch
 Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 # Drop this patch when we don't want to support migration from older SDN controller anymore
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
+# Drop this when the rsyslog configuration changes
+Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1456,6 +1458,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Sat Oct 18 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25.27.0-2.2
+- Revert rsyslog changes from Xenserver
+
 * Mon Sep 22 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.27.0-2.1
 - Update to upstream 25.27.0-2
 - Drop 0003-xcp-ng-disable-cancellable-sleep.patch, alternative fix merged upstream
