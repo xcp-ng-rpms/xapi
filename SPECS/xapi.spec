@@ -63,6 +63,8 @@ Source25: xenopsd-xc-local.conf
 
 # xcp-ng
 Patch1: 0001-xenopsd-Update-domctl_create_config-definition-to-co.patch
+# Revert Runstate API changes. Can be dropped if the xen work (mixed-domain-runstates.patch) is rebased to 4.19
+Patch2: 0001-Revert-RRD-Runstate-work.patch
 
 # Xen 4.20
 %if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
