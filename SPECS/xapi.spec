@@ -394,7 +394,9 @@ Requires:  xapi-rrd2csv
 %if 0%{?xenserver} < 9
 Requires:  xen-dom0-libs >= 4.17.5-18
 %else
-Requires:  xen-dom0-libs >= 4.19.2-12
+# XCP-ng: relax this version constraint to allow installing
+#Requires:  xen-dom0-libs >= 4.19.2-12
+Requires:  xen-dom0-libs >= 4.19
 %endif
 
 %description -n rrdd-plugins
@@ -1522,6 +1524,7 @@ Coverage files from unit tests
 - Add host-network-device-ordering branch contents as a single patch
 - Refresh patches from 8.3
 - Add 4.19 compat patches from Andriy
+- Relax Xen version constraint of xen-dom0-libs to allow installing
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
