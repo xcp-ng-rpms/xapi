@@ -405,7 +405,9 @@ Requires:  xapi-rrd2csv
 %if 0%{?xenserver} < 9
 Requires:  xen-dom0-libs >= 4.17.5-18
 %else
-Requires:  xen-dom0-libs >= 4.19.2-12
+# XCP-ng: relax this version constraint to allow installing
+#Requires:  xen-dom0-libs >= 4.19.2-12
+Requires:  xen-dom0-libs >= 4.19
 %endif
 
 %description -n rrdd-plugins
@@ -1537,6 +1539,7 @@ Coverage files from unit tests
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - Add host-network-device-ordering branch contents as a single patch
 - Add 4.19 compat patches from Andriy
+- Relax Xen version constraint of xen-dom0-libs to allow installing
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
