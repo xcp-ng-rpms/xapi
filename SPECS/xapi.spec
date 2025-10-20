@@ -333,7 +333,8 @@ Requires:       emu-manager
 # Semantic versioning: describe acceptable range of qemu versions
 # if a new major version of qemu/qemu.pg is released and xenopsd is still
 # compatible then we just have to update this line and bump the minor for xenopsd
-Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
+# XCP-ng
+#Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
 Conflicts:      qemu >= %{qemu_epoch}:4.2.1-6.0.0
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 
