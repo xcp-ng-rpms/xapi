@@ -1,0 +1,99 @@
+From 5638f38de49a99dde61c95e2dc86c40380cd16d6 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 21 Oct 2025 11:14:26 +0200
+Subject: [PATCH] fixup! Datamodel: add supported_image_format field to SM
+ object
+
+---
+ ocaml/idl/datamodel.ml           | 15 +++++++++++++--
+ ocaml/xapi-cli-server/records.ml |  3 ++-
+ ocaml/xapi/xapi_sm.ml            | 13 ++++++++++---
+ 3 files changed, 25 insertions(+), 6 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index d0526f960..da3cb1c1b 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -4998,6 +4998,17 @@ module SR = struct
+ end
+ 
+ module SM = struct
++  let formats =
++    [
++      ("raw", "Plain disk image")
++    ; ("vhd", "Virtual Hard Disk")
++    ; ("qcow2", "Qemu Copy-On-Write version 2")
++    ]
++
++  let formats_desc = formats |> List.map fst |> String.concat ", "
++
++  let image_format_type = Enum ("image_format_type", formats)
++
+   (** XXX: just make this a field and be done with it. Cowardly refusing to change the schema for now. *)
+   let get_driver_filename =
+     call ~name:"get_driver_filename" ~in_oss_since:None
+@@ -5119,9 +5130,9 @@ module SM = struct
+             "The storage plugin requires that one of these cluster stacks is \
+              configured and running."
+         ; field ~lifecycle:[] ~qualifier:DynamicRO
+-            ~default_value:(Some (VSet [])) ~ty:(Set String)
++            ~default_value:(Some (VSet [])) ~ty:(Set image_format_type)
+             "supported_image_formats"
+-            "Image formats supported by the SR (VHD, RAW, Qcow2, ...)"
++            (Printf.sprintf "Image formats supported by the SR: %s" formats_desc)
+         ]
+       ()
+ end
+diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
+index e2163ceb7..c287cbfec 100644
+--- a/ocaml/xapi-cli-server/records.ml
++++ b/ocaml/xapi-cli-server/records.ml
+@@ -3864,7 +3864,8 @@ let sm_record rpc session_id sm =
+           ()
+       ; make_field ~name:"supported-image-formats"
+           ~get:(fun () ->
+-            concat_with_comma (x ()).API.sM_supported_image_formats
++            map_and_concat Record_util.image_format_type_to_string
++              (x ()).API.sM_supported_image_formats
+           )
+           ()
+       ]
+diff --git a/ocaml/xapi/xapi_sm.ml b/ocaml/xapi/xapi_sm.ml
+index c207bb30c..3014b481f 100644
+--- a/ocaml/xapi/xapi_sm.ml
++++ b/ocaml/xapi/xapi_sm.ml
+@@ -49,7 +49,10 @@ let create_from_query_result ~__context q =
+       ~host_pending_features:[] ~configuration:q.configuration ~other_config:[]
+       ~driver_filename:(Sm_exec.cmd_name q.driver)
+       ~required_cluster_stack:q.required_cluster_stack
+-      ~supported_image_formats:q.supported_image_formats
++      ~supported_image_formats:
++        (List.map Record_util.image_format_type_of_string
++           q.supported_image_formats
++        )
+   )
+ 
+ let find_pending_features existing_features features =
+@@ -113,6 +116,10 @@ let update_from_query_result ~__context (self, r) q_result =
+       |> addto_pending_hosts_features ~__context self
+       |> valid_hosts_pending_features ~__context
+     in
++    let supported_image_formats =
++      List.map Record_util.image_format_type_of_string
++        q_result.supported_image_formats
++    in
+     remove_valid_features_from_pending ~__context ~self new_features ;
+     let features = existing_features @ new_features in
+     List.iter
+@@ -145,9 +152,9 @@ let update_from_query_result ~__context (self, r) q_result =
+       Db.SM.set_configuration ~__context ~self ~value:q_result.configuration ;
+     if r.API.sM_driver_filename <> driver_filename then
+       Db.SM.set_driver_filename ~__context ~self ~value:driver_filename ;
+-    if r.API.sM_supported_image_formats <> q_result.supported_image_formats then
++    if r.API.sM_supported_image_formats <> supported_image_formats then
+       Db.SM.set_supported_image_formats ~__context ~self
+-        ~value:q_result.supported_image_formats
++        ~value:supported_image_formats
+   )
+ 
+ let is_v1 x = version_of_string x < [2; 0]

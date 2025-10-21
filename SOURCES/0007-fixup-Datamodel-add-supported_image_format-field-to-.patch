@@ -1,0 +1,23 @@
+From cbcb2ea0f98c1e7184762144ce0f818792f70001 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Thu, 30 Oct 2025 20:10:21 +0100
+Subject: [PATCH] fixup! Datamodel: add supported_image_format field to SM
+ object
+
+---
+ ocaml/idl/schematest.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index 4352e831f..fab48dddf 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "8a7a9edb9cd01e685126f94ab212bc3e"
++let last_known_schema_hash = "668fa071274bae3325028b84d434ba4c"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in

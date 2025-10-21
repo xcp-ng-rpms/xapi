@@ -1,4 +1,4 @@
-From 71cc5ec5efb8ca21a07a2bee890c3d466e3a47a1 Mon Sep 17 00:00:00 2001
+From 27cdb20449c24b100cdee42f78a35cfd87e63bbd Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Tue, 2 Sep 2025 15:34:15 +0200
 Subject: [PATCH] Datamodel: add supported_image_format field to SM object
@@ -33,7 +33,7 @@ Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
  17 files changed, 34 insertions(+), 6 deletions(-)
 
 diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
-index 4372877..f0eb6a0 100644
+index 4372877b9..f0eb6a010 100644
 --- a/ocaml/idl/datamodel.ml
 +++ b/ocaml/idl/datamodel.ml
 @@ -5118,6 +5118,10 @@ module SM = struct
@@ -48,7 +48,7 @@ index 4372877..f0eb6a0 100644
        ()
  end
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index 963231d..4352e83 100644
+index 963231d7d..4352e831f 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
@@ -61,7 +61,7 @@ index 963231d..4352e83 100644
  let current_schema_hash : string =
    let open Datamodel_types in
 diff --git a/ocaml/tests/common/test_common.ml b/ocaml/tests/common/test_common.ml
-index ec05800..581848f 100644
+index ec0580068..581848fd3 100644
 --- a/ocaml/tests/common/test_common.ml
 +++ b/ocaml/tests/common/test_common.ml
 @@ -351,11 +351,12 @@ let make_sm ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
@@ -80,7 +80,7 @@ index ec05800..581848f 100644
  
  let make_sr ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
 diff --git a/ocaml/tests/test_sm_features.ml b/ocaml/tests/test_sm_features.ml
-index 6b7ef99..79799d9 100644
+index 6b7ef9950..79799d9ba 100644
 --- a/ocaml/tests/test_sm_features.ml
 +++ b/ocaml/tests/test_sm_features.ml
 @@ -249,6 +249,7 @@ module CreateSMObject = Generic.MakeStateful (struct
@@ -92,7 +92,7 @@ index 6b7ef99..79799d9 100644
        }
  
 diff --git a/ocaml/tests/test_vdi_cbt.ml b/ocaml/tests/test_vdi_cbt.ml
-index 54ae411..4387784 100644
+index 54ae411ac..4387784f8 100644
 --- a/ocaml/tests/test_vdi_cbt.ml
 +++ b/ocaml/tests/test_vdi_cbt.ml
 @@ -30,6 +30,7 @@ let register_smapiv2_server (module S : Storage_interface.Server_impl) sr_ref =
@@ -104,7 +104,7 @@ index 54ae411..4387784 100644
        }
    in
 diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
-index 06e9b5e..e2163ce 100644
+index 06e9b5e6e..e2163ceb7 100644
 --- a/ocaml/xapi-cli-server/records.ml
 +++ b/ocaml/xapi-cli-server/records.ml
 @@ -3862,6 +3862,11 @@ let sm_record rpc session_id sm =
@@ -120,7 +120,7 @@ index 06e9b5e..e2163ce 100644
    }
  
 diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
-index eaabacc..d3aea60 100644
+index eaabacc9e..d3aea600f 100644
 --- a/ocaml/xapi-idl/storage/storage_interface.ml
 +++ b/ocaml/xapi-idl/storage/storage_interface.ml
 @@ -476,6 +476,7 @@ type query_result = {
@@ -132,7 +132,7 @@ index eaabacc..d3aea60 100644
  }
  [@@deriving rpcty]
 diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
-index 1eccd38..98d4e24 100644
+index 1eccd3867..98d4e2482 100644
 --- a/ocaml/xapi-storage-script/main.ml
 +++ b/ocaml/xapi-storage-script/main.ml
 @@ -936,6 +936,8 @@ module QueryImpl (M : META) = struct
@@ -145,7 +145,7 @@ index 1eccd38..98d4e24 100644
          }
      in
 diff --git a/ocaml/xapi-storage-script/python-self-test.t b/ocaml/xapi-storage-script/python-self-test.t
-index 9ac59be..7be4876 100644
+index 9ac59bed9..7be4876c6 100644
 --- a/ocaml/xapi-storage-script/python-self-test.t
 +++ b/ocaml/xapi-storage-script/python-self-test.t
 @@ -6,7 +6,7 @@ pids and uuids
@@ -158,7 +158,7 @@ index 9ac59be..7be4876 100644
    [INFO] {"method":"Plugin.diagnostics","params":[{"dbg":"debug"}],"id":4}
    [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Plugin.diagnostics[PID] succeeded: "Dummy diagnostics"
 diff --git a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
-index bf54820..6618ee2 100755
+index bf54820cd..6618ee2f1 100755
 --- a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
 +++ b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
 @@ -31,7 +31,8 @@ class Implementation(xapi.storage.api.v5.plugin.Plugin_skeleton):
@@ -172,7 +172,7 @@ index bf54820..6618ee2 100755
  
  if __name__ == "__main__":
 diff --git a/ocaml/xapi-storage/generator/lib/plugin.ml b/ocaml/xapi-storage/generator/lib/plugin.ml
-index 4fc4d6d..168a5f9 100644
+index 4fc4d6d3f..168a5f9ae 100644
 --- a/ocaml/xapi-storage/generator/lib/plugin.ml
 +++ b/ocaml/xapi-storage/generator/lib/plugin.ml
 @@ -18,6 +18,8 @@ type query_result = {
@@ -185,7 +185,7 @@ index 4fc4d6d..168a5f9 100644
  [@@deriving rpcty]
  
 diff --git a/ocaml/xapi/sm_exec.ml b/ocaml/xapi/sm_exec.ml
-index c4e2c46..724fe0a 100644
+index c4e2c46a1..724fe0ac2 100644
 --- a/ocaml/xapi/sm_exec.ml
 +++ b/ocaml/xapi/sm_exec.ml
 @@ -582,6 +582,7 @@ let parse_sr_get_driver_info driver (xml : Xml.xml) =
@@ -197,7 +197,7 @@ index c4e2c46..724fe0a 100644
    }
  
 diff --git a/ocaml/xapi/smint.ml b/ocaml/xapi/smint.ml
-index 1b4e4d4..d5059ee 100644
+index 1b4e4d45e..d5059eee7 100644
 --- a/ocaml/xapi/smint.ml
 +++ b/ocaml/xapi/smint.ml
 @@ -192,6 +192,7 @@ type sr_driver_info = {
@@ -217,7 +217,7 @@ index 1b4e4d4..d5059ee 100644
    }
  
 diff --git a/ocaml/xapi/storage_mux.ml b/ocaml/xapi/storage_mux.ml
-index 0427f76..991ea12 100644
+index 0427f76ca..991ea12e5 100644
 --- a/ocaml/xapi/storage_mux.ml
 +++ b/ocaml/xapi/storage_mux.ml
 @@ -76,6 +76,7 @@ module Mux = struct
@@ -229,7 +229,7 @@ index 0427f76..991ea12 100644
        }
  
 diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
-index 0995edc..fbdc8c4 100644
+index 0995edc35..fbdc8c46d 100644
 --- a/ocaml/xapi/storage_smapiv1.ml
 +++ b/ocaml/xapi/storage_smapiv1.ml
 @@ -125,6 +125,7 @@ module SMAPIv1 : Server_impl = struct
@@ -241,7 +241,7 @@ index 0995edc..fbdc8c4 100644
        }
  
 diff --git a/ocaml/xapi/xapi_services.ml b/ocaml/xapi/xapi_services.ml
-index ca9e3d7..24f31ce 100644
+index ca9e3d729..24f31ce1c 100644
 --- a/ocaml/xapi/xapi_services.ml
 +++ b/ocaml/xapi/xapi_services.ml
 @@ -255,6 +255,7 @@ let get_handler (req : Http.Request.t) s _ =
@@ -253,7 +253,7 @@ index ca9e3d7..24f31ce 100644
              }
            in
 diff --git a/ocaml/xapi/xapi_sm.ml b/ocaml/xapi/xapi_sm.ml
-index 769484d..c207bb3 100644
+index 769484ddd..c207bb30c 100644
 --- a/ocaml/xapi/xapi_sm.ml
 +++ b/ocaml/xapi/xapi_sm.ml
 @@ -49,6 +49,7 @@ let create_from_query_result ~__context q =

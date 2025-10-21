@@ -1,4 +1,4 @@
-From 024d440f221ba0ea5cc38106a4ebf454a3c8c5f9 Mon Sep 17 00:00:00 2001
+From 59f4af9cde7bb73badbf7174c91c3c6aadf44fa6 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Thu, 14 Aug 2025 16:28:32 +0200
 Subject: [PATCH] Allow selection of image format during migration
@@ -39,7 +39,7 @@ Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
  18 files changed, 371 insertions(+), 153 deletions(-)
 
 diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
-index f0eb6a0..d0526f9 100644
+index f0eb6a010..d0526f960 100644
 --- a/ocaml/idl/datamodel.ml
 +++ b/ocaml/idl/datamodel.ml
 @@ -5443,6 +5443,10 @@ module VDI = struct
@@ -54,7 +54,7 @@ index f0eb6a0..d0526f9 100644
          ]
        ~result:(Ref _vdi, "The new reference of the migrated VDI.")
 diff --git a/ocaml/idl/datamodel_vm.ml b/ocaml/idl/datamodel_vm.ml
-index 34ffda6..8486281 100644
+index 34ffda62d..8486281f7 100644
 --- a/ocaml/idl/datamodel_vm.ml
 +++ b/ocaml/idl/datamodel_vm.ml
 @@ -1714,6 +1714,13 @@ let migrate_send =
@@ -86,7 +86,7 @@ index 34ffda6..8486281 100644
      ~allowed_roles:_R_VM_POWER_ADMIN
      ~errs:[Api_errors.license_restriction]
 diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
-index d6b5535..39b6d41 100644
+index d6b553567..39b6d41ee 100644
 --- a/ocaml/xapi-cli-server/cli_frontend.ml
 +++ b/ocaml/xapi-cli-server/cli_frontend.ml
 @@ -2466,10 +2466,10 @@ let rec cmdtable_data : (string * cmd_spec) list =
@@ -104,7 +104,7 @@ index d6b5535..39b6d41 100644
        ; flags= []
        }
 diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
-index 020eec9..7c67141 100644
+index 020eec9f1..7c6714134 100644
 --- a/ocaml/xapi-cli-server/cli_operations.ml
 +++ b/ocaml/xapi-cli-server/cli_operations.ml
 @@ -2063,8 +2063,12 @@ let vdi_pool_migrate printer rpc session_id params =
@@ -156,7 +156,7 @@ index 020eec9..7c67141 100644
              params
              (["host"; "host-uuid"; "host-name"; "live"; "force"; "copy"]
 diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
-index d3aea60..567dafa 100644
+index d3aea600f..567dafa9a 100644
 --- a/ocaml/xapi-idl/storage/storage_interface.ml
 +++ b/ocaml/xapi-idl/storage/storage_interface.ml
 @@ -264,6 +264,8 @@ let string_of_vdi_info (x : vdi_info) = Jsonrpc.to_string (rpc_of vdi_info x)
@@ -328,7 +328,7 @@ index d3aea60..567dafa 100644
      S.DATA.MIRROR.receive_cancel (fun dbg id ->
          Impl.DATA.MIRROR.receive_cancel () ~dbg ~id
 diff --git a/ocaml/xapi-idl/storage/storage_skeleton.ml b/ocaml/xapi-idl/storage/storage_skeleton.ml
-index a2d2d04..fcbb652 100644
+index a2d2d04ab..fcbb6527c 100644
 --- a/ocaml/xapi-idl/storage/storage_skeleton.ml
 +++ b/ocaml/xapi-idl/storage/storage_skeleton.ml
 @@ -183,7 +183,7 @@ module DATA = struct
@@ -367,7 +367,7 @@ index a2d2d04..fcbb652 100644
  
      let receive_finalize ctx ~dbg ~id =
 diff --git a/ocaml/xapi-storage-cli/main.ml b/ocaml/xapi-storage-cli/main.ml
-index f581d6b..5a26ef2 100644
+index f581d6b6b..5a26ef221 100644
 --- a/ocaml/xapi-storage-cli/main.ml
 +++ b/ocaml/xapi-storage-cli/main.ml
 @@ -317,16 +317,19 @@ let copy_vm = Vm.of_string "SXM_copy"
@@ -413,7 +413,7 @@ index f581d6b..5a26ef2 100644
      )
    , Cmd.info "mirror-start" ~sdocs:_common_options ~doc ~man
 diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
-index 98d4e24..34a350f 100644
+index 98d4e2482..34a350ffd 100644
 --- a/ocaml/xapi-storage-script/main.ml
 +++ b/ocaml/xapi-storage-script/main.ml
 @@ -1817,7 +1817,7 @@ module DATAImpl (M : META) = struct
@@ -436,7 +436,7 @@ index 98d4e24..34a350f 100644
    let data_import_activate_impl dbg _dp sr vdi' vm' =
      wrap
 diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
-index 177f959..cc85ae5 100644
+index 177f959fa..cc85ae526 100644
 --- a/ocaml/xapi/message_forwarding.ml
 +++ b/ocaml/xapi/message_forwarding.ml
 @@ -2541,26 +2541,26 @@ functor
@@ -529,7 +529,7 @@ index 177f959..cc85ae5 100644
                Helpers.try_internal_async ~__context API.ref_VDI_of_rpc async_op
                  sync_op
 diff --git a/ocaml/xapi/sm_exec.ml b/ocaml/xapi/sm_exec.ml
-index 724fe0a..544c263 100644
+index 724fe0ac2..544c263db 100644
 --- a/ocaml/xapi/sm_exec.ml
 +++ b/ocaml/xapi/sm_exec.ml
 @@ -570,6 +570,13 @@ let parse_sr_get_driver_info driver (xml : Xml.xml) =
@@ -556,7 +556,7 @@ index 724fe0a..544c263 100644
    }
  
 diff --git a/ocaml/xapi/storage_migrate.ml b/ocaml/xapi/storage_migrate.ml
-index 1ff03c3..3d977bb 100644
+index 1ff03c3d7..3d977bb82 100644
 --- a/ocaml/xapi/storage_migrate.ml
 +++ b/ocaml/xapi/storage_migrate.ml
 @@ -112,28 +112,29 @@ module MigrateLocal = struct
@@ -633,7 +633,7 @@ index 1ff03c3..3d977bb 100644
  
  (* XXX: PR-1255: copy the xenopsd 'raise Exception' pattern *)
 diff --git a/ocaml/xapi/storage_mux.ml b/ocaml/xapi/storage_mux.ml
-index 991ea12..3036906 100644
+index 991ea12e5..303690656 100644
 --- a/ocaml/xapi/storage_mux.ml
 +++ b/ocaml/xapi/storage_mux.ml
 @@ -813,14 +813,15 @@ module Mux = struct
@@ -715,7 +715,7 @@ index 991ea12..3036906 100644
  
        let receive_finalize () ~dbg ~id =
 diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
-index fbdc8c4..ff9d462 100644
+index fbdc8c46d..ff9d46260 100644
 --- a/ocaml/xapi/storage_smapiv1.ml
 +++ b/ocaml/xapi/storage_smapiv1.ml
 @@ -1130,7 +1130,8 @@ module SMAPIv1 : Server_impl = struct
@@ -757,7 +757,7 @@ index fbdc8c4..ff9d462 100644
  
        let receive_finalize _context ~dbg:_ ~id:_ = assert false
 diff --git a/ocaml/xapi/storage_smapiv1_migrate.ml b/ocaml/xapi/storage_smapiv1_migrate.ml
-index c850d61..27b59df 100644
+index c850d61f8..27b59df56 100644
 --- a/ocaml/xapi/storage_smapiv1_migrate.ml
 +++ b/ocaml/xapi/storage_smapiv1_migrate.ml
 @@ -493,14 +493,22 @@ let mirror_pass_fds ~dbg ~dp ~sr ~vdi ~mirror_vm ~live_vm ~mirror_id ~url
@@ -916,7 +916,7 @@ index c850d61..27b59df 100644
  
    let receive_finalize _ctx ~dbg ~id =
 diff --git a/ocaml/xapi/storage_smapiv1_migrate.mli b/ocaml/xapi/storage_smapiv1_migrate.mli
-index a102185..ab376f0 100644
+index a1021858e..ab376f0cc 100644
 --- a/ocaml/xapi/storage_smapiv1_migrate.mli
 +++ b/ocaml/xapi/storage_smapiv1_migrate.mli
 @@ -70,6 +70,7 @@ val mirror_snapshot :
@@ -928,7 +928,7 @@ index a102185..ab376f0 100644
  
  val mirror_checker : string -> Tapctl.tapdev -> unit
 diff --git a/ocaml/xapi/storage_smapiv1_wrapper.ml b/ocaml/xapi/storage_smapiv1_wrapper.ml
-index 8687978..dbbc106 100644
+index 86879780f..dbbc10668 100644
 --- a/ocaml/xapi/storage_smapiv1_wrapper.ml
 +++ b/ocaml/xapi/storage_smapiv1_wrapper.ml
 @@ -1142,7 +1142,7 @@ functor
@@ -987,7 +987,7 @@ index 8687978..dbbc106 100644
            Storage_interface.unimplemented __FUNCTION__
  
 diff --git a/ocaml/xapi/storage_smapiv3_migrate.ml b/ocaml/xapi/storage_smapiv3_migrate.ml
-index 774239c..c15d2eb 100644
+index 774239c08..c15d2eb52 100644
 --- a/ocaml/xapi/storage_smapiv3_migrate.ml
 +++ b/ocaml/xapi/storage_smapiv3_migrate.ml
 @@ -108,14 +108,15 @@ let mirror_wait ~dbg ~sr ~vdi ~vm ~mirror_id mirror_key =
@@ -1052,7 +1052,7 @@ index 774239c..c15d2eb 100644
        let rpc =
          Storage_utils.rpc ~srcstr:"smapiv2" ~dststr:"dst_smapiv2"
 diff --git a/ocaml/xapi/xapi_vm_migrate.ml b/ocaml/xapi/xapi_vm_migrate.ml
-index e5eca21..e6c0b2a 100644
+index e5eca2128..e6c0b2a21 100644
 --- a/ocaml/xapi/xapi_vm_migrate.ml
 +++ b/ocaml/xapi/xapi_vm_migrate.ml
 @@ -216,12 +216,72 @@ let assert_sr_support_operations ~__context ~vdi_map ~remote ~local_ops

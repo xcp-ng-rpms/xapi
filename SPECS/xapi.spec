@@ -100,6 +100,10 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
 Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
 Patch1013: 0003-Bumping-database-schema-version.patch
+Patch1014: 0004-Add-new-parameter-to-VM.migrate_send-in-GO-SDK.patch
+Patch1015: 0005-fixup-Datamodel-add-supported_image_format-field-to-.patch
+Patch1016: 0006-fixup-Allow-selection-of-image-format-during-migrati.patch
+PAtch1017: 0007-fixup-Datamodel-add-supported_image_format-field-to-.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

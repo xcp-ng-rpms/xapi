@@ -1,4 +1,4 @@
-From b77231fa23be91b7b5c8b731bd7d3d8696927da4 Mon Sep 17 00:00:00 2001
+From 8e52c42f0464b845cd5179fe5dc64dc0e04ba4cf Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Thu, 14 Aug 2025 16:40:39 +0200
 Subject: [PATCH] Bumping database schema version
@@ -14,7 +14,7 @@ Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
-index 819b7c6..4786d2d 100644
+index 819b7c611..4786d2d32 100644
 --- a/ocaml/idl/datamodel_common.ml
 +++ b/ocaml/idl/datamodel_common.ml
 @@ -10,7 +10,7 @@ open Datamodel_roles
