@@ -1,0 +1,71 @@
+From f2c8ebb797604036b111dd379ff1328dc932d177 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 21 Oct 2025 12:58:44 +0100
+Subject: [PATCH] ocaml/libs: Check if blocks are filled with zeros in
+ vhd_format
+
+find_data_blocks is used to determine which blocks need to be copied to the
+destination VHD file during export. It uses lseek(SEEK_DATA) to skip "holes" in
+files. Raw files presented by the storage layer, however, do not have holes,
+instead returning blocks filled with zeros. This means that vhd-tool ends up
+allocating every single block (even if all of them contain zeroes and no actual
+data).
+
+In addition to using lseek_data, read the whole block and check if it only
+contains zeros. This avoids allocating zero blocks and greatly speeds up export
+from raw to vhd (which happens when exporting qcow2 to vhd as well).
+
+Before this fix, when exporting a QCOW2-backed VDI (which vhd-tool falls back
+to treating as "raw"):
+
+    $ xe vdi-export uuid=VDI_UUID filename=test.vhd format=vhd
+    $ ll -h test.vhd
+    2.1G test.vhd
+
+Compared to the qcow2 backing file:
+
+    $ ll -h /var/run/sr-mount/SR_UUID/VDI_UUID.qcow2
+    165M /var/run/sr-mount/SR_UUID/VDI_UUID.qcow2
+
+After this fix:
+
+    $ ll -h test.vhd
+    219M test.vhd
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/libs/vhd/vhd_format/f.ml | 14 +++++++++++---
+ 1 file changed, 11 insertions(+), 3 deletions(-)
+
+diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
+index ac29cf8e8..79128d003 100644
+--- a/ocaml/libs/vhd/vhd_format/f.ml
++++ b/ocaml/libs/vhd/vhd_format/f.ml
+@@ -3273,16 +3273,24 @@ functor
+       open Raw
+ 
+       let vhd t =
+-        let include_block block_size index =
++        let include_block block_size index zero buffer =
+           (* is the next data byte in the next block? *)
+           let offset = Int64.(mul block_size (of_int index)) in
+           F.lseek_data t.Raw.handle offset >>= fun data ->
+-          return Int64.(add offset block_size > data)
++          if Int64.(add offset block_size > data) then
++            (* Check if the block is filled with zeros *)
++            really_read t.Raw.handle offset buffer >>= fun () ->
++            return (not (Cstruct.equal buffer zero))
++          else
++            return false
+         in
+         let find_data_blocks ~blocks ~block_size =
++          (* Cstruct.create fills the buffer with 0 bytes *)
++          let zero = Cstruct.create (Int64.to_int block_size) in
++          let buffer = Memory.alloc (Int64.to_int block_size) in
+           let rec loop index acc =
+             if index < blocks then
+-              include_block block_size index >>= function
++              include_block block_size index zero buffer >>= function
+               | true ->
+                   loop (index + 1) (index :: acc)
+               | false ->
