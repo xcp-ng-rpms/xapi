@@ -32,7 +32,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.4.0
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1.0.jvr.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -103,6 +103,12 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
 Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
 Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
+
+# ARM patches
+# Revert Runstate API changes. Can be dropped if the xen work (mixed-domain-runstates.patch) is rebased to 4.19
+Patch2001: 0001-domainconfig-Add-new-parameters-for-SVE-vector-lengt.patch
+Patch2002: 0002-introduce-arm-as-the-domain-type.patch
+Patch2003: 0003-Adjust-schematest-hash-and-other-tests.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1575,6 +1581,10 @@ Coverage files from unit tests
 %changelog
 * Tue Jul 07 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
 - Sync packaging with XS9
+* Wed Oct 29 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.30.0-1.0.ydi.3
+- Add ARM as a domain type to xapi
+* Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.2
+- Test rebuild for v9
 - Do not require python2-udev on v9+
 - Add some missing Requires
 - Fix xcp-rrdd posttans parsing of systemctl output
