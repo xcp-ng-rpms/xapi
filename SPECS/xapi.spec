@@ -100,6 +100,9 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # ARM patches
 # Revert Runstate API changes. Can be dropped if the xen work (mixed-domain-runstates.patch) is rebased to 4.19
 Patch2001: 0001-Revert-RRD-Runstate-work.patch
+Patch2002: 0001-domainconfig-Add-new-parameters-for-SVE-vector-lengt.patch
+Patch2003: 0002-introduce-arm-as-the-domain-type.patch
+Patch2004: 0003-Adjust-schematest-hash-and-other-tests.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
