@@ -1,0 +1,1116 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 28 Sep 2026 13:07:23 +0200
+Subject: [PATCH] Add support for ARM domains
+
+Introduce `arm` as a new VM domain type, so that ARM guests can be
+created and started. For now, only direct boot is supported.
+
+xapi:
+- Add `arm` to the domain_type enum and update the known schema hash.
+  The copy of domain_type_to_string in the record_util tests gains the
+  arm case.
+- Handle `arm in the domain type matches, mostly like PVH. Unlike PVH,
+  the host isn't checked for HVM support, and HA failover plans with the
+  dynamic min memory. Indirect boot is rejected.
+- Account memory for ARM VMs with the new ARM memory model and a fixed
+  shadow multiplier of 1.0, matching what xenopsd allocates.
+- Skip CPU featureset levelling for ARM. VMs return an empty featureset
+  and skip the vendor/feature compatibility check, as there is no CPU
+  policy for ARM yet.
+
+xenopsd:
+- Add the Vm.ARM type and a BuildARM builder carrying the kernel cmdline
+  and boot modules. A ramdisk configured via PV-ramdisk is passed to
+  xenguest as a boot module.
+- Add an ARM memory model. Its "shadow" allocation is the P2M pool,
+  sized like libxl does on ARM. So, 256 pages per vCPU, 1 page per MiB
+  of RAM, and 128 pages for the extended regions, rounded up to whole
+  MiB.
+- On ARM, set and read the P2M pool size via
+  paging_mempool_size_{set,get} instead of shadow_allocation_{set,get},
+  as XEN_DOMCTL_SHADOW_OP_{GET,SET}_ALLOCATION are x86-only. This covers
+  build_pre, the shadow correction after the build, the memory
+  breakdown, list_domains and squeezed. Changing the shadow multiplier
+  of an ARM domain is refused.
+- Build ARM domains like PVH guests, with build_pre and xenguest in
+  pvh_build mode, but with the ARM memory model.
+- Write domain-type "arm-pvh" and treat ARM guests as always enlightened
+  when waiting for a shutdown acknowledgement.
+- Refuse suspend, resume and restore of ARM domains with Unimplemented.
+  Importing the metadata of an ARM VM isn't supported either.
+- Request a vGIC version based on the GICv2/GICv3 support reported by
+  the host's physinfo, preferring GICv3 like libxl. ARM guests get no
+  SPIs, as there is no vPL011, virtio-mmio or passthrough.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+
+diff --git a/ocaml/idl/datamodel_vm.ml b/ocaml/idl/datamodel_vm.ml
+index 17178314acc1..086780213b05 100644
+--- a/ocaml/idl/datamodel_vm.ml
++++ b/ocaml/idl/datamodel_vm.ml
+@@ -2316,6 +2316,7 @@ let domain_type =
+       ; ("pv", "PV: Paravirtualised")
+       ; ("pv_in_pvh", "PV inside a PVH container")
+       ; ("pvh", "PVH")
++      ; ("arm", "The only type of a VM on the ARM platform")
+       ; ("unspecified", "Not specified or unknown domain type")
+       ]
+     )
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index 6bd5ee9ae36d..f8a33b3d8d06 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "08510322cf77e8ba10082f2e611ebb40"
++let last_known_schema_hash = "acc174d220ad5150445c38bab4a97dad"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/squeezed/src/squeeze_xen.ml b/ocaml/squeezed/src/squeeze_xen.ml
+index b4d9cc54172c..89155d444b42 100644
+--- a/ocaml/squeezed/src/squeeze_xen.ml
++++ b/ocaml/squeezed/src/squeeze_xen.ml
+@@ -623,8 +623,15 @@ let make_host ~verbose ~xc =
+               (Int64.of_nativeint di.Xenctrl.total_memory_pages)
+           in
+           let memory_shadow_kib =
+-            match domain_type with
+-            | `hvm | `pvh | `pv_in_pvh -> (
++            match (di.Xenctrl.arch_config, domain_type) with
++            | Xenctrl.ARM _, _ -> (
++              (* ARM has no shadow paging: account for the P2M pool instead *)
++              try
++                Xenctrl.paging_mempool_size_get xc di.Xenctrl.domid
++                |> Memory.kib_of_bytes_used
++              with _ -> 0L
++            )
++            | Xenctrl.X86 _, (`hvm | `pvh | `pv_in_pvh) -> (
+               try
+                 Memory.kib_of_mib
+                   (Int64.of_int
+@@ -632,7 +639,7 @@ let make_host ~verbose ~xc =
+                   )
+               with _ -> 0L
+             )
+-            | `pv ->
++            | Xenctrl.X86 _, `pv ->
+                 0L
+           in
+           (* dom0 is special for some reason *)
+diff --git a/ocaml/tests/record_util/old_record_util.ml b/ocaml/tests/record_util/old_record_util.ml
+index 855a2b74b7eb..5c3af2109c58 100644
+--- a/ocaml/tests/record_util/old_record_util.ml
++++ b/ocaml/tests/record_util/old_record_util.ml
+@@ -1065,6 +1065,8 @@ let domain_type_to_string = function
+       "pv-in-pvh"
+   | `pvh ->
+       "pvh"
++  | `arm ->
++      "arm"
+   | `unspecified ->
+       "unspecified"
+ 
+diff --git a/ocaml/xapi-cli-server/record_util.ml b/ocaml/xapi-cli-server/record_util.ml
+index a11b30decb3c..94f0cc64335a 100644
+--- a/ocaml/xapi-cli-server/record_util.ml
++++ b/ocaml/xapi-cli-server/record_util.ml
+@@ -492,6 +492,8 @@ let domain_type_to_string = function
+       "pv-in-pvh"
+   | `pvh ->
+       "pvh"
++  | `arm ->
++      "arm"
+   | `unspecified ->
+       "unspecified"
+ 
+@@ -506,6 +508,8 @@ let domain_type_of_string x =
+       `pv_in_pvh
+   | "pvh" ->
+       `pvh
++  | "arm" ->
++      `arm
+   | s ->
+       record_failure "Invalid domain type. Got %s" s
+ 
+diff --git a/ocaml/xapi-idl/memory/memory.ml b/ocaml/xapi-idl/memory/memory.ml
+index 9c30f9fa06f9..518b21bc305a 100644
+--- a/ocaml/xapi-idl/memory/memory.ml
++++ b/ocaml/xapi-idl/memory/memory.ml
+@@ -146,8 +146,19 @@ module type MEMORY_MODEL_DATA = sig
+   val shim_mib : int64 -> int64
+ 
+   val can_start_ballooned_down : bool
++
++  val shadow_pages : int64 -> int -> int64
++  (** Pages needed for the shadow (or P2M) pool of a domain with the given
++      static max (MiB) and vCPU count, before the shadow multiplier is
++      applied *)
+ end
+ 
++let default_shadow_pages static_max_mib vcpu_count =
++  let vcpu_pages = 256L *** Int64.of_int vcpu_count in
++  let p2m_map_pages = static_max_mib in
++  let shadow_resident_pages = static_max_mib in
++  vcpu_pages +++ p2m_map_pages +++ shadow_resident_pages
++
+ module HVM_memory_model_data : MEMORY_MODEL_DATA = struct
+   let extra_internal_mib = 1L
+ 
+@@ -156,6 +167,8 @@ module HVM_memory_model_data : MEMORY_MODEL_DATA = struct
+   let shim_mib _ = 0L
+ 
+   let can_start_ballooned_down = true
++
++  let shadow_pages = default_shadow_pages
+ end
+ 
+ module Linux_memory_model_data : MEMORY_MODEL_DATA = struct
+@@ -166,6 +179,8 @@ module Linux_memory_model_data : MEMORY_MODEL_DATA = struct
+   let shim_mib _ = 0L
+ 
+   let can_start_ballooned_down = true
++
++  let shadow_pages = default_shadow_pages
+ end
+ 
+ module PVinPVH_memory_model_data : MEMORY_MODEL_DATA = struct
+@@ -176,6 +191,26 @@ module PVinPVH_memory_model_data : MEMORY_MODEL_DATA = struct
+   let shim_mib static_max_mib = 23L +++ (static_max_mib /// 90L)
+ 
+   let can_start_ballooned_down = true
++
++  let shadow_pages = default_shadow_pages
++end
++
++module ARM_memory_model_data : MEMORY_MODEL_DATA = struct
++  let extra_internal_mib = 1L
++
++  let extra_external_mib = 1L
++
++  let shim_mib _ = 0L
++
++  let can_start_ballooned_down = false
++
++  (* The "shadow" allocation is the P2M pool holding the stage-2 tables. Size
++     it like libxl__get_required_paging_memory() does for ARM: 256 pages per
++     vCPU, 1 page per MiB of RAM for the P2M, and 128 pages for the extended
++     regions (EXTRA_DEFAULT_PAGING_MEM_MB). There is no shadow paging on ARM,
++     so no shadow resident pages. *)
++  let shadow_pages static_max_mib vcpu_count =
++    (256L *** Int64.of_int vcpu_count) +++ static_max_mib +++ 128L
+ end
+ 
+ type memory_config = {
+@@ -204,11 +239,8 @@ module Memory_model (D : MEMORY_MODEL_DATA) = struct
+     static_max_mib +++ xen_max_offset_mib +++ D.shim_mib static_max_mib
+ 
+   let shadow_mib static_max_mib vcpu_count multiplier =
+-    let vcpu_pages = 256L *** Int64.of_int vcpu_count in
+-    let p2m_map_pages = static_max_mib in
+-    let shadow_resident_pages = static_max_mib in
+     let total_mib =
+-      mib_of_pages_used (vcpu_pages +++ p2m_map_pages +++ shadow_resident_pages)
++      mib_of_pages_used (D.shadow_pages static_max_mib vcpu_count)
+     in
+     let total_mib_multiplied =
+       Int64.of_float (Int64.to_float total_mib *. multiplier)
+@@ -245,3 +277,4 @@ end
+ module HVM = Memory_model (HVM_memory_model_data)
+ module Linux = Memory_model (Linux_memory_model_data)
+ module PVinPVH = Memory_model (PVinPVH_memory_model_data)
++module ARM = Memory_model (ARM_memory_model_data)
+diff --git a/ocaml/xapi-idl/xen/xenops_types.ml b/ocaml/xapi-idl/xen/xenops_types.ml
+index 1fd7b00ac2f7..1d5b501192b5 100644
+--- a/ocaml/xapi-idl/xen/xenops_types.ml
++++ b/ocaml/xapi-idl/xen/xenops_types.ml
+@@ -135,6 +135,7 @@ module Vm = struct
+     | PV of pv_info
+     | PVinPVH of pv_info
+     | PVH of pv_info
++    | ARM of pv_info
+   [@@deriving rpcty, sexp]
+ 
+   type id = string [@@deriving rpcty, sexp]
+@@ -185,6 +186,7 @@ module Vm = struct
+     | Domain_PV
+     | Domain_PVinPVH
+     | Domain_PVH
++    | Domain_ARM
+     | Domain_undefined
+   [@@deriving rpcty, sexp]
+ 
+diff --git a/ocaml/xapi/cpuid_helpers.ml b/ocaml/xapi/cpuid_helpers.ml
+index e453d53a93bd..010dfa765802 100644
+--- a/ocaml/xapi/cpuid_helpers.ml
++++ b/ocaml/xapi/cpuid_helpers.ml
+@@ -53,6 +53,8 @@ let get_flags_for_vm ~__context domain_type cpu_info =
+         features_hvm
+     | `pv ->
+         features_pv
++    | `arm ->
++        failwith "not implemented"
+   in
+   let vendor = List.assoc Constants.cpu_info_vendor_key cpu_info in
+   let migration = Map_check.getf features_field cpu_info in
+@@ -60,23 +62,30 @@ let get_flags_for_vm ~__context domain_type cpu_info =
+ 
+ (* Return the featureset to be used for the next boot of the given VM. *)
+ let next_boot_cpu_features ~__context ~vm =
++  (* Always use VM.domain_type, even if the VM is running, because we
++     need the features for when the VM starts next. *)
++  let domain_type =
++    Db.VM.get_domain_type ~__context ~self:vm |> Helpers.check_domain_type
++  in
+   (* On VM.start, the feature set is inherited from the pool level (PV or HVM) *)
+-  let pool = Helpers.get_pool ~__context in
+-  let pool_cpu_info = Db.Pool.get_cpu_info ~__context ~self:pool in
+   let features_field_boot =
+-    (* Always use VM.domain_type, even if the VM is running, because we
+-       need the features for when the VM starts next. *)
+-    let domain_type =
+-      Db.VM.get_domain_type ~__context ~self:vm |> Helpers.check_domain_type
+-    in
+     match domain_type with
+     | `hvm | `pv_in_pvh | `pvh ->
+-        features_hvm_host
++        Some features_hvm_host
+     | `pv ->
+-        features_pv_host
++        Some features_pv_host
++    | `arm ->
++        (* TODO: no CPU featureset levelling for ARM yet *)
++        None
+   in
+-  Map_check.getf features_field_boot pool_cpu_info
+-  |> Xenops_interface.CPU_policy.to_string
++  match features_field_boot with
++  | None ->
++      ""
++  | Some field ->
++      let pool = Helpers.get_pool ~__context in
++      let pool_cpu_info = Db.Pool.get_cpu_info ~__context ~self:pool in
++      Map_check.getf field pool_cpu_info
++      |> Xenops_interface.CPU_policy.to_string
+ 
+ let get_host_cpu_info ~__context ~host ?remote () =
+   match remote with
+@@ -110,7 +119,8 @@ let assert_vm_is_compatible ~__context ~vm ~host =
+          )
+       )
+   in
+-  if vm_rec.API.vM_power_state <> `Halted then (
++  (* TODO: no CPU featureset levelling for ARM yet, nothing to compare *)
++  if vm_rec.API.vM_power_state <> `Halted && domain_type <> `arm then (
+     let host_uuid = Db.Host.get_uuid ~__context ~self:host in
+     debug "Checking CPU compatibility of %s VM %s with host %s"
+       (Record_util.domain_type_to_string domain_type)
+diff --git a/ocaml/xapi/helpers.ml b/ocaml/xapi/helpers.ml
+index e4b46911b6f2..c62465ce2bbf 100644
+--- a/ocaml/xapi/helpers.ml
++++ b/ocaml/xapi/helpers.ml
+@@ -728,8 +728,8 @@ let rolling_upgrade_in_progress ~__context =
+       (Db.Pool.get_other_config ~__context ~self:pool)
+   with _ -> false
+ 
+-let check_domain_type : API.domain_type -> [`hvm | `pv_in_pvh | `pv | `pvh] =
+-  function
++let check_domain_type :
++    API.domain_type -> [`hvm | `pv_in_pvh | `pv | `pvh | `arm] = function
+   | `hvm ->
+       `hvm
+   | `pv_in_pvh ->
+@@ -738,10 +738,12 @@ let check_domain_type : API.domain_type -> [`hvm | `pv_in_pvh | `pv | `pvh] =
+       `pv
+   | `pvh ->
+       `pvh
++  | `arm ->
++      `arm
+   | `unspecified ->
+       internal_error "unspecified domain type"
+ 
+-let domain_type ~__context ~self : [`hvm | `pv_in_pvh | `pv | `pvh] =
++let domain_type ~__context ~self : [`hvm | `pv_in_pvh | `pv | `pvh | `arm] =
+   let vm = Db.VM.get_record ~__context ~self in
+   match vm.API.vM_power_state with
+   | `Paused | `Running | `Suspended ->
+@@ -794,15 +796,15 @@ let boot_method_of_vm ~__context ~vm =
+   match (check_domain_type vm.API.vM_domain_type, direct_boot) with
+   | `hvm, _ ->
+       Hvmloader (hvmloader_options ())
+-  | `pv, true | `pv_in_pvh, true | `pvh, true ->
++  | `pv, true | `pv_in_pvh, true | `pvh, true | `arm, true ->
+       Direct (direct_options ())
+-  | `pv, false | `pv_in_pvh, false | `pvh, false ->
++  | `pv, false | `pv_in_pvh, false | `pvh, false | `arm, false ->
+       Indirect (indirect_options ())
+ 
+ let needs_qemu_from_domain_type = function
+   | `hvm ->
+       true
+-  | `pv_in_pvh | `pv | `pvh | `unspecified ->
++  | `pv_in_pvh | `pv | `pvh | `arm | `unspecified ->
+       false
+ 
+ let will_have_qemu_from_record (x : API.vM_t) =
+diff --git a/ocaml/xapi/memory_check.ml b/ocaml/xapi/memory_check.ml
+index 4d537aec2caf..fec4523fdcbf 100644
+--- a/ocaml/xapi/memory_check.ml
++++ b/ocaml/xapi/memory_check.ml
+@@ -33,6 +33,8 @@ let vm_compute_required_memory vm_record guest_memory_kib =
+     match Helpers.check_domain_type vm_record.API.vM_domain_type with
+     | `hvm | `pvh ->
+         (vm_record.API.vM_HVM_shadow_multiplier, Memory.HVM.full_config)
++    | `arm ->
++        (Memory.ARM.shadow_multiplier_default, Memory.ARM.full_config)
+     | `pv_in_pvh ->
+         (vm_record.API.vM_HVM_shadow_multiplier, Memory.PVinPVH.full_config)
+     | `pv ->
+@@ -241,12 +243,21 @@ let host_compute_memory_overhead ~__context ~host =
+ let vm_compute_memory_overhead ~vm_record =
+   let static_max_bytes = vm_record.API.vM_memory_static_max in
+   let static_max_mib = Memory.mib_of_bytes_used static_max_bytes in
+-  let multiplier = vm_record.API.vM_HVM_shadow_multiplier in
+   let vcpu_count = Int64.to_int vm_record.API.vM_VCPUs_max in
++  let domain_type = Helpers.check_domain_type vm_record.API.vM_domain_type in
++  let multiplier =
++    match domain_type with
++    | `arm ->
++        Memory.ARM.shadow_multiplier_default
++    | `hvm | `pvh | `pv_in_pvh | `pv ->
++        vm_record.API.vM_HVM_shadow_multiplier
++  in
+   let model =
+-    match Helpers.check_domain_type vm_record.API.vM_domain_type with
++    match domain_type with
+     | `hvm | `pvh ->
+         Memory.HVM.overhead_mib
++    | `arm ->
++        Memory.ARM.overhead_mib
+     | `pv_in_pvh ->
+         Memory.PVinPVH.overhead_mib
+     | `pv ->
+diff --git a/ocaml/xapi/vm_platform.ml b/ocaml/xapi/vm_platform.ml
+index ae43c0336856..6f1731510a86 100644
+--- a/ocaml/xapi/vm_platform.ml
++++ b/ocaml/xapi/vm_platform.ml
+@@ -162,7 +162,11 @@ let sanity_check ~platformdata ~firmware ~vcpu_max ~vcpu_at_startup:_
+   in
+   (* Sanity check for HVM or PV-in-PVH domains with invalid VCPU configuration*)
+   let check_cores_per_socket =
+-    match domain_type with `hvm | `pv_in_pvh | `pvh -> true | `pv -> false
++    match domain_type with
++    | `hvm | `pv_in_pvh | `pvh | `arm ->
++        true
++    | `pv ->
++        false
+   in
+   ( match (List.assoc device_model platformdata, firmware) with
+   | "qemu-trad", Xenops_types.Vm.Uefi _ ->
+diff --git a/ocaml/xapi/xapi_ha_vm_failover.ml b/ocaml/xapi/xapi_ha_vm_failover.ml
+index be5f7c5ba346..b4d0ff95c406 100644
+--- a/ocaml/xapi/xapi_ha_vm_failover.ml
++++ b/ocaml/xapi/xapi_ha_vm_failover.ml
+@@ -196,7 +196,7 @@ let vm_memory ~__context snapshot =
+     match Helpers.check_domain_type snapshot.API.vM_domain_type with
+     | `hvm | `pv ->
+         Memory_check.Dynamic_min
+-    | `pv_in_pvh | `pvh ->
++    | `pv_in_pvh | `pvh | `arm ->
+         Memory_check.Static_max
+   in
+   total_memory_of_vm ~__context policy snapshot
+diff --git a/ocaml/xapi/xapi_vif_helpers.ml b/ocaml/xapi/xapi_vif_helpers.ml
+index 4f6f4310ad5b..ef3a4a435bb5 100644
+--- a/ocaml/xapi/xapi_vif_helpers.ml
++++ b/ocaml/xapi/xapi_vif_helpers.ml
+@@ -120,7 +120,7 @@ let valid_operations ~__context record _ref' : table =
+     match Helpers.domain_type ~__context ~self:vm with
+     | `hvm ->
+         true
+-    | `pv_in_pvh | `pv | `pvh ->
++    | `pv_in_pvh | `pv | `pvh | `arm ->
+         false
+   in
+   ( if power_state = `Running && needs_driver_check () then
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index 748e2afb20e8..e4480b181820 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -267,7 +267,7 @@ let validate_actions_after_crash ~__context ~self ~value =
+   let fld = "VM.actions_after_crash" in
+   let hvm_cannot_coredump v =
+     match Helpers.domain_type ~__context ~self with
+-    | `hvm | `pv_in_pvh | `pvh ->
++    | `hvm | `pv_in_pvh | `pvh | `arm ->
+         value_not_supported fld v
+           "cannot invoke a coredump of an HVM, PVH or PV-in-PVH domain"
+     | `pv ->
+@@ -592,7 +592,7 @@ let assert_enough_memory_available ~__context ~self ~host ~snapshot =
+     match Helpers.check_domain_type snapshot.API.vM_domain_type with
+     | `hvm | `pv | `pvh ->
+         Memory_check.Dynamic_min
+-    | `pv_in_pvh ->
++    | `pv_in_pvh | `arm ->
+         Memory_check.Static_max
+   in
+   let main, shadow =
+@@ -714,7 +714,7 @@ let assert_can_boot_here ~__context ~self ~host ~snapshot ~do_cpuid_check
+   ( match Helpers.domain_type ~__context ~self with
+   | `hvm | `pv_in_pvh | `pvh ->
+       assert_host_supports_hvm ~__context ~self ~host
+-  | `pv ->
++  | `pv | `arm ->
+       ()
+   ) ;
+   if do_memory_check then
+diff --git a/ocaml/xapi/xapi_vm_lifecycle.ml b/ocaml/xapi/xapi_vm_lifecycle.ml
+index 37bfc045d84a..f5a9f3ae5982 100644
+--- a/ocaml/xapi/xapi_vm_lifecycle.ml
++++ b/ocaml/xapi/xapi_vm_lifecycle.ml
+@@ -174,7 +174,7 @@ let has_definitely_booted_pv ~vmmr =
+     match r.Db_actions.vM_metrics_current_domain_type with
+     | `hvm | `unspecified ->
+         false
+-    | `pv | `pv_in_pvh | `pvh ->
++    | `pv | `pv_in_pvh | `pvh | `arm ->
+         true
+   )
+ 
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index fe861ab6c438..f7e6966984c1 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -538,6 +538,8 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
+       PVH (make_direct_boot_record options)
+   | `pvh, Helpers.Indirect options ->
+       PVH (make_indirect_boot_record options)
++  | `arm, Helpers.Direct options ->
++      ARM (make_direct_boot_record options)
+   | _ ->
+       Helpers.internal_error "invalid boot configuration"
+ 
+@@ -566,7 +568,7 @@ module MD = struct
+       match vm.API.vM_domain_type with
+       | `hvm ->
+           true
+-      | `pv_in_pvh | `pv | `pvh | `unspecified ->
++      | `pv_in_pvh | `pv | `pvh | `arm | `unspecified ->
+           false
+     in
+     let device_number =
+@@ -2110,6 +2112,8 @@ let update_vm_internal ~__context ~id ~self ~previous ~info ~localhost =
+           update `pv_in_pvh
+       | Domain_PVH ->
+           update `pvh
++      | Domain_ARM ->
++          update `arm
+       | Domain_undefined ->
+           if power_state <> `Halted then
+             debug
+diff --git a/ocaml/xenopsd/cli/xn.ml b/ocaml/xenopsd/cli/xn.ml
+index ca67548dc853..dcf7ca055907 100644
+--- a/ocaml/xenopsd/cli/xn.ml
++++ b/ocaml/xenopsd/cli/xn.ml
+@@ -386,7 +386,7 @@ let print_vm id =
+     )
+     | HVM {boot_order= b; _} ->
+         [(_builder, quote "hvm"); (_boot, quote b)]
+-    | PVinPVH _ | PVH _ ->
++    | PVinPVH _ | PVH _ | ARM _ ->
+         failwith "unimplemented"
+   in
+   let name = [(_name, quote vm_t.name)] in
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 7e7951d5cb21..ed44d702f25c 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -1417,6 +1417,9 @@ let export_metadata vdi_map vif_map vgpu_pci_map id =
+                         }
+                   )
+               }
++        | Vm.ARM _ ->
++            (* only direct boot: no bootloader VDIs to remap *)
++            vm_t.Vm.ty
+         )
+     }
+   in
+@@ -1496,6 +1499,8 @@ let import_metadata id md =
+             Host.(stat.cpu_info.features_hvm)
+         | PV _ ->
+             Host.(stat.cpu_info.features_pv)
++        | ARM _ ->
++            failwith "not implemented"
+       in
+       let fs' = CPU_policy.to_string fs in
+       debug "Setting Platformdata:featureset=%s" fs' ;
+diff --git a/ocaml/xenopsd/list_domains/list_domains.ml b/ocaml/xenopsd/list_domains/list_domains.ml
+index 956cbfbd59cc..bc18d82a0ffc 100644
+--- a/ocaml/xenopsd/list_domains/list_domains.ml
++++ b/ocaml/xenopsd/list_domains/list_domains.ml
+@@ -95,7 +95,16 @@ let hashtbl_of_domaininfo x : (string, string) Hashtbl.t =
+   Hashtbl.add table "uuid" (Uuidx.to_string (uuid_of_di x)) ;
+   (* Ask for shadow allocation separately *)
+   let shadow_mib =
+-    try Some (Int64.of_int (Xenctrl.shadow_allocation_get xc_handle x.domid))
++    try
++      match x.arch_config with
++      | ARM _ ->
++          (* ARM has no shadow paging: report the P2M pool instead *)
++          Some
++            (Xenctrl.paging_mempool_size_get xc_handle x.domid
++            |> Memory.mib_of_bytes_used
++            )
++      | X86 _ ->
++          Some (Int64.of_int (Xenctrl.shadow_allocation_get xc_handle x.domid))
+     with _ -> None
+   in
+   let shadow_bytes = Option.map Memory.bytes_of_mib shadow_mib in
+diff --git a/ocaml/xenopsd/test/test.ml b/ocaml/xenopsd/test/test.ml
+index 3f59159b28e2..17ecc1f1d8d9 100644
+--- a/ocaml/xenopsd/test/test.ml
++++ b/ocaml/xenopsd/test/test.ml
+@@ -332,11 +332,12 @@ let vm_assert_equal vm vm' =
+   assert_equal ~msg:"has_vendor_device" ~printer:string_of_bool
+     vm.has_vendor_device vm'.has_vendor_device ;
+   let is_hvm vm =
+-    match vm.ty with HVM _ -> true | PV _ | PVinPVH _ | PVH _ -> false
++    match vm.ty with HVM _ -> true | PV _ | PVinPVH _ | PVH _ | ARM _ -> false
+   in
+   assert_equal ~msg:"HVM-ness" ~printer:string_of_bool (is_hvm vm) (is_hvm vm') ;
+   match (vm.ty, vm'.ty) with
+-  | HVM _, (PV _ | PVinPVH _ | PVH _) | (PV _ | PVinPVH _ | PVH _), HVM _ ->
++  | HVM _, (PV _ | PVinPVH _ | PVH _ | ARM _)
++  | (PV _ | PVinPVH _ | PVH _ | ARM _), HVM _ ->
+       failwith "HVM-ness"
+   | HVM h, HVM h' ->
+       assert_equal ~msg:"HAP" ~printer:string_of_bool h.hap h'.hap ;
+@@ -369,7 +370,8 @@ let vm_assert_equal vm vm' =
+         h.boot_order h'.boot_order ;
+       assert_equal ~msg:"qemu_disk_cmdline" ~printer:string_of_bool
+         h.qemu_disk_cmdline h'.qemu_disk_cmdline
+-  | (PV p | PVinPVH p | PVH p), (PV p' | PVinPVH p' | PVH p') -> (
++  | (PV p | PVinPVH p | PVH p | ARM p), (PV p' | PVinPVH p' | PVH p' | ARM p')
++    -> (
+       assert_equal ~msg:"framebuffer" ~printer:string_of_bool p.framebuffer
+         p'.framebuffer ;
+       assert_equal ~msg:"vncterm" ~printer:string_of_bool p.vncterm p'.vncterm ;
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 63f8cdd9fcc5..2cb778ffeb09 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -31,7 +31,6 @@ let with_lock = Xapi_stdext_threads.Threadext.Mutex.execute
+ type xen_arm_arch_domainconfig = Xenctrl.xen_arm_arch_domainconfig = {
+     gic_version: int
+   ; nr_spis: int
+-  ; clock_frequency: int32
+ }
+ [@@deriving rpcty]
+ 
+@@ -143,10 +142,18 @@ type build_pvh_info = {
+ }
+ [@@deriving rpcty]
+ 
++type build_arm_info = {
++    cmdline: string
++  ; modules: (string * string option) list
++        (** list of modules plus optional cmdlines *)
++}
++[@@deriving rpcty]
++
+ type builder_spec_info =
+   | BuildHVM of build_hvm_info
+   | BuildPV of build_pv_info
+   | BuildPVH of build_pvh_info
++  | BuildARM of build_arm_info
+ [@@deriving rpcty]
+ 
+ type build_info = {
+@@ -235,6 +242,27 @@ let get_uuid ~xc domid =
+            raw_uuid
+         )
+ 
++(* ARM has no shadow paging: there, the shadow allocation is the domain's P2M
++   pool, which is sized via the paging mempool instead.
++   TODO: Drop these wrappers once Xenctrl.shadow_allocation_{get,set} are
++   implemented via the paging mempool on all architectures. *)
++let shadow_allocation_get ~xc domid =
++  match (Xenctrl.domain_getinfo xc domid).Xenctrl.arch_config with
++  | ARM _ ->
++      Xenctrl.paging_mempool_size_get xc domid
++      |> Memory.mib_of_bytes_used
++      |> Int64.to_int
++  | X86 _ ->
++      Xenctrl.shadow_allocation_get xc domid
++
++let shadow_allocation_set ~xc domid mib =
++  match (Xenctrl.domain_getinfo xc domid).Xenctrl.arch_config with
++  | ARM _ ->
++      Xenctrl.paging_mempool_size_set xc domid
++        (Memory.bytes_of_mib (Int64.of_int mib))
++  | X86 _ ->
++      Xenctrl.shadow_allocation_set xc domid mib
++
+ let wait_xen_free_mem ~xc ?(maximum_wait_time_seconds = 64) required_memory_kib
+     : bool =
+   let open Memory in
+@@ -760,7 +788,7 @@ let shutdown ~xc ~xs domid req =
+     respond then throw a Watch.Timeout exception. All other exceptions imply the
+     domain has disappeared. *)
+ let shutdown_wait_for_ack (t : Xenops_task.task_handle) ~timeout ~xc ~xs domid
+-    (domain_type : [`pv | `pvh | `hvm]) req =
++    (domain_type : [`pv | `pvh | `hvm | `arm]) req =
+   let di = Xenctrl.domain_getinfo xc domid in
+   let uuid = get_uuid ~xc domid in
+   let uuid = Uuidx.to_string uuid in
+@@ -768,8 +796,8 @@ let shutdown_wait_for_ack (t : Xenops_task.task_handle) ~timeout ~xc ~xs domid
+     match (di.Xenctrl.hvm_guest, domain_type) with
+     | false, _ ->
+         true (* PV guests always acknowledge *)
+-    | true, `pvh ->
+-        true (* PVH guests are also always enlightened *)
++    | true, `pvh | true, `arm ->
++        true (* PVH and ARM guests are also always enlightened *)
+     | true, `hvm ->
+         Xenctrl.hvm_param_get xc domid HVM_PARAM_CALLBACK_IRQ <> 0L
+     | true, `pv ->
+@@ -1155,7 +1183,7 @@ let build_pre ~xc ~xs ~vcpus ~memory ~hard_affinity domid =
+       )
+   ) ;
+   log_reraise (Printf.sprintf "shadow_allocation_set %d MiB" shadow_mib)
+-    (fun () -> Xenctrl.shadow_allocation_set xc domid shadow_mib
++    (fun () -> shadow_allocation_set ~xc domid shadow_mib
+   ) ;
+   let apply_hard_vcpu_map () =
+     let xcext = Xenctrlext.get_handle () in
+@@ -1335,14 +1363,14 @@ let correct_shadow_allocation xc domid uuid shadow_mib =
+   (* The domain builder may reduce our shadow allocation under our feet. Detect
+      this and override. *)
+   let requested_shadow_mib = Int64.to_int shadow_mib in
+-  let actual_shadow_mib = Xenctrl.shadow_allocation_get xc domid in
++  let actual_shadow_mib = shadow_allocation_get ~xc domid in
+   if actual_shadow_mib < requested_shadow_mib then (
+     warn
+       "VM = %s; domid = %d; HVM domain builder reduced our shadow memory from \
+        %d to %d MiB; reverting"
+       (Uuidx.to_string uuid) domid requested_shadow_mib actual_shadow_mib ;
+-    Xenctrl.shadow_allocation_set xc domid requested_shadow_mib ;
+-    let shadow = Xenctrl.shadow_allocation_get xc domid in
++    shadow_allocation_set ~xc domid requested_shadow_mib ;
++    let shadow = shadow_allocation_get ~xc domid in
+     debug "VM = %s; domid = %d; Domain now has %d MiB of shadow"
+       (Uuidx.to_string uuid) domid shadow
+   )
+@@ -1490,6 +1518,33 @@ let build (task : Xenops_task.task_handle) ~xc ~xs ~store_domid ~console_domid
+         , [("rtc/timeoffset", timeoffset)]
+         , `pvh
+         )
++    | BuildARM {cmdline; modules} ->
++        (* The "shadow" allocation sizes the P2M pool holding the stage-2
++           tables, so always use the default shadow multiplier, which sizes it
++           like libxl does. *)
++        let memory =
++          Memory.ARM.full_config static_max_mib 0 target_mib vcpus
++            Memory.ARM.shadow_multiplier_default
++        in
++        let store_port, console_port, numa_placement =
++          build_pre ~xc ~xs ~memory ~vcpus ~hard_affinity domid
++        in
++        let store_mfn, console_mfn =
++          let args =
++            xenguest_args_pvh ~domid ~store_port ~store_domid ~console_port
++              ~console_domid ~memory ~kernel ~cmdline ~modules ~numa_placement
++            @ force_arg
++            @ extras
++          in
++          xenguest task xenguest_path domid uuid args
++        in
++        ( store_mfn
++        , store_port
++        , console_mfn
++        , console_port
++        , [("rtc/timeoffset", timeoffset)]
++        , `pvh
++        )
+   in
+   let local_stuff = console_keys console_port console_mfn in
+   build_post ~xc ~xs ~target_mib ~static_max_mib domid domain_type store_mfn
+@@ -1917,6 +1972,12 @@ let restore (task : Xenops_task.task_handle) ~xc ~xs ~dm ~timeoffset ~extras
+         let vm_stuff = [("rtc/timeoffset", timeoffset)] in
+         maybe_ca_140252_workaround ~xc ~vcpus domid ;
+         (memory, vm_stuff, `pvh)
++    | BuildARM _ ->
++        (* Xen has no save/restore support on ARM *)
++        raise
++          Xenops_interface.(
++            Xenopsd_error (Errors.Unimplemented "restore of ARM domains")
++          )
+   in
+   let memory =
+     match info.memory_total_source with
+diff --git a/ocaml/xenopsd/xc/domain.mli b/ocaml/xenopsd/xc/domain.mli
+index 9c71f78fdea1..389443a9ad1b 100644
+--- a/ocaml/xenopsd/xc/domain.mli
++++ b/ocaml/xenopsd/xc/domain.mli
+@@ -38,7 +38,6 @@ exception Could_not_read_file of string (* eg linux kernel/ initrd *)
+ type xen_arm_arch_domainconfig = {
+     (* Xenctrl.xen_arm_arch_domainconfig = *) gic_version: int
+   ; nr_spis: int
+-  ; clock_frequency: int32
+ }
+ 
+ type x86_arch_emulation_flags =
+@@ -118,10 +117,19 @@ val typ_of_build_pvh_info : build_pvh_info Rpc.Types.typ
+ 
+ val build_pvh_info : build_pvh_info Rpc.Types.def
+ 
++type build_arm_info = {
++    cmdline: string
++  ; modules: (string * string option) list
++        (** list of modules plus optional cmdlines *)
++}
++
++val build_arm_info : build_arm_info Rpc.Types.def
++
+ type builder_spec_info =
+   | BuildHVM of build_hvm_info
+   | BuildPV of build_pv_info
+   | BuildPVH of build_pvh_info
++  | BuildARM of build_arm_info
+ 
+ val typ_of_builder_spec_info : builder_spec_info Rpc.Types.typ
+ 
+@@ -194,7 +202,7 @@ val shutdown_wait_for_ack :
+   -> xc:Xenctrl.handle
+   -> xs:Ezxenstore_core.Xenstore.Xs.xsh
+   -> domid
+-  -> [`hvm | `pv | `pvh]
++  -> [`hvm | `pv | `pvh | `arm]
+   -> shutdown_reason
+   -> unit
+ (** Tell the domain to shutdown with reason 'shutdown_reason', waiting for an
+@@ -342,6 +350,12 @@ val set_memory_target :
+   -> int64
+   -> unit
+ 
++val shadow_allocation_get : xc:Xenctrl.handle -> domid -> int
++(** The domain's shadow allocation, in MiB. On ARM, this is the P2M pool. *)
++
++val shadow_allocation_set : xc:Xenctrl.handle -> domid -> int -> unit
++(** Set the domain's shadow allocation, in MiB. On ARM, this is the P2M pool. *)
++
+ val wait_xen_free_mem :
+   xc:Xenctrl.handle -> ?maximum_wait_time_seconds:int -> int64 -> bool
+ 
+diff --git a/ocaml/xenopsd/xc/memory_breakdown.ml b/ocaml/xenopsd/xc/memory_breakdown.ml
+index fd304580f7f4..56c0fc334d26 100644
+--- a/ocaml/xenopsd/xc/memory_breakdown.ml
++++ b/ocaml/xenopsd/xc/memory_breakdown.ml
+@@ -171,7 +171,7 @@ let guest_shadow_bytes xc _ g =
+   Int64.to_string
+     ( try
+         Memory.bytes_of_mib
+-          (Int64.of_int (Xenctrl.shadow_allocation_get xc g.Xenctrl.domid))
++          (Int64.of_int (Domain.shadow_allocation_get ~xc g.Xenctrl.domid))
+       with _ -> 0L
+     )
+ 
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index d3bd53127ce1..e9e2a18f9781 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -134,7 +134,23 @@ type attached_vdi = {domid: int; attach_info: storage_backend}
+ [@@deriving rpcty]
+ 
+ module VmExtra = struct
+-  let domain_config_of_vm vm =
++  let gic_v2 = 1
++
++  let gic_v3 = 2
++
++  let arm_gic_version ~xc =
++    match (Xenctrl.physinfo xc).Xenctrl.arch_capabilities with
++    | Xenctrl.ARM {Xenctrl.gic_v3= true; _} ->
++        gic_v3
++    | Xenctrl.ARM {Xenctrl.gic_v2= true; _} ->
++        gic_v2
++    | _ ->
++        raise
++          (Xenopsd_error
++             (Internal_error "Host supports neither GICv2 nor GICv3 guests")
++          )
++
++  let domain_config_of_vm ~xc vm =
+     let open Vm in
+     let open Domain in
+     let misc_flags =
+@@ -153,6 +169,9 @@ module VmExtra = struct
+         X86 {emulation_flags= emulation_flags_pvh; misc_flags}
+     | HVM _ ->
+         X86 {emulation_flags= emulation_flags_all; misc_flags}
++    | ARM _ ->
++        (* No vPL011, virtio-mmio or passthrough, so no SPIs are needed *)
++        ARM {gic_version= arm_gic_version ~xc; nr_spis= 0}
+ 
+   (* Known versions of the VM persistent metadata created by xenopsd *)
+   let persistent_version_pre_lima = 0
+@@ -1172,7 +1191,7 @@ let dm_of ~vm =
+       try
+         let vmextra = DB.read_exn vm in
+         match VmExtra.(vmextra.persistent.profile, vmextra.persistent.ty) with
+-        | None, Some (PV _ | PVinPVH _ | PVH _) ->
++        | None, Some (PV _ | PVinPVH _ | PVH _ | ARM _) ->
+             Device.Profile.Qemu_none
+         | None, (Some (HVM _) | None) ->
+             Device.Profile.fallback
+@@ -1541,6 +1560,8 @@ module VM = struct
+           Memory.PVinPVH.overhead_mib
+       | Some (HVM _ | PVH _) ->
+           Memory.HVM.overhead_mib
++      | Some (ARM _) ->
++          Memory.ARM.overhead_mib
+       | None ->
+           failwith
+             "cannot compute memory overhead: unable to determine domain type"
+@@ -1587,6 +1608,8 @@ module VM = struct
+           "pv-in-pvh"
+       | PVH _ ->
+           "pvh"
++      | ARM _ ->
++          "arm-pvh"
+     in
+     xs.Xs.write (domain_type_path domid) domain_type
+ 
+@@ -1601,6 +1624,8 @@ module VM = struct
+           Domain_PVinPVH
+       | "pvh" ->
+           Domain_PVH
++      | "arm-pvh" ->
++          Domain_ARM
+       | x ->
+           warn "domid = %d; Undefined domain type found (%s)" di.Xenctrl.domid x ;
+           Domain_undefined
+@@ -1630,7 +1655,7 @@ module VM = struct
+           raise (Xenopsd_error No_bootable_device)
+       | PV {boot= Indirect {devices= _ :: _; _}; _} ->
+           Domain.BuildPV {Domain.cmdline= ""; ramdisk= None}
+-      | PVinPVH _ | PVH _ ->
++      | PVinPVH _ | PVH _ | ARM _ ->
+           failwith "This domain type did not exist pre-xenopsd"
+     in
+     let build_info =
+@@ -1660,7 +1685,7 @@ module VM = struct
+   let generate_create_info ~xs:_ vm persistent =
+     let ty = match persistent.VmExtra.ty with Some ty -> ty | None -> vm.ty in
+     let hvm =
+-      match ty with HVM _ | PVinPVH _ | PVH _ -> true | PV _ -> false
++      match ty with HVM _ | PVinPVH _ | PVH _ | ARM _ -> true | PV _ -> false
+     in
+     (* XXX add per-vcpu information to the platform data *)
+     (* VCPU configuration *)
+@@ -1776,7 +1801,7 @@ module VM = struct
+                       version= VmExtra.persistent_version_naples
+                     ; ty= Some vm.ty
+                     ; last_start_time= Unix.gettimeofday ()
+-                    ; domain_config= Some (VmExtra.domain_config_of_vm vm)
++                    ; domain_config= Some (VmExtra.domain_config_of_vm ~xc vm)
+                     ; nomigrate=
+                         Platform.is_true ~key:"nomigrate"
+                           ~platformdata:vm.Xenops_interface.Vm.platformdata
+@@ -1827,7 +1852,7 @@ module VM = struct
+                 | Some x ->
+                     debug "VM = %s; using memory_upper_bound = %Ld" vm.Vm.id x ;
+                     (x, x, memory_total_source)
+-                | None ->
++                | None -> (
+                     if resuming then (
+                       debug "VM = %s; using stored suspend_memory_bytes = %Ld"
+                         vm.Vm.id persistent.VmExtra.suspend_memory_bytes ;
+@@ -1835,13 +1860,19 @@ module VM = struct
+                       , persistent.VmExtra.suspend_memory_bytes
+                       , Some persistent.VmExtra.suspend_memory_bytes
+                       )
+-                    ) else (
+-                      debug
+-                        "VM = %s; using memory_dynamic_min = %Ld and \
+-                         memory_dynamic_max = %Ld"
+-                        vm.Vm.id vm.memory_dynamic_min vm.memory_dynamic_max ;
+-                      (vm.memory_dynamic_min, vm.memory_dynamic_max, None)
+-                    )
++                    ) else
++                      match vm.Vm.ty with
++                      | Vm.ARM _ ->
++                          debug "VM = %s; using memory_static_max = %Ld"
++                            vm.Vm.id vm.memory_static_max ;
++                          (vm.memory_static_max, vm.memory_static_max, None)
++                      | Vm.(HVM _ | PV _ | PVinPVH _ | PVH _) ->
++                          debug
++                            "VM = %s; using memory_dynamic_min = %Ld and \
++                             memory_dynamic_max = %Ld"
++                            vm.Vm.id vm.memory_dynamic_min vm.memory_dynamic_max ;
++                          (vm.memory_dynamic_min, vm.memory_dynamic_max, None)
++                  )
+               in
+               let min_kib = kib_of_bytes_used (min_bytes +++ overhead_bytes)
+               and memory_total_source_kib =
+@@ -1874,7 +1905,9 @@ module VM = struct
+                         | _ ->
+                             ()
+                         ) ;
+-                        let domain_config = VmExtra.domain_config_of_vm vm in
++                        let domain_config =
++                          VmExtra.domain_config_of_vm ~xc vm
++                        in
+                         let persistent =
+                           VmExtra.
+                             {persistent with domain_config= Some domain_config}
+@@ -2172,16 +2205,24 @@ module VM = struct
+ 
+   let set_shadow_multiplier task vm target =
+     on_domain task vm (fun xc xs _ _ di ->
+-        if get_domain_type ~xs di = Vm.Domain_PV then
+-          raise
+-            (Xenopsd_error (Unimplemented "shadow_multiplier for PV domains")) ;
++        ( match get_domain_type ~xs di with
++        | Vm.Domain_PV ->
++            raise
++              (Xenopsd_error (Unimplemented "shadow_multiplier for PV domains"))
++        | Vm.Domain_ARM ->
++            (* The P2M pool always uses the default multiplier *)
++            raise
++              (Xenopsd_error (Unimplemented "shadow_multiplier for ARM domains"))
++        | _ ->
++            ()
++        ) ;
+         let domid = di.Xenctrl.domid in
+         let static_max_mib = Memory.mib_of_bytes_used vm.Vm.memory_static_max in
+         let newshadow =
+           Int64.to_int
+             (Memory.HVM.shadow_mib static_max_mib vm.Vm.vcpu_max target)
+         in
+-        let curshadow = Xenctrl.shadow_allocation_get xc domid in
++        let curshadow = Domain.shadow_allocation_get ~xc domid in
+         let needed_mib = newshadow - curshadow in
+         debug
+           "VM = %s; domid = %d; Domain has %d MiB shadow; an increase of %d \
+@@ -2205,7 +2246,7 @@ module VM = struct
+         ) ;
+         debug "VM = %s; domid = %d; shadow_allocation_setto %d MiB" vm.Vm.id
+           domid newshadow ;
+-        Xenctrl.shadow_allocation_set xc domid newshadow
++        Domain.shadow_allocation_set ~xc domid newshadow
+     )
+ 
+   let set_memory_dynamic_range task vm min max =
+@@ -2311,12 +2352,15 @@ module VM = struct
+             None
+         | PV {framebuffer= true; _}
+         | PVinPVH {framebuffer= true; _}
+-        | PVH {framebuffer= true; _} ->
++        | PVH {framebuffer= true; _}
++        | ARM {framebuffer= true; _} ->
+             debug
+               "Ignoring request for a PV VNC console (would require qemu-trad)" ;
+             None
+         | PVinPVH {framebuffer= false; _} | PVH {framebuffer= false; _} ->
+             None
++        | ARM {framebuffer= false; _} ->
++            None
+         | HVM hvm_info ->
+             let disks =
+               List.filter_map
+@@ -2580,6 +2624,26 @@ module VM = struct
+                   , ""
+                   )
+               )
++          | ARM {boot= Indirect _; _} ->
++              (* TODO - handle or introduce the right error *)
++              raise (Xenopsd_error No_bootable_device)
++          | ARM {boot= Direct direct; _} ->
++              let builder_spec_info =
++                Domain.(
++                  BuildARM
++                    {
++                      cmdline= direct.cmdline
++                    ; modules=
++                        ( match direct.ramdisk with
++                        | Some r ->
++                            [(r, None)]
++                        | None ->
++                            []
++                        )
++                    }
++                )
++              in
++              (make_build_info direct.kernel builder_spec_info, "")
+         in
+ 
+         Domain.build task ~xc ~xs ~store_domid ~console_domid ~timeoffset
+@@ -2675,14 +2739,15 @@ module VM = struct
+               )
+                 task ~xc ~xs ~dm:qemu_dm info di.Xenctrl.domid ;
+               Device.Serial.update_xenstore ~xs di.Xenctrl.domid
+-          | Vm.PV _ | Vm.PVinPVH _ | Vm.PVH _ ->
++          | Vm.PV _ | Vm.PVinPVH _ | Vm.PVH _ | Vm.ARM _ ->
+               assert false
+         )
+         (create_device_model_config vm vmextra vbds vifs vgpus vusbs) ;
+       match vm.Vm.ty with
+       | PV {vncterm; vncterm_ip= ip; _}
+       | PVH {vncterm; vncterm_ip= ip; _}
+-      | PVinPVH {vncterm; vncterm_ip= ip; _} ->
++      | PVinPVH {vncterm; vncterm_ip= ip; _}
++      | ARM {vncterm; vncterm_ip= ip; _} ->
+           if vncterm then Service.PV_Vnc.start ~xs ?ip di.Xenctrl.domid
+       | HVM _ ->
+           ()
+@@ -2727,6 +2792,8 @@ module VM = struct
+               `pv
+           | Vm.Domain_PVinPVH | Vm.Domain_PVH ->
+               `pvh
++          | Vm.Domain_ARM ->
++              `arm
+           | Vm.Domain_undefined ->
+               failwith "undefined domain type: cannot save"
+         in
+@@ -2845,6 +2912,9 @@ module VM = struct
+               `pv
+           | Vm.Domain_PVinPVH | Vm.Domain_PVH ->
+               `pvh
++          | Vm.Domain_ARM ->
++              (* Xen has no save/restore support on ARM *)
++              raise (Xenopsd_error (Unimplemented "suspend of ARM domains"))
+           | Vm.Domain_undefined ->
+               failwith "undefined domain type: cannot save"
+         in
+@@ -3101,6 +3171,9 @@ module VM = struct
+               `pvh
+           | Vm.Domain_PVH ->
+               `pvh
++          | Vm.Domain_ARM ->
++              (* Xen has no save/restore support on ARM *)
++              raise (Xenopsd_error (Unimplemented "resume of ARM domains"))
+           | Vm.Domain_undefined ->
+               failwith "undefined domain type: cannot resume"
+         in
+@@ -3332,10 +3405,14 @@ module VM = struct
+                     Memory.mib_of_bytes_used vm.Vm.memory_static_max
+                   in
+                   let default_shadow_mib =
+-                    Memory.HVM.shadow_mib static_max_mib vm.Vm.vcpu_max 1.
++                    match vm.Vm.ty with
++                    | Vm.ARM _ ->
++                        Memory.ARM.shadow_mib static_max_mib vm.Vm.vcpu_max 1.
++                    | Vm.(HVM _ | PV _ | PVinPVH _ | PVH _) ->
++                        Memory.HVM.shadow_mib static_max_mib vm.Vm.vcpu_max 1.
+                   in
+                   let actual_shadow_mib_int =
+-                    Xenctrl.shadow_allocation_get xc di.Xenctrl.domid
++                    Domain.shadow_allocation_get ~xc di.Xenctrl.domid
+                   in
+                   let actual_shadow_mib = Int64.of_int actual_shadow_mib_int in
+                   let result =
