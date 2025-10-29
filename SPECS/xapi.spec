@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.30.0
-Release: 1.0.ydi.3%{?xsrel}%{?dist}
+Release: 1.0.ydi.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1517,8 +1517,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Oct 29 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.30.0-1.0.ydi.3
+* Wed Oct 29 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.30.0-1.0.ydi.4
 - Add ARM as a domain type to xapi
+- Rebuild for xen 4.19.3
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.2
 - Test rebuild for v9
