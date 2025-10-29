@@ -1,0 +1,769 @@
+From c926a698636152f9ce8f6c6f620281d3a04a37e3 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 25 Sep 2025 10:29:03 +0100
+Subject: [PATCH] introduce arm as the domain type
+
+mostly following PVH in various matches, with some remaining TODOs
+---
+ ocaml/idl/datamodel_vm.ml             |  1 +
+ ocaml/xapi-cli-server/record_util.ml  |  4 ++
+ ocaml/xapi-idl/xen/xenops_types.ml    |  2 +
+ ocaml/xapi/cpuid_helpers.ml           |  5 ++
+ ocaml/xapi/helpers.ml                 | 14 ++---
+ ocaml/xapi/memory_check.ml            |  4 +-
+ ocaml/xapi/vm_platform.ml             |  6 ++-
+ ocaml/xapi/xapi_ha_vm_failover.ml     |  2 +-
+ ocaml/xapi/xapi_vif_helpers.ml        |  2 +-
+ ocaml/xapi/xapi_vm_helpers.ml         |  6 +--
+ ocaml/xapi/xapi_vm_lifecycle.ml       |  2 +-
+ ocaml/xapi/xapi_xenops.ml             |  6 ++-
+ ocaml/xenopsd/cli/xn.ml               |  2 +-
+ ocaml/xenopsd/lib/xenops_server.ml    | 75 +++++++++------------------
+ ocaml/xenopsd/test/test.ml            | 10 ++--
+ ocaml/xenopsd/xc/domain.ml            | 32 ++++++++----
+ ocaml/xenopsd/xc/domain.mli           | 11 ++--
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 48 +++++++++++++----
+ 18 files changed, 138 insertions(+), 94 deletions(-)
+
+diff --git a/ocaml/idl/datamodel_vm.ml b/ocaml/idl/datamodel_vm.ml
+index 17178314a..086780213 100644
+--- a/ocaml/idl/datamodel_vm.ml
++++ b/ocaml/idl/datamodel_vm.ml
+@@ -2316,6 +2316,7 @@ let domain_type =
+       ; ("pv", "PV: Paravirtualised")
+       ; ("pv_in_pvh", "PV inside a PVH container")
+       ; ("pvh", "PVH")
++      ; ("arm", "The only type of a VM on the ARM platform")
+       ; ("unspecified", "Not specified or unknown domain type")
+       ]
+     )
+diff --git a/ocaml/xapi-cli-server/record_util.ml b/ocaml/xapi-cli-server/record_util.ml
+index a11b30dec..94f0cc643 100644
+--- a/ocaml/xapi-cli-server/record_util.ml
++++ b/ocaml/xapi-cli-server/record_util.ml
+@@ -492,6 +492,8 @@ let domain_type_to_string = function
+       "pv-in-pvh"
+   | `pvh ->
+       "pvh"
++  | `arm ->
++      "arm"
+   | `unspecified ->
+       "unspecified"
+ 
+@@ -506,6 +508,8 @@ let domain_type_of_string x =
+       `pv_in_pvh
+   | "pvh" ->
+       `pvh
++  | "arm" ->
++      `arm
+   | s ->
+       record_failure "Invalid domain type. Got %s" s
+ 
+diff --git a/ocaml/xapi-idl/xen/xenops_types.ml b/ocaml/xapi-idl/xen/xenops_types.ml
+index 1fd7b00ac..1d5b50119 100644
+--- a/ocaml/xapi-idl/xen/xenops_types.ml
++++ b/ocaml/xapi-idl/xen/xenops_types.ml
+@@ -135,6 +135,7 @@ module Vm = struct
+     | PV of pv_info
+     | PVinPVH of pv_info
+     | PVH of pv_info
++    | ARM of pv_info
+   [@@deriving rpcty, sexp]
+ 
+   type id = string [@@deriving rpcty, sexp]
+@@ -185,6 +186,7 @@ module Vm = struct
+     | Domain_PV
+     | Domain_PVinPVH
+     | Domain_PVH
++    | Domain_ARM
+     | Domain_undefined
+   [@@deriving rpcty, sexp]
+ 
+diff --git a/ocaml/xapi/cpuid_helpers.ml b/ocaml/xapi/cpuid_helpers.ml
+index e453d53a9..b7c1eabcd 100644
+--- a/ocaml/xapi/cpuid_helpers.ml
++++ b/ocaml/xapi/cpuid_helpers.ml
+@@ -53,7 +53,10 @@ let get_flags_for_vm ~__context domain_type cpu_info =
+         features_hvm
+     | `pv ->
+         features_pv
++    | `arm ->
++        failwith "not implemented"
+   in
++  (* TODO: arm policy / vendor handling *)
+   let vendor = List.assoc Constants.cpu_info_vendor_key cpu_info in
+   let migration = Map_check.getf features_field cpu_info in
+   (vendor, migration)
+@@ -74,6 +77,8 @@ let next_boot_cpu_features ~__context ~vm =
+         features_hvm_host
+     | `pv ->
+         features_pv_host
++    | `arm ->
++        failwith "not implemented"
+   in
+   Map_check.getf features_field_boot pool_cpu_info
+   |> Xenops_interface.CPU_policy.to_string
+diff --git a/ocaml/xapi/helpers.ml b/ocaml/xapi/helpers.ml
+index e4b46911b..c62465ce2 100644
+--- a/ocaml/xapi/helpers.ml
++++ b/ocaml/xapi/helpers.ml
+@@ -728,8 +728,8 @@ let rolling_upgrade_in_progress ~__context =
+       (Db.Pool.get_other_config ~__context ~self:pool)
+   with _ -> false
+ 
+-let check_domain_type : API.domain_type -> [`hvm | `pv_in_pvh | `pv | `pvh] =
+-  function
++let check_domain_type :
++    API.domain_type -> [`hvm | `pv_in_pvh | `pv | `pvh | `arm] = function
+   | `hvm ->
+       `hvm
+   | `pv_in_pvh ->
+@@ -738,10 +738,12 @@ let check_domain_type : API.domain_type -> [`hvm | `pv_in_pvh | `pv | `pvh] =
+       `pv
+   | `pvh ->
+       `pvh
++  | `arm ->
++      `arm
+   | `unspecified ->
+       internal_error "unspecified domain type"
+ 
+-let domain_type ~__context ~self : [`hvm | `pv_in_pvh | `pv | `pvh] =
++let domain_type ~__context ~self : [`hvm | `pv_in_pvh | `pv | `pvh | `arm] =
+   let vm = Db.VM.get_record ~__context ~self in
+   match vm.API.vM_power_state with
+   | `Paused | `Running | `Suspended ->
+@@ -794,15 +796,15 @@ let boot_method_of_vm ~__context ~vm =
+   match (check_domain_type vm.API.vM_domain_type, direct_boot) with
+   | `hvm, _ ->
+       Hvmloader (hvmloader_options ())
+-  | `pv, true | `pv_in_pvh, true | `pvh, true ->
++  | `pv, true | `pv_in_pvh, true | `pvh, true | `arm, true ->
+       Direct (direct_options ())
+-  | `pv, false | `pv_in_pvh, false | `pvh, false ->
++  | `pv, false | `pv_in_pvh, false | `pvh, false | `arm, false ->
+       Indirect (indirect_options ())
+ 
+ let needs_qemu_from_domain_type = function
+   | `hvm ->
+       true
+-  | `pv_in_pvh | `pv | `pvh | `unspecified ->
++  | `pv_in_pvh | `pv | `pvh | `arm | `unspecified ->
+       false
+ 
+ let will_have_qemu_from_record (x : API.vM_t) =
+diff --git a/ocaml/xapi/memory_check.ml b/ocaml/xapi/memory_check.ml
+index 4d537aec2..ed0bfa6f0 100644
+--- a/ocaml/xapi/memory_check.ml
++++ b/ocaml/xapi/memory_check.ml
+@@ -31,7 +31,7 @@ let vm_compute_required_memory vm_record guest_memory_kib =
+   (* unused in this function *)
+   let multiplier, full_config =
+     match Helpers.check_domain_type vm_record.API.vM_domain_type with
+-    | `hvm | `pvh ->
++    | `hvm | `pvh | `arm ->
+         (vm_record.API.vM_HVM_shadow_multiplier, Memory.HVM.full_config)
+     | `pv_in_pvh ->
+         (vm_record.API.vM_HVM_shadow_multiplier, Memory.PVinPVH.full_config)
+@@ -245,7 +245,7 @@ let vm_compute_memory_overhead ~vm_record =
+   let vcpu_count = Int64.to_int vm_record.API.vM_VCPUs_max in
+   let model =
+     match Helpers.check_domain_type vm_record.API.vM_domain_type with
+-    | `hvm | `pvh ->
++    | `hvm | `pvh | `arm ->
+         Memory.HVM.overhead_mib
+     | `pv_in_pvh ->
+         Memory.PVinPVH.overhead_mib
+diff --git a/ocaml/xapi/vm_platform.ml b/ocaml/xapi/vm_platform.ml
+index ae43c0336..6f1731510 100644
+--- a/ocaml/xapi/vm_platform.ml
++++ b/ocaml/xapi/vm_platform.ml
+@@ -162,7 +162,11 @@ let sanity_check ~platformdata ~firmware ~vcpu_max ~vcpu_at_startup:_
+   in
+   (* Sanity check for HVM or PV-in-PVH domains with invalid VCPU configuration*)
+   let check_cores_per_socket =
+-    match domain_type with `hvm | `pv_in_pvh | `pvh -> true | `pv -> false
++    match domain_type with
++    | `hvm | `pv_in_pvh | `pvh | `arm ->
++        true
++    | `pv ->
++        false
+   in
+   ( match (List.assoc device_model platformdata, firmware) with
+   | "qemu-trad", Xenops_types.Vm.Uefi _ ->
+diff --git a/ocaml/xapi/xapi_ha_vm_failover.ml b/ocaml/xapi/xapi_ha_vm_failover.ml
+index be5f7c5ba..8e4871c54 100644
+--- a/ocaml/xapi/xapi_ha_vm_failover.ml
++++ b/ocaml/xapi/xapi_ha_vm_failover.ml
+@@ -194,7 +194,7 @@ let host_free_memory ~__context ~host =
+ let vm_memory ~__context snapshot =
+   let policy =
+     match Helpers.check_domain_type snapshot.API.vM_domain_type with
+-    | `hvm | `pv ->
++    | `hvm | `pv | `arm ->
+         Memory_check.Dynamic_min
+     | `pv_in_pvh | `pvh ->
+         Memory_check.Static_max
+diff --git a/ocaml/xapi/xapi_vif_helpers.ml b/ocaml/xapi/xapi_vif_helpers.ml
+index 4f6f4310a..ef3a4a435 100644
+--- a/ocaml/xapi/xapi_vif_helpers.ml
++++ b/ocaml/xapi/xapi_vif_helpers.ml
+@@ -120,7 +120,7 @@ let valid_operations ~__context record _ref' : table =
+     match Helpers.domain_type ~__context ~self:vm with
+     | `hvm ->
+         true
+-    | `pv_in_pvh | `pv | `pvh ->
++    | `pv_in_pvh | `pv | `pvh | `arm ->
+         false
+   in
+   ( if power_state = `Running && needs_driver_check () then
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index 748e2afb2..c69c1947e 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -267,7 +267,7 @@ let validate_actions_after_crash ~__context ~self ~value =
+   let fld = "VM.actions_after_crash" in
+   let hvm_cannot_coredump v =
+     match Helpers.domain_type ~__context ~self with
+-    | `hvm | `pv_in_pvh | `pvh ->
++    | `hvm | `pv_in_pvh | `pvh | `arm ->
+         value_not_supported fld v
+           "cannot invoke a coredump of an HVM, PVH or PV-in-PVH domain"
+     | `pv ->
+@@ -590,7 +590,7 @@ let assert_enough_memory_available ~__context ~self ~host ~snapshot =
+   in
+   let policy =
+     match Helpers.check_domain_type snapshot.API.vM_domain_type with
+-    | `hvm | `pv | `pvh ->
++    | `hvm | `pv | `pvh | `arm ->
+         Memory_check.Dynamic_min
+     | `pv_in_pvh ->
+         Memory_check.Static_max
+@@ -714,7 +714,7 @@ let assert_can_boot_here ~__context ~self ~host ~snapshot ~do_cpuid_check
+   ( match Helpers.domain_type ~__context ~self with
+   | `hvm | `pv_in_pvh | `pvh ->
+       assert_host_supports_hvm ~__context ~self ~host
+-  | `pv ->
++  | `pv | `arm ->
+       ()
+   ) ;
+   if do_memory_check then
+diff --git a/ocaml/xapi/xapi_vm_lifecycle.ml b/ocaml/xapi/xapi_vm_lifecycle.ml
+index 37bfc045d..f5a9f3ae5 100644
+--- a/ocaml/xapi/xapi_vm_lifecycle.ml
++++ b/ocaml/xapi/xapi_vm_lifecycle.ml
+@@ -174,7 +174,7 @@ let has_definitely_booted_pv ~vmmr =
+     match r.Db_actions.vM_metrics_current_domain_type with
+     | `hvm | `unspecified ->
+         false
+-    | `pv | `pv_in_pvh | `pvh ->
++    | `pv | `pv_in_pvh | `pvh | `arm ->
+         true
+   )
+ 
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index fe861ab6c..f7e696698 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -538,6 +538,8 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
+       PVH (make_direct_boot_record options)
+   | `pvh, Helpers.Indirect options ->
+       PVH (make_indirect_boot_record options)
++  | `arm, Helpers.Direct options ->
++      ARM (make_direct_boot_record options)
+   | _ ->
+       Helpers.internal_error "invalid boot configuration"
+ 
+@@ -566,7 +568,7 @@ module MD = struct
+       match vm.API.vM_domain_type with
+       | `hvm ->
+           true
+-      | `pv_in_pvh | `pv | `pvh | `unspecified ->
++      | `pv_in_pvh | `pv | `pvh | `arm | `unspecified ->
+           false
+     in
+     let device_number =
+@@ -2110,6 +2112,8 @@ let update_vm_internal ~__context ~id ~self ~previous ~info ~localhost =
+           update `pv_in_pvh
+       | Domain_PVH ->
+           update `pvh
++      | Domain_ARM ->
++          update `arm
+       | Domain_undefined ->
+           if power_state <> `Halted then
+             debug
+diff --git a/ocaml/xenopsd/cli/xn.ml b/ocaml/xenopsd/cli/xn.ml
+index ca67548dc..dcf7ca055 100644
+--- a/ocaml/xenopsd/cli/xn.ml
++++ b/ocaml/xenopsd/cli/xn.ml
+@@ -386,7 +386,7 @@ let print_vm id =
+     )
+     | HVM {boot_order= b; _} ->
+         [(_builder, quote "hvm"); (_boot, quote b)]
+-    | PVinPVH _ | PVH _ ->
++    | PVinPVH _ | PVH _ | ARM _ ->
+         failwith "unimplemented"
+   in
+   let name = [(_name, quote vm_t.name)] in
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 7e7951d5c..99b049a46 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -1356,6 +1356,23 @@ let export_metadata vdi_map vif_map vgpu_pci_map id =
+   let vm_t = VM_DB.read_exn id in
+   debug "Remapping bootloader VDIs" ;
+   (* Remap the bootloader vdis *)
++  let change_bootloader pv_info =
++    {
++      pv_info with
++      Vm.boot=
++        ( match pv_info.Vm.boot with
++        | Vm.Direct _ ->
++            pv_info.Vm.boot
++        | Vm.Indirect pv_indirect_boot ->
++            Vm.Indirect
++              {
++                pv_indirect_boot with
++                Vm.devices=
++                  List.map (remap_vdi vdi_map) pv_indirect_boot.Vm.devices
++              }
++        )
++    }
++  in
+   let vm_t =
+     {
+       vm_t with
+@@ -1364,59 +1381,13 @@ let export_metadata vdi_map vif_map vgpu_pci_map id =
+         | Vm.HVM _ ->
+             vm_t.Vm.ty
+         | Vm.PV pv_info ->
+-            Vm.PV
+-              {
+-                pv_info with
+-                Vm.boot=
+-                  ( match pv_info.Vm.boot with
+-                  | Vm.Direct _ ->
+-                      pv_info.Vm.boot
+-                  | Vm.Indirect pv_indirect_boot ->
+-                      Vm.Indirect
+-                        {
+-                          pv_indirect_boot with
+-                          Vm.devices=
+-                            List.map (remap_vdi vdi_map)
+-                              pv_indirect_boot.Vm.devices
+-                        }
+-                  )
+-              }
++            Vm.PV (change_bootloader pv_info)
+         | Vm.PVinPVH pv_info ->
+-            Vm.PVinPVH
+-              {
+-                pv_info with
+-                Vm.boot=
+-                  ( match pv_info.Vm.boot with
+-                  | Vm.Direct _ ->
+-                      pv_info.Vm.boot
+-                  | Vm.Indirect pv_indirect_boot ->
+-                      Vm.Indirect
+-                        {
+-                          pv_indirect_boot with
+-                          Vm.devices=
+-                            List.map (remap_vdi vdi_map)
+-                              pv_indirect_boot.Vm.devices
+-                        }
+-                  )
+-              }
++            Vm.PVinPVH (change_bootloader pv_info)
+         | Vm.PVH pv_info ->
+-            Vm.PVH
+-              {
+-                pv_info with
+-                Vm.boot=
+-                  ( match pv_info.Vm.boot with
+-                  | Vm.Direct _ ->
+-                      pv_info.Vm.boot
+-                  | Vm.Indirect pv_indirect_boot ->
+-                      Vm.Indirect
+-                        {
+-                          pv_indirect_boot with
+-                          Vm.devices=
+-                            List.map (remap_vdi vdi_map)
+-                              pv_indirect_boot.Vm.devices
+-                        }
+-                  )
+-              }
++            Vm.PVH (change_bootloader pv_info)
++        | Vm.ARM pv_info ->
++            Vm.ARM (change_bootloader pv_info)
+         )
+     }
+   in
+@@ -1496,6 +1467,8 @@ let import_metadata id md =
+             Host.(stat.cpu_info.features_hvm)
+         | PV _ ->
+             Host.(stat.cpu_info.features_pv)
++        | ARM _ ->
++            failwith "not implemented"
+       in
+       let fs' = CPU_policy.to_string fs in
+       debug "Setting Platformdata:featureset=%s" fs' ;
+diff --git a/ocaml/xenopsd/test/test.ml b/ocaml/xenopsd/test/test.ml
+index 3f59159b2..2274463cf 100644
+--- a/ocaml/xenopsd/test/test.ml
++++ b/ocaml/xenopsd/test/test.ml
+@@ -331,12 +331,11 @@ let vm_assert_equal vm vm' =
+     vm.on_reboot vm'.on_reboot ;
+   assert_equal ~msg:"has_vendor_device" ~printer:string_of_bool
+     vm.has_vendor_device vm'.has_vendor_device ;
+-  let is_hvm vm =
+-    match vm.ty with HVM _ -> true | PV _ | PVinPVH _ | PVH _ -> false
+-  in
++  let is_hvm vm = match vm.ty with HVM _ -> true | _ -> false in
+   assert_equal ~msg:"HVM-ness" ~printer:string_of_bool (is_hvm vm) (is_hvm vm') ;
+   match (vm.ty, vm'.ty) with
+-  | HVM _, (PV _ | PVinPVH _ | PVH _) | (PV _ | PVinPVH _ | PVH _), HVM _ ->
++  | HVM _, (PV _ | PVinPVH _ | PVH _ | ARM _)
++  | (PV _ | PVinPVH _ | PVH _ | ARM _), HVM _ ->
+       failwith "HVM-ness"
+   | HVM h, HVM h' ->
+       assert_equal ~msg:"HAP" ~printer:string_of_bool h.hap h'.hap ;
+@@ -369,7 +368,8 @@ let vm_assert_equal vm vm' =
+         h.boot_order h'.boot_order ;
+       assert_equal ~msg:"qemu_disk_cmdline" ~printer:string_of_bool
+         h.qemu_disk_cmdline h'.qemu_disk_cmdline
+-  | (PV p | PVinPVH p | PVH p), (PV p' | PVinPVH p' | PVH p') -> (
++  | (PV p | PVinPVH p | PVH p | ARM p), (PV p' | PVinPVH p' | PVH p' | ARM p')
++    -> (
+       assert_equal ~msg:"framebuffer" ~printer:string_of_bool p.framebuffer
+         p'.framebuffer ;
+       assert_equal ~msg:"vncterm" ~printer:string_of_bool p.vncterm p'.vncterm ;
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 02c36b6cc..ea8886dbf 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -30,8 +30,12 @@ let with_lock = Xapi_stdext_threads.Threadext.Mutex.execute
+ 
+ type xen_arm_arch_domainconfig = Xenctrl.xen_arm_arch_domainconfig = {
+     gic_version: int
+-  ; nr_spis: int
++        (*#define XEN_DOMCTL_CONFIG_GIC_NATIVE    0
++          #define XEN_DOMCTL_CONFIG_GIC_V2        1
++          #define XEN_DOMCTL_CONFIG_GIC_V3        2*)
++  ; nr_spis: int (* #define LIBXL_NR_SPIS_DEFAULT (~(uint32_t)0) *)
+   ; clock_frequency: int32
++        (* this is an OUT parameter, it's ignored as an input *)
+         (*; sve_vl: int*)
+         (*; tee_type: int*)
+ }
+@@ -145,10 +149,13 @@ type build_pvh_info = {
+ }
+ [@@deriving rpcty]
+ 
++type build_arm_info = {cmdline: string (* ...... *)} [@@deriving rpcty]
++
+ type builder_spec_info =
+   | BuildHVM of build_hvm_info
+   | BuildPV of build_pv_info
+   | BuildPVH of build_pvh_info
++  | BuildARM of build_arm_info
+ [@@deriving rpcty]
+ 
+ type build_info = {
+@@ -762,7 +769,7 @@ let shutdown ~xc ~xs domid req =
+     respond then throw a Watch.Timeout exception. All other exceptions imply the
+     domain has disappeared. *)
+ let shutdown_wait_for_ack (t : Xenops_task.task_handle) ~timeout ~xc ~xs domid
+-    (domain_type : [`pv | `pvh | `hvm]) req =
++    (domain_type : [`pv | `pvh | `hvm | `arm]) req =
+   let di = Xenctrl.domain_getinfo xc domid in
+   let uuid = get_uuid ~xc domid in
+   let uuid = Uuidx.to_string uuid in
+@@ -774,7 +781,7 @@ let shutdown_wait_for_ack (t : Xenops_task.task_handle) ~timeout ~xc ~xs domid
+         true (* PVH guests are also always enlightened *)
+     | true, `hvm ->
+         Xenctrl.hvm_param_get xc domid HVM_PARAM_CALLBACK_IRQ <> 0L
+-    | true, `pv ->
++    | true, `pv | true, `arm ->
+         failwith "Internal error, should never happen"
+   in
+   if not expecting_ack then (
+@@ -1374,7 +1381,7 @@ let build_post ~xc ~xs ~static_max_mib ~target_mib domid domain_type store_mfn
+       Xs.transaction xs (fun t -> t.Xst.writev vm_path vments)
+   ) ;
+   let libxl_dom_type =
+-    match domain_type with `pv -> "PV" | `hvm -> "HVM" | `pvh -> "PVH"
++    match domain_type with `pv -> "PV" | `hvm -> "HVM" | `pvh -> "PVH" | `arm -> "PVH"
+   in
+   xs.Xs.write (sprintf "/libxl/%d/type" domid) libxl_dom_type ;
+   debug "VM = %s; domid = %d; @introduceDomain" (Uuidx.to_string uuid) domid ;
+@@ -1504,8 +1511,8 @@ let resume_post ~xc:_ ~xs domid =
+   let store_port = int_of_string (xs.Xs.read (dom_path ^ "/store/port")) in
+   xs.Xs.introduce domid store_mfn store_port
+ 
+-let resume (task : Xenops_task.task_handle) ~xc ~xs ~qemu_domid ~domain_type
+-    domid =
++let resume (task : Xenops_task.task_handle) ~xc ~xs ~qemu_domid
++    ~(domain_type : [`hvm | `pv | `pvh | `arm]) domid =
+   Xenctrl.domain_resume_fast xc domid ;
+   resume_post ~xc ~xs domid ;
+   if domain_type = `hvm then Device.Dm.resume task ~xs ~qemu_domid domid
+@@ -1524,7 +1531,7 @@ let with_emu_manager_restore (task : Xenops_task.task_handle) ~domain_type
+     ~(dm : Device.Profile.t) ~store_port ~console_port ~extras ~numa_placements
+     manager_path domid _uuid main_fd vgpu_fd f =
+   let mode =
+-    match domain_type with `hvm | `pvh -> "hvm_restore" | `pv -> "restore"
++    match domain_type with `hvm | `pvh -> "hvm_restore" | `pv | `arm -> "restore"
+   in
+   let fd_uuid = Uuidx.(to_string (make ())) in
+   let vgpu_args, vgpu_cmdline =
+@@ -1919,6 +1926,13 @@ let restore (task : Xenops_task.task_handle) ~xc ~xs ~dm ~timeoffset ~extras
+         let vm_stuff = [("rtc/timeoffset", timeoffset)] in
+         maybe_ca_140252_workaround ~xc ~vcpus domid ;
+         (memory, vm_stuff, `pvh)
++    | BuildARM _info ->
++        let shadow_multiplier = Memory.Linux.shadow_multiplier_default in
++        let memory =
++          Memory.Linux.full_config static_max_mib video_mib target_mib vcpus
++            shadow_multiplier
++        in
++        (memory, [], `arm)
+   in
+   let memory =
+     match info.memory_total_source with
+@@ -1951,7 +1965,7 @@ let suspend_emu_manager ~(task : Xenops_task.task_handle) ~xs ~domain_type
+   let open Emu_manager in
+   let fd_uuid = Uuidx.(to_string (make ())) in
+   let mode =
+-    match domain_type with `hvm | `pvh -> "hvm_save" | `pv -> "save"
++    match domain_type with `hvm | `pvh -> "hvm_save" | `pv | `arm -> "save"
+   in
+   let vgpu_args, vgpu_cmdline =
+     match vgpu_fd with
+@@ -2170,7 +2184,7 @@ let suspend (task : Xenops_task.task_handle) ~xc ~xs ~domain_type ~is_uefi ~dm
+     (* Currently Qemu suspended inside above call with the libxc memory image,
+        we should try putting it below in the relevant section of the
+        suspend-image-writing *)
+-    ( if domain_type = `hvm then
++    ( if hvm then
+         write_qemu_record domid uuid main_fd
+       else
+         return ()
+diff --git a/ocaml/xenopsd/xc/domain.mli b/ocaml/xenopsd/xc/domain.mli
+index 9c71f78fd..9831f5d31 100644
+--- a/ocaml/xenopsd/xc/domain.mli
++++ b/ocaml/xenopsd/xc/domain.mli
+@@ -118,10 +118,15 @@ val typ_of_build_pvh_info : build_pvh_info Rpc.Types.typ
+ 
+ val build_pvh_info : build_pvh_info Rpc.Types.def
+ 
++type build_arm_info = {cmdline: string (* ...... *)}
++
++val build_arm_info : build_arm_info Rpc.Types.def
++
+ type builder_spec_info =
+   | BuildHVM of build_hvm_info
+   | BuildPV of build_pv_info
+   | BuildPVH of build_pvh_info
++  | BuildARM of build_arm_info
+ 
+ val typ_of_builder_spec_info : builder_spec_info Rpc.Types.typ
+ 
+@@ -194,7 +199,7 @@ val shutdown_wait_for_ack :
+   -> xc:Xenctrl.handle
+   -> xs:Ezxenstore_core.Xenstore.Xs.xsh
+   -> domid
+-  -> [`hvm | `pv | `pvh]
++  -> [`hvm | `pv | `pvh | `arm]
+   -> shutdown_reason
+   -> unit
+ (** Tell the domain to shutdown with reason 'shutdown_reason', waiting for an
+@@ -249,7 +254,7 @@ val resume :
+   -> xc:Xenctrl.handle
+   -> xs:Ezxenstore_core.Xenstore.Xs.xsh
+   -> qemu_domid:int
+-  -> domain_type:[`hvm | `pv | `pvh]
++  -> domain_type:[`hvm | `pv | `pvh | `arm]
+   -> domid
+   -> unit
+ (** Fast resume *)
+@@ -276,7 +281,7 @@ val suspend :
+      Xenops_task.Xenops_task.task_handle
+   -> xc:Xenctrl.handle
+   -> xs:Ezxenstore_core.Xenstore.Xs.xsh
+-  -> domain_type:[`hvm | `pv | `pvh]
++  -> domain_type:[`hvm | `pv | `pvh | `arm]
+   -> is_uefi:bool
+   -> dm:Device.Profile.t
+   -> manager_path:string
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index d3bd53127..bcdbcb9aa 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -153,6 +153,8 @@ module VmExtra = struct
+         X86 {emulation_flags= emulation_flags_pvh; misc_flags}
+     | HVM _ ->
+         X86 {emulation_flags= emulation_flags_all; misc_flags}
++    | ARM _ ->
++        ARM {gic_version= 2; nr_spis= -1; clock_frequency= 0l}
+ 
+   (* Known versions of the VM persistent metadata created by xenopsd *)
+   let persistent_version_pre_lima = 0
+@@ -998,6 +1000,7 @@ module HOST = struct
+         in
+         let threads_per_core = p.threads_per_core in
+         let nr_nodes = Xenctrlext.(get_handle () |> get_nr_nodes) in
++        (* This is an x86-only call - ARM should return empty arrays here *)
+         let features = get_cpu_featureset xc Featureset_host in
+         (* this is Default policy in Xen's terminology, used on boot for new VMs *)
+         let features_pv_host = get_cpu_featureset xc Featureset_pv in
+@@ -1172,7 +1175,7 @@ let dm_of ~vm =
+       try
+         let vmextra = DB.read_exn vm in
+         match VmExtra.(vmextra.persistent.profile, vmextra.persistent.ty) with
+-        | None, Some (PV _ | PVinPVH _ | PVH _) ->
++        | None, Some (PV _ | PVinPVH _ | PVH _ | ARM _) ->
+             Device.Profile.Qemu_none
+         | None, (Some (HVM _) | None) ->
+             Device.Profile.fallback
+@@ -1539,8 +1542,8 @@ module VM = struct
+           Memory.Linux.overhead_mib
+       | Some (PVinPVH _) ->
+           Memory.PVinPVH.overhead_mib
+-      | Some (HVM _ | PVH _) ->
+-          Memory.HVM.overhead_mib
++      | Some (HVM _ | PVH _ | ARM _) ->
++          Memory.HVM.overhead_mib (* ARM is HVM + ACPI size *)
+       | None ->
+           failwith
+             "cannot compute memory overhead: unable to determine domain type"
+@@ -1587,6 +1590,8 @@ module VM = struct
+           "pv-in-pvh"
+       | PVH _ ->
+           "pvh"
++      | ARM _ ->
++          "arm-pvh"
+     in
+     xs.Xs.write (domain_type_path domid) domain_type
+ 
+@@ -1601,6 +1606,8 @@ module VM = struct
+           Domain_PVinPVH
+       | "pvh" ->
+           Domain_PVH
++      | "arm-pvh" ->
++          Domain_ARM
+       | x ->
+           warn "domid = %d; Undefined domain type found (%s)" di.Xenctrl.domid x ;
+           Domain_undefined
+@@ -1630,7 +1637,7 @@ module VM = struct
+           raise (Xenopsd_error No_bootable_device)
+       | PV {boot= Indirect {devices= _ :: _; _}; _} ->
+           Domain.BuildPV {Domain.cmdline= ""; ramdisk= None}
+-      | PVinPVH _ | PVH _ ->
++      | PVinPVH _ | PVH _ | ARM _ ->
+           failwith "This domain type did not exist pre-xenopsd"
+     in
+     let build_info =
+@@ -1658,9 +1665,10 @@ module VM = struct
+     |> Jsonrpc.to_string
+ 
+   let generate_create_info ~xs:_ vm persistent =
++    (* TODO *)
+     let ty = match persistent.VmExtra.ty with Some ty -> ty | None -> vm.ty in
+     let hvm =
+-      match ty with HVM _ | PVinPVH _ | PVH _ -> true | PV _ -> false
++      match ty with HVM _ | PVinPVH _ | PVH _ | ARM _ -> true | PV _ -> false
+     in
+     (* XXX add per-vcpu information to the platform data *)
+     (* VCPU configuration *)
+@@ -2311,12 +2319,15 @@ module VM = struct
+             None
+         | PV {framebuffer= true; _}
+         | PVinPVH {framebuffer= true; _}
+-        | PVH {framebuffer= true; _} ->
++        | PVH {framebuffer= true; _}
++        | ARM {framebuffer= true; _} ->
+             debug
+               "Ignoring request for a PV VNC console (would require qemu-trad)" ;
+             None
+         | PVinPVH {framebuffer= false; _} | PVH {framebuffer= false; _} ->
+             None
++        | ARM {framebuffer= false; _} ->
++            None
+         | HVM hvm_info ->
+             let disks =
+               List.filter_map
+@@ -2580,6 +2591,14 @@ module VM = struct
+                   , ""
+                   )
+               )
++          | ARM {boot= Indirect _; _} ->
++              (* TODO - handle or introduce the right error *)
++              raise (Xenopsd_error No_bootable_device)
++          | ARM {boot= Direct direct; _} ->
++              let builder_spec_info =
++                Domain.(BuildARM {cmdline= direct.cmdline})
++              in
++              (make_build_info direct.kernel builder_spec_info, "")
+         in
+ 
+         Domain.build task ~xc ~xs ~store_domid ~console_domid ~timeoffset
+@@ -2675,14 +2694,15 @@ module VM = struct
+               )
+                 task ~xc ~xs ~dm:qemu_dm info di.Xenctrl.domid ;
+               Device.Serial.update_xenstore ~xs di.Xenctrl.domid
+-          | Vm.PV _ | Vm.PVinPVH _ | Vm.PVH _ ->
++          | Vm.PV _ | Vm.PVinPVH _ | Vm.PVH _ | Vm.ARM _ ->
+               assert false
+         )
+         (create_device_model_config vm vmextra vbds vifs vgpus vusbs) ;
+       match vm.Vm.ty with
+       | PV {vncterm; vncterm_ip= ip; _}
+       | PVH {vncterm; vncterm_ip= ip; _}
+-      | PVinPVH {vncterm; vncterm_ip= ip; _} ->
++      | PVinPVH {vncterm; vncterm_ip= ip; _}
++      | ARM {vncterm; vncterm_ip= ip; _} ->
+           if vncterm then Service.PV_Vnc.start ~xs ?ip di.Xenctrl.domid
+       | HVM _ ->
+           ()
+@@ -2727,6 +2747,8 @@ module VM = struct
+               `pv
+           | Vm.Domain_PVinPVH | Vm.Domain_PVH ->
+               `pvh
++          | Vm.Domain_ARM ->
++              `arm
+           | Vm.Domain_undefined ->
+               failwith "undefined domain type: cannot save"
+         in
+@@ -2845,6 +2867,8 @@ module VM = struct
+               `pv
+           | Vm.Domain_PVinPVH | Vm.Domain_PVH ->
+               `pvh
++          | Vm.Domain_ARM ->
++              `arm
+           | Vm.Domain_undefined ->
+               failwith "undefined domain type: cannot save"
+         in
+@@ -3101,6 +3125,8 @@ module VM = struct
+               `pvh
+           | Vm.Domain_PVH ->
+               `pvh
++          | Vm.Domain_ARM ->
++              `arm
+           | Vm.Domain_undefined ->
+               failwith "undefined domain type: cannot resume"
+         in
+@@ -3356,7 +3382,11 @@ module VM = struct
+             in
+             let domid = di.Xenctrl.domid in
+             let xh = Xenctrlext.get_handle () in
+-            let numa = Xenctrlext.DomainNuma.state xh ~domid in
++            let numa =
++              try Xenctrlext.DomainNuma.state xh ~domid
++              with _ ->
++                Xenctrlext.DomainNuma.{optimised= false; nodes= -1; memory= [||]}
++            in
+             {
+               Vm.power_state=
+                 ( if di.Xenctrl.paused then
+-- 
+2.53.0
+

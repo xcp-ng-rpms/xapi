@@ -1,0 +1,24 @@
+From 73f53576a05abc8ee8f6829262485110e523c5ef Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 8 Sep 2025 14:47:28 +0100
+Subject: [PATCH] domainconfig: Add new parameters for SVE vector length and
+ TEE type
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xenopsd/xc/domain.ml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 7001a11c0..1bfb119ab 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -32,6 +32,8 @@ type xen_arm_arch_domainconfig = Xenctrl.xen_arm_arch_domainconfig = {
+     gic_version: int
+   ; nr_spis: int
+   ; clock_frequency: int32
++        (*; sve_vl: int*)
++        (*; tee_type: int*)
+ }
+ [@@deriving rpcty]
+ 
