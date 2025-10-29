@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Fri, 9 Oct 2026 15:44:21 +0200
+Subject: [PATCH] xenopsd/xc: expose CD drives of ARM guests as disks
+
+The xen-blkfront in Linux refuses to attach PV devices with device-type
+"cdrom" in HVM-type guests, as it expects CD drives to be emulated by
+QEMU directly. But, ARM guests are of type HVM but for the moment have
+no emulated devices, so their CD drive never shows up. UEFI firmware can
+still boot from it, but the OS installer then can't find its media.
+
+Write device-type "disk" for CD VBDs of ARM domains. The media is
+read-only, so the guest gets a read-only disk containing the ISO.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index b946d5d8125f..e6bca36c0e0b 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -4347,6 +4347,8 @@ module VBD = struct
+                   ; params
+                   ; dev_type=
+                       ( match vbd.ty with
++                      | CDROM when domain_type = Vm.Domain_ARM ->
++                          Device.Vbd.Disk
+                       | CDROM ->
+                           Device.Vbd.CDROM
+                       | Disk ->

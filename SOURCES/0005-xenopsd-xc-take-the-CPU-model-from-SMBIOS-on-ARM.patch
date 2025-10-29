@@ -1,0 +1,100 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Fri, 9 Oct 2026 14:42:07 +0200
+Subject: [PATCH] xenopsd/xc: take the CPU model from SMBIOS on ARM
+
+On ARM, /proc/cpuinfo has no "vendor_id", "model name" or "cpu MHz"
+lines. The kernel only reports the MIDR fields. The host CPU vendor,
+model name and speed therefore end up as "unknown" in xapi and XO.
+
+So, when "model name" is missing, walk /sys/firmware/dmi/tables/DMI and
+take the manufacturer, version and current speed from the first
+populated SMBIOS processor record (type 4), like lscpu does on arm64.
+Fields that /proc/cpuinfo did provide are kept, and x86 is unaffected.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 2ac2dbf00669..b946d5d8125f 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -988,9 +988,79 @@ module HOST = struct
+       , find "cpu family"
+       )
+     in
++    (* ARM's /proc/cpuinfo carries none of the x86 identification fields
++       above. Fall back to the first populated SMBIOS processor record
++       (type 4) for the manufacturer, version (model name) and current
++       speed. *)
++    let get_smbios_processor () =
++      try
++        let raw = Unixext.string_of_file "/sys/firmware/dmi/tables/DMI" in
++        let size = String.length raw in
++        let byte off = Char.code raw.[off] in
++        (* Each structure is a formatted area followed by a string set
++           terminated by a double NUL. *)
++        let rec strings_end i =
++          if i + 1 >= size then
++            size
++          else if raw.[i] = '\000' && raw.[i + 1] = '\000' then
++            i + 2
++          else
++            strings_end (i + 1)
++        in
++        let rec find_processor off =
++          if off + 4 > size then
++            None
++          else
++            let typ = byte off and len = byte (off + 1) in
++            let next = strings_end (off + len) in
++            if typ = 127 || len < 4 then
++              None
++            else if
++              typ = 4 && len > 0x18 && byte (off + 0x18) land 0x40 <> 0
++            then
++              Some (off, len, next)
++            else
++              find_processor next
++        in
++        match find_processor 0 with
++        | None ->
++            (None, None, None)
++        | Some (off, len, next) ->
++            let strings =
++              String.sub raw (off + len) (next - off - len)
++              |> String.split_on_char '\000'
++            in
++            let str field =
++              if field >= len || byte (off + field) = 0 then
++                None
++              else
++                List.nth_opt strings (byte (off + field) - 1)
++                |> Option.map String.trim
++                |> Fun.flip Option.bind (function "" -> None | s -> Some s)
++            in
++            let speed =
++              match byte (off + 0x16) lor (byte (off + 0x17) lsl 8) with
++              | 0 ->
++                  None
++              | mhz ->
++                  Some (string_of_int mhz)
++            in
++            (str 0x07, str 0x10, speed)
++      with _ -> (None, None, None)
++    in
+     let vendor, modelname, speed, flags, stepping, model, family =
+       get_cpuinfo ()
+     in
++    let vendor, modelname, speed =
++      if modelname <> "unknown" then
++        (vendor, modelname, speed)
++      else
++        let dmi_vendor, dmi_model, dmi_speed = get_smbios_processor () in
++        let or_unknown x = Option.value x ~default:"unknown" in
++        ( (if vendor = "unknown" then or_unknown dmi_vendor else vendor)
++        , or_unknown dmi_model
++        , if speed = "unknown" then or_unknown dmi_speed else speed )
++    in
+     with_xc (fun xc ->
+         let open Xenctrl in
+         let p = physinfo xc in
