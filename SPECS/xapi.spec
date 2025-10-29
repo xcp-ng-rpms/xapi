@@ -32,7 +32,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.4.0
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1.0.jvr.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -103,6 +103,17 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
 Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
 Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
+
+# ARM patches
+Patch2001: 0001-domainconfig-Add-new-parameters-for-SVE-vector-lengt.patch
+Patch2002: 0002-introduce-arm-as-the-domain-type.patch
+Patch2003: 0003-cpuid_helpers-skip-CPU-featureset-levelling-for-ARM-.patch
+Patch2004: 0004-xenopsd-xc-add-a-build-path-for-ARM-domains.patch
+Patch2006: 0006-xenopsd-Always-call-domain_setmaxmem-during-VM.creat.patch
+Patch2007: 0007-xenopsd-xc-pass-the-guest-ramdisk-through-as-an-ARM-.patch
+Patch2008: 0008-xenopsd-xc-sync-domain.ml-with-Xen-4.21-s-Xenctrl-AB.patch
+Patch2009: 0009-xenopsd-xc-set-CDF_TRAP_UNMAPPED_ACCESSES-for-ARM-do.patch
+Patch2010: 0010-xenopsd-xc-offer-a-xenfb-graphical-console-for-ARM-g.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1580,6 +1591,8 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Won Sep 28 2026 Julian Vetter <julian.vetter@vates.tech> - 26.04.0-1.1
+- Add set of ARM patches
 * Tue Jul 07 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
 - Sync packaging with XS9
 - Do not require python2-udev on v9+

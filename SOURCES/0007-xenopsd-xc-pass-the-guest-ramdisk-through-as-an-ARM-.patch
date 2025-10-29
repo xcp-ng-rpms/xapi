@@ -1,0 +1,101 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Mon, 20 Jul 2026 10:59:55 +0200
+Subject: [PATCH] xenopsd/xc: pass the guest ramdisk through as an ARM boot
+ module
+
+build_arm_info never had a modules field, so the BuildARM case in
+Domain.build always called xenguest_args_pvh with ~modules:[] regardless
+of what was configured on the VM. Any ramdisk set via PV-ramdisk was
+silently dropped before it ever reached xenguest, so ARM guests booted
+with no initrd and panicked unable to mount root.
+
+Add modules to build_arm_info, thread it through the BuildARM build case
+instead of the hardcoded ~modules:[], and populate it from
+direct.ramdisk when constructing the ARM builder_spec_info in
+xenops_server_xen.ml. This is almost the same code already used for
+the PVH {boot = Direct _} case.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 4ae54fb3fc1e..48e338e445be 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -145,7 +145,12 @@ type build_pvh_info = {
+ }
+ [@@deriving rpcty]
+ 
+-type build_arm_info = {cmdline: string} [@@deriving rpcty]
++type build_arm_info = {
++    cmdline: string
++  ; modules: (string * string option) list
++        (** list of modules plus optional cmdlines *)
++}
++[@@deriving rpcty]
+ 
+ type builder_spec_info =
+   | BuildHVM of build_hvm_info
+@@ -1515,18 +1520,17 @@ let build (task : Xenops_task.task_handle) ~xc ~xs ~store_domid ~console_domid
+         , [("rtc/timeoffset", timeoffset)]
+         , `pvh
+         )
+-    | BuildARM {cmdline} ->
++    | BuildARM {cmdline; modules} ->
+         let memory =
+           Memory.Linux.full_config static_max_mib 0 target_mib vcpus 1.0
+         in
+         let store_port, console_port, numa_placement =
+           build_pre ~xc ~xs ~memory ~vcpus ~hard_affinity domid
+         in
+-        (* TODO modules *)
+         let store_mfn, console_mfn =
+           let args =
+             xenguest_args_pvh ~domid ~store_port ~store_domid ~console_port
+-              ~console_domid ~memory ~kernel ~cmdline ~modules:[]
++              ~console_domid ~memory ~kernel ~cmdline ~modules
+               ~numa_placement
+             @ force_arg
+             @ extras
+diff --git a/ocaml/xenopsd/xc/domain.mli b/ocaml/xenopsd/xc/domain.mli
+index e2b9c3daee28..90daba81912b 100644
+--- a/ocaml/xenopsd/xc/domain.mli
++++ b/ocaml/xenopsd/xc/domain.mli
+@@ -118,7 +118,11 @@ val typ_of_build_pvh_info : build_pvh_info Rpc.Types.typ
+ 
+ val build_pvh_info : build_pvh_info Rpc.Types.def
+ 
+-type build_arm_info = {cmdline: string}
++type build_arm_info = {
++    cmdline: string
++  ; modules: (string * string option) list
++        (** list of modules plus optional cmdlines *)
++}
+ 
+ val build_arm_info : build_arm_info Rpc.Types.def
+ 
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index b2dd5e71c389..722ea1eed712 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -2595,7 +2595,19 @@ module VM = struct
+               raise (Xenopsd_error No_bootable_device)
+           | ARM {boot= Direct direct; _} ->
+               let builder_spec_info =
+-                Domain.(BuildARM {cmdline= direct.cmdline})
++                Domain.(
++                  BuildARM
++                    {
++                      cmdline= direct.cmdline
++                    ; modules=
++                        ( match direct.ramdisk with
++                        | Some r ->
++                            [(r, None)]
++                        | None ->
++                            []
++                        )
++                    }
++                )
+               in
+               (make_build_info direct.kernel builder_spec_info, "")
+         in

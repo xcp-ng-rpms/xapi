@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 9 Feb 2026 09:33:11 +0000
+Subject: [PATCH] xenopsd: Always call domain_setmaxmem during VM.create
+
+Squeezed's set_maxmem_noexn silently does nothing when get_per_domain
+returns None, leaving d->max_pages = 0 in Xen. Every physmap
+allocation then fails (nr > d->max_pages - tot_pages with max_pages=0),
+producing the "nr = 0" lines seen in the backtrace.
+Add a direct Xenctrl.domain_setmaxmem call after the squeezed transfer
+to guarantee d->max_pages is always set for newly created domains. The
+call is idempotent if squeezed already set the same value.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 4ee944fe7750..b2dd5e71c389 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -1895,6 +1895,7 @@ module VM = struct
+                       num_of_vifs
+                   in
+                   Mem.transfer_reservation_to_domain dbg domid reservation_id ;
++                  Xenctrl.domain_setmaxmem xc domid target_plus_overhead_kib ;
+                   let initial_target =
+                     let target_plus_overhead_bytes =
+                       bytes_of_kib target_plus_overhead_kib

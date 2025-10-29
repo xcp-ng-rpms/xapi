@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 28 Sep 2026 10:54:56 +0200
+Subject: [PATCH] xenopsd/xc: add a build path for ARM domains
+
+Domain.build had no case for BuildARM, so ARM VMs could not be built.
+Build them like PVH guests: compute the memory layout with
+Memory.Linux.full_config, run build_pre, and call xenguest with the PVH
+arguments (kernel and cmdline, no modules yet).
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 57f70555fd5a..1ade91be8897 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -1495,6 +1495,31 @@ let build (task : Xenops_task.task_handle) ~xc ~xs ~store_domid ~console_domid
+         , [("rtc/timeoffset", timeoffset)]
+         , `pvh
+         )
++    | BuildARM {cmdline} ->
++        let memory =
++          Memory.Linux.full_config static_max_mib 0 target_mib vcpus 1.0
++        in
++        let store_port, console_port, numa_placement =
++          build_pre ~xc ~xs ~memory ~vcpus ~hard_affinity domid
++        in
++        (* TODO modules *)
++        let store_mfn, console_mfn =
++          let args =
++            xenguest_args_pvh ~domid ~store_port ~store_domid ~console_port
++              ~console_domid ~memory ~kernel ~cmdline ~modules:[]
++              ~numa_placement
++            @ force_arg
++            @ extras
++          in
++          xenguest task xenguest_path domid uuid args
++        in
++        ( store_mfn
++        , store_port
++        , console_mfn
++        , console_port
++        , [("rtc/timeoffset", timeoffset)]
++        , `pvh
++        )
+   in
+   let local_stuff = console_keys console_port console_mfn in
+   build_post ~xc ~xs ~target_mib ~static_max_mib domid domain_type store_mfn
