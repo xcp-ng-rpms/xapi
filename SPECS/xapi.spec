@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.30.0
-Release: 1.0.ydi.1%{?xsrel}%{?dist}
+Release: 1.0.ydi.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -96,6 +96,12 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 
 # XCP-ng: FF to post-interface-rename era
 Patch2000: host-network-device-ordering-on-networkd.patch
+
+# ARM patches
+# Revert Runstate API changes. Can be dropped if the xen work (mixed-domain-runstates.patch) is rebased to 4.19
+Patch2001: 0001-domainconfig-Add-new-parameters-for-SVE-vector-lengt.patch
+Patch2002: 0002-introduce-arm-as-the-domain-type.patch
+Patch2003: 0003-Adjust-schematest-hash-and-other-tests.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1511,6 +1517,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Oct 29 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.30.0-1.0.ydi.3
+- Add ARM as a domain type to xapi
+
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.2
 - Test rebuild for v9
 - Do not require python2-udev on v9+

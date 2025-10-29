@@ -1,0 +1,37 @@
+From 5ae608ee77a07eaf6c6487ee042fe6c05c091a89 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 29 Oct 2025 08:41:37 +0000
+Subject: [PATCH] Adjust schematest hash and other tests
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/idl/schematest.ml                    | 2 +-
+ ocaml/tests/record_util/old_record_util.ml | 2 ++
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index 963231d7d..14447e196 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "7586cb039918e573594fc358e90b0f04"
++let last_known_schema_hash = "5d425f432737980ef97f6c68dd60c4ea"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/tests/record_util/old_record_util.ml b/ocaml/tests/record_util/old_record_util.ml
+index 855a2b74b..5c3af2109 100644
+--- a/ocaml/tests/record_util/old_record_util.ml
++++ b/ocaml/tests/record_util/old_record_util.ml
+@@ -1065,6 +1065,8 @@ let domain_type_to_string = function
+       "pv-in-pvh"
+   | `pvh ->
+       "pvh"
++  | `arm ->
++      "arm"
+   | `unspecified ->
+       "unspecified"
+ 
