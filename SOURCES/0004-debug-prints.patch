@@ -1,0 +1,151 @@
+From 5c69bb70ef1213535be546ed9214e20581363a85 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 30 Oct 2025 10:33:45 +0000
+Subject: [PATCH] debug prints
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/dbsync.ml       |   9 +++-
+ ocaml/xapi/dbsync_slave.ml | 105 ++++++++++++++++++++-----------------
+ 2 files changed, 66 insertions(+), 48 deletions(-)
+
+diff --git a/ocaml/xapi/dbsync.ml b/ocaml/xapi/dbsync.ml
+index 008cb4505..49d215443 100644
+--- a/ocaml/xapi/dbsync.ml
++++ b/ocaml/xapi/dbsync.ml
+@@ -62,9 +62,16 @@ let update_env ~__context =
+             error "Multiple pool objects detected -- this should never happen" ;
+             []
+       in
++      debug "pool_role.is_master: %b" (Pool_role.is_master ()) ;
+       if Pool_role.is_master () then create_host_metrics ~__context ;
++      debug "dbsyncslave.update_env starting" ;
+       Dbsync_slave.update_env __context other_config ;
+-      if Pool_role.is_master () then Dbsync_master.update_env __context ;
++      debug "dbsyncslave.update_env done" ;
++      if Pool_role.is_master () then (
++        debug "dbsync_master.update_env starting" ;
++        Dbsync_master.update_env __context
++      ) ;
++      debug "dbsync_master.update_env done" ;
+       (* we sync dom0 config files on slaves; however, we don't want
+          	  to do this in dbsync_slave since we want the master to have
+          	  been set on the pool record before we run it [otherwise we
+diff --git a/ocaml/xapi/dbsync_slave.ml b/ocaml/xapi/dbsync_slave.ml
+index ab8a6a3ef..754d256cb 100644
+--- a/ocaml/xapi/dbsync_slave.ml
++++ b/ocaml/xapi/dbsync_slave.ml
+@@ -95,55 +95,66 @@ let refresh_localhost_info ~__context info =
+   let host = !Xapi_globs.localhost_ref in
+   (* Xapi_ha_flags.resync_host_armed_flag __context host; *)
+   debug "Updating host software_version and updates_requiring_reboot" ;
+-  Create_misc.create_updates_requiring_reboot_info ~__context ~host ;
+-  Create_misc.create_software_version ~__context ~info:(Some info) () ;
+-  Db.Host.set_API_version_major ~__context ~self:host
+-    ~value:Datamodel_common.api_version_major ;
+-  Db.Host.set_API_version_minor ~__context ~self:host
+-    ~value:Datamodel_common.api_version_minor ;
+-  Db.Host.set_virtual_hardware_platform_versions ~__context ~self:host
+-    ~value:Xapi_globs.host_virtual_hardware_platform_versions ;
+-  Db.Host.set_hostname ~__context ~self:host ~value:info.hostname ;
+-  let caps =
+-    match info.hypervisor with
+-    | None ->
+-        []
+-    | Some {capabilities; _} ->
+-        String.split ' ' capabilities
+-  in
+-  Db.Host.set_capabilities ~__context ~self:host ~value:caps ;
+-  Db.Host.set_address ~__context ~self:host ~value:(get_my_ip_addr ~__context) ;
+-  let boot_time_key = "boot_time" in
+-  let boot_time_value =
+-    string_of_float (Date.to_unix_time (get_start_time ()))
+-  in
+-  Db.Host.remove_from_other_config ~__context ~self:host ~key:boot_time_key ;
+-  Db.Host.add_to_other_config ~__context ~self:host ~key:boot_time_key
+-    ~value:boot_time_value ;
+-  let agent_start_key = "agent_start_time" in
+-  let agent_start_time = string_of_float (Unix.time ()) in
+-  Db.Host.remove_from_other_config ~__context ~self:host ~key:agent_start_key ;
+-  Db.Host.add_to_other_config ~__context ~self:host ~key:agent_start_key
+-    ~value:agent_start_time ;
+-  (* Register whether we have local storage or not *)
+-  if not (Helpers.local_storage_exists ()) then (
+-    Db.Host.remove_from_other_config ~__context ~self:host
+-      ~key:Xapi_globs.host_no_local_storage ;
+-    Db.Host.add_to_other_config ~__context ~self:host
+-      ~key:Xapi_globs.host_no_local_storage ~value:"true"
+-  ) else
+-    Db.Host.remove_from_other_config ~__context ~self:host
+-      ~key:Xapi_globs.host_no_local_storage ;
+-  let script_output =
+-    Helpers.call_script !Xapi_globs.firewall_port_config_script ["check"; "80"]
+-  in
+   try
++    debug "refresh_localhost_info1" ;
++    Create_misc.create_updates_requiring_reboot_info ~__context ~host ;
++    debug "refresh_localhost_info2" ;
++    Create_misc.create_software_version ~__context ~info:(Some info) () ;
++    debug "refresh_localhost_info3" ;
++    Db.Host.set_API_version_major ~__context ~self:host
++      ~value:Datamodel_common.api_version_major ;
++    debug "refresh_localhost_info4" ;
++    Db.Host.set_API_version_minor ~__context ~self:host
++      ~value:Datamodel_common.api_version_minor ;
++    debug "refresh_localhost_info5" ;
++    Db.Host.set_virtual_hardware_platform_versions ~__context ~self:host
++      ~value:Xapi_globs.host_virtual_hardware_platform_versions ;
++    debug "refresh_localhost_info6" ;
++    Db.Host.set_hostname ~__context ~self:host ~value:info.hostname ;
++    debug "refresh_localhost_info7" ;
++    let caps =
++      match info.hypervisor with
++      | None ->
++          []
++      | Some {capabilities; _} ->
++          String.split ' ' capabilities
++    in
++    debug "refresh_localhost_info8" ;
++    Db.Host.set_capabilities ~__context ~self:host ~value:caps ;
++    debug "refresh_localhost_info9" ;
++    Db.Host.set_address ~__context ~self:host ~value:(get_my_ip_addr ~__context) ;
++    debug "refresh_localhost_info10" ;
++    let boot_time_key = "boot_time" in
++    let boot_time_value =
++      string_of_float (Date.to_unix_time (get_start_time ()))
++    in
++    Db.Host.remove_from_other_config ~__context ~self:host ~key:boot_time_key ;
++    Db.Host.add_to_other_config ~__context ~self:host ~key:boot_time_key
++      ~value:boot_time_value ;
++    debug "refresh_localhost_info11" ;
++    let agent_start_key = "agent_start_time" in
++    let agent_start_time = string_of_float (Unix.time ()) in
++    Db.Host.remove_from_other_config ~__context ~self:host ~key:agent_start_key ;
++    Db.Host.add_to_other_config ~__context ~self:host ~key:agent_start_key
++      ~value:agent_start_time ;
++    (* Register whether we have local storage or not *)
++    if not (Helpers.local_storage_exists ()) then (
++      Db.Host.remove_from_other_config ~__context ~self:host
++        ~key:Xapi_globs.host_no_local_storage ;
++      Db.Host.add_to_other_config ~__context ~self:host
++        ~key:Xapi_globs.host_no_local_storage ~value:"true"
++    ) else
++      Db.Host.remove_from_other_config ~__context ~self:host
++        ~key:Xapi_globs.host_no_local_storage ;
++    let script_output =
++      Helpers.call_script
++        !Xapi_globs.firewall_port_config_script
++        ["check"; "80"]
++    in
+     let network_state = Scanf.sscanf script_output "Port 80 open: %B" Fun.id in
+-    Db.Host.set_https_only ~__context ~self:host ~value:network_state
+-  with _ ->
+-    Helpers.internal_error
+-      "unexpected output from /etc/xapi.d/plugins/firewall-port: %s"
+-      script_output
++    Db.Host.set_https_only ~__context ~self:host ~value:network_state ;
++    debug "refresh_localhost_info done"
++  with e -> warn "refresh_localhost_info caught: %s" (Printexc.to_string e)
+ (*************** update database tools ******************)
+ 
+ (** Record host memory properties in database *)
