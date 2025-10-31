@@ -1,0 +1,313 @@
+From 1058f03579a0925afbeb0aede1679ebc47141c4a Mon Sep 17 00:00:00 2001
+From: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
+Date: Fri, 31 Oct 2025 11:23:32 +0100
+Subject: [PATCH] vdi: enable resize_online command
+
+Signed-off-by: Anthoine Bourgeois <anthoine.bourgeois@vates.tech>
+---
+ ocaml/idl/datamodel.ml                      | 10 +--------
+ ocaml/tests/record_util/old_enum_all.ml     |  1 +
+ ocaml/xapi-idl/storage/storage_interface.ml | 14 ++++++++++++
+ ocaml/xapi-idl/storage/storage_skeleton.ml  |  3 +++
+ ocaml/xapi-storage-script/main.ml           |  1 +
+ ocaml/xapi/message_forwarding.ml            | 10 +++++++++
+ ocaml/xapi/sm.ml                            | 14 ++++++++++++
+ ocaml/xapi/storage_mux.ml                   |  9 ++++++++
+ ocaml/xapi/storage_smapiv1.ml               | 25 +++++++++++++++++++++
+ ocaml/xapi/storage_smapiv1_wrapper.ml       |  9 ++++++++
+ ocaml/xapi/xapi_sr_operations.ml            |  3 +++
+ ocaml/xapi/xapi_vdi.ml                      | 20 +++++++++++++++++
+ ocaml/xapi/xapi_vdi.mli                     |  1 +
+ 13 files changed, 111 insertions(+), 9 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 4372877b9..923078db5 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -5337,15 +5337,7 @@ module VDI = struct
+ 
+   let resize_online =
+     call ~name:"resize_online" ~in_oss_since:None
+-      ~lifecycle:
+-        [
+-          (Published, rel_rio, "")
+-        ; (Deprecated, rel_inverness, "Dummy transition")
+-        ; ( Removed
+-          , rel_inverness
+-          , "Online VDI resize is not supported by any of the storage backends."
+-          )
+-        ]
++      ~lifecycle:[(Published, rel_rio, "Resize the VDI online.")]
+       ~params:
+         [
+           (Ref _vdi, "vdi", "The VDI to resize")
+diff --git a/ocaml/tests/record_util/old_enum_all.ml b/ocaml/tests/record_util/old_enum_all.ml
+index f58cdc754..0c0b05dca 100644
+--- a/ocaml/tests/record_util/old_enum_all.ml
++++ b/ocaml/tests/record_util/old_enum_all.ml
+@@ -99,6 +99,7 @@ let all_storage_operations =
+   ; `vdi_introduce
+   ; `vdi_destroy
+   ; `vdi_resize
++  ; `vdi_resize_online
+   ; `vdi_clone
+   ; `vdi_snapshot
+   ; `vdi_mirror
+diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
+index eaabacc9e..d5d3d7f27 100644
+--- a/ocaml/xapi-idl/storage/storage_interface.ml
++++ b/ocaml/xapi-idl/storage/storage_interface.ml
+@@ -813,6 +813,14 @@ module StorageAPI (R : RPC) = struct
+       declare "VDI.resize" []
+         (dbg_p @-> sr_p @-> vdi_p @-> new_size_p @-> returning new_size_p err)
+ 
++    (** [resize_online task sr vdi new_size] makes a VDI's virtual_size at least
++        [new_size] bytes. The function returns the new virtual_size which may be
++        bigger (but not less than) requested. *)
++    let resize_online =
++      let new_size_p = Param.mk ~name:"new_size" Types.int64 in
++      declare "VDI.resize_online" []
++        (dbg_p @-> sr_p @-> vdi_p @-> new_size_p @-> returning new_size_p err)
++
+     (** [destroy task sr vdi] removes [vdi] from [sr] *)
+     let destroy =
+       declare "VDI.destroy" []
+@@ -1525,6 +1533,9 @@ module type Server_impl = sig
+     val resize :
+       context -> dbg:debug_info -> sr:sr -> vdi:vdi -> new_size:int64 -> int64
+ 
++    val resize_online :
++      context -> dbg:debug_info -> sr:sr -> vdi:vdi -> new_size:int64 -> int64
++
+     val destroy : context -> dbg:debug_info -> sr:sr -> vdi:vdi -> unit
+ 
+     val stat : context -> dbg:debug_info -> sr:sr -> vdi:vdi -> vdi_info
+@@ -1780,6 +1791,9 @@ module Server (Impl : Server_impl) () = struct
+     S.VDI.resize (fun dbg sr vdi new_size ->
+         Impl.VDI.resize () ~dbg ~sr ~vdi ~new_size
+     ) ;
++    S.VDI.resize_online (fun dbg sr vdi new_size ->
++        Impl.VDI.resize_online () ~dbg ~sr ~vdi ~new_size
++    ) ;
+     S.VDI.destroy (fun dbg sr vdi -> Impl.VDI.destroy () ~dbg ~sr ~vdi) ;
+     S.VDI.stat (fun dbg sr vdi -> Impl.VDI.stat () ~dbg ~sr ~vdi) ;
+     S.VDI.introduce (fun dbg sr uuid sm_config location ->
+diff --git a/ocaml/xapi-idl/storage/storage_skeleton.ml b/ocaml/xapi-idl/storage/storage_skeleton.ml
+index a2d2d04ab..a70b6daa5 100644
+--- a/ocaml/xapi-idl/storage/storage_skeleton.ml
++++ b/ocaml/xapi-idl/storage/storage_skeleton.ml
+@@ -106,6 +106,9 @@ module VDI = struct
+   let resize ctx ~dbg ~sr ~vdi ~new_size =
+     Storage_interface.unimplemented __FUNCTION__
+ 
++  let resize_online ctx ~dbg ~sr ~vdi ~new_size =
++    Storage_interface.unimplemented __FUNCTION__
++
+   let destroy ctx ~dbg ~sr ~vdi = Storage_interface.unimplemented __FUNCTION__
+ 
+   let stat ctx ~dbg ~sr ~vdi = Storage_interface.unimplemented __FUNCTION__
+diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
+index 1eccd3867..a22a236f4 100644
+--- a/ocaml/xapi-storage-script/main.ml
++++ b/ocaml/xapi-storage-script/main.ml
+@@ -1934,6 +1934,7 @@ let bind ~volume_script_dir =
+   S.VDI.set_name_label VDI.vdi_set_name_label_impl ;
+   S.VDI.set_name_description VDI.vdi_set_name_description_impl ;
+   S.VDI.resize VDI.vdi_resize_impl ;
++  S.VDI.resize_online VDI.vdi_resize_impl ;
+   S.VDI.stat VDI.vdi_stat_impl ;
+   S.VDI.introduce VDI.vdi_introduce_impl ;
+   S.VDI.attach3 VDI.vdi_attach3_impl ;
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index 177f959fa..4393a7201 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -5422,6 +5422,16 @@ functor
+             forward_vdi_op ~local_fn ~__context ~self:vdi ~remote_fn
+         )
+ 
++      let resize_online ~__context ~vdi ~size =
++        info "VDI.resize_online: VDI = '%s'; size = %Ld" (vdi_uuid ~__context vdi) size ;
++        let local_fn = Local.VDI.resize_online ~vdi ~size in
++        let remote_fn = Client.VDI.resize_online ~vdi ~size in
++        let sR = Db.VDI.get_SR ~__context ~self:vdi in
++        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_resize) ~vdi:(vdi, `resize_online)
++          ~doc:"VDI.resize_online" (fun () ->
++            forward_vdi_op ~local_fn ~__context ~self:vdi ~remote_fn
++        )
++
+       let generate_config ~__context ~host ~vdi =
+         info "VDI.generate_config: VDI = '%s'; host = '%s'"
+           (vdi_uuid ~__context vdi)
+diff --git a/ocaml/xapi/sm.ml b/ocaml/xapi/sm.ml
+index 1d198cf3f..10ff63ee7 100644
+--- a/ocaml/xapi/sm.ml
++++ b/ocaml/xapi/sm.ml
+@@ -299,6 +299,20 @@ let vdi_resize ~dbg dconf driver sr vdi newsize =
+   in
+   Sm_exec.parse_vdi_info (Sm_exec.exec_xmlrpc ~dbg (driver_filename driver) call)
+ 
++let vdi_resize_online ~dbg dconf driver sr vdi newsize =
++  with_dbg ~dbg ~name:"vdi_resize_online" @@ fun di ->
++  let dbg = Debug_info.to_string di in
++  debug "vdi_resize_online" driver
++    (sprintf "sr=%s vdi=%s newsize=%Ld" (Ref.string_of sr) (Ref.string_of vdi)
++       newsize
++    ) ;
++  srmaster_only dconf ;
++  let call =
++    Sm_exec.make_call ~sr_ref:sr ~vdi_ref:vdi dconf "vdi_resize_online"
++      [sprintf "%Lu" newsize]
++  in
++  Sm_exec.parse_vdi_info (Sm_exec.exec_xmlrpc ~dbg (driver_filename driver) call)
++
+ let vdi_generate_config ~dbg dconf driver sr vdi =
+   with_dbg ~dbg ~name:"vdi_generate_config" @@ fun di ->
+   let dbg = Debug_info.to_string di in
+diff --git a/ocaml/xapi/storage_mux.ml b/ocaml/xapi/storage_mux.ml
+index 0427f76ca..f6e6570f3 100644
+--- a/ocaml/xapi/storage_mux.ml
++++ b/ocaml/xapi/storage_mux.ml
+@@ -480,6 +480,15 @@ module Mux = struct
+       end)) in
+       C.VDI.resize (Debug_info.to_string di) sr vdi new_size
+ 
++    let resize_online () ~dbg ~sr ~vdi ~new_size =
++      with_dbg ~name:"VDI.resize_online" ~dbg @@ fun di ->
++      info "VDI.resize_online dbg:%s sr:%s vdi:%s new_size:%Ld" dbg (s_of_sr sr)
++        (s_of_vdi vdi) new_size ;
++      let module C = StorageAPI (Idl.Exn.GenClient (struct
++        let rpc = of_sr sr
++      end)) in
++      C.VDI.resize_online (Debug_info.to_string di) sr vdi new_size
++
+     let destroy () ~dbg ~sr ~vdi =
+       with_dbg ~name:"VDI.destroy" ~dbg @@ fun di ->
+       info "VDI.destroy dbg:%s sr:%s vdi:%s" dbg (s_of_sr sr) (s_of_vdi vdi) ;
+diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
+index 0995edc35..917a22532 100644
+--- a/ocaml/xapi/storage_smapiv1.ml
++++ b/ocaml/xapi/storage_smapiv1.ml
+@@ -771,6 +771,31 @@ module SMAPIv1 : Server_impl = struct
+       | Sm.MasterOnly ->
+           redirect sr
+ 
++    let resize_online _context ~dbg ~sr ~vdi ~new_size =
++      with_dbg ~name:"VDI.resize" ~dbg @@ fun di ->
++      let dbg = Debug_info.to_string di in
++      try
++        let vi =
++          for_vdi ~dbg ~sr ~vdi "VDI.resize_online" (fun device_config _type sr self ->
++              Sm.vdi_resize ~dbg device_config _type sr self new_size
++          )
++        in
++        Server_helpers.exec_with_new_task "VDI.resize_online"
++          ~subtask_of:(Ref.of_string dbg) (fun __context ->
++            let self, _ =
++              find_vdi ~__context sr
++                (Storage_interface.Vdi.of_string vi.Smint.vdi_info_location)
++            in
++            Db.VDI.get_virtual_size ~__context ~self
++        )
++      with
++      | Api_errors.Server_error (code, params) ->
++          raise (Storage_error (Backend_error (code, params)))
++      | Smint.Not_implemented_in_backend ->
++          raise (Storage_error (Unimplemented "VDI.resize_online"))
++      | Sm.MasterOnly ->
++          redirect sr
++
+     let destroy _context ~dbg ~sr ~vdi =
+       with_dbg ~name:"VDI.destroy" ~dbg @@ fun di ->
+       let dbg = Debug_info.to_string di in
+diff --git a/ocaml/xapi/storage_smapiv1_wrapper.ml b/ocaml/xapi/storage_smapiv1_wrapper.ml
+index 86879780f..085b3ba3b 100644
+--- a/ocaml/xapi/storage_smapiv1_wrapper.ml
++++ b/ocaml/xapi/storage_smapiv1_wrapper.ml
+@@ -814,6 +814,15 @@ functor
+             Impl.VDI.resize context ~dbg ~sr ~vdi ~new_size
+         )
+ 
++      let resize_online context ~dbg ~sr ~vdi ~new_size =
++        with_dbg ~name:"VDI.resize_online" ~dbg @@ fun di ->
++        info "VDI.resize_online dbg:%s sr:%s vdi:%s new_size:%Ld" di.log (s_of_sr sr)
++          (s_of_vdi vdi) new_size ;
++        let dbg = Debug_info.to_string di in
++        with_vdi sr vdi (fun () ->
++            Impl.VDI.resize_online context ~dbg ~sr ~vdi ~new_size
++        )
++
+       let destroy_and_data_destroy call_name call_f context ~dbg ~sr ~vdi =
+         with_dbg ~name:call_name ~dbg @@ fun di ->
+         info "%s dbg:%s sr:%s vdi:%s" call_name di.log (s_of_sr sr)
+diff --git a/ocaml/xapi/xapi_sr_operations.ml b/ocaml/xapi/xapi_sr_operations.ml
+index b08a82c20..f8256c0de 100644
+--- a/ocaml/xapi/xapi_sr_operations.ml
++++ b/ocaml/xapi/xapi_sr_operations.ml
+@@ -39,6 +39,7 @@ let all_ops : API.storage_operations_set =
+   ; `vdi_create
+   ; `vdi_destroy
+   ; `vdi_resize
++  ; `vdi_resize_online
+   ; `vdi_clone
+   ; `vdi_snapshot
+   ; `vdi_mirror
+@@ -64,6 +65,7 @@ let all_rpu_ops : API.storage_operations_set =
+   ; `vdi_create
+   ; `vdi_destroy
+   ; `vdi_resize
++  ; `vdi_resize_online
+   ; `vdi_clone
+   ; `vdi_snapshot
+   ; `vdi_introduce
+@@ -81,6 +83,7 @@ let sm_cap_table : (API.storage_operations * _) list =
+     (`vdi_create, Vdi_create)
+   ; (`vdi_destroy, Vdi_delete)
+   ; (`vdi_resize, Vdi_resize)
++  ; (`vdi_resize_online, Vdi_resize_online)
+   ; (`vdi_introduce, Vdi_introduce)
+   ; (`vdi_mirror, Vdi_mirror)
+   ; (`vdi_enable_cbt, Vdi_configure_cbt)
+diff --git a/ocaml/xapi/xapi_vdi.ml b/ocaml/xapi/xapi_vdi.ml
+index 624875c21..7b4912922 100644
+--- a/ocaml/xapi/xapi_vdi.ml
++++ b/ocaml/xapi/xapi_vdi.ml
+@@ -1080,6 +1080,26 @@ let resize ~__context ~vdi ~size =
+       Db.VDI.set_virtual_size ~__context ~self:vdi ~value:new_size
+   )
+ 
++let resize_online ~__context ~vdi ~size =
++  Sm.assert_pbd_is_plugged ~__context ~sr:(Db.VDI.get_SR ~__context ~self:vdi) ;
++  Xapi_vdi_helpers.assert_managed ~__context ~vdi ;
++  Storage_utils.transform_storage_exn (fun () ->
++      let module C = Storage_interface.StorageAPI (Idl.Exn.GenClient (struct
++        let rpc = Storage_access.rpc
++      end)) in
++      let sr = Db.VDI.get_SR ~__context ~self:vdi in
++      let sr =
++        Db.SR.get_uuid ~__context ~self:sr |> Storage_interface.Sr.of_string
++      in
++      let vdi' =
++        Db.VDI.get_location ~__context ~self:vdi
++        |> Storage_interface.Vdi.of_string
++      in
++      let dbg = Ref.string_of (Context.get_task_id __context) in
++      let new_size = C.VDI.resize_online dbg sr vdi' size in
++      Db.VDI.set_virtual_size ~__context ~self:vdi ~value:new_size
++  )
++
+ let generate_config ~__context ~host:_ ~vdi =
+   Sm.assert_pbd_is_plugged ~__context ~sr:(Db.VDI.get_SR ~__context ~self:vdi) ;
+   Xapi_vdi_helpers.assert_managed ~__context ~vdi ;
+diff --git a/ocaml/xapi/xapi_vdi.mli b/ocaml/xapi/xapi_vdi.mli
+index 3d60ad31f..2abe2e6f3 100644
+--- a/ocaml/xapi/xapi_vdi.mli
++++ b/ocaml/xapi/xapi_vdi.mli
+@@ -163,6 +163,7 @@ val _data_destroy :
+     unit tests. *)
+ 
+ val resize : __context:Context.t -> vdi:[`VDI] API.Ref.t -> size:int64 -> unit
++val resize_online : __context:Context.t -> vdi:[`VDI] API.Ref.t -> size:int64 -> unit
+ 
+ val generate_config :
+   __context:Context.t -> host:'a -> vdi:[`VDI] API.Ref.t -> string

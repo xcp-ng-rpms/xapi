@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.27.0
-Release: 2.3%{?xsrel}%{?dist}
+Release: 2.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -97,6 +97,7 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
+Patch1008: 0008-vdi-enable-resize_online-command.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1460,6 +1461,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Oct 31 2025 Anthoine Bourgeois <anthoine.bourgeois@vates.tech> - 25.27.0-2.4
+- Enable resize_online operation
+
 * Tue Oct 21 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.27.0-2.3
 - Add an optimization for VHD export from QCOW2 VDIs
 
