@@ -212,6 +212,8 @@ Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
 %if 0%{?xenserver} >= 9
 Requires: firewalld
+# XCP-ng: Alma has nftables tool, and we cannot use those
+Requires: iptables-legacy
 %else
 # firewall-port needs iptables-service to perform
 # `service iptables save`
@@ -1564,6 +1566,7 @@ Coverage files from unit tests
 - Add missing core dep on openssl-perl (c_rehash)
 - Add in core directories whose lack blocks startup:
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
+- Require iptables-legacy
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
