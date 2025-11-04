@@ -212,6 +212,8 @@ Requires: python3-wrapt
 # firewall-port needs iptables-service to perform
 # `service iptables save`
 Requires: iptables-services
+# XCP-ng: Alma has nftables tool, and we cannot use those
+Requires: iptables-legacy
 Requires: rsync
 Obsoletes: xapi-ssh-monitor <= 1.0.0
 Requires(post): xs-presets >= 1.3
@@ -1545,6 +1547,7 @@ Coverage files from unit tests
 - Add host-network-device-ordering branch contents as a single patch
 - Add 4.19 compat patches from Andriy
 - Relax Xen version constraint of xen-dom0-libs to allow installing
+- Require iptables-legacy
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
