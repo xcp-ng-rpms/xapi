@@ -1,0 +1,309 @@
+From 2bf0b96dd2a74ab6b3339d8d1883a306e822ffd0 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 30 Oct 2025 10:33:45 +0000
+Subject: [PATCH] debug prints
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/cpuid_helpers.ml | 104 ++++++++++++++++++---------------
+ ocaml/xapi/dbsync.ml        |   9 ++-
+ ocaml/xapi/dbsync_slave.ml  | 112 +++++++++++++++++++-----------------
+ ocaml/xenopsd/xc/domain.ml  |   2 +
+ 4 files changed, 127 insertions(+), 100 deletions(-)
+
+diff --git a/ocaml/xapi/cpuid_helpers.ml b/ocaml/xapi/cpuid_helpers.ml
+index b7c1eabcd..a1661e888 100644
+--- a/ocaml/xapi/cpuid_helpers.ml
++++ b/ocaml/xapi/cpuid_helpers.ml
+@@ -54,7 +54,7 @@ let get_flags_for_vm ~__context domain_type cpu_info =
+     | `pv ->
+         features_pv
+     | `arm ->
+-        failwith "not implemented"
++        failwith (Printf.sprintf "not implemented %s" __FUNCTION__)
+   in
+   (* TODO: arm policy / vendor handling *)
+   let vendor = List.assoc Constants.cpu_info_vendor_key cpu_info in
+@@ -63,25 +63,29 @@ let get_flags_for_vm ~__context domain_type cpu_info =
+ 
+ (* Return the featureset to be used for the next boot of the given VM. *)
+ let next_boot_cpu_features ~__context ~vm =
+-  (* On VM.start, the feature set is inherited from the pool level (PV or HVM) *)
+-  let pool = Helpers.get_pool ~__context in
+-  let pool_cpu_info = Db.Pool.get_cpu_info ~__context ~self:pool in
+-  let features_field_boot =
+-    (* Always use VM.domain_type, even if the VM is running, because we
+-       need the features for when the VM starts next. *)
+-    let domain_type =
+-      Db.VM.get_domain_type ~__context ~self:vm |> Helpers.check_domain_type
+-    in
+-    match domain_type with
+-    | `hvm | `pv_in_pvh | `pvh ->
+-        features_hvm_host
+-    | `pv ->
+-        features_pv_host
+-    | `arm ->
+-        failwith "not implemented"
++  (* Always use VM.domain_type, even if the VM is running, because we
++     need the features for when the VM starts next. *)
++  let domain_type =
++    Db.VM.get_domain_type ~__context ~self:vm |> Helpers.check_domain_type
+   in
+-  Map_check.getf features_field_boot pool_cpu_info
+-  |> Xenops_interface.CPU_policy.to_string
++  match domain_type with
++  | `arm ->
++      ""
++  | _ ->
++      (* On VM.start, the feature set is inherited from the pool level (PV or HVM) *)
++      let pool = Helpers.get_pool ~__context in
++      let pool_cpu_info = Db.Pool.get_cpu_info ~__context ~self:pool in
++      let features_field_boot =
++        match domain_type with
++        | `hvm | `pv_in_pvh | `pvh ->
++            features_hvm_host
++        | `pv ->
++            features_pv_host
++        | `arm ->
++            failwith "unreachable"
++      in
++      Map_check.getf features_field_boot pool_cpu_info
++      |> Xenops_interface.CPU_policy.to_string
+ 
+ let get_host_cpu_info ~__context ~host ?remote () =
+   match remote with
+@@ -124,38 +128,44 @@ let assert_vm_is_compatible ~__context ~vm ~host =
+     let module Xenopsd = (val make_client (default_xenopsd ()) : XENOPS) in
+     let dbg = Context.string_of_task __context in
+     try
+-      let host_cpu_vendor, host_cpu_features =
+-        get_host_compatibility_info ~__context ~domain_type ~host ()
+-      in
+-      let vm_cpu_info = vm_rec.API.vM_last_boot_CPU_flags in
+-      if List.mem_assoc Constants.cpu_info_vendor_key vm_cpu_info then (
+-        (* Check the VM was last booted on a CPU with the same vendor as this host's CPU. *)
+-        let vm_cpu_vendor =
+-          List.assoc Constants.cpu_info_vendor_key vm_cpu_info
++      if domain_type <> `arm then (
++        let host_cpu_vendor, host_cpu_features =
++          get_host_compatibility_info ~__context ~domain_type ~host ()
+         in
+-        debug "VM last booted on CPU of vendor %s; host CPUs are of vendor %s"
+-          vm_cpu_vendor host_cpu_vendor ;
+-        if vm_cpu_vendor <> host_cpu_vendor then
+-          fail
+-            "VM last booted on a host which had a CPU from a different vendor."
+-      ) ;
+-      if List.mem_assoc Constants.cpu_info_features_key vm_cpu_info then (
+-        (* Check the VM was last booted on a CPU whose features are a subset of the features of this host's CPU. *)
+-        let vm_cpu_features = Map_check.getf features vm_cpu_info in
+-        debug
+-          "VM last booted on CPU with features %s; host CPUs have migration \
+-           features %s"
+-          (Xenops_interface.CPU_policy.to_string vm_cpu_features)
+-          (Xenops_interface.CPU_policy.to_string host_cpu_features) ;
+-        if not (Xenopsd.HOST.is_compatible dbg vm_cpu_features host_cpu_features)
+-        then (
++        let vm_cpu_info = vm_rec.API.vM_last_boot_CPU_flags in
++        if List.mem_assoc Constants.cpu_info_vendor_key vm_cpu_info then (
++          (* Check the VM was last booted on a CPU with the same vendor as this host's CPU. *)
++          let vm_cpu_vendor =
++            List.assoc Constants.cpu_info_vendor_key vm_cpu_info
++          in
++          debug "VM last booted on CPU of vendor %s; host CPUs are of vendor %s"
++            vm_cpu_vendor host_cpu_vendor ;
++          if vm_cpu_vendor <> host_cpu_vendor then
++            fail
++              "VM last booted on a host which had a CPU from a different \
++               vendor."
++        ) ;
++        if List.mem_assoc Constants.cpu_info_features_key vm_cpu_info then (
++          (* Check the VM was last booted on a CPU whose features are a subset of the features of this host's CPU. *)
++          let vm_cpu_features = Map_check.getf features vm_cpu_info in
+           debug
+-            "VM CPU features (%s) are not compatible with host CPU features (%s)\n"
++            "VM last booted on CPU with features %s; host CPUs have migration \
++             features %s"
+             (Xenops_interface.CPU_policy.to_string vm_cpu_features)
+             (Xenops_interface.CPU_policy.to_string host_cpu_features) ;
+-          fail
+-            "VM last booted on a CPU with features this host's CPU does not \
+-             have."
++          if
++            not
++              (Xenopsd.HOST.is_compatible dbg vm_cpu_features host_cpu_features)
++          then (
++            debug
++              "VM CPU features (%s) are not compatible with host CPU features \
++               (%s)\n"
++              (Xenops_interface.CPU_policy.to_string vm_cpu_features)
++              (Xenops_interface.CPU_policy.to_string host_cpu_features) ;
++            fail
++              "VM last booted on a CPU with features this host's CPU does not \
++               have."
++          )
+         )
+       )
+     with Not_found ->
+diff --git a/ocaml/xapi/dbsync.ml b/ocaml/xapi/dbsync.ml
+index 008cb4505..49d215443 100644
+--- a/ocaml/xapi/dbsync.ml
++++ b/ocaml/xapi/dbsync.ml
+@@ -62,9 +62,16 @@ let update_env ~__context =
+             error "Multiple pool objects detected -- this should never happen" ;
+             []
+       in
++      debug "pool_role.is_master: %b" (Pool_role.is_master ()) ;
+       if Pool_role.is_master () then create_host_metrics ~__context ;
++      debug "dbsyncslave.update_env starting" ;
+       Dbsync_slave.update_env __context other_config ;
+-      if Pool_role.is_master () then Dbsync_master.update_env __context ;
++      debug "dbsyncslave.update_env done" ;
++      if Pool_role.is_master () then (
++        debug "dbsync_master.update_env starting" ;
++        Dbsync_master.update_env __context
++      ) ;
++      debug "dbsync_master.update_env done" ;
+       (* we sync dom0 config files on slaves; however, we don't want
+          	  to do this in dbsync_slave since we want the master to have
+          	  been set on the pool record before we run it [otherwise we
+diff --git a/ocaml/xapi/dbsync_slave.ml b/ocaml/xapi/dbsync_slave.ml
+index 89e2c96a7..3c6429d39 100644
+--- a/ocaml/xapi/dbsync_slave.ml
++++ b/ocaml/xapi/dbsync_slave.ml
+@@ -101,58 +101,66 @@ let refresh_localhost_info ~__context info =
+   let host = !Xapi_globs.localhost_ref in
+   (* Xapi_ha_flags.resync_host_armed_flag __context host; *)
+   debug "Updating host software_version and updates_requiring_reboot" ;
+-  Create_misc.create_updates_requiring_reboot_info ~__context ~host ;
+-  Create_misc.create_software_version ~__context ~info:(Some info) () ;
+-  Db.Host.set_API_version_major ~__context ~self:host
+-    ~value:Datamodel_common.api_version_major ;
+-  Db.Host.set_API_version_minor ~__context ~self:host
+-    ~value:Datamodel_common.api_version_minor ;
+-  Db.Host.set_virtual_hardware_platform_versions ~__context ~self:host
+-    ~value:Xapi_globs.host_virtual_hardware_platform_versions ;
+-  Db.Host.set_hostname ~__context ~self:host ~value:info.hostname ;
+-  let caps =
+-    match info.hypervisor with
+-    | None ->
+-        []
+-    | Some {capabilities; _} ->
+-        String.split ' ' capabilities
+-  in
+-  Db.Host.set_capabilities ~__context ~self:host ~value:caps ;
+-  Db.Host.set_address ~__context ~self:host ~value:(get_my_ip_addr ~__context) ;
+-  let boot_time_key = "boot_time" in
+-  let boot_time_value =
+-    string_of_float (Date.to_unix_time (get_start_time ()))
+-  in
+-  Db.Host.remove_from_other_config ~__context ~self:host ~key:boot_time_key ;
+-  Db.Host.add_to_other_config ~__context ~self:host ~key:boot_time_key
+-    ~value:boot_time_value ;
+-  let agent_start_key = "agent_start_time" in
+-  let agent_start_time = string_of_float (Unix.time ()) in
+-  Db.Host.remove_from_other_config ~__context ~self:host ~key:agent_start_key ;
+-  Db.Host.add_to_other_config ~__context ~self:host ~key:agent_start_key
+-    ~value:agent_start_time ;
+-  (* Register whether we have local storage or not *)
+-  if not (Helpers.local_storage_exists ()) then (
+-    Db.Host.remove_from_other_config ~__context ~self:host
+-      ~key:Xapi_globs.host_no_local_storage ;
+-    Db.Host.add_to_other_config ~__context ~self:host
+-      ~key:Xapi_globs.host_no_local_storage ~value:"true"
+-  ) else
+-    Db.Host.remove_from_other_config ~__context ~self:host
+-      ~key:Xapi_globs.host_no_local_storage ;
+-  let status =
+-    match Db.Host.get_https_only ~__context ~self:host with
+-    | true ->
+-        Firewall.Disabled
+-    | false ->
+-        Firewall.Enabled
+-  in
+-  let module Fw =
+-    ( val Firewall.firewall_provider !Xapi_globs.firewall_backend
+-        : Firewall.FIREWALL
+-      )
+-  in
+-  Fw.update_firewall_status Firewall.Http status
++  try
++    debug "refresh_localhost_info1" ;
++    Create_misc.create_updates_requiring_reboot_info ~__context ~host ;
++    debug "refresh_localhost_info2" ;
++    Create_misc.create_software_version ~__context ~info:(Some info) () ;
++    debug "refresh_localhost_info3" ;
++    Db.Host.set_API_version_major ~__context ~self:host
++      ~value:Datamodel_common.api_version_major ;
++    debug "refresh_localhost_info4" ;
++    Db.Host.set_API_version_minor ~__context ~self:host
++      ~value:Datamodel_common.api_version_minor ;
++    debug "refresh_localhost_info5" ;
++    Db.Host.set_virtual_hardware_platform_versions ~__context ~self:host
++      ~value:Xapi_globs.host_virtual_hardware_platform_versions ;
++    debug "refresh_localhost_info6" ;
++    Db.Host.set_hostname ~__context ~self:host ~value:info.hostname ;
++    debug "refresh_localhost_info7" ;
++    let caps =
++      match info.hypervisor with
++      | None ->
++          []
++      | Some {capabilities; _} ->
++          String.split ' ' capabilities
++    in
++    debug "refresh_localhost_info8" ;
++    Db.Host.set_capabilities ~__context ~self:host ~value:caps ;
++    debug "refresh_localhost_info9" ;
++    Db.Host.set_address ~__context ~self:host ~value:(get_my_ip_addr ~__context) ;
++    debug "refresh_localhost_info10" ;
++    let boot_time_key = "boot_time" in
++    let boot_time_value =
++      string_of_float (Date.to_unix_time (get_start_time ()))
++    in
++    Db.Host.remove_from_other_config ~__context ~self:host ~key:boot_time_key ;
++    Db.Host.add_to_other_config ~__context ~self:host ~key:boot_time_key
++      ~value:boot_time_value ;
++    debug "refresh_localhost_info11" ;
++    let agent_start_key = "agent_start_time" in
++    let agent_start_time = string_of_float (Unix.time ()) in
++    Db.Host.remove_from_other_config ~__context ~self:host ~key:agent_start_key ;
++    Db.Host.add_to_other_config ~__context ~self:host ~key:agent_start_key
++      ~value:agent_start_time ;
++    (* Register whether we have local storage or not *)
++    if not (Helpers.local_storage_exists ()) then (
++      Db.Host.remove_from_other_config ~__context ~self:host
++        ~key:Xapi_globs.host_no_local_storage ;
++      Db.Host.add_to_other_config ~__context ~self:host
++        ~key:Xapi_globs.host_no_local_storage ~value:"true"
++    ) else
++      Db.Host.remove_from_other_config ~__context ~self:host
++        ~key:Xapi_globs.host_no_local_storage ;
++    let script_output =
++      Helpers.call_script
++        !Xapi_globs.firewall_port_config_script
++        ["check"; "80"]
++    in
++     let network_state = Scanf.sscanf script_output "Port 80 open: %B" Fun.id in
++    Db.Host.set_https_only ~__context ~self:host ~value:network_state ;
++    debug "refresh_localhost_info done"
++  with e -> warn "refresh_localhost_info caught: %s" (Printexc.to_string e)
+ (*************** update database tools ******************)
+ 
+ (** Record host memory properties in database *)
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index edfa26b92..0282fcce5 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -533,7 +533,9 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
+   in
+   debug "Domain_config: [%s]"
+     (rpc_of arch_domainconfig domain_config |> Jsonrpc.to_string) ;
++  debug "starting domain_create" ;
+   let domid = Xenctrl.domain_create xc config in
++  debug "done domain_create" ;
+   let name =
+     if vm_info.name <> "" then
+       vm_info.name
+-- 
+2.53.0
+
