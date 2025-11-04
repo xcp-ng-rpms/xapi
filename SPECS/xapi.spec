@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.30.0
-Release: 1.0.ydi.8%{?xsrel}%{?dist}
+Release: 1.0.ydi.10%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -213,8 +213,6 @@ Requires: python3-wrapt
 # firewall-port needs iptables-service to perform
 # `service iptables save`
 Requires: iptables-services
-# XCP-ng: Alma has nftables tool, and we cannot use those
-Requires: iptables-legacy
 Requires: rsync
 # XCP-ng: remove Requires for currently proprietary xapi-ssh-monitor
 #Requires: xapi-ssh-monitor
@@ -1520,7 +1518,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Nov 04 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.8
+* Wed Oct 29 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.30.0-1.0.ydi.4
+- Add ARM as a domain type to xapi
+- Rebuild for xen 4.19.3
+
+* Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.2
 - Test rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
@@ -1537,9 +1539,6 @@ Coverage files from unit tests
 - Refresh patches from 8.3
 - Add 4.19 compat patches from Andriy
 - Relax Xen version constraint of xen-dom0-libs to allow installing
-- Add ARM as a domain type to xapi
-- Rebuild for xen 4.19.3
-- Require iptables-legacy
 
 * Fri Oct 17 2025 Yann Dirson <yann.dirson@vates.tech> - 25.30.0-1.0.ydi.1
 - Update to 25.30.0-1, upstream changes:
