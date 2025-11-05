@@ -1,0 +1,118 @@
+From bcac4b39cd878a24208d1b902e0b276a6f30caa9 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 5 Nov 2025 13:44:03 +0000
+Subject: [PATCH] minimal xenguest handling for arm
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/util/xapi_version.ml |  9 +++----
+ ocaml/xenopsd/xc/domain.ml | 52 +++++++++++++++++++++++++++++++++++---
+ 2 files changed, 52 insertions(+), 9 deletions(-)
+
+diff --git a/ocaml/util/xapi_version.ml b/ocaml/util/xapi_version.ml
+index e259abca9..5dd51e453 100644
+--- a/ocaml/util/xapi_version.ml
++++ b/ocaml/util/xapi_version.ml
+@@ -20,11 +20,10 @@ let date = Xapi_build_info.date
+ 
+ let parse_xapi_version version =
+   try Scanf.sscanf version "%d.%d.%s" (fun maj min rest -> (maj, min, rest))
+-  with _ ->
+-    failwith
+-      (Printf.sprintf "Couldn't determine xapi version from string: '%s'"
+-         version
+-      )
++  with _ -> (
++    try (int_of_string (String.trim version), 0, "")
++    with _ -> (0, 0, version)
++  )
+ 
+ let version, xapi_version_major, xapi_version_minor, git_id =
+   match Build_info.V1.version () with
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 5ac188ace..e1bf96fdb 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -1107,6 +1107,13 @@ let numa_placement domid ~vcpus ~cores ~memory affinity =
+             __FUNCTION__ domid
+             Unix.(error_message errno) ;
+           None
++      | Xenctrlext.Unix_error (errno, fn) ->
++          (* Other errors (e.g. ENOSYS, EOPNOTSUPP on ARM) — not available,
++             ignore and continue without per-node claim. *)
++          D.debug "NUMAClaim domid %d: local claim not available: %s: %s" domid
++            fn (Unix.error_message errno) ;
++          set_vcpu_affinity cpu_affinity ;
++          None
+   )
+ 
+ let build_pre ~xc ~xs ~vcpus ~memory ~hard_affinity domid =
+@@ -1224,8 +1231,9 @@ let build_pre ~xc ~xs ~vcpus ~memory ~hard_affinity domid =
+                      If claims are mixed with non-claims then Xen can't
+                      currently guarantee that it would honour the existing
+                      claims.
+-                     A failure here is a hard failure: we'd fail allocating
+-                     memory later anyway
++                     ENOMEM is a hard failure; other errors (e.g. ENOSYS,
++                     EOPNOTSUPP on ARM) are ignored and we continue without
++                     a global claim.
+                   *)
+                   let nr_pages =
+                     Memory.pages_of_bytes_used memory |> Int64.to_int
+@@ -1233,8 +1241,19 @@ let build_pre ~xc ~xs ~vcpus ~memory ~hard_affinity domid =
+                   let xcext = Xenctrlext.get_handle () in
+                   D.debug "NUMAClaim domid %d: global claim: %d pages" domid
+                     nr_pages ;
+-                  Xenctrlext.domain_claim_pages xcext domid
+-                    ~numa_node:Xenctrlext.NumaNode.none nr_pages ;
++                  ( try
++                      Xenctrlext.domain_claim_pages xcext domid
++                        ~numa_node:Xenctrlext.NumaNode.none nr_pages
++                    with
++                    | Xenctrlext.Unix_error (Unix.ENOMEM, _) as e ->
++                        raise e
++                    | Xenctrlext.Not_available
++                    | Xenctrlext.Unix_error (_, _) ->
++                        D.debug
++                          "NUMAClaim domid %d: global claim not supported, \
++                           skipping"
++                          domid
++                  ) ;
+                   None
+               | Some (plan, _) ->
+                   Some plan
+@@ -1501,6 +1520,31 @@ let build (task : Xenops_task.task_handle) ~xc ~xs ~store_domid ~console_domid
+         , [("rtc/timeoffset", timeoffset)]
+         , `pvh
+         )
++    | BuildARM {cmdline} ->
++        let memory =
++          Memory.Linux.full_config static_max_mib 0 target_mib vcpus 1.0
++        in
++        let store_port, console_port, numa_placement =
++          build_pre ~xc ~xs ~memory ~vcpus ~hard_affinity domid
++        in
++        (* TODO modules *)
++        let store_mfn, console_mfn =
++          let args =
++            xenguest_args_pvh ~domid ~store_port ~store_domid ~console_port
++              ~console_domid ~memory ~kernel ~cmdline ~modules:[]
++              ~numa_placement
++            @ force_arg
++            @ extras
++          in
++          xenguest task xenguest_path domid uuid args
++        in
++        ( store_mfn
++        , store_port
++        , console_mfn
++        , console_port
++        , [("rtc/timeoffset", timeoffset)]
++        , `pvh
++        )
+   in
+   let local_stuff = console_keys console_port console_mfn in
+   build_post ~xc ~xs ~target_mib ~static_max_mib domid domain_type store_mfn
+-- 
+2.53.0
+
