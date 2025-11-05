@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.30.0
-Release: 1.0.ydi.10%{?xsrel}%{?dist}
+Release: 1.0.ydi.14%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -103,6 +103,7 @@ Patch2001: 0001-domainconfig-Add-new-parameters-for-SVE-vector-lengt.patch
 Patch2002: 0002-introduce-arm-as-the-domain-type.patch
 Patch2003: 0003-Adjust-schematest-hash-and-other-tests.patch
 Patch2004: 0004-debug-prints.patch
+Patch2005: 0005-minimal-xenguest-handling-for-arm.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

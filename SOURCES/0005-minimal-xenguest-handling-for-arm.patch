@@ -1,0 +1,46 @@
+From f49c4d96f8137814139ec3795d402286ac4bce67 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 5 Nov 2025 13:44:03 +0000
+Subject: [PATCH] minimal xenguest handling for arm
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xenopsd/xc/domain.ml | 25 +++++++++++++++++++++++++
+ 1 file changed, 25 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index dcb07b7d3..0673e1262 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -1361,6 +1361,31 @@ let build (task : Xenops_task.task_handle) ~xc ~xs ~store_domid ~console_domid
+         , [("rtc/timeoffset", timeoffset)]
+         , `pvh
+         )
++    | BuildARM {cmdline} ->
++        let memory =
++          Memory.PVinPVH.full_config static_max_mib 0 target_mib vcpus 1.0
++        in
++        let store_port, console_port, numa_placement =
++          build_pre ~xc ~xs ~memory ~vcpus ~hard_affinity domid
++        in
++        (* TODO modules *)
++        let store_mfn, console_mfn =
++          let args =
++            xenguest_args_pvh ~domid ~store_port ~store_domid ~console_port
++              ~console_domid ~memory ~kernel ~cmdline ~modules:[]
++              ~numa_placement
++            @ force_arg
++            @ extras
++          in
++          xenguest task xenguest_path domid uuid args
++        in
++        ( store_mfn
++        , store_port
++        , console_mfn
++        , console_port
++        , [("rtc/timeoffset", timeoffset)]
++        , `pvh
++        )
+   in
+   let local_stuff = console_keys console_port console_mfn in
+   build_post ~xc ~xs ~vcpus ~target_mib ~static_max_mib domid domain_type
