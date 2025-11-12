@@ -1,0 +1,431 @@
+From 9cab6fd13d819602434dacbe577d82e1d8ecbb31 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 12 Nov 2025 09:40:54 +0000
+Subject: [PATCH] Read header for QCOW2-backed VDIs on export
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-stream-tool/dune                |   5 +
+ ocaml/qcow-stream-tool/qcow_stream_tool.ml |  74 ++++++++++--
+ ocaml/xapi/qcow_tool_wrapper.ml            |  83 ++++++++++++-
+ python3/libexec/qcow2-to-stdout.py         | 134 +++++++++++++++++----
+ 4 files changed, 260 insertions(+), 36 deletions(-)
+
+diff --git a/ocaml/qcow-stream-tool/dune b/ocaml/qcow-stream-tool/dune
+index 2125dea0a..436dd5868 100644
+--- a/ocaml/qcow-stream-tool/dune
++++ b/ocaml/qcow-stream-tool/dune
+@@ -6,5 +6,10 @@
+   (libraries
+     qcow-stream
+     cmdliner
++    unix
++    lwt.unix
++    lwt
++    qcow-types
++    yojson
+   )
+ )
+diff --git a/ocaml/qcow-stream-tool/qcow_stream_tool.ml b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+index 7158867c2..db199f988 100644
+--- a/ocaml/qcow-stream-tool/qcow_stream_tool.ml
++++ b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+@@ -1,11 +1,53 @@
++open Cmdliner
++
+ module Impl = struct
+   let stream_decode output =
+     Qcow_stream.stream_decode Unix.stdin output ;
+     `Ok ()
++
++  let read_headers qcow_path =
++    let open Lwt.Syntax in
++    let t =
++      let* fd = Lwt_unix.openfile qcow_path [Unix.O_RDONLY] 0 in
++      let* virtual_size, cluster_bits, _, data_cluster_map =
++        Qcow_stream.start_stream_decode fd
++      in
++      let clusters = Qcow_types.Cluster.Map.bindings data_cluster_map in
++      let clusters =
++        List.map
++          (fun (_, virt_address) ->
++            let ( |> ) = Int64.shift_right_logical in
++            let address =
++              Int64.to_int (virt_address |> Int32.to_int cluster_bits)
++            in
++            `Int address
++          )
++          clusters
++      in
++      let json =
++        `Assoc
++          [
++            ("virtual_size", `Int (Int64.to_int virtual_size))
++          ; ("cluster_bits", `Int (Int32.to_int cluster_bits))
++          ; ("data_clusters", `List clusters)
++          ]
++      in
++      let json_string = Yojson.to_string json in
++      let* () = Lwt_io.printf "%s" json_string in
++      let* () = Lwt_io.flush Lwt_io.stdout in
++      Lwt.return_unit
++    in
++    Lwt_main.run t ; `Ok ()
+ end
+ 
+ module Cli = struct
+-  open Cmdliner
++  let output default =
++    let doc = Printf.sprintf "Path to the output file." in
++    Arg.(value & pos 0 string default & info [] ~doc)
++
++  let input =
++    let doc = Printf.sprintf "Path to the input file." in
++    Arg.(required & pos 0 (some string) None & info [] ~doc)
+ 
+   let stream_decode_cmd =
+     let doc = "decode qcow2 formatted data from stdin and write a raw image" in
+@@ -15,15 +57,33 @@ module Cli = struct
+       ; `P "Decode qcow2 formatted data from stdin and write to a raw file."
+       ]
+     in
+-    let output default =
+-      let doc = Printf.sprintf "Path to the output file." in
+-      Arg.(value & pos 0 string default & info [] ~doc)
+-    in
+     Cmd.v
+       (Cmd.info "stream_decode" ~doc ~man)
+       Term.(ret (const Impl.stream_decode $ output "test.raw"))
+ 
+-  let main () = Cmd.eval stream_decode_cmd
++  let read_headers_cmd =
++    let doc =
++      "Determine allocated clusters by parsing qcow2 file at the provided path"
++    in
++    let man =
++      [
++        `S "DESCRIPTION"
++      ; `P
++          "Determine allocated clusters by parsing qcow2 file at the provided \
++           path"
++      ]
++    in
++    Cmd.v
++      (Cmd.info "read_headers" ~doc ~man)
++      Term.(ret (const Impl.read_headers $ input))
++
++  let cmds = [stream_decode_cmd; read_headers_cmd]
+ end
+ 
+-let () = exit (Cli.main ())
++let info =
++  let doc = "minimal CLI for qcow-stream" in
++  Cmd.info "qcow-stream-tool" ~version:"1.0.0" ~doc
++
++let () =
++  let cmd = Cmd.group info Cli.cmds in
++  exit (Cmd.eval cmd)
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index 30d0eb638..c41dab774 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -16,14 +16,15 @@ module D = Debug.Make (struct let name = __MODULE__ end)
+ 
+ open D
+ 
+-let run_qcow_tool qcow_tool ?input_fd ?output_fd (_progress_cb : int -> unit)
+-    (args : string list) =
++let run_qcow_tool qcow_tool ?(replace_fds = []) ?input_fd ?output_fd
++    (_progress_cb : int -> unit) (args : string list) =
+   info "Executing %s %s" qcow_tool (String.concat " " args) ;
+   let open Forkhelpers in
+   match
+     with_logfile_fd "qcow-tool" (fun log_fd ->
+         let pid =
+-          safe_close_and_exec input_fd output_fd (Some log_fd) [] qcow_tool args
++          safe_close_and_exec input_fd output_fd (Some log_fd) replace_fds
++            qcow_tool args
+         in
+         let _, status = waitpid pid in
+         if status <> Unix.WEXITED 0 then (
+@@ -46,14 +47,84 @@ let update_task_progress (__context : Context.t) (x : int) =
+ 
+ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) =
+-  let args = [path] in
++  let args = ["stream_decode"; path] in
+   let qcow_tool = !Xapi_globs.qcow_stream_tool in
+   run_qcow_tool qcow_tool progress_cb args ~input_fd:unix_fd
+ 
++let qcow_of_device path =
++  let tapdisk_of_path path =
++    try
++      let _, _, dev = Tapctl.of_device (Tapctl.create ()) path in
++      match dev with
++      | Some ("qcow2", qcow_path) ->
++          Some qcow_path
++      | _ ->
++          raise Not_found
++    with
++    | Tapctl.Not_blktap -> (
++        debug "Device %s is not controlled by blktap" path ;
++        (* Check if it is a qcow behind a NBD deivce *)
++        Stream_vdi.(get_nbd_device path |> image_behind_nbd_device) |> function
++        | Some ("qcow2", qcow) ->
++            debug "%s is a QCOW behind NBD device %s" qcow path ;
++            Some qcow
++        | _ ->
++            None
++      )
++    | Tapctl.Not_a_device ->
++        debug "%s is not a device" path ;
++        None
++    | _ ->
++        debug "Device %s has an unknown driver" path ;
++        None
++  in
++  Vhd_tool_wrapper.find_backend_device path
++  |> Option.value ~default:path
++  |> tapdisk_of_path
++
+ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) (_size : Int64.t) =
++  let qcow_path = qcow_of_device path in
++
++  let read_header qcow_path =
++    let args = ["read_headers"; qcow_path] in
++    let qcow_tool = !Xapi_globs.qcow_stream_tool in
++    let pipe_reader, pipe_writer = Unix.pipe ~cloexec:true () in
++
++    Xapi_stdext_pervasives.Pervasiveext.finally
++      (fun () -> run_qcow_tool qcow_tool progress_cb args ~output_fd:pipe_writer)
++      (fun () -> Unix.close pipe_writer) ;
++    pipe_reader
++  in
++
++  (* If VDI is backed by QCOW, parse the header to determine nonzero clusters
++     to avoid reading all of the raw disk *)
++  let input_fd = Option.map read_header qcow_path in
++
++  (* Parse the header of the VDI we are diffing against as well *)
++  let relative_to_qcow_path = Option.bind relative_to qcow_of_device in
++  let diff_fd = Option.map read_header relative_to_qcow_path in
++
++  let unique_string = Uuidx.(to_string (make ())) in
+   let args =
+-    [path] @ match relative_to with None -> [] | Some vdi -> ["--diff"; vdi]
++    [path]
++    @ (match relative_to with None -> [] | Some vdi -> ["--diff"; vdi])
++    @ ( match relative_to_qcow_path with
++      | None ->
++          []
++      | Some _ ->
++          ["--json-header-diff"; unique_string]
++      )
++    @ match qcow_path with None -> [] | Some _ -> ["--json-header"]
+   in
+   let qcow_tool = !Xapi_globs.qcow_to_stdout in
+-  run_qcow_tool qcow_tool progress_cb args ~output_fd:unix_fd
++  let replace_fds = Option.map (fun fd -> [(unique_string, fd)]) diff_fd in
++  Xapi_stdext_pervasives.Pervasiveext.finally
++    (fun () ->
++      run_qcow_tool qcow_tool progress_cb args ?input_fd ~output_fd:unix_fd
++        ?replace_fds
++    )
++    (fun () ->
++      Option.iter Unix.close input_fd ;
++      Option.iter Unix.close diff_fd
++    )
+diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
+index b0638bc59..a7b31d1e0 100755
+--- a/python3/libexec/qcow2-to-stdout.py
++++ b/python3/libexec/qcow2-to-stdout.py
+@@ -24,6 +24,7 @@
+ # clusters. For the sake of simplicity the code sometimes talks about
+ # refcount tables and L1 tables when referring to those clusters.
+ 
++import json
+ import argparse
+ import math
+ import os
+@@ -91,7 +92,9 @@ def write_features(cluster, offset, data_file_name):
+ 
+ 
+ def write_qcow2_content(input_file, cluster_size, refcount_bits,
+-                        data_file_name, data_file_raw, diff_file_name):
++                        data_file_name, data_file_raw, diff_file_name,
++                        virtual_size, nonzero_clusters,
++                        diff_virtual_size, diff_nonzero_clusters):
+     # Some basic values
+     l1_entries_per_table = cluster_size // 8
+     l2_entries_per_table = cluster_size // 8
+@@ -102,8 +105,11 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits,
+     fd = os.open(input_file, os.O_RDONLY)
+ 
+     # Virtual disk size, number of data clusters and L1 entries
+-    block_device_size = os.lseek(fd, 0, os.SEEK_END)
+-    disk_size = align_up(block_device_size, 512)
++    if virtual_size is None:
++        block_device_size = os.lseek(fd, 0, os.SEEK_END)
++        disk_size = align_up(block_device_size, 512)
++    else:
++        disk_size = virtual_size
+     total_data_clusters = math.ceil(disk_size / cluster_size)
+     l1_entries = math.ceil(total_data_clusters / l2_entries_per_table)
+     allocated_l1_tables = math.ceil(l1_entries / l1_entries_per_table)
+@@ -118,6 +124,28 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits,
+     allocated_l2_tables = 0
+     allocated_data_clusters = 0
+ 
++    def allocate_cluster(idx):
++        nonlocal allocated_data_clusters
++        nonlocal allocated_l2_tables
++        bitmap_set(l2_bitmap, idx)
++        allocated_data_clusters += 1
++        # Allocated data clusters also need their corresponding L1 entry and L2 table
++        l1_idx = math.floor(idx / l2_entries_per_table)
++        if not bitmap_is_set(l1_bitmap, l1_idx):
++            bitmap_set(l1_bitmap, l1_idx)
++            allocated_l2_tables += 1
++
++    # Allocates a cluster in the appropriate bitmaps if it's different
++    # from cluster_to_compare_with
++    def check_cluster_allocate(idx, cluster, cluster_to_compare_with):
++        # If the last cluster is smaller than cluster_size pad it with zeroes
++        if len(cluster) < cluster_size:
++            cluster += bytes(cluster_size - len(cluster))
++        # If a cluster has different data from the cluster_to_compare_with then it
++        # must be allocated in the output file and its L2 entry must be set
++        if cluster != cluster_to_compare_with:
++            allocate_cluster(idx)
++
+     if data_file_raw:
+         # If data_file_raw is set then all clusters are allocated and
+         # we don't need to read the input file at all.
+@@ -126,26 +154,39 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits,
+             bitmap_set(l1_bitmap, idx)
+         for idx in range(total_data_clusters):
+             bitmap_set(l2_bitmap, idx)
+-    else:
+-        # Allocates a cluster in the appropriate bitmaps if it's different
+-        # from cluster_to_compare_with
+-        def check_cluster_allocate(idx, cluster, cluster_to_compare_with):
+-            nonlocal allocated_data_clusters
+-            nonlocal allocated_l2_tables
+-            # If the last cluster is smaller than cluster_size pad it with zeroes
+-            if len(cluster) < cluster_size:
+-                cluster += bytes(cluster_size - len(cluster))
+-            # If a cluster has different data from the cluster_to_compare_with then it
+-            # must be allocated in the output file and its L2 entry must be set
+-            if cluster != cluster_to_compare_with:
+-                bitmap_set(l2_bitmap, idx)
+-                allocated_data_clusters += 1
+-                # Allocated data clusters also need their corresponding L1 entry and L2 table
+-                l1_idx = math.floor(idx / l2_entries_per_table)
+-                if not bitmap_is_set(l1_bitmap, l1_idx):
+-                    bitmap_set(l1_bitmap, l1_idx)
+-                    allocated_l2_tables += 1
+ 
++    elif nonzero_clusters is not None:
++        if diff_file_name:
++            if diff_virtual_size is None or diff_nonzero_clusters is None:
++                sys.exit("[Error] QCOW headers for the diff file were not provided.")
++            # Read all the clusters that differ from the diff_file_name
++            diff_fd = os.open(diff_file_name, os.O_RDONLY)
++            last_diff_cluster = align_up(diff_virtual_size, cluster_size) // cluster_size
++            # In case input_file is bigger than diff_file_name, first check
++            # if clusters from diff_file_name differ, and then check if the
++            # rest contain data
++            diff_nonzero_clusters_set = set(diff_nonzero_clusters)
++            for cluster in nonzero_clusters:
++                if cluster >= last_diff_cluster:
++                    allocate_cluster(cluster)
++                elif cluster in diff_nonzero_clusters_set:
++                    # If a cluster has different data from the original_cluster
++                    # then it must be allocated
++                    cluster_data = os.pread(fd, cluster_size, cluster_size * cluster)
++                    original_cluster = os.pread(diff_fd, cluster_size, cluster_size * cluster)
++                    check_cluster_allocate(cluster, cluster_data, original_cluster)
++                    diff_nonzero_clusters_set.remove(cluster)
++                else:
++                    allocate_cluster(cluster)
++
++            # These are not present in the original file
++            for cluster in diff_nonzero_clusters_set:
++                allocate_cluster(cluster)
++        else:
++            for cluster in nonzero_clusters:
++                allocate_cluster(cluster)
++
++    else:
+         zero_cluster = bytes(cluster_size)
+         last_cluster = align_up(block_device_size, cluster_size) // cluster_size
+         if diff_file_name:
+@@ -384,11 +425,54 @@ def main():
+         help="enable data_file_raw on the generated image (implies -d)",
+         action="store_true",
+     )
++    parser.add_argument(
++        "--json-header",
++        dest="json_header",
++        help="stdin contains a JSON of pre-parsed QCOW2 information"
++        "(virtual_size, data_clusters, cluster_bits)",
++        action="store_true",
++    )
++    parser.add_argument(
++        "--json-header-diff",
++        dest="json_header_diff",
++        metavar="json_header_diff",
++        help="File descriptor that contains a JSON of pre-parsed QCOW2 "
++        "information for the diff_file_name",
++        type=int,
++        default=None,
++    )
+     args = parser.parse_args()
+ 
+     if args.data_file_raw:
+         args.data_file = True
+ 
++    virtual_size = None
++    nonzero_clusters = None
++    diff_virtual_size = None
++    diff_nonzero_clusters = None
++    if args.json_header:
++        json_header = json.load(sys.stdin)
++        try:
++            virtual_size = json_header['virtual_size']
++            source_cluster_size = 2 ** json_header['cluster_bits']
++            if source_cluster_size != args.cluster_size:
++                args.cluster_size = source_cluster_size
++            nonzero_clusters = json_header['data_clusters']
++        except KeyError as e:
++            raise RuntimeError(f'Incomplete JSON - missing value for {str(e)}')
++    if args.json_header_diff:
++        f = os.fdopen(args.json_header_diff)
++        json_header = json.load(f)
++        try:
++            diff_virtual_size = json_header['virtual_size']
++            if 2 ** json_header['cluster_bits'] == args.cluster_size:
++                diff_nonzero_clusters = json_header['data_clusters']
++            else:
++                sys.exit(f"[Error] Cluster size in the files being compared are "
++                         f"different: {2**json_header['cluster_bits']} vs. {args.cluster_size}")
++        except KeyError as e:
++            raise RuntimeError(f'Incomplete JSON for the diff - missing value for {str(e)}')
++
+     if not os.path.exists(args.input_file):
+         sys.exit(f"[Error] {args.input_file} does not exist.")
+ 
+@@ -413,7 +497,11 @@ def main():
+         args.refcount_bits,
+         data_file_name,
+         args.data_file_raw,
+-        args.diff_file_name
++        args.diff_file_name,
++        virtual_size,
++        nonzero_clusters,
++        diff_virtual_size,
++        diff_nonzero_clusters
+     )
+ 
+ 
