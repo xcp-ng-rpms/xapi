@@ -97,6 +97,9 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
+Patch1008: 0008-Read-header-for-QCOW2-backed-VDIs-on-export.patch
+Patch1009: 0009-quicktest-Add-qcow-to-VDI-integrity-tests.patch
+Patch1010: 0010-quicktest-Add-delta-tests-for-VHD-and-QCOW-data-inte.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
