@@ -1,7 +1,7 @@
-From cad0929afec4aa2189274bbc40a578e8175b0242 Mon Sep 17 00:00:00 2001
+From 4fea866793ad1aef87a5cde1f452b5f4634be79b Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Sat, 18 Oct 2025 09:21:18 +0100
-Subject: [PATCH 6/6] [xcp-ng] do not change rsyslog configuration
+Subject: [PATCH] [xcp-ng] do not change rsyslog configuration
 
 Xenserver's changes around rsyslog configuration have downsides and the
 packaging prefers the previous behaviour because there's no time to
@@ -64,6 +64,3 @@ index de84881d6..cc64a3030 100644
 +
 +[ -s /etc/syslog.$$ ] && mv -f /etc/syslog.$$ $conf_file
 +systemctl restart $service
--- 
-2.51.0
-

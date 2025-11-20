@@ -1,5 +1,5 @@
-%global package_speccommit 63a64e044f1bc3ed826df7d1dc6e342c745f174a
-%global package_srccommit v25.27.0
+%global package_speccommit abbbcf083e63e75c01a1a0804385b36fb6bde1c5
+%global package_srccommit v25.33.1
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -25,12 +25,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.27.0
-Release: 2.3%{?xsrel}%{?dist}
+Version: 25.33.1
+Release: 2.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.27.0.tar.gz
+Source0: xen-api-25.33.1.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -61,15 +61,14 @@ Source25: xenopsd-xc-local.conf
 
 # Xapi compiles to a baseline of Xen 4.17
 
-# Xen 4.19
-%if "%{dist}" == ".xs9"
-Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
-%endif
-
 # Xen 4.20
-%if "%{dist}" == ".xsx"
+%if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
+Patch3: 0004-rrd3.patch
+Patch5: 0003-CP-53658-adapt-claim_pages-to-version-in-xen-4.21-wi.patch
+Patch6: 0005-xenopsd-xc-do-not-try-keep-track-of-free-memory-when.patch
+Patch7: CP-54065-xenopsd-log-xenguest-mem_pnode-for-debuggin.patch
 %endif
 
 # Xen 4.21
@@ -77,14 +76,12 @@ Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
+Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
-
-# Patches that are universal
-Patch10: 0001-Simplify-UTF-8-decoding.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v25.27.0..v25.27.0-8.3
+#   - git format-patch --no-numbered --no-signature v25.33.1..v25.33.1-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -194,8 +191,7 @@ Requires: python3-wrapt
 # `service iptables save`
 Requires: iptables-services
 Requires: rsync
-# XCP-ng: remove Requires for currently proprietary xapi-ssh-monitor
-#Requires: xapi-ssh-monitor
+Obsoletes: xapi-ssh-monitor <= 1.0.0
 Requires(post): xs-presets >= 1.3
 Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
@@ -205,11 +201,11 @@ Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
 %{?systemd_requires}
-%if 0%{?xenserver} < 9
 # XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
 #Requires: genisoimage
+%if 0%{?xenserver} >= 9
+Requires: oxenstored >= 0.0.2
 %endif
-
 
 # XCP-ng: add missing requires towards nbd
 Requires: nbd
@@ -318,12 +314,16 @@ Requires:       forkexecd
 Requires:       xen-libs
 Requires:       emu-manager
 # NVME support requires newer qemu
-# Semantic versioning: describe acceptable range of qemu versions
-# if a new major version of qemu/qemu.pg is released and xenopsd is still
-# compatible then we just have to update this line and bump the minor for xenopsd
+# Describe minimum qemu version required.
+# If a new major/incompatible version of qemu is released then it will need to:
+# Conflicts: xenopsd-xc < $current_version
 Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
-Conflicts:      qemu >= %{qemu_epoch}:4.2.1-6.0.0
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
+%if 0%{?xenserver} >= 9
+# NUMA memory claims v2
+Requires:       xen-hypervisor >= 4.20.1-5
+Requires:       xen-dom0-libs >= 4.20.1-5
+%endif
 
 %description -n xenopsd-xc
 Simple VM manager for Xen using libxc.
@@ -379,6 +379,12 @@ Summary:   RRDD metrics plugin
 Requires:  jemalloc
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
+# Requires Xen support for querying domain VCPU runnable and nonaffine running time
+%if 0%{?xenserver} < 9
+Requires:  xen-dom0-libs >= 4.17.5-18
+%else
+Requires:  xen-dom0-libs >= 4.19.2-12
+%endif
 
 %description -n rrdd-plugins
 This packages contains plugins registering to the RRD daemon and exposing various metrics.
@@ -727,6 +733,7 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 %systemd_post generate-iscsi-iqn.service
 %systemd_post control-domain-params-init.service
 %systemd_post network-init.service
+%systemd_post xapi-ssh-monitor.service
 
 # remove old stunnel config file
 rm -f /etc/xensource/xapi-ssl.conf
@@ -813,6 +820,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_preun generate-iscsi-iqn.service
 %systemd_preun control-domain-params-init.service
 %systemd_preun network-init.service
+%systemd_preun xapi-ssh-monitor.service
 
 %preun -n xenopsd-xc
 %systemd_preun xenopsd-xc.service
@@ -869,6 +877,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_postun generate-iscsi-iqn.service
 %systemd_postun control-domain-params-init.service
 %systemd_postun network-init.service
+%systemd_postun xapi-ssh-monitor.service
 
 %postun -n xenopsd-xc
 %systemd_postun xenopsd-xc.service
@@ -991,6 +1000,7 @@ done
 /opt/xensource/bin/static-vdis
 /opt/xensource/bin/xapi-autostart-vms
 /opt/xensource/bin/xapi-db-process
+/opt/xensource/bin/xapi-ssh-monitor
 /opt/xensource/bin/xapi-wait-init-complete
 /opt/xensource/bin/xe-backup-metadata
 /opt/xensource/bin/xe-edit-bootloader
@@ -1001,13 +1011,18 @@ done
 /opt/xensource/bin/xe-scsi-dev-map
 /opt/xensource/bin/xe-toolstack-restart
 /opt/xensource/bin/xe-xentrace
-/opt/xensource/bin/xe-switch-network-backend
 /opt/xensource/bin/xe-enable-all-plugin-metrics
 /opt/xensource/bin/xe-install-supplemental-pack
 /opt/xensource/bin/hfx_filename
 /opt/xensource/bin/pv2hvm
 /opt/xensource/bin/xe-enable-ipv6
+%if 0%{?xenserver} >= 9
+%exclude /opt/xensource/bin/xe-switch-network-backend
+%exclude /etc/bash_completion.d/xe-switch-network-backend
+%else
+/opt/xensource/bin/xe-switch-network-backend
 /etc/bash_completion.d/xe-switch-network-backend
+%endif
 /opt/xensource/bin/xsh
 %attr(700, root, root) /opt/xensource/gpg
 /etc/xensource/bugtool/xapi.xml
@@ -1079,6 +1094,7 @@ done
 %{_unitdir}/generate-iscsi-iqn.service
 %{_unitdir}/control-domain-params-init.service
 %{_unitdir}/network-init.service
+%{_unitdir}/xapi-ssh-monitor.service
 %{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 %if 0%{?xenserver} < 9
@@ -1460,6 +1476,139 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
+- Update to upstream 25.33.1-2
+- *** Upstream changelog ***
+  * Thu Oct 30 2025 Rob Hoes <rob.hoes@citrix.com> - 25.33.1-2
+  - Bump release and rebuild
+  
+  * Thu Oct 30 2025 Rob Hoes <rob.hoes@citrix.com> - 25.33.1-1
+  - CA-419227 Move force_state_reset after refresh_vm
+  
+  * Thu Oct 16 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.33.0-2
+  - CP-53573: Enable NUMA placement in XS9
+  
+  * Tue Oct 14 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.33.0-1
+  - Update dune lang to 3.20
+  - Avoid no-cmx-warning when building xapi_version
+  - CP-308455 VM.sysprep turn on feature
+  - XSI-1969 CA-418141 more thorough resource cleanup
+  - CA-417951: Split checks for migration and detecting RPU
+  - CA-417951: Host.create now takes a software version argument
+  - python3/perfmon: Remove broken calls to /etc/init.d/perfmon
+  - Extend diagnostic-timing-stats to optionally show counts
+  - xapi_vm_clone: Remove impossible, confusing case when dealing with suspend VDIs
+  - CA-417020: DNS not cleared after reconfiguring to static IP without DNS
+  - fix: Xen Version checks
+  
+  * Tue Sep 30 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.32.0-1
+  - XSI-1969 more thorough resource cleanup
+  - CP-54163: xapi: Add secure boot field to host
+  - http-lib: Add filename hint to file response
+  - system_status: Clean up imports, add an interface
+  - system_status: Reduce logging
+  - system_status: reify the output types for xen-bugtool
+  - system_status: Group bugtool command-handling into a module
+  - system_status: consolidate error-handling
+  - system_status: suggest consistent filenames to clients
+  - system_status: add URL parameter to show xen-bugtool entries
+  - Fix missing-dependency alerts for unix and str on OCaml 5
+  - Fix test for OCaml 5
+  - Remove unused Xenctrlext function
+  - idl: Remove apparently unused gen_test.ml
+  - idl/gen_client: Don't specify argument values when they're equal to defaults
+  
+  * Wed Sep 24 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.31.0-1
+  - CP-308811: Add an option to limit the span depth in tracing
+  - CP-309305: Split Spans.since into chunks for exporting
+  - Use a forwarder so each component updates their depth and chunk size
+  - CA-416351: Slave shutdown timeout
+  - rrd: Fix absolute rate calculations
+  - CP-309523: Make networkd_db utility return bridge MAC address
+  - xapi_vm_migrate: Fix reservations not being cleared on halted VMs
+  - CP-308863: Count vGPU migrations
+  - CA-416516: vm.slice/cgroup.procs write operation gets EBUSY
+  - CA-367765: remove reference to obsolete default URL
+  - Remove obsolete test script
+  - host.disable: Add auto_enabled parameter for persistency
+  - Simplify UTF-8 decoding
+  - Adjust quality-gate.sh
+  - xapi/nm: Send non-empty dns to networkd when using IPv6 autoconf
+  - CP-53479: Add xapi-ssh-monitor script and service
+  - CP-308800: Dynamically control ssh firewalld service in xapi-ssh-monitor
+  - xapi-idl/network: Remove code duplication for DNS persistence decisions
+  - Remove redundant check
+  - xapi_pbd: use HA shared SR constraint violation when plugging and unplugging
+  - xapi_pif: use HA shared network constraint violation when plugging and unplugging
+  - xapi_ha_vm_failover: remove superfluous debug message
+  - xenopsd: Drop unused variables in domain.ml
+  - docs: Update add-function.md to fix example
+  - ocaml: allow xapi to compile under OCaml 5.3
+  - XSI-1987 & CA-416462: Fix RPU host evacuation version check
+  - CA-417390: No RRD metric for vGPU migration with local storage
+  - ocaml: prepare formatting for ocamlformat 0.27.0
+  - git-blame-ignore-revs: ignore previous, formatting commit
+  - networkd: Remove usage of ovs-vlan-bug-workaround
+  - networkd: Remove has_vlan_accel from network_utils
+  
+  * Tue Sep 02 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.30.0-1
+  - CA-411297: XAPI UTF8
+  - CA-412983: HA doesn't keep trying to start best-effort VM
+  - Add Xapi_globs.ha_best_effort_max_retries to eliminate hard-coding
+  - Optimize with List.compare_lengths
+  - Copy dependency libraries to the output folder. Build using the project file (or the build switches in it are ignored).
+  - CP-308539 Added preprocessor conditions to compile with .NET 8
+  - Updated language use. Removed redundant calls and initializers. Use Properties instead of public fields.
+  - CP-308539 Replaced obsolete code.
+  - CP-308539 Use HttpClient for .NET as HttpWebRequest is obsolete.
+  - CP-44752: propagate System.Diagnostics tracing information using W3C traceparent header.
+  - Action from CA-408836: Deprecate the method SaveChanges. It is a XenCenterism and not always correct.
+  - libs/log: adapt backtrace test to pass on aarch64
+  - ocaml/util: delete module xapi_host_driver_helpers and tests
+  - Updated dependencies for PS 5.1.
+  - I forgot to initialize the Roles.
+  - ci: enable experimental ocaml workflow on aarch64
+  - CP-308455 VM.sysprep if CD insert fails, remove ISO
+  - CP-308455 VM.sysprep declare XML content as SecretString
+  - CP-308539: Updated certificate validation to support .NET 8.0 in PowerShell.
+  - Revert "xapi/nm: Send non-empty dns to networkd when using IPv6 autoconf (#6586)"
+  
+  * Wed Aug 27 2025 Andrew Cooper <andrew.cooper3@citrix.com> - 25.29.0-2
+  - Rebuild against Xen 4.20
+  
+  * Thu Aug 21 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.29.0-1
+  - CP-40265 - xenopsd: Drop max_maptrack_frames to 0 by default on domain creation
+  - CP-40265 - xenopsd: Calculate max_grant_frames dynamically
+  - Treat 64 max_grant_frames as the lower bound
+  - xenopsd: Don't iterate over StringMaps twice
+  - xapi_vm_helpers: Raise allowed_VIF limit from 7 to 16
+  - xapi/nm: Send non-empty dns to networkd when using IPv6 autoconf
+  - xapi-idl/network: Remove code duplication for DNS persistence decisions
+  - CI: update pre-commit config
+  - CI: update diff-cover parameters
+  - Minor wording improvement
+  - CP-53858: Domain CPU ready RRD metric - runnable_any
+  - CP-54087: Domain CPU ready RRD metric - runnable_vcpus
+  - CP-308465: RRD metric "runnable_vcups": rebase on top of xen.spec/PR#481
+  - python3/usb_scan: Skip empty lines in usb-policy.conf, add more comments
+  - Changed the order of operations so that the sources are stored before any CI runs.
+  - CA-413254: Sort and remove duplicate serialized types.
+  - message_forwarding: Log which operation is added/removed from blocked_ops
+  - xe-cli: Allow floppy to be autocompleted
+  - CA-415952: HA can not be enabled
+  
+  * Wed Aug 06 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.28.0-1
+  - CA-413424: Enhance xe help output
+  - CP-308455 VM.sysprep CA-414158 wait for "action" key to disappear
+  - Disable SARIF upload for now: they are rejected
+  - CP-308455 VM.sysprep CA-414158 wait for "action" key to disappear (#6604)
+  - CP-309064 Add SSH Management feature design
+  - CA-414418: Detection of AD account removal does not cause logout
+  - CA-414418: Perf: save user validate result and apply to sessions
+  - CA-414418: Code refine for comments
+  - CA-414627: increase polling duration for tapdisk
+  - Update datamodel lifecycle
+
 * Tue Oct 21 2025 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.27.0-2.3
 - Add an optimization for VHD export from QCOW2 VDIs
 
