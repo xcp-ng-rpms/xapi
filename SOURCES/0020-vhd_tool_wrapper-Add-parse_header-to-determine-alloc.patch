@@ -1,0 +1,75 @@
+From d578b6dae94eee4b209d3488da4da930b53eb15e Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 26 Nov 2025 10:47:27 +0000
+Subject: [PATCH] vhd_tool_wrapper: Add parse_header to determine allocated
+ blocks
+
+Vhd_tool_wrapper.run_vhd_tool is hardcoded to read the progress percentage
+printed by vhd-tool, so use Qcow_tool_wrapper.run_qcow_tool to run vhd-tool
+since it's generic enough to allow that.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/qcow_tool_wrapper.mli |  9 +++++++++
+ ocaml/xapi/vhd_tool_wrapper.ml   | 28 ++++++++++++++++++++++++++++
+ 2 files changed, 37 insertions(+)
+
+diff --git a/ocaml/xapi/qcow_tool_wrapper.mli b/ocaml/xapi/qcow_tool_wrapper.mli
+index c1c4a6426..a9f79cbb2 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.mli
++++ b/ocaml/xapi/qcow_tool_wrapper.mli
+@@ -12,6 +12,15 @@
+  * GNU Lesser General Public License for more details.
+  *)
+ 
++val run_qcow_tool :
++     string
++  -> ?replace_fds:(string * Unix.file_descr) list
++  -> ?input_fd:Unix.file_descr
++  -> ?output_fd:Unix.file_descr
++  -> (int -> unit)
++  -> string list
++  -> unit
++
+ val update_task_progress : Context.t -> int -> unit
+ 
+ val receive : (int -> unit) -> Unix.file_descr -> string -> unit
+diff --git a/ocaml/xapi/vhd_tool_wrapper.ml b/ocaml/xapi/vhd_tool_wrapper.ml
+index 2a3d40ae5..8a9f35ba8 100644
+--- a/ocaml/xapi/vhd_tool_wrapper.ml
++++ b/ocaml/xapi/vhd_tool_wrapper.ml
+@@ -112,6 +112,34 @@ let receive progress_cb format protocol (s : Unix.file_descr)
+   in
+   run_vhd_tool progress_cb args s s' path
+ 
++let read_headers path =
++  let vhd_tool = !Xapi_globs.vhd_tool in
++  let args = ["read_headers"; path] in
++  let pipe_reader, pipe_writer = Unix.pipe ~cloexec:true () in
++
++  let progress_cb _ = () in
++  Xapi_stdext_pervasives.Pervasiveext.finally
++    (fun () ->
++      Qcow_tool_wrapper.run_qcow_tool vhd_tool progress_cb args
++        ~output_fd:pipe_writer
++    )
++    (fun () -> Unix.close pipe_writer) ;
++  pipe_reader
++
++let parse_header path =
++  let pipe_reader = read_headers path in
++  let ic = Unix.in_channel_of_descr pipe_reader in
++  let buf = Buffer.create 4096 in
++  let json = Yojson.Basic.from_channel ~buf ~fname:"vhd_header.json" ic in
++  In_channel.close ic ;
++  let block_size =
++    1 lsl Yojson.Basic.Util.(member "block_bits" json |> to_int)
++  in
++  let block_list =
++    Yojson.Basic.Util.(member "data_blocks" json |> to_list |> List.map to_int)
++  in
++  (block_size, block_list)
++
+ let send progress_cb ?relative_to (protocol : string) (dest_format : string)
+     (s : Unix.file_descr) (path : string) (size : Int64.t) (prefix : string) =
+   let vhd_of_device =

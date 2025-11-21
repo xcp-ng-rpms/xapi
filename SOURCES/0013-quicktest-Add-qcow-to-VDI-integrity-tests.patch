@@ -1,4 +1,4 @@
-From a86e64fe2ba87d1c92c20047e22b70b1b6d7ffb0 Mon Sep 17 00:00:00 2001
+From 230599a51251212ad6f65b12885dd313f700654c Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 14 Nov 2025 11:29:29 +0000
 Subject: [PATCH] quicktest: Add qcow to VDI integrity tests
