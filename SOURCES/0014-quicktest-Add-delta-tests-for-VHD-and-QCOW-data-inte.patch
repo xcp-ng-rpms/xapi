@@ -1,4 +1,4 @@
-From 4105fbfd430a66cfe9f56201152755013a90b9f7 Mon Sep 17 00:00:00 2001
+From 1a2d07107546e4b3021aa2a25711c25502d1fa99 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 14 Nov 2025 15:17:05 +0000
 Subject: [PATCH] quicktest: Add delta tests for VHD and QCOW data integrity
