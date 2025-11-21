@@ -100,11 +100,13 @@ Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
 Patch1008: 0008-Read-header-for-QCOW2-backed-VDIs-on-export.patch
 Patch1009: 0009-quicktest-Add-qcow-to-VDI-integrity-tests.patch
 Patch1010: 0010-quicktest-Add-delta-tests-for-VHD-and-QCOW-data-inte.patch
+Patch1011: 0011-stream_vdi-Factor-out-send_one-into-a-top-level-func.patch
+Patch1012: 0012-stream_vdi-Add-debug-prints.patch
 
 # Testing supported image format
-Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
-Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
-Patch1013: 0003-Bumping-database-schema-version.patch
+Patch1021: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1022: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1023: 0003-Bumping-database-schema-version.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
