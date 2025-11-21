@@ -1,0 +1,35 @@
+From c88b77bc9d1c5b10225b3d9fc8d7d7db78b1f936 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 21 Nov 2025 13:43:31 +0000
+Subject: [PATCH] stream_vdi: Add debug prints
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/stream_vdi.ml | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi/stream_vdi.ml b/ocaml/xapi/stream_vdi.ml
+index 488374ef4..f45d2a6f8 100644
+--- a/ocaml/xapi/stream_vdi.ml
++++ b/ocaml/xapi/stream_vdi.ml
+@@ -277,6 +277,7 @@ let send_one ofd (__context : Context.t) rpc session_id progress refresh_session
+               (* We always include the first and last blocks *)
+               let first_or_last = chunk_no = 0 || last_chunk in
+               if time_since_transmission > 5. && not first_or_last then (
++                debug "stream_vdi: transmitting empty block %s" filename ;
+                 last_transmission_time := now ;
+                 write_block ~__context filename Bytes.empty ofd 0 ;
+                 (* no progress has been made *)
+@@ -292,7 +293,11 @@ let send_one ofd (__context : Context.t) rpc session_id progress refresh_session
+                 if first_or_last || not (Zerocheck.is_all_zeros (Bytes.unsafe_to_string buffer) this_chunk)
+                 then (
+                   last_transmission_time := now ;
+-                  write_block ~__context filename buffer ofd this_chunk
++                  write_block ~__context filename buffer ofd this_chunk ;
++                  debug
++                    "stream_vdi: transmitting filled block %s\n\
++                    \                (offset/chunk_size %Lu)" filename
++                    (Int64.div offset chunk_size)
+                 ) ;
+                 made_progress __context progress (Int64.of_int this_chunk) ;
+                 stream_from (chunk_no + 1) (Int64.add offset chunk_size)

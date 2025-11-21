@@ -1,0 +1,36 @@
+From de08e7afc2bb8eee526cd65b8c601a3cb6bcb0b5 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 21 Nov 2025 16:28:19 +0000
+Subject: [PATCH] stream_vdi: Fix import of xva
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/stream_vdi.ml | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi/stream_vdi.ml b/ocaml/xapi/stream_vdi.ml
+index f45d2a6f8..24f28c31a 100644
+--- a/ocaml/xapi/stream_vdi.ml
++++ b/ocaml/xapi/stream_vdi.ml
+@@ -486,9 +486,20 @@ let recv_all_vdi refresh_session ifd (__context : Context.t) rpc session_id
+               raise (Failure "Invalid XVA file")
+             ) ;
+             (* Here we find the number of skipped blocks *)
+-            let num_zero_blocks =
++            let num_zero_blocks_raw =
+               int_of_string suffix - int_of_string last_suffix - 1
+             in
++            (* Export code can output empty blocks to avoid timing out the
++               connection. If these occur, then we need to discount them from
++               the number of blocks to skip. *)
++            let num_zero_blocks =
++              if length = 0L then
++                num_zero_blocks_raw - 1
++              else
++                num_zero_blocks_raw
++            in
++            debug "block length=%Lu, adjusting offset to %d" length
++              num_zero_blocks ;
+             let skipped_size =
+               Int64.mul
+                 (Int64.of_int !firstchunklength)
