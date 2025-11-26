@@ -1,4 +1,4 @@
-From f2c8ebb797604036b111dd379ff1328dc932d177 Mon Sep 17 00:00:00 2001
+From da2906c45aefb7947a1a205aae94aa8f6026beff Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Tue, 21 Oct 2025 12:58:44 +0100
 Subject: [PATCH] ocaml/libs: Check if blocks are filled with zeros in
