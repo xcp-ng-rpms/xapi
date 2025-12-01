@@ -139,7 +139,8 @@ Requires: xenopsd-xc
 Requires: xapi-xe
 Requires: wsproxy
 Requires: squeezed
-Requires: xcp-featured
+# XCP-ng: temporary hack to break dependency in WiP bitbake recipes
+#Requires: xcp-featured
 Requires: initscripts
 Requires: hwdata
 Requires: /usr/sbin/ssmtp
