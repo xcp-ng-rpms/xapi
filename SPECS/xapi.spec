@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.33.1
-Release: 2.1.0.ydi.1%{?xsrel}%{?dist}
+Release: 2.1.0.ydi.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -228,7 +228,8 @@ BuildRequires: systemd
 # XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
 #Requires: genisoimage
 %if 0%{?xenserver} >= 9
-Requires: oxenstored >= 0.0.2
+# XCP-ng: this should be packaged first, falling back to Xen's
+#Requires: oxenstored >= 0.0.2
 %endif
 
 # XCP-ng: add missing requires towards nbd
@@ -1531,7 +1532,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Mon Dec 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.33.1-2.1.0.ydi.1
+* Mon Dec 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.33.1-2.1.0.ydi.2
 - Rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
@@ -1548,6 +1549,7 @@ Coverage files from unit tests
 - Add 4.19 compat patches from Andriy
 - Relax Xen version constraint of xen-dom0-libs to allow installing
 - Require iptables-legacy
+- Comment out the runtime dependency on oxenstored-split-out-from-xen
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
