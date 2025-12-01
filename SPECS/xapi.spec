@@ -146,7 +146,8 @@ Requires: xen-hypervisor
 Requires: xenopsd-xc
 Requires: xapi-xe
 Requires: squeezed
-Requires: xcp-featured
+# XCP-ng: temporary hack to break dependency in WiP bitbake recipes
+#Requires: xcp-featured
 Requires: initscripts
 Requires: hwdata
 Requires: /usr/sbin/ssmtp
@@ -175,14 +176,15 @@ Requires: net-tools
 %else
 Requires: dnf
 # XCP-ng BEGIN: remove Requires for xs-specific plugins
-# # This is for the following dnf5 plugin which are used by xapi
-# Requires: libdnf5-plugin-ptoken
-# Requires: libdnf5-plugin-accesstoken
-# Requires: libdnf5-plugin-xapitoken
+## This is for the following dnf5 plugin which are used by xapi
+#Requires: libdnf5-plugin-ptoken
+#Requires: libdnf5-plugin-accesstoken
+#Requires: libdnf5-plugin-xapitoken
+## For dnf plugins like config-manager
+#Requires: dnf5-plugins
 # XCP-ng END
-# For dnf plugins like config-manager
-Requires: dnf5-plugins
-Requires: dmv-utils
+# XCP-ng: package is not yet public, and is emulated by XAPI
+#Requires: dmv-utils
 %endif
 Requires: python3-xcp-libs
 %if 0%{?build_python2}
@@ -338,7 +340,10 @@ Requires:       emu-manager
 # Describe minimum qemu version required.
 # If a new major/incompatible version of qemu is released then it will need to:
 # Conflicts: xenopsd-xc < $current_version
+# XCP-ng
+%ifnarch aarch64
 Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
+%endif
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 %if 0%{?xenserver} >= 9
 # NUMA memory claims v2
