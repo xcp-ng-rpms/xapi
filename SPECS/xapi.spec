@@ -684,8 +684,9 @@ mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
 %if 0%{?xenserver} >= 9
-# make the experimental feature available on XS9
-echo 0 > %{buildroot}/etc/xenserver/features.d/hard_numa
+# XCP-ng: we did not package 4.20 yet
+# # make the experimental feature available on XS9
+# echo 0 > %{buildroot}/etc/xenserver/features.d/hard_numa
 %endif
 
 mkdir -p %{buildroot}%{_sbindir}
@@ -1018,8 +1019,9 @@ done
 /etc/xcp
 /etc/xenserver/features.d
 %if 0%{?xenserver} >= 9
-# make the experimental feature available on XS9
-/etc/xenserver/features.d/hard_numa
+# XCP-ng: we did not package 4.20 yet
+# # make the experimental feature available on XS9
+# /etc/xenserver/features.d/hard_numa
 %endif
 %dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
@@ -1552,6 +1554,7 @@ Coverage files from unit tests
 - Require iptables-legacy
 - Comment out the runtime dependency on oxenstored-split-out-from-xen
 - Don't require 4.20
+- Temporarily disable hard-numa
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
