@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.33.1
-Release: 2.1.0.ydi.2%{?xsrel}%{?dist}
+Release: 2.1.0.ydi.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -349,9 +349,10 @@ Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
 %endif
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 %if 0%{?xenserver} >= 9
-# NUMA memory claims v2
-Requires:       xen-hypervisor >= 4.20.1-5
-Requires:       xen-dom0-libs >= 4.20.1-5
+# XCP-ng: we did not package 4.20 yet
+# # NUMA memory claims v2
+# Requires:       xen-hypervisor >= 4.20.1-5
+# Requires:       xen-dom0-libs >= 4.20.1-5
 %endif
 
 %description -n xenopsd-xc
@@ -1532,7 +1533,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Mon Dec 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.33.1-2.1.0.ydi.2
+* Mon Dec 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.33.1-2.1.0.ydi.3
 - Rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
@@ -1550,6 +1551,7 @@ Coverage files from unit tests
 - Relax Xen version constraint of xen-dom0-libs to allow installing
 - Require iptables-legacy
 - Comment out the runtime dependency on oxenstored-split-out-from-xen
+- Don't require 4.20
 
 * Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
 - Update to upstream 25.33.1-2
