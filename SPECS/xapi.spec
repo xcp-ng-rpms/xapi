@@ -95,6 +95,12 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
 
+Patch1008: 0008-zerocheck-exposing-the-length-to-users-is-unsafe-and.patch
+Patch1009: 0009-vhd_tool_wrapper-Make-vhd_of_device-generic.patch
+Patch1010: 0010-qcow-stream-tool-Add-read_headers-command.patch
+Patch1011: 0011-python3-Use-pre-parsed-cluster-allocation-data-in-qc.patch
+Patch1012: 0012-qcow_tool_wrapper-Read-headers-of-QCOW2-backed-VDIs-.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

@@ -1,0 +1,61 @@
+From e691144099600f4dbebf14daa3aed1ce139c0a5e Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Wed, 22 Oct 2025 13:30:15 +0100
+Subject: [PATCH] zerocheck: exposing the length to users is unsafe and not
+ needed
+
+Instead calculate it internally
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ .../xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.ml |  5 ++++-
+ .../lib/xapi-stdext-zerocheck/zerocheck.mli            |  4 ++--
+ ocaml/xapi/stream_vdi.ml                               | 10 +++-------
+ 3 files changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.ml b/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.ml
+index e128431c5..6a588d974 100644
+--- a/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.ml
++++ b/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.ml
+@@ -11,4 +11,7 @@
+  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  * GNU Lesser General Public License for more details.
+  *)
+-external is_all_zeros : string -> int -> bool = "is_all_zeros"
++
++external is_all_zeros_in_length : string -> int -> bool = "is_all_zeros"
++
++let is_all_zeros str = is_all_zeros_in_length str (String.length str)
+diff --git a/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.mli b/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.mli
+index 08eb9b73d..41caab70f 100644
+--- a/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.mli
++++ b/ocaml/libs/xapi-stdext/lib/xapi-stdext-zerocheck/zerocheck.mli
+@@ -12,5 +12,5 @@
+  * GNU Lesser General Public License for more details.
+  *)
+ 
+-external is_all_zeros : string -> int -> bool = "is_all_zeros"
+-(** [is_all_zeroes x len] returns true if the substring is all zeroes *)
++val is_all_zeros : string -> bool
++(** [is_all_zeroes x] returns whether [x] contains only zeroes *)
+diff --git a/ocaml/xapi/stream_vdi.ml b/ocaml/xapi/stream_vdi.ml
+index 477e84cc8..84765aeaf 100644
+--- a/ocaml/xapi/stream_vdi.ml
++++ b/ocaml/xapi/stream_vdi.ml
+@@ -295,13 +295,9 @@ let send_all refresh_session ofd ~__context rpc session_id
+                   in
+                   Unixext.really_read ifd buffer 0 this_chunk ;
+                   if
+-                    (not
+-                       (Zerocheck.is_all_zeros
+-                          (Bytes.unsafe_to_string buffer)
+-                          this_chunk
+-                       )
+-                    )
+-                    || first_or_last
++                    first_or_last
++                    || not
++                         (Zerocheck.is_all_zeros (Bytes.unsafe_to_string buffer))
+                   then (
+                     last_transmission_time := now ;
+                     write_block ~__context filename buffer ofd this_chunk
