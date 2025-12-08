@@ -95,6 +95,18 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
 
+Patch1008: 0008-zerocheck-exposing-the-length-to-users-is-unsafe-and.patch
+Patch1009: 0009-vhd_tool_wrapper-Make-vhd_of_device-generic.patch
+Patch1010: 0010-qcow-stream-tool-Add-read_headers-command.patch
+Patch1011: 0011-python3-Use-pre-parsed-cluster-allocation-data-in-qc.patch
+Patch1012: 0012-qcow_tool_wrapper-Read-headers-of-QCOW2-backed-VDIs-.patch
+Patch1013: 0013-vhd-tool-Add-read_headers-command-for-determining-al.patch
+Patch1014: 0014-stream_vdi-Factor-out-send_one-into-a-top-level-func.patch
+Patch1015: 0015-xapi_vdi_helpers-Move-backing_file_of_device-from-vh.patch
+Patch1016: 0016-xapi_vdi_helpers-Split-backing_file_of_device-in-two.patch
+Patch1017: 0017-vhd_tool_wrapper-Add-parse_header-to-determine-alloc.patch
+Patch1018: 0018-stream_vdi-Only-process-allocated-clusters-for-VHD-a.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
