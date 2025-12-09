@@ -1,0 +1,123 @@
+From 0a1e6671cdbfc7d60b3a19fdeaddd665a03967b2 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Thu, 30 Oct 2025 10:47:49 +0100
+Subject: [PATCH] Add new parameter to VM.migrate_send in GO SDK
+
+Update VM.MigrateSend call to include new VdiFormatMap parameter.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ .../jsonrpc-client/go/main_test.go            | 11 ++++++++
+ .../jsonrpc-client/go/vm_test.go              | 27 ++++++++++++-------
+ .../spec/xapi-24/vm_migrate_send.json         | 19 ++++++-------
+ 3 files changed, 38 insertions(+), 19 deletions(-)
+
+diff --git a/ocaml/sdk-gen/component-test/jsonrpc-client/go/main_test.go b/ocaml/sdk-gen/component-test/jsonrpc-client/go/main_test.go
+index eda67d8b5..35aecfcb7 100644
+--- a/ocaml/sdk-gen/component-test/jsonrpc-client/go/main_test.go
++++ b/ocaml/sdk-gen/component-test/jsonrpc-client/go/main_test.go
+@@ -113,6 +113,17 @@ func ConvertMapToVgpuMap(input map[string]interface{}) (map[xenapi.VGPURef]xenap
+ 	return output, nil
+ }
+ 
++func ConvertMapToVdiFormatMap(input map[string]interface{}) (map[xenapi.VDIRef]string, error) {
++	output := make(map[xenapi.VDIRef]string)
++	for key, value := range input {
++		strValue, ok := value.(string)
++		if !ok {
++			return nil, fmt.Errorf("non-string value found for key %s: %v", key, value)
++		}
++		output[xenapi.VDIRef(key)] = strValue
++	}
++	return output, nil
++}
+ func TestMain(m *testing.M) {
+ 	flag.Parse()
+ 	exitVal := m.Run()
+diff --git a/ocaml/sdk-gen/component-test/jsonrpc-client/go/vm_test.go b/ocaml/sdk-gen/component-test/jsonrpc-client/go/vm_test.go
+index e4ebd17cd..8d34a8ea6 100644
+--- a/ocaml/sdk-gen/component-test/jsonrpc-client/go/vm_test.go
++++ b/ocaml/sdk-gen/component-test/jsonrpc-client/go/vm_test.go
+@@ -269,13 +269,14 @@ func TestVMMigrateSend(t *testing.T) {
+ 
+ 	inputParams := spec.Key.Params["VM.migrate_send"]
+ 	const (
+-		IndexVMRef   = 1
+-		IndexDest    = 2
+-		IndexLive    = 3
+-		IndexVdiMap  = 4
+-		IndexVifMap  = 5
+-		IndexOptions = 6
+-		IndexVgpuMap = 7
++		IndexVMRef        = 1
++		IndexDest         = 2
++		IndexLive         = 3
++		IndexVdiMap       = 4
++		IndexVifMap       = 5
++		IndexOptions      = 6
++		IndexVgpuMap      = 7
++		IndexVdiFormatMap = 8
+ 	)
+ 	vmRef, ok1 := inputParams[IndexVMRef].(string)
+ 	destOrg, ok2 := inputParams[IndexDest].(map[string]interface{})
+@@ -284,7 +285,8 @@ func TestVMMigrateSend(t *testing.T) {
+ 	vifMapOrg, ok5 := inputParams[IndexVifMap].(map[string]interface{})
+ 	optionsOrg, ok6 := inputParams[IndexOptions].(map[string]interface{})
+ 	vgpuMapOrg, ok7 := inputParams[IndexVgpuMap].(map[string]interface{})
+-	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || !ok7 {
++	vdiFormatMapOrg, ok8 := inputParams[IndexVdiFormatMap].(map[string]interface{})
++	if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 || !ok6 || !ok7 || !ok8 {
+ 		t.Log("Parameter get error from json file")
+ 		t.Fail()
+ 		return
+@@ -319,8 +321,13 @@ func TestVMMigrateSend(t *testing.T) {
+ 		t.Fail()
+ 		return
+ 	}
+-
+-	result, err := xenapi.VM.MigrateSend(session, xenapi.VMRef(vmRef), dest, live, vdiMap, vifMap, options, vgpuMap)
++	vdiFormatMap, err := ConvertMapToVdiFormatMap(vdiFormatMapOrg)
++	if err != nil {
++		t.Log(err)
++		t.Fail()
++		return
++	}
++	result, err := xenapi.VM.MigrateSend(session, xenapi.VMRef(vmRef), dest, live, vdiMap, vifMap, options, vgpuMap, vdiFormatMap)
+ 	if err != nil {
+ 		t.Log(err)
+ 		t.Fail()
+diff --git a/ocaml/sdk-gen/component-test/spec/xapi-24/vm_migrate_send.json b/ocaml/sdk-gen/component-test/spec/xapi-24/vm_migrate_send.json
+index ae6167dff..2ee632cc3 100644
+--- a/ocaml/sdk-gen/component-test/spec/xapi-24/vm_migrate_send.json
++++ b/ocaml/sdk-gen/component-test/spec/xapi-24/vm_migrate_send.json
+@@ -5,14 +5,15 @@
+         ],
+         "params": {
+             "VM.migrate_send": [
+-                "", 
+-                "OpaqueRef:5vm2d621-7b62-f571-vm00-754341a973e5", 
+-                {"name_label": "host1"}, 
+-                true, 
+-                {"OpaqueRef:5vdid621-7b62-f571-vdi8-754341a973e5": "OpaqueRef:5sr2d621-7b62-f571-s38r-754341a973e5"}, 
+-                {"OpaqueRef:9vifb8a9-f6a3-69d2-vifb-7a7b7c81c49e": "OpaqueRef:9network-f6a3-69d2-netw-7a7b7c81c49e"}, 
+-                {}, 
+-                {"OpaqueRef:9vgpu8a9-f6a3-69d2-vgpu-7a7b7c81c49e": "OpaqueRef:9gpugroup-f6a3-69d2-grou-7a7b7c81c49e"}
++                "",
++                "OpaqueRef:5vm2d621-7b62-f571-vm00-754341a973e5",
++                {"name_label": "host1"},
++                true,
++                {"OpaqueRef:5vdid621-7b62-f571-vdi8-754341a973e5": "OpaqueRef:5sr2d621-7b62-f571-s38r-754341a973e5"},
++                {"OpaqueRef:9vifb8a9-f6a3-69d2-vifb-7a7b7c81c49e": "OpaqueRef:9network-f6a3-69d2-netw-7a7b7c81c49e"},
++                {},
++                {"OpaqueRef:9vgpu8a9-f6a3-69d2-vgpu-7a7b7c81c49e": "OpaqueRef:9gpugroup-f6a3-69d2-grou-7a7b7c81c49e"},
++                {"OpaqueRef:5vdid621-7b62-f571-vdi8-754341a973e5": "vhd"}
+             ]
+         },
+         "expected_result": {
+@@ -21,4 +22,4 @@
+             }
+         }
+     }
+-}
+\ No newline at end of file
++}

@@ -1,0 +1,26 @@
+From c04be3271d09b806233d936f935a5281660b3780 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Fri, 9 Jan 2026 10:37:48 +0100
+Subject: [PATCH] Warn that image-format is not use in smapiv3
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/xapi-storage-script/main.ml | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
+index 771f618fd..7560f4096 100644
+--- a/ocaml/xapi-storage-script/main.ml
++++ b/ocaml/xapi-storage-script/main.ml
+@@ -1818,8 +1818,9 @@ module DATAImpl (M : META) = struct
+   let stat_impl dbg sr vdi vm key = wrap @@ stat dbg sr vdi vm key
+ 
+   let mirror dbg sr vdi' image_format vm' remote =
+-    let _ = image_format in
+-    (* TODO: really use image format *)
++    let* () =
++      warn (fun m -> m "image_format (%s) is not used currently" image_format)
++    in
+     let vdi = Storage_interface.Vdi.string_of vdi' in
+     let domain = Storage_interface.Vm.string_of vm' in
+     Attached_SRs.find sr >>>= fun sr ->

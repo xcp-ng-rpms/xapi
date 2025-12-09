@@ -1,0 +1,23 @@
+From 9cc04a383837b22819211c8d286cf13cbd05138f Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 6 Jan 2026 15:58:18 +0100
+Subject: [PATCH] Add default value for supported image format
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/xapi-storage/generator/lib/plugin.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi-storage/generator/lib/plugin.ml b/ocaml/xapi-storage/generator/lib/plugin.ml
+index 168a5f9ae..a6593ff5b 100644
+--- a/ocaml/xapi-storage/generator/lib/plugin.ml
++++ b/ocaml/xapi-storage/generator/lib/plugin.ml
+@@ -18,7 +18,7 @@ type query_result = {
+         (** Key/description pairs describing required device_config parameters. *)
+   ; required_cluster_stack: string list
+         (** The plugin requires one of these cluster stacks to be active. *)
+-  ; supported_image_formats: string list
++  ; supported_image_formats: string list [@default []]
+         (** List of image formats (VHD, raw, Qcow2...) supported. *)
+ }
+ [@@deriving rpcty]
