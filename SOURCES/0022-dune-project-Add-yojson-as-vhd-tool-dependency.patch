@@ -1,0 +1,37 @@
+From ffd1be64a6ee35c3ff2d7a1b485c74dc59b863b9 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 10 Dec 2025 11:28:38 +0000
+Subject: [PATCH] dune-project: Add yojson as vhd-tool dependency
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ dune-project       | 3 ++-
+ opam/vhd-tool.opam | 1 +
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/dune-project b/dune-project
+index 7f78d3328..5334a392b 100644
+--- a/dune-project
++++ b/dune-project
+@@ -533,7 +533,8 @@
+   (xen-api-client-lwt
+    (= :version))
+   xenstore
+-  xenstore_transport))
++  xenstore_transport
++  yojson))
+ 
+ (package
+  (name vhd-format))
+diff --git a/opam/vhd-tool.opam b/opam/vhd-tool.opam
+index a1e460913..0edc71774 100644
+--- a/opam/vhd-tool.opam
++++ b/opam/vhd-tool.opam
+@@ -40,6 +40,7 @@ depends: [
+   "xen-api-client-lwt" {= version}
+   "xenstore"
+   "xenstore_transport"
++  "yojson"
+   "odoc" {with-doc}
+ ]
+ build: [

@@ -94,12 +94,29 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
+Patch1008: 0008-zerocheck-exposing-the-length-to-users-is-unsafe-and.patch
+Patch1009: 0009-qcow-stream-tool-Add-read_headers-command.patch
+Patch1010: 0010-python3-Use-pre-parsed-cluster-allocation-data-in-qc.patch
+Patch1011: 0011-vhd_tool_wrapper-Make-vhd_of_device-generic.patch
+Patch1012: 0012-qcow_tool_wrapper-Read-headers-of-QCOW2-backed-VDIs-.patch
+Patch1013: 0013-qcow_tool_wrapper-Implement-parse_header-to-determin.patch
+Patch1014: 0014-vhd-tool-Add-read_headers-command-for-determining-al.patch
+Patch1015: 0015-stream_vdi-Factor-out-send_one-into-a-top-level-func.patch
+Patch1016: 0016-xapi_vdi_helpers-Move-backing_file_of_device-from-vh.patch
+Patch1017: 0017-xapi_vdi_helpers-Split-backing_file_of_device-in-two.patch
+Patch1018: 0018-vhd_tool_wrapper-Add-parse_header-to-determine-alloc.patch
+Patch1019: 0019-stream_vdi-Only-process-allocated-clusters-for-VHD-a.patch
+Patch1020: 0020-tapctl-Return-Option-instead-of-raising-Not_found.patch
+Patch1021: 0021-stream_vdi-Move-to-using-Mtime_clock.counter.patch
+Patch1022: 0022-dune-project-Add-yojson-as-vhd-tool-dependency.patch
+Patch1023: 0023-quicktest-Add-delta-tests-for-VHD-data-integrity-sui.patch
+Patch1024: 0024-quicktest-Add-qcow-to-VDI-integrity-tests.patch
 
-Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
-Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
-Patch1013: 0003-Add-new-parameter-to-VM.migrate_send-in-GO-SDK.patch
-Patch1014: 0004-Bumping-database-schema-version.patch
-Patch1015: 0005-Add-default-value-for-supported-image-format.patch
+Patch1031: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1032: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1033: 0003-Add-new-parameter-to-VM.migrate_send-in-GO-SDK.patch
+Patch1034: 0004-Bumping-database-schema-version.patch
+Patch1035: 0005-Add-default-value-for-supported-image-format.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

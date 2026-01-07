@@ -1,0 +1,172 @@
+From eb362583e8acd32c25735c77ca9657fb370908ea Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 25 Nov 2025 17:54:09 +0000
+Subject: [PATCH] vhd-tool: Add read_headers command for determining allocated
+ blocks
+
+Currently, vhd-tool provides several "hybrid" modes where it exports into vhd
+from raw, using the information from the VHD bitmaps to determine which blocks
+and sectors contain data (to avoid reading zero blocks).
+
+Other tools are also handling VHD-backed VDIs (we are exporting them as part of
+XVA export, and now they can also be exported to QCOW), and currently they have
+to read the whole raw disk.
+
+Instead provide a read_headers command which provides data on allocated
+clusters for other tools to use, allowing them to speed up handling sparse
+VDIs. It uses a new blocks_json function in Vhd_format.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/libs/vhd/vhd_format/dune  |  3 ++-
+ ocaml/libs/vhd/vhd_format/f.ml  | 33 +++++++++++++++++++++++++++++++++
+ ocaml/libs/vhd/vhd_format/f.mli |  2 ++
+ ocaml/vhd-tool/cli/main.ml      | 22 +++++++++++++++++++++-
+ ocaml/vhd-tool/src/impl.ml      |  8 ++++++++
+ ocaml/vhd-tool/src/impl.mli     |  3 +++
+ 6 files changed, 69 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/libs/vhd/vhd_format/dune b/ocaml/libs/vhd/vhd_format/dune
+index bafac3651..eea7d1960 100644
+--- a/ocaml/libs/vhd/vhd_format/dune
++++ b/ocaml/libs/vhd/vhd_format/dune
+@@ -2,5 +2,6 @@
+  (name vhd_format)
+  (public_name vhd-format)
+  (flags :standard -w -32-34-37)
+- (libraries stdlib-shims (re_export bigarray-compat) cstruct io-page rresult unix uuidm)
++ (libraries stdlib-shims (re_export bigarray-compat) cstruct io-page rresult
++            unix uuidm yojson)
+  (preprocess (pps ppx_cstruct)))
+diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
+index 79128d003..d12329bd7 100644
+--- a/ocaml/libs/vhd/vhd_format/f.ml
++++ b/ocaml/libs/vhd/vhd_format/f.ml
+@@ -2883,6 +2883,37 @@ functor
+ 
+       let raw ?from (vhd : fd Vhd.t) = raw_common ?from vhd
+ 
++      let vhd_blocks_to_json (t : fd Vhd.t) =
++        let block_size_sectors_shift =
++          t.Vhd.header.Header.block_size_sectors_shift
++        in
++        let max_table_entries = Vhd.used_max_table_entries t in
++
++        let include_block = include_block None t in
++
++        let blocks =
++          Seq.init max_table_entries Fun.id
++          |> Seq.filter_map (fun i ->
++                 if include_block i then
++                   Some (`Int i)
++                 else
++                   None
++             )
++          |> List.of_seq
++        in
++        let json =
++          `Assoc
++            [
++              ( "virtual_size"
++              , `Int (Int64.to_int t.Vhd.footer.Footer.current_size)
++              )
++            ; ("cluster_bits", `Int (block_size_sectors_shift + sector_shift))
++            ; ("data_clusters", `List blocks)
++            ]
++        in
++        let json_string = Yojson.to_string json in
++        print_string json_string ; return ()
++
+       let vhd_common ?from ?raw ?(emit_batmap = false) (t : fd Vhd.t) =
+         let block_size_sectors_shift =
+           t.Vhd.header.Header.block_size_sectors_shift
+@@ -3119,6 +3150,8 @@ functor
+ 
+       let vhd ?from (raw : 'a) (vhd : fd Vhd.t) =
+         Vhd_input.vhd_common ?from ~raw vhd
++
++      let blocks_json = Vhd_input.vhd_blocks_to_json
+     end
+ 
+     (* Create a VHD stream from data on t, using `include_block` guide us which blocks have data *)
+diff --git a/ocaml/libs/vhd/vhd_format/f.mli b/ocaml/libs/vhd/vhd_format/f.mli
+index ae300a9c9..40de5f9d9 100644
+--- a/ocaml/libs/vhd/vhd_format/f.mli
++++ b/ocaml/libs/vhd/vhd_format/f.mli
+@@ -474,6 +474,8 @@ module From_file : functor (F : S.FILE) -> sig
+         copies from the virtual disk [raw]. If [from] is provided then the
+         stream will contain only the virtual updates required to transform
+         [from] into [t] *)
++
++    val blocks_json : fd Vhd.t -> unit t
+   end
+ 
+   module Raw_input : sig
+diff --git a/ocaml/vhd-tool/cli/main.ml b/ocaml/vhd-tool/cli/main.ml
+index c163763c9..a4043b52b 100644
+--- a/ocaml/vhd-tool/cli/main.ml
++++ b/ocaml/vhd-tool/cli/main.ml
+@@ -385,9 +385,29 @@ let stream_cmd =
+   , Cmd.info "stream" ~sdocs:_common_options ~doc ~man
+   )
+ 
++let read_headers_cmd =
++  let doc =
++    {|Parse VHD headers and output allocated blocks information in JSON format \
++     like: {"virtual_size": X, "cluster_bits": X, "data_clusters": [1,2,3]}|}
++  in
++  let source =
++    let doc = Printf.sprintf "Path to the VHD file" in
++    Arg.(required & pos 0 (some file) None & info [] ~doc)
++  in
++  ( Term.(ret (const Impl.read_headers $ common_options_t $ source))
++  , Cmd.info "read_headers" ~sdocs:_common_options ~doc
++  )
++
+ let cmds =
+   [
+-    info_cmd; contents_cmd; get_cmd; create_cmd; check_cmd; serve_cmd; stream_cmd
++    info_cmd
++  ; contents_cmd
++  ; get_cmd
++  ; create_cmd
++  ; check_cmd
++  ; serve_cmd
++  ; stream_cmd
++  ; read_headers_cmd
+   ]
+   |> List.map (fun (t, i) -> Cmd.v i t)
+ 
+diff --git a/ocaml/vhd-tool/src/impl.ml b/ocaml/vhd-tool/src/impl.ml
+index d067846f5..9dda493a0 100644
+--- a/ocaml/vhd-tool/src/impl.ml
++++ b/ocaml/vhd-tool/src/impl.ml
+@@ -1164,6 +1164,14 @@ let stream_t common args ?(progress = no_progress_bar) () =
+     args.StreamCommon.tar_filename_prefix args.StreamCommon.good_ciphersuites
+     args.StreamCommon.verify_cert
+ 
++let read_headers common source =
++  let path = [Filename.dirname source] in
++  let thread =
++    retry common 3 (fun () -> Vhd_IO.openchain ~path source false) >>= fun t ->
++    Vhd_IO.close t >>= fun () -> Hybrid_input.blocks_json t
++  in
++  Lwt_main.run thread ; `Ok ()
++
+ let stream common args =
+   try
+     Vhd_format_lwt.File.use_unbuffered := common.Common.unbuffered ;
+diff --git a/ocaml/vhd-tool/src/impl.mli b/ocaml/vhd-tool/src/impl.mli
+index 2ffa08da6..13fe7ba68 100644
+--- a/ocaml/vhd-tool/src/impl.mli
++++ b/ocaml/vhd-tool/src/impl.mli
+@@ -35,6 +35,9 @@ val check :
+ val stream :
+   Common.t -> StreamCommon.t -> [> `Error of bool * string | `Ok of unit]
+ 
++val read_headers :
++  Common.t -> string -> [> `Error of bool * string | `Ok of unit]
++
+ val serve :
+      Common.t
+   -> string

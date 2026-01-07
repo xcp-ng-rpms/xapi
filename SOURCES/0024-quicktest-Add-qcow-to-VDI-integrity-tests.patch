@@ -1,0 +1,42 @@
+From 0c73adb516b0505c1b28fa3661bc8d9e64372c73 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 14 Nov 2025 11:29:29 +0000
+Subject: [PATCH] quicktest: Add qcow to VDI integrity tests
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+index fa269005d..01d830b87 100644
+--- a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
++++ b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+@@ -171,8 +171,12 @@ let export_import_vhd = export_import_vdi ~exportformat:"vhd"
+ 
+ let export_import_tar = export_import_vdi ~exportformat:"tar"
+ 
++let export_import_qcow = export_import_vdi ~exportformat:"qcow2"
++
+ let delta_export_import_vhd = export_delta_import_vdi ~exportformat:"vhd"
+ 
++let delta_export_import_qcow = export_delta_import_vdi ~exportformat:"qcow2"
++
+ let data_integrity_tests vdi_op op_name =
+   [
+     ( op_name ^ ": small empty VDI"
+@@ -277,6 +281,14 @@ let tests () =
+   @ (data_integrity_tests export_import_tar "VDI export/import to/from TAR file"
+     |> supported_srs
+     )
++  @ (data_integrity_tests export_import_qcow
++       "VDI export/import to/from QCOW file"
++    |> supported_srs
++    )
++  @ (delta_data_integrity_tests delta_export_import_qcow
++       "VDI delta export/import to/from QCOW file"
++    |> supported_srs
++    )
+   @ (large_data_integrity_tests export_import_tar
+        "VDI export/import to/from TAR file"
+     |> supported_gfs2_srs

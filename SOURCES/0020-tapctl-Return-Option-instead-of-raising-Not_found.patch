@@ -1,0 +1,141 @@
+From 5110ea47766e9d2e8376a7ffaa81ad86785031c3 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 10 Dec 2025 08:43:26 +0000
+Subject: [PATCH] tapctl: Return Option instead of raising Not_found
+
+Some of the users of the function did not handle exceptions correctly - make
+the "not found" case explicit with an option.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/tapctl/tapctl.ml                |  4 ++--
+ ocaml/tapctl/tapctl.mli               |  2 +-
+ ocaml/vhd-tool/cli/sparse_dd.ml       |  4 ++--
+ ocaml/vhd-tool/src/image.ml           |  6 +++---
+ ocaml/xapi/storage_smapiv1_migrate.ml | 18 ++++++++----------
+ ocaml/xapi/xapi_vdi_helpers.ml        |  3 ++-
+ 6 files changed, 18 insertions(+), 19 deletions(-)
+
+diff --git a/ocaml/tapctl/tapctl.ml b/ocaml/tapctl/tapctl.ml
+index 075eea8ab..1974b67dd 100644
+--- a/ocaml/tapctl/tapctl.ml
++++ b/ocaml/tapctl/tapctl.ml
+@@ -535,9 +535,9 @@ let of_device ctx path =
+   if driver_of_major major <> "tapdev" then raise Not_blktap ;
+   match List.filter (fun (tapdev, _, _) -> tapdev.minor = minor) (list ctx) with
+   | [t] ->
+-      t
++      Some t
+   | _ ->
+-      raise Not_found
++      None
+ 
+ let find ctx ~pid ~minor =
+   match list ~t:{minor; tapdisk_pid= pid} ctx with
+diff --git a/ocaml/tapctl/tapctl.mli b/ocaml/tapctl/tapctl.mli
+index 9ea931732..6304fd8a9 100644
+--- a/ocaml/tapctl/tapctl.mli
++++ b/ocaml/tapctl/tapctl.mli
+@@ -91,7 +91,7 @@ exception Not_blktap
+ (** Thrown by [of_device x] when [x] is not a device *)
+ exception Not_a_device
+ 
+-val of_device : context -> string -> t
++val of_device : context -> string -> t option
+ (** Given a path to a device, return the corresponding tap information *)
+ 
+ val find : context -> pid:int -> minor:int -> t
+diff --git a/ocaml/vhd-tool/cli/sparse_dd.ml b/ocaml/vhd-tool/cli/sparse_dd.ml
+index e593a1bb0..edb1fb9dc 100644
+--- a/ocaml/vhd-tool/cli/sparse_dd.ml
++++ b/ocaml/vhd-tool/cli/sparse_dd.ml
+@@ -244,14 +244,14 @@ let with_paused_tapdisk path f =
+   let path = find_backend_device path |> Opt.default path in
+   let context = Tapctl.create () in
+   match Tapctl.of_device context path with
+-  | tapdev, _, Some (_driver, path) ->
++  | Some (tapdev, _, Some (_driver, path)) ->
+       debug "pausing tapdisk for %s" path ;
+       Tapctl.pause context tapdev ;
+       after f (fun () ->
+           debug "unpausing tapdisk for %s" path ;
+           Tapctl.unpause context tapdev path Tapctl.Vhd
+       )
+-  | _, _, _ ->
++  | _ ->
+       failwith (Printf.sprintf "Failed to pause tapdisk for %s" path)
+ 
+ (* Record when the binary started for performance measuring *)
+diff --git a/ocaml/vhd-tool/src/image.ml b/ocaml/vhd-tool/src/image.ml
+index 8a4d990ec..952505132 100644
+--- a/ocaml/vhd-tool/src/image.ml
++++ b/ocaml/vhd-tool/src/image.ml
+@@ -66,11 +66,11 @@ let image_behind_nbd_device image =
+ 
+ let of_device path =
+   match Tapctl.of_device (Tapctl.create ()) path with
+-  | _, _, Some ("vhd", vhd) ->
++  | Some (_, _, Some ("vhd", vhd)) ->
+       Some (`Vhd vhd)
+-  | _, _, Some ("aio", vhd) ->
++  | Some (_, _, Some ("aio", vhd)) ->
+       Some (`Raw vhd)
+-  | _, _, _ ->
++  | _ ->
+       None
+   | exception Tapctl.Not_blktap ->
+       get_nbd_device path |> image_behind_nbd_device
+diff --git a/ocaml/xapi/storage_smapiv1_migrate.ml b/ocaml/xapi/storage_smapiv1_migrate.ml
+index c850d61f8..da4652e95 100644
+--- a/ocaml/xapi/storage_smapiv1_migrate.ml
++++ b/ocaml/xapi/storage_smapiv1_migrate.ml
+@@ -106,18 +106,16 @@ let tapdisk_of_attach_info (backend : Storage_interface.backend) =
+   match (blockdevices, nbds) with
+   | blockdevice :: _, _ -> (
+       let path = blockdevice.Storage_interface.path in
+-      try
+-        match Tapctl.of_device (Tapctl.create ()) path with
+-        | tapdev, _, _ ->
+-            Some tapdev
+-      with
+-      | Tapctl.Not_blktap ->
++      match Tapctl.of_device (Tapctl.create ()) path with
++      | Some (tapdev, _, _) ->
++          Some tapdev
++      | exception Tapctl.Not_blktap ->
+           D.debug "Device %s is not controlled by blktap" path ;
+           None
+-      | Tapctl.Not_a_device ->
++      | exception Tapctl.Not_a_device ->
+           D.debug "%s is not a device" path ;
+           None
+-      | _ ->
++      | (exception _) | None ->
+           D.debug "Device %s has an unknown driver" path ;
+           None
+     )
+@@ -295,8 +293,8 @@ module Copy = struct
+       perform_cleanup_actions !on_fail ;
+       raise e
+ 
+-  (** [copy_into_sr] does not requires a dest vdi to be provided, instead, it will 
+-  find the nearest vdi on the [dest] sr, and if there is no such vdi, it will 
++  (** [copy_into_sr] does not requires a dest vdi to be provided, instead, it will
++  find the nearest vdi on the [dest] sr, and if there is no such vdi, it will
+   create one. *)
+   let copy_into_sr ~task ~dbg ~sr ~vdi ~vm ~url ~dest ~verify_dest =
+     D.debug "copy sr:%s vdi:%s url:%s dest:%s verify_dest:%B"
+diff --git a/ocaml/xapi/xapi_vdi_helpers.ml b/ocaml/xapi/xapi_vdi_helpers.ml
+index f28d129ec..7192ecb6f 100644
+--- a/ocaml/xapi/xapi_vdi_helpers.ml
++++ b/ocaml/xapi/xapi_vdi_helpers.ml
+@@ -399,7 +399,8 @@ let find_backend_device path =
+ let backing_info_of_device path =
+   let tapdisk_of_path path =
+     try
+-      let _, _, backing_info = Tapctl.of_device (Tapctl.create ()) path in
++      let ( let* ) = Option.bind in
++      let* _, _, backing_info = Tapctl.of_device (Tapctl.create ()) path in
+       backing_info
+     with
+     | Tapctl.Not_a_device ->

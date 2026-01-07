@@ -1,0 +1,52 @@
+From 8a401042f195de640a5976d00b59f85546c8447d Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 26 Nov 2025 10:44:29 +0000
+Subject: [PATCH] qcow_tool_wrapper: Implement parse_header to determine
+ allocated clusters
+
+Translates JSON from qcow-stream-tool to OCaml types.
+
+This is currently unused, but will be used in stream_vdi and vhd_tool_wrapper
+in the future.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/qcow_tool_wrapper.ml  | 14 ++++++++++++++
+ ocaml/xapi/qcow_tool_wrapper.mli |  2 ++
+ 2 files changed, 16 insertions(+)
+
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index cd42ca123..e3cd13d46 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -62,6 +62,20 @@ let read_header qcow_path =
+     (fun () -> Unix.close pipe_writer) ;
+   pipe_reader
+ 
++let parse_header qcow_path =
++  let pipe_reader = read_header qcow_path in
++  let ic = Unix.in_channel_of_descr pipe_reader in
++  let buf = Buffer.create 4096 in
++  let json = Yojson.Basic.from_channel ~buf ~fname:"qcow_header.json" ic in
++  In_channel.close ic ;
++  let cluster_size =
++    1 lsl Yojson.Basic.Util.(member "cluster_bits" json |> to_int)
++  in
++  let cluster_list =
++    Yojson.Basic.Util.(member "data_clusters" json |> to_list |> List.map to_int)
++  in
++  (cluster_size, cluster_list)
++
+ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) (_size : Int64.t) =
+   let qcow_of_device =
+diff --git a/ocaml/xapi/qcow_tool_wrapper.mli b/ocaml/xapi/qcow_tool_wrapper.mli
+index 51c3c6265..c1c4a6426 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.mli
++++ b/ocaml/xapi/qcow_tool_wrapper.mli
+@@ -23,3 +23,5 @@ val send :
+   -> string
+   -> int64
+   -> unit
++
++val parse_header : string -> int * int list

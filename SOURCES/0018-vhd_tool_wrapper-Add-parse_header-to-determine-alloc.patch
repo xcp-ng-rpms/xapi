@@ -1,0 +1,238 @@
+From a15aa76ff93417f2b8c851ecd397ae5f7418ba79 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 26 Nov 2025 10:47:27 +0000
+Subject: [PATCH] vhd_tool_wrapper: Add parse_header to determine allocated
+ blocks
+
+Split common code used by {Vhd,Qcow}_tool_wrapper into a new vhd_qcow_parsing
+module.
+
+Since Vhd_tool_wrapper.run_vhd_tool is hardcoded to read the progress
+percentage printed by vhd-tool, we have to use the more generic
+Vhd_qcow_parsing.run_qcow_tool to run vhd-tool.
+
+Since VHD and QCOW follow the same format of JSON, use the same parse_header
+function.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/qcow_tool_wrapper.ml | 53 +++++-------------------------
+ ocaml/xapi/vhd_qcow_parsing.ml  | 58 +++++++++++++++++++++++++++++++++
+ ocaml/xapi/vhd_qcow_parsing.mli | 24 ++++++++++++++
+ ocaml/xapi/vhd_tool_wrapper.ml  | 17 ++++++++++
+ 4 files changed, 107 insertions(+), 45 deletions(-)
+ create mode 100644 ocaml/xapi/vhd_qcow_parsing.ml
+ create mode 100644 ocaml/xapi/vhd_qcow_parsing.mli
+
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index 6f7ae7faf..5bcfda363 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -12,36 +12,6 @@
+  * GNU Lesser General Public License for more details.
+  *)
+ 
+-module D = Debug.Make (struct let name = __MODULE__ end)
+-
+-open D
+-
+-let run_qcow_tool qcow_tool ?(replace_fds = []) ?input_fd ?output_fd
+-    (_progress_cb : int -> unit) (args : string list) =
+-  info "Executing %s %s" qcow_tool (String.concat " " args) ;
+-  let open Forkhelpers in
+-  match
+-    with_logfile_fd "qcow-tool" (fun log_fd ->
+-        let pid =
+-          safe_close_and_exec input_fd output_fd (Some log_fd) replace_fds
+-            qcow_tool args
+-        in
+-        let _, status = waitpid pid in
+-        if status <> Unix.WEXITED 0 then (
+-          error "qcow-tool failed, returning VDI_IO_ERROR" ;
+-          raise
+-            (Api_errors.Server_error
+-               (Api_errors.vdi_io_error, ["Device I/O errors"])
+-            )
+-        )
+-    )
+-  with
+-  | Success (out, _) ->
+-      debug "qcow-tool successful export (%s)" out
+-  | Failure (out, _e) ->
+-      error "qcow-tool output: %s" out ;
+-      raise (Api_errors.Server_error (Api_errors.vdi_io_error, [out]))
+-
+ let update_task_progress (__context : Context.t) (x : int) =
+   TaskHelper.set_progress ~__context (float_of_int x /. 100.)
+ 
+@@ -49,7 +19,7 @@ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) =
+   let args = ["stream_decode"; path] in
+   let qcow_tool = !Xapi_globs.qcow_stream_tool in
+-  run_qcow_tool qcow_tool progress_cb args ~input_fd:unix_fd
++  Vhd_qcow_parsing.run_tool qcow_tool progress_cb args ~input_fd:unix_fd
+ 
+ let read_header qcow_path =
+   let args = ["read_headers"; qcow_path] in
+@@ -58,23 +28,16 @@ let read_header qcow_path =
+ 
+   let progress_cb _ = () in
+   Xapi_stdext_pervasives.Pervasiveext.finally
+-    (fun () -> run_qcow_tool qcow_tool progress_cb args ~output_fd:pipe_writer)
++    (fun () ->
++      Vhd_qcow_parsing.run_tool qcow_tool progress_cb args
++        ~output_fd:pipe_writer
++    )
+     (fun () -> Unix.close pipe_writer) ;
+   pipe_reader
+ 
+ let parse_header qcow_path =
+   let pipe_reader = read_header qcow_path in
+-  let ic = Unix.in_channel_of_descr pipe_reader in
+-  let buf = Buffer.create 4096 in
+-  let json = Yojson.Basic.from_channel ~buf ~fname:"qcow_header.json" ic in
+-  In_channel.close ic ;
+-  let cluster_size =
+-    1 lsl Yojson.Basic.Util.(member "cluster_bits" json |> to_int)
+-  in
+-  let cluster_list =
+-    Yojson.Basic.Util.(member "data_clusters" json |> to_list |> List.map to_int)
+-  in
+-  (cluster_size, cluster_list)
++  Vhd_qcow_parsing.parse_header pipe_reader
+ 
+ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) (_size : Int64.t) =
+@@ -107,8 +70,8 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+   let replace_fds = Option.map (fun fd -> [(unique_string, fd)]) diff_fd in
+   Xapi_stdext_pervasives.Pervasiveext.finally
+     (fun () ->
+-      run_qcow_tool qcow_tool progress_cb args ?input_fd ~output_fd:unix_fd
+-        ?replace_fds
++      Vhd_qcow_parsing.run_tool qcow_tool progress_cb args ?input_fd
++        ~output_fd:unix_fd ?replace_fds
+     )
+     (fun () ->
+       Option.iter Unix.close input_fd ;
+diff --git a/ocaml/xapi/vhd_qcow_parsing.ml b/ocaml/xapi/vhd_qcow_parsing.ml
+new file mode 100644
+index 000000000..4f48c4281
+--- /dev/null
++++ b/ocaml/xapi/vhd_qcow_parsing.ml
+@@ -0,0 +1,58 @@
++(*
++ * Copyright (C) 2025 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++module D = Debug.Make (struct let name = __MODULE__ end)
++
++open D
++
++let run_tool tool ?(replace_fds = []) ?input_fd ?output_fd
++    (_progress_cb : int -> unit) (args : string list) =
++  info "Executing %s %s" tool (String.concat " " args) ;
++  (* with_logfile_fd takes a string without slashes *)
++  let log_name = Filename.basename tool in
++  let open Forkhelpers in
++  match
++    with_logfile_fd log_name (fun log_fd ->
++        let pid =
++          safe_close_and_exec input_fd output_fd (Some log_fd) replace_fds tool
++            args
++        in
++        let _, status = waitpid pid in
++        if status <> Unix.WEXITED 0 then (
++          error "qcow-tool failed, returning VDI_IO_ERROR" ;
++          raise
++            (Api_errors.Server_error
++               (Api_errors.vdi_io_error, ["Device I/O errors"])
++            )
++        )
++    )
++  with
++  | Success (out, _) ->
++      debug "%s successful export (%s)" tool out
++  | Failure (out, _e) ->
++      error "%s output: %s" tool out ;
++      raise (Api_errors.Server_error (Api_errors.vdi_io_error, [out]))
++
++let parse_header pipe_reader =
++  let ic = Unix.in_channel_of_descr pipe_reader in
++  let buf = Buffer.create 4096 in
++  let json = Yojson.Basic.from_channel ~buf ~fname:"header.json" ic in
++  In_channel.close ic ;
++  let cluster_size =
++    1 lsl Yojson.Basic.Util.(member "cluster_bits" json |> to_int)
++  in
++  let cluster_list =
++    Yojson.Basic.Util.(member "data_clusters" json |> to_list |> List.map to_int)
++  in
++  (cluster_size, cluster_list)
+diff --git a/ocaml/xapi/vhd_qcow_parsing.mli b/ocaml/xapi/vhd_qcow_parsing.mli
+new file mode 100644
+index 000000000..25417c0b9
+--- /dev/null
++++ b/ocaml/xapi/vhd_qcow_parsing.mli
+@@ -0,0 +1,24 @@
++(*
++ * Copyright (C) 2025 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++val run_tool :
++     string
++  -> ?replace_fds:(string * Unix.file_descr) list
++  -> ?input_fd:Unix.file_descr
++  -> ?output_fd:Unix.file_descr
++  -> (int -> unit)
++  -> string list
++  -> unit
++
++val parse_header : Unix.file_descr -> int * int list
+diff --git a/ocaml/xapi/vhd_tool_wrapper.ml b/ocaml/xapi/vhd_tool_wrapper.ml
+index 2a3d40ae5..168b3fa39 100644
+--- a/ocaml/xapi/vhd_tool_wrapper.ml
++++ b/ocaml/xapi/vhd_tool_wrapper.ml
+@@ -112,6 +112,23 @@ let receive progress_cb format protocol (s : Unix.file_descr)
+   in
+   run_vhd_tool progress_cb args s s' path
+ 
++let read_vhd_header path =
++  let vhd_tool = !Xapi_globs.vhd_tool in
++  let args = ["read_headers"; path] in
++  let pipe_reader, pipe_writer = Unix.pipe ~cloexec:true () in
++
++  let progress_cb _ = () in
++  Xapi_stdext_pervasives.Pervasiveext.finally
++    (fun () ->
++      Vhd_qcow_parsing.run_tool vhd_tool progress_cb args ~output_fd:pipe_writer
++    )
++    (fun () -> Unix.close pipe_writer) ;
++  pipe_reader
++
++let parse_header vhd_path =
++  let pipe_reader = read_vhd_header vhd_path in
++  Vhd_qcow_parsing.parse_header pipe_reader
++
+ let send progress_cb ?relative_to (protocol : string) (dest_format : string)
+     (s : Unix.file_descr) (path : string) (size : Int64.t) (prefix : string) =
+   let vhd_of_device =
