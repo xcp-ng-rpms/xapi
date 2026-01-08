@@ -111,6 +111,7 @@ Patch1021: 0021-stream_vdi-Move-to-using-Mtime_clock.counter.patch
 Patch1022: 0022-dune-project-Add-yojson-as-vhd-tool-dependency.patch
 Patch1023: 0023-quicktest-Add-delta-tests-for-VHD-data-integrity-sui.patch
 Patch1024: 0024-quicktest-Add-qcow-to-VDI-integrity-tests.patch
+Patch1025: 0025-fix.patch
 
 Patch1031: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
 Patch1032: 0002-Allow-selection-of-image-format-during-migration.patch
