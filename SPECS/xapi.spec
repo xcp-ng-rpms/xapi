@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.33.1
-Release: 2.1%{?xsrel}%{?dist}
+Release: 2.2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -94,6 +94,9 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
 Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
+
+# Upstream PR: https://github.com/xapi-project/xen-api/pull/6823
+Patch1008: 0008-xenops-Fix-migrate-parameter-ordering.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1476,7 +1479,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25-33.1-2.1
+* Thu Jan 08 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.33.1-2.2
+- Fix parameter ordering during migration causing VMs to not balloon down
+
+* Wed Nov 19 2025 Pau Ruiz Safont <pau.safont@vates.tech> - 25.33.1-2.1
 - Update to upstream 25.33.1-2
 - *** Upstream changelog ***
   * Thu Oct 30 2025 Rob Hoes <rob.hoes@citrix.com> - 25.33.1-2
