@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.33.1
-Release: 2.2%{?xsrel}%{?dist}
+Release: 2.3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -97,6 +97,10 @@ Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
 
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/6823
 Patch1008: 0008-xenops-Fix-migrate-parameter-ordering.patch
+
+#Upstream PR: https://github.com/xapi-project/xen-api/pull/6829
+Patch1009: 0009-xapi_vm_migrate-share-function-to-check-capabilities.patch
+Patch1010: 0010-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1479,6 +1483,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Jan 13 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 25.33.1-2.3
+- Print what capabilities are missing when migration fails
+
 * Thu Jan 08 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 25.33.1-2.2
 - Fix parameter ordering during migration causing VMs to not balloon down
 
