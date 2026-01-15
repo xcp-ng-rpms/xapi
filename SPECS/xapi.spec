@@ -101,6 +101,7 @@ Patch1013: 0003-Add-new-parameter-to-VM.migrate_send-in-GO-SDK.patch
 Patch1014: 0004-Bumping-database-schema-version.patch
 Patch1015: 0005-Add-default-value-for-supported-image-format.patch
 Patch1016: 0006-Warn-that-image-format-is-not-use-in-smapiv3.patch
+Patch1017: 0001-Check-that-suspend-SR-has-enough-space-to-save-VM.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
