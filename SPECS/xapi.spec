@@ -102,6 +102,11 @@ Patch1008: 0008-xenops-Fix-migrate-parameter-ordering.patch
 Patch1009: 0009-xapi_vm_migrate-share-function-to-check-capabilities.patch
 Patch1010: 0010-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 
+# Testing supported image format
+Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1013: 0003-Bumping-database-schema-version.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
