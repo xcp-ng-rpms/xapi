@@ -102,6 +102,17 @@ Patch1008: 0008-xenops-Fix-migrate-parameter-ordering.patch
 Patch1009: 0009-xapi_vm_migrate-share-function-to-check-capabilities.patch
 Patch1010: 0010-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 
+# My own patches
+# supported image format
+#Patch1021: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+#Patch1022: 0002-Allow-selection-of-image-format-during-migration.patch
+#Patch1023: 0003-Add-new-parameter-to-VM.migrate_send-in-GO-SDK.patch
+#Patch1024: 0004-Bumping-database-schema-version.patch
+#Patch1025: 0005-Check-that-suspend-SR-has-enough-space-to-save-VM-st.patch
+# refresh session
+Patch1031: 0001-Add-remote_session-in-the-storage-interface.patch
+Patch1032: 0002-modify-globs.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

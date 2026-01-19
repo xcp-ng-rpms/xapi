@@ -1,0 +1,26 @@
+From 640f64ea850e2fdebfe986d36a2afbad2ea89662 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Thu, 5 Feb 2026 08:48:50 +0100
+Subject: [PATCH] modify globs
+
+---
+ ocaml/xapi/xapi_globs.ml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index aaf9b4dbb..3e3fc04a1 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -726,10 +726,10 @@ let host_heartbeat_interval = ref 30.
+ let host_assumed_dead_interval = ref Mtime.Span.(10 * min)
+ 
+ (* If a session has a last_active older than this we delete it *)
+-let inactive_session_timeout = ref 86400. (* 24 hrs in seconds *)
++let inactive_session_timeout = ref 300. (* 24 hrs in seconds *)
+ 
+ (* If a session was refreshed more recently than threshold_last_active do not refresh it again. *)
+-let threshold_last_active = ref (Ptime.Span.of_int_s 600)
++let threshold_last_active = ref (Ptime.Span.of_int_s 60)
+ (* 10 min in seconds *)
+ 
+ let pending_task_timeout = ref 86400. (* 24 hrs in seconds *)

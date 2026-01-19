@@ -1,0 +1,158 @@
+From a60d1f34b5e78eec254ba3c23477f39868bb8e86 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Thu, 15 Jan 2026 13:34:47 +0100
+Subject: [PATCH] Check that suspend SR has enough space to save VM state
+
+If you do not know the amount of space required when calling this
+function, you can pass None.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/idl/datamodel_errors.ml   |  5 +++
+ ocaml/xapi-consts/api_errors.ml |  2 ++
+ ocaml/xapi/helpers.ml           | 55 ++++++++++++++++++++++-----------
+ ocaml/xapi/xapi_xenops.ml       |  5 ++-
+ ocaml/xapi/xha_statefile.ml     |  9 ++----
+ 5 files changed, 51 insertions(+), 25 deletions(-)
+
+diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
+index 0fd0752fd..e95b3fd43 100644
+--- a/ocaml/idl/datamodel_errors.ml
++++ b/ocaml/idl/datamodel_errors.ml
+@@ -1116,6 +1116,11 @@ let _ =
+       "The source SR does not have sufficient temporary space available to \
+        proceed the operation."
+     () ;
++  error Api_errors.sr_suspend_space_insufficient ["sr"]
++    ~doc:
++      "The suspend SR does not have sufficient free space to store the VM \
++       suspend image required to complete a snapshot with memory."
++    () ;
+   error Api_errors.pbd_exists ["sr"; "host"; "pbd"]
+     ~doc:"A PBD already exists connecting the SR to the server." () ;
+   error Api_errors.sr_has_pbd ["sr"]
+diff --git a/ocaml/xapi-consts/api_errors.ml b/ocaml/xapi-consts/api_errors.ml
+index 2a1b9b58b..57ff43a5f 100644
+--- a/ocaml/xapi-consts/api_errors.ml
++++ b/ocaml/xapi-consts/api_errors.ml
+@@ -501,6 +501,8 @@ let sr_full = add_error "SR_FULL"
+ 
+ let sr_source_space_insufficient = add_error "SR_SOURCE_SPACE_INSUFFICIENT"
+ 
++let sr_suspend_space_insufficient = add_error "SR_SUSPEND_SPACE_INSUFFICIENT"
++
+ let sr_has_pbd = add_error "SR_HAS_PBD"
+ 
+ let sr_requires_upgrade = add_error "SR_REQUIRES_UPGRADE"
+diff --git a/ocaml/xapi/helpers.ml b/ocaml/xapi/helpers.ml
+index c9c74a7a0..d60bf5c04 100644
+--- a/ocaml/xapi/helpers.ml
++++ b/ocaml/xapi/helpers.ml
+@@ -1109,8 +1109,14 @@ let check_sr_exists_for_host ~__context ~self ~host =
+   else
+     None
+ 
++(* Returns the amount of free space for a given SR *)
++let get_sr_free_space ~__context ~sr =
++  let size = Db.SR.get_physical_size ~__context ~self:sr in
++  let utilisation = Db.SR.get_physical_utilisation ~__context ~self:sr in
++  Int64.sub size utilisation
++
+ (* Returns an SR suitable for suspending this VM *)
+-let choose_suspend_sr ~__context ~vm =
++let choose_suspend_sr ~__context ~vm ~required_space =
+   (* If the VM.suspend_SR exists, use that. If it fails, try the Pool.suspend_image_SR. *)
+   (* If that fails, try the Host.suspend_image_SR. *)
+   let vm_sr = Db.VM.get_suspend_SR ~__context ~self:vm in
+@@ -1118,23 +1124,36 @@ let choose_suspend_sr ~__context ~vm =
+   let pool_sr = Db.Pool.get_suspend_image_SR ~__context ~self:pool in
+   let resident_on = Db.VM.get_resident_on ~__context ~self:vm in
+   let host_sr = Db.Host.get_suspend_image_sr ~__context ~self:resident_on in
+-  match
+-    ( check_sr_exists_for_host ~__context ~self:vm_sr ~host:resident_on
+-    , check_sr_exists_for_host ~__context ~self:pool_sr ~host:resident_on
+-    , check_sr_exists_for_host ~__context ~self:host_sr ~host:resident_on
+-    )
+-  with
+-  | Some x, _, _ ->
+-      x
+-  | _, Some x, _ ->
+-      x
+-  | _, _, Some x ->
+-      x
+-  | None, None, None ->
+-      raise
+-        (Api_errors.Server_error
+-           (Api_errors.vm_no_suspend_sr, [Ref.string_of vm])
+-        )
++  let sr =
++    match
++      ( check_sr_exists_for_host ~__context ~self:vm_sr ~host:resident_on
++      , check_sr_exists_for_host ~__context ~self:pool_sr ~host:resident_on
++      , check_sr_exists_for_host ~__context ~self:host_sr ~host:resident_on
++      )
++    with
++    | Some x, _, _ ->
++        x
++    | _, Some x, _ ->
++        x
++    | _, _, Some x ->
++        x
++    | None, None, None ->
++        raise
++          (Api_errors.Server_error
++             (Api_errors.vm_no_suspend_sr, [Ref.string_of vm])
++          )
++  in
++  let free_space = get_sr_free_space ~__context ~sr in
++  if free_space < required_space then (
++    let sr_str = Ref.string_of sr in
++    error "%s: SR %s free=%Ld needed=%Ld" __FUNCTION__ sr_str free_space
++      required_space ;
++    raise
++      (Api_errors.Server_error
++         (Api_errors.sr_suspend_space_insufficient, [sr_str])
++      )
++  ) else
++    sr
+ 
+ (* return the operations filtered for cancels functions *)
+ let cancel_tasks ~__context ~ops ~all_tasks_in_db
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index 9b12bcec5..4b36c8f4b 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -3969,7 +3969,10 @@ let suspend ~__context ~self =
+         in
+         Int64.(ram |> add vgpu |> add 104857600L)
+       in
+-      let suspend_SR = Helpers.choose_suspend_sr ~__context ~vm:self in
++      let suspend_SR =
++        Helpers.choose_suspend_sr ~__context ~vm:self
++          ~required_space:space_needed
++      in
+       let sm_config =
+         [
+           (Constants._sm_vm_hint, id)
+diff --git a/ocaml/xapi/xha_statefile.ml b/ocaml/xapi/xha_statefile.ml
+index 54428684a..0c5baf6ab 100644
+--- a/ocaml/xapi/xha_statefile.ml
++++ b/ocaml/xapi/xha_statefile.ml
+@@ -58,14 +58,11 @@ let ha_fits_sr ~__context ~what ~sr ~typ ~minimum_size =
+   | [] ->
+       debug "no suitable existing %s found; would have to create a fresh one"
+         what ;
+-      let self = sr in
+-      let size = Db.SR.get_physical_size ~__context ~self in
+-      let utilisation = Db.SR.get_physical_utilisation ~__context ~self in
+-      let free_space = Int64.sub size utilisation in
++      let free_space = Helpers.get_sr_free_space ~__context ~sr in
+       if free_space < minimum_sr_size then (
+         let sr = Ref.string_of sr in
+-        info "%s: SR %s size=%Ld utilisation=%Ld free=%Ld needed=%Ld"
+-          __FUNCTION__ sr size utilisation free_space minimum_sr_size ;
++        info "%s: SR %s free=%Ld needed=%Ld" __FUNCTION__ sr free_space
++          minimum_sr_size ;
+         raise
+           (Api_errors.Server_error
+              (Api_errors.sr_source_space_insufficient, [sr])

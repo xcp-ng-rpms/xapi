@@ -1,0 +1,311 @@
+From d89b1b3dc22d7d4897583370cf5a7a178bee0e2c Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Tue, 2 Sep 2025 15:34:15 +0200
+Subject: [PATCH] Datamodel: add supported_image_format field to SM object
+
+When running `xe sm-list params=all` you will now have the info of
+supported image formats if the SM plugin specified it in its DRIVER_INFO.
+The field is called `supported-image-formats`. If the plugin doesn't
+provide the info the field will be empty.
+
+This patch modifies the datamodel and add a new field to store this
+information into the SM object.
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/idl/datamodel.ml                            | 15 +++++++++++++++
+ ocaml/idl/schematest.ml                           |  2 +-
+ ocaml/tests/common/test_common.ml                 |  5 +++--
+ ocaml/tests/test_sm_features.ml                   |  1 +
+ ocaml/tests/test_vdi_cbt.ml                       |  1 +
+ ocaml/xapi-cli-server/records.ml                  |  6 ++++++
+ ocaml/xapi-idl/storage/storage_interface.ml       |  1 +
+ ocaml/xapi-storage-script/main.ml                 |  2 ++
+ ocaml/xapi-storage-script/python-self-test.t      |  2 +-
+ .../volume/org.xen.xapi.storage.dummyv5/plugin.py |  3 ++-
+ ocaml/xapi-storage/generator/lib/plugin.ml        |  2 ++
+ ocaml/xapi/sm_exec.ml                             |  1 +
+ ocaml/xapi/smint.ml                               |  2 ++
+ ocaml/xapi/storage_mux.ml                         |  1 +
+ ocaml/xapi/storage_smapiv1.ml                     |  1 +
+ ocaml/xapi/xapi_services.ml                       |  1 +
+ ocaml/xapi/xapi_sm.ml                             | 13 ++++++++++++-
+ 17 files changed, 53 insertions(+), 6 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 4372877b9..012817d15 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -4998,6 +4998,17 @@ module SR = struct
+ end
+ 
+ module SM = struct
++  let formats =
++    [
++      ("raw", "Plain disk image")
++    ; ("vhd", "Virtual Hard Disk")
++    ; ("qcow2", "Qemu Copy-On-Write version 2")
++    ]
++
++  let formats_desc = formats |> List.map fst |> String.concat ", "
++
++  let image_format_type = Enum ("image_format_type", formats)
++
+   (** XXX: just make this a field and be done with it. Cowardly refusing to change the schema for now. *)
+   let get_driver_filename =
+     call ~name:"get_driver_filename" ~in_oss_since:None
+@@ -5118,6 +5129,10 @@ module SM = struct
+             ~ty:(Set String) "required_cluster_stack"
+             "The storage plugin requires that one of these cluster stacks is \
+              configured and running."
++        ; field ~lifecycle:[] ~qualifier:DynamicRO
++            ~default_value:(Some (VSet [])) ~ty:(Set image_format_type)
++            "supported_image_formats"
++            (Printf.sprintf "Image formats supported by the SR: %s" formats_desc)
+         ]
+       ()
+ end
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index 9411d1c3b..7c1a5cbe8 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "3b20f4304cfaaa7b6213af91ae632e64"
++let last_known_schema_hash = "957db9d8442259d5888ac88c0ae01a7b"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/tests/common/test_common.ml b/ocaml/tests/common/test_common.ml
+index c0a77d217..f266934a1 100644
+--- a/ocaml/tests/common/test_common.ml
++++ b/ocaml/tests/common/test_common.ml
+@@ -354,11 +354,12 @@ let make_sm ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+     ?(copyright = "") ?(version = "") ?(required_api_version = "")
+     ?(capabilities = []) ?(features = default_sm_features)
+     ?(host_pending_features = []) ?(configuration = []) ?(other_config = [])
+-    ?(driver_filename = "/dev/null") ?(required_cluster_stack = []) () =
++    ?(driver_filename = "/dev/null") ?(required_cluster_stack = [])
++    ?(supported_image_formats = []) () =
+   Db.SM.create ~__context ~ref ~uuid ~_type ~name_label ~name_description
+     ~vendor ~copyright ~version ~required_api_version ~capabilities ~features
+     ~host_pending_features ~configuration ~other_config ~driver_filename
+-    ~required_cluster_stack ;
++    ~required_cluster_stack ~supported_image_formats ;
+   ref
+ 
+ let make_sr ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+diff --git a/ocaml/tests/test_sm_features.ml b/ocaml/tests/test_sm_features.ml
+index 6b7ef9950..79799d9ba 100644
+--- a/ocaml/tests/test_sm_features.ml
++++ b/ocaml/tests/test_sm_features.ml
+@@ -249,6 +249,7 @@ module CreateSMObject = Generic.MakeStateful (struct
+       ; features
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       ; smapi_version= SMAPIv2
+       }
+ 
+diff --git a/ocaml/tests/test_vdi_cbt.ml b/ocaml/tests/test_vdi_cbt.ml
+index 54ae411ac..4387784f8 100644
+--- a/ocaml/tests/test_vdi_cbt.ml
++++ b/ocaml/tests/test_vdi_cbt.ml
+@@ -30,6 +30,7 @@ let register_smapiv2_server (module S : Storage_interface.Server_impl) sr_ref =
+       ; features= []
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       ; smapi_version= SMAPIv2
+       }
+   in
+diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
+index ee68f272e..f355211a2 100644
+--- a/ocaml/xapi-cli-server/records.ml
++++ b/ocaml/xapi-cli-server/records.ml
+@@ -3865,6 +3865,12 @@ let sm_record rpc session_id sm =
+       ; make_field ~name:"required-cluster-stack"
+           ~get:(fun () -> concat_with_comma (x ()).API.sM_required_cluster_stack)
+           ()
++      ; make_field ~name:"supported-image-formats"
++          ~get:(fun () ->
++            map_and_concat Record_util.image_format_type_to_string
++              (x ()).API.sM_supported_image_formats
++          )
++          ()
+       ]
+   }
+ 
+diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
+index eaabacc9e..d3aea600f 100644
+--- a/ocaml/xapi-idl/storage/storage_interface.ml
++++ b/ocaml/xapi-idl/storage/storage_interface.ml
+@@ -476,6 +476,7 @@ type query_result = {
+   ; features: string list
+   ; configuration: (string * string) list
+   ; required_cluster_stack: string list
++  ; supported_image_formats: string list
+   ; smapi_version: smapi_version
+ }
+ [@@deriving rpcty]
+diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
+index 1eccd3867..98d4e2482 100644
+--- a/ocaml/xapi-storage-script/main.ml
++++ b/ocaml/xapi-storage-script/main.ml
+@@ -936,6 +936,8 @@ module QueryImpl (M : META) = struct
+         ; configuration= response.Xapi_storage.Plugin.configuration
+         ; required_cluster_stack=
+             response.Xapi_storage.Plugin.required_cluster_stack
++        ; supported_image_formats=
++            response.Xapi_storage.Plugin.supported_image_formats
+         ; smapi_version= SMAPIv3
+         }
+     in
+diff --git a/ocaml/xapi-storage-script/python-self-test.t b/ocaml/xapi-storage-script/python-self-test.t
+index 9ac59bed9..7be4876c6 100644
+--- a/ocaml/xapi-storage-script/python-self-test.t
++++ b/ocaml/xapi-storage-script/python-self-test.t
+@@ -6,7 +6,7 @@ pids and uuids
+ 
+   $ export PYTHONPATH=../xapi-storage/python/; ./main.exe --root=$PWD/test --self-test-only=true 2>&1 >/dev/null | sed -E 's/\[[0-9]+\]/[PID]/g' | sed -E 's/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/UUID/g'
+   [INFO] {"method":"Plugin.query","params":[{"dbg":"debug"}],"id":2}
+-  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Plugin.Query[PID] succeeded: {"plugin": "dummy", "name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "vendor": "Citrix Systems Inc", "copyright": "(C) 2018 Citrix Inc", "version": "1.0", "required_api_version": "5.0", "features": ["SR_ATTACH", "SR_DETACH", "SR_CREATE", "SR_PROBE", "VDI_CREATE", "VDI_DESTROY"], "configuration": {}, "required_cluster_stack": []}
++  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Plugin.Query[PID] succeeded: {"plugin": "dummy", "name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "vendor": "Citrix Systems Inc", "copyright": "(C) 2018 Citrix Inc", "version": "1.0", "required_api_version": "5.0", "features": ["SR_ATTACH", "SR_DETACH", "SR_CREATE", "SR_PROBE", "VDI_CREATE", "VDI_DESTROY"], "configuration": {}, "required_cluster_stack": [], "supported_image_formats": []}
+   
+   [INFO] {"method":"Plugin.diagnostics","params":[{"dbg":"debug"}],"id":4}
+   [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Plugin.diagnostics[PID] succeeded: "Dummy diagnostics"
+diff --git a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
+index bf54820cd..6618ee2f1 100755
+--- a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
++++ b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/plugin.py
+@@ -31,7 +31,8 @@ class Implementation(xapi.storage.api.v5.plugin.Plugin_skeleton):
+                     "VDI_CREATE",
+                     "VDI_DESTROY"],
+                 "configuration": {},
+-                "required_cluster_stack": []}
++                "required_cluster_stack": [],
++                "supported_image_formats": []}
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/ocaml/xapi-storage/generator/lib/plugin.ml b/ocaml/xapi-storage/generator/lib/plugin.ml
+index 4fc4d6d3f..a6593ff5b 100644
+--- a/ocaml/xapi-storage/generator/lib/plugin.ml
++++ b/ocaml/xapi-storage/generator/lib/plugin.ml
+@@ -18,6 +18,8 @@ type query_result = {
+         (** Key/description pairs describing required device_config parameters. *)
+   ; required_cluster_stack: string list
+         (** The plugin requires one of these cluster stacks to be active. *)
++  ; supported_image_formats: string list [@default []]
++        (** List of image formats (VHD, raw, Qcow2...) supported. *)
+ }
+ [@@deriving rpcty]
+ 
+diff --git a/ocaml/xapi/sm_exec.ml b/ocaml/xapi/sm_exec.ml
+index c4e2c46a1..724fe0ac2 100644
+--- a/ocaml/xapi/sm_exec.ml
++++ b/ocaml/xapi/sm_exec.ml
+@@ -582,6 +582,7 @@ let parse_sr_get_driver_info driver (xml : Xml.xml) =
+   ; sr_driver_configuration= configuration
+   ; sr_driver_text_features= text_features
+   ; sr_driver_required_cluster_stack= []
++  ; sr_driver_supported_image_formats= []
+   ; sr_smapi_version= SMAPIv1
+   }
+ 
+diff --git a/ocaml/xapi/smint.ml b/ocaml/xapi/smint.ml
+index 1b4e4d45e..d5059eee7 100644
+--- a/ocaml/xapi/smint.ml
++++ b/ocaml/xapi/smint.ml
+@@ -192,6 +192,7 @@ type sr_driver_info = {
+   ; sr_driver_text_features: string list
+   ; sr_driver_configuration: (string * string) list
+   ; sr_driver_required_cluster_stack: string list
++  ; sr_driver_supported_image_formats: string list
+   ; sr_smapi_version: Storage_interface.smapi_version
+ }
+ 
+@@ -207,6 +208,7 @@ let query_result_of_sr_driver_info x =
+   ; features= x.sr_driver_text_features
+   ; configuration= x.sr_driver_configuration
+   ; required_cluster_stack= x.sr_driver_required_cluster_stack
++  ; supported_image_formats= x.sr_driver_supported_image_formats
+   ; smapi_version= x.sr_smapi_version
+   }
+ 
+diff --git a/ocaml/xapi/storage_mux.ml b/ocaml/xapi/storage_mux.ml
+index 0427f76ca..991ea12e5 100644
+--- a/ocaml/xapi/storage_mux.ml
++++ b/ocaml/xapi/storage_mux.ml
+@@ -76,6 +76,7 @@ module Mux = struct
+       ; features= []
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       ; smapi_version= SMAPIv2
+       }
+ 
+diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
+index 0995edc35..fbdc8c46d 100644
+--- a/ocaml/xapi/storage_smapiv1.ml
++++ b/ocaml/xapi/storage_smapiv1.ml
+@@ -125,6 +125,7 @@ module SMAPIv1 : Server_impl = struct
+       ; features= []
+       ; configuration= []
+       ; required_cluster_stack= []
++      ; supported_image_formats= []
+       ; smapi_version= SMAPIv1
+       }
+ 
+diff --git a/ocaml/xapi/xapi_services.ml b/ocaml/xapi/xapi_services.ml
+index ca9e3d729..24f31ce1c 100644
+--- a/ocaml/xapi/xapi_services.ml
++++ b/ocaml/xapi/xapi_services.ml
+@@ -255,6 +255,7 @@ let get_handler (req : Http.Request.t) s _ =
+             ; features= List.map (fun x -> path [_services; x]) [_SM]
+             ; configuration= []
+             ; required_cluster_stack= []
++            ; supported_image_formats= []
+             ; smapi_version= SMAPIv2
+             }
+           in
+diff --git a/ocaml/xapi/xapi_sm.ml b/ocaml/xapi/xapi_sm.ml
+index 769484ddd..3014b481f 100644
+--- a/ocaml/xapi/xapi_sm.ml
++++ b/ocaml/xapi/xapi_sm.ml
+@@ -49,6 +49,10 @@ let create_from_query_result ~__context q =
+       ~host_pending_features:[] ~configuration:q.configuration ~other_config:[]
+       ~driver_filename:(Sm_exec.cmd_name q.driver)
+       ~required_cluster_stack:q.required_cluster_stack
++      ~supported_image_formats:
++        (List.map Record_util.image_format_type_of_string
++           q.supported_image_formats
++        )
+   )
+ 
+ let find_pending_features existing_features features =
+@@ -112,6 +116,10 @@ let update_from_query_result ~__context (self, r) q_result =
+       |> addto_pending_hosts_features ~__context self
+       |> valid_hosts_pending_features ~__context
+     in
++    let supported_image_formats =
++      List.map Record_util.image_format_type_of_string
++        q_result.supported_image_formats
++    in
+     remove_valid_features_from_pending ~__context ~self new_features ;
+     let features = existing_features @ new_features in
+     List.iter
+@@ -143,7 +151,10 @@ let update_from_query_result ~__context (self, r) q_result =
+     if r.API.sM_configuration <> q_result.configuration then
+       Db.SM.set_configuration ~__context ~self ~value:q_result.configuration ;
+     if r.API.sM_driver_filename <> driver_filename then
+-      Db.SM.set_driver_filename ~__context ~self ~value:driver_filename
++      Db.SM.set_driver_filename ~__context ~self ~value:driver_filename ;
++    if r.API.sM_supported_image_formats <> supported_image_formats then
++      Db.SM.set_supported_image_formats ~__context ~self
++        ~value:supported_image_formats
+   )
+ 
+ let is_v1 x = version_of_string x < [2; 0]
