@@ -93,15 +93,6 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
-Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
-
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/6823
-Patch1008: 0008-xenops-Fix-migrate-parameter-ordering.patch
-
-#Upstream PR: https://github.com/xapi-project/xen-api/pull/6829
-Patch1009: 0009-xapi_vm_migrate-share-function-to-check-capabilities.patch
-Patch1010: 0010-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
-
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
