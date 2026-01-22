@@ -730,6 +730,7 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 %systemd_post mpathalert.service
 %systemd_post generate-iscsi-iqn.service
 %systemd_post control-domain-params-init.service
+%systemd_post update-xapi-firewalld.service
 %systemd_post network-init.service
 %systemd_post xapi-ssh-monitor.service
 
@@ -817,6 +818,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_preun mpathalert.service
 %systemd_preun generate-iscsi-iqn.service
 %systemd_preun control-domain-params-init.service
+%systemd_preun update-xapi-firewalld.service
 %systemd_preun network-init.service
 %systemd_preun xapi-ssh-monitor.service
 
@@ -874,6 +876,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_postun mpathalert.service
 %systemd_postun generate-iscsi-iqn.service
 %systemd_postun control-domain-params-init.service
+%systemd_postun update-xapi-firewalld.service
 %systemd_postun network-init.service
 %systemd_postun xapi-ssh-monitor.service
 
@@ -1091,6 +1094,7 @@ done
 %{_unitdir}/mpathalert.service
 %{_unitdir}/generate-iscsi-iqn.service
 %{_unitdir}/control-domain-params-init.service
+%{_unitdir}/update-xapi-firewalld.service
 %{_unitdir}/network-init.service
 %{_unitdir}/xapi-ssh-monitor.service
 %{_unitdir}/toolstack.target
