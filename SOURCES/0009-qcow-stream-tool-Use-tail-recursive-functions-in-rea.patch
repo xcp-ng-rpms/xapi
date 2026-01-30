@@ -1,0 +1,51 @@
+From d9ff65e606a86d3a714d34fb9d8138dfd00dbe35 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 21 Jan 2026 09:52:21 +0000
+Subject: [PATCH] qcow-stream-tool: Use tail-recursive functions in
+ read_headers
+
+Otherwise we overflow the stack on large QCOW files:
+
+    qcow-stream-tool: internal error, uncaught exception:
+    Stack overflow
+    Raised by primitive operation at Dune__exe__Qcow_stream_tool.Impl.read_headers.(fun) in file "ocaml/qcow-stream-tool/qcow_stream_tool.ml", line 23, characters 12-24
+    Called from Stdlib__List.map in file "list.ml", line 92, characters 32-39
+    Called from Stdlib__List.map in file "list.ml", line 92, characters 32-39
+    ....
+
+Going through map->seq->list transformations is faster than reversing a list
+with List.rev + List.rev_map.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-stream-tool/qcow_stream_tool.ml | 11 ++++++-----
+ 1 file changed, 6 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/qcow-stream-tool/qcow_stream_tool.ml b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+index 41b57c9a3..b8605c2f4 100644
+--- a/ocaml/qcow-stream-tool/qcow_stream_tool.ml
++++ b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+@@ -12,17 +12,18 @@ module Impl = struct
+       let* virtual_size, cluster_bits, _, data_cluster_map =
+         Qcow_stream.start_stream_decode fd
+       in
+-      let clusters = Qcow_types.Cluster.Map.bindings data_cluster_map in
++      (* TODO: List.map becomes tail-recursive in OCaml 5.1, and could be used here instead *)
+       let clusters =
+-        List.map
+-          (fun (_, virt_address) ->
++        data_cluster_map
++        |> Qcow_types.Cluster.Map.to_seq
++        |> Seq.map (fun (_, virt_address) ->
+             let ( >> ) = Int64.shift_right_logical in
+             let address =
+               Int64.to_int (virt_address >> Int32.to_int cluster_bits)
+             in
+             `Int address
+-          )
+-          clusters
++        )
++        |> List.of_seq
+       in
+       let json =
+         `Assoc

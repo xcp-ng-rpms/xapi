@@ -103,6 +103,9 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 Patch1007: 0007-xapi_vm_migrate-share-function-to-check-capabilities.patch
 Patch1008: 0008-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 
+# Upstream PR: https://github.com/xapi-project/xen-api/pull/6856
+Patch1009: 0009-qcow-stream-tool-Use-tail-recursive-functions-in-rea.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1504,6 +1507,7 @@ Coverage files from unit tests
 
 %changelog
 * Fri Jan 30 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.0.0-1.1
+- qcow-stream-tool: Avoid stack overflows in read_headers
 - Update to upstream 26.0.0-1
 - *** Upstream changelog ***
   * Thu Jan 08 2026 Rob Hoes <rob.hoes@citrix.com> - 26.0.0-1
