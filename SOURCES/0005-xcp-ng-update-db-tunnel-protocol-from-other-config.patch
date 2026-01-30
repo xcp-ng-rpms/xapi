@@ -1,4 +1,4 @@
-From 8d826a403eb1eeeb67d594a8962c9492e081169a Mon Sep 17 00:00:00 2001
+From 38764599f24f1e69ab918239d6765bf171cfb0a6 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 17:10:15 +0200
 Subject: [PATCH] [xcp-ng] update db tunnel protocol from other config

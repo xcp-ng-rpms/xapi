@@ -1,7 +1,7 @@
-From c7196f2dd1c32adcf3b0b1dd36aaf61897d6e942 Mon Sep 17 00:00:00 2001
+From 5d6d791d1577a8c948211c933931155c33de0f42 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 19 Dec 2025 12:06:06 +0000
-Subject: [PATCH 09/10] xapi_vm_migrate: share function to check capabilities
+Subject: [PATCH] xapi_vm_migrate: share function to check capabilities
 
 The error is insufficient to know what capabilities are missing,
 consolidating code before the change is useful
@@ -57,6 +57,3 @@ index 3e147054e..374201466 100644
    in
    let is_sr_matching local_vdi_ref remote_sr_ref =
      let source_sr_ref = Db.VDI.get_SR ~__context ~self:local_vdi_ref in
--- 
-2.52.0
-
