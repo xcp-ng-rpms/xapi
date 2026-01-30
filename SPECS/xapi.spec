@@ -1,5 +1,5 @@
-%global package_speccommit abbbcf083e63e75c01a1a0804385b36fb6bde1c5
-%global package_srccommit v25.33.1
+%global package_speccommit 644d7f2d1eda004087a89e8f94d9506df79cf2d6
+%global package_srccommit v26.0.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -11,6 +11,8 @@
 # In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
 %bcond_without dnf_plugin
 %bcond_without own_yum_dir
+# XS9 requires extra configration
+%bcond_without extra_config
 # XS9 reset all epoch to 0
 %define qemu_epoch 0
 %else
@@ -25,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 25.33.1
-Release: 2.3%{?xsrel}%{?dist}
+Version: 26.0.0
+Release: 1.1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-25.33.1.tar.gz
+Source0: xen-api-26.0.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -58,6 +60,10 @@ Source23: inventory.py
 # For xs9, move these config files from xenserver-release
 Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
+# Extra configuration
+#Source26: xenserver9.conf
+# NTP configureation for xenserver
+#Source27: xenserver-ntp.conf
 
 # Xapi compiles to a baseline of Xen 4.17
 
@@ -81,7 +87,7 @@ Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v25.33.1..v25.33.1-8.3
+#   - git format-patch --no-numbered --no-signature v26.0.0..v26.0.0-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -93,14 +99,9 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
-Patch1007: 0007-ocaml-libs-Check-if-blocks-are-filled-with-zeros-in-.patch
-
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/6823
-Patch1008: 0008-xenops-Fix-migrate-parameter-ordering.patch
-
 #Upstream PR: https://github.com/xapi-project/xen-api/pull/6829
-Patch1009: 0009-xapi_vm_migrate-share-function-to-check-capabilities.patch
-Patch1010: 0010-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
+Patch1007: 0007-xapi_vm_migrate-share-function-to-check-capabilities.patch
+Patch1008: 0008-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -113,7 +114,7 @@ BuildRequires: gmp-devel
 BuildRequires: libuuid-devel
 BuildRequires: make
 BuildRequires: python3-devel
-BuildRequires: xs-opam-repo >= 6.77.0-1
+BuildRequires: xs-opam-repo >= 6.97.0-1
 BuildRequires: libnl3-devel
 BuildRequires: systemd-devel
 BuildRequires: pciutils-devel
@@ -193,10 +194,12 @@ Requires: python3-fasteners
 Requires: sm
 Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
-Requires: python3-wrapt
+%if 0%{?xenserver} >= 9
+%else
 # firewall-port needs iptables-service to perform
 # `service iptables save`
 Requires: iptables-services
+%endif
 Requires: rsync
 Obsoletes: xapi-ssh-monitor <= 1.0.0
 Requires(post): xs-presets >= 1.3
@@ -683,6 +686,8 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 
 %if 0%{?xenserver} < 9
 echo "ssh-auto-mode=false" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
+%else
+echo "firewall-backend=firewalld" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/firewall-backend.conf
 %endif
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
@@ -699,6 +704,14 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %{__install} -D -m 0644 %{SOURCE24} %{buildroot}/%{_sysconfdir}/systemd/system/xapi.service.d/local.conf
 %{__install} -D -m 0644 %{SOURCE25} %{buildroot}/%{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
 %endif
+
+%if %{with extra_config}
+%{__install} -D -m 0644 %{SOURCE26} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
+echo %{_sysconfdir}/xapi.conf.d/xenserver9.conf >> core-files
+%endif
+
+#XCP-ng: don't distribute xenserver's ntp hostnames
+#%{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -739,6 +752,7 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 %systemd_post mpathalert.service
 %systemd_post generate-iscsi-iqn.service
 %systemd_post control-domain-params-init.service
+%systemd_post update-xapi-firewalld.service
 %systemd_post network-init.service
 %systemd_post xapi-ssh-monitor.service
 
@@ -826,6 +840,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_preun mpathalert.service
 %systemd_preun generate-iscsi-iqn.service
 %systemd_preun control-domain-params-init.service
+%systemd_preun update-xapi-firewalld.service
 %systemd_preun network-init.service
 %systemd_preun xapi-ssh-monitor.service
 
@@ -883,6 +898,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 %systemd_postun mpathalert.service
 %systemd_postun generate-iscsi-iqn.service
 %systemd_postun control-domain-params-init.service
+%systemd_postun update-xapi-firewalld.service
 %systemd_postun network-init.service
 %systemd_postun xapi-ssh-monitor.service
 
@@ -942,11 +958,10 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 ## upgrades. This is because there is no way to distinguish upgrades from other kinds of transactions
 ## in RPM < 4.12, see https://pagure.io/packaging-committee/issue/1051.
 ## This (and likely the daemon-reload above) should really be fixed with XS9, though it isn't a huge issue
-/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1 | while read plugins;
-do
+plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1)
 # XCP-ng: remove pvsproxy.service as it's a proprietary component
 /usr/bin/systemctl restart "$plugins" 'qemu-stats@*' 2>&1 || :
-done
+#systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service 2>&1 || :
 
 %files core -f core-files
 %defattr(-,root,root,-)
@@ -966,7 +981,7 @@ done
 %config(noreplace) /etc/sysconfig/perfmon
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
-/etc/xenserver/features.d
+%dir /etc/xenserver/features.d
 %if 0%{?xenserver} >= 9
 # make the experimental feature available on XS9
 /etc/xenserver/features.d/hard_numa
@@ -1100,12 +1115,17 @@ done
 %{_unitdir}/mpathalert.service
 %{_unitdir}/generate-iscsi-iqn.service
 %{_unitdir}/control-domain-params-init.service
+%{_unitdir}/update-xapi-firewalld.service
 %{_unitdir}/network-init.service
 %{_unitdir}/xapi-ssh-monitor.service
 %{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
+#XCP-ng: do not provide xenserver's ntp hostnames
+#%config(noreplace) %{_sysconfdir}/xapi.conf.d/xenserver-ntp.conf
 %if 0%{?xenserver} < 9
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
+%else
+%config(noreplace) %{_sysconfdir}/xapi.conf.d/firewall-backend.conf
 %endif
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
@@ -1483,6 +1503,239 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jan 30 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.0.0-1.1
+- Update to upstream 26.0.0-1
+- *** Upstream changelog ***
+  * Thu Jan 08 2026 Rob Hoes <rob.hoes@citrix.com> - 26.0.0-1
+  - CP-54473 Implement max-state setting
+  - Add host.max_cstate and host.set_max_cstate
+  - update last_known_schema_hash
+  - CP-54471 Add ntp operations
+  - CP-54471 Add host.ntp_mode and host.ntp_custom_servers
+  - CP-54471 Add host.enable/disable_ntp
+  - CP-54471 Add ntp config dbsync
+  - CP-308854 Add host.get_ntp_servers_status
+  - Update last_known_schema_hash
+  - CP-308544 Promote legacy default ntp servers
+  - rrdp-dcmi: Detect more errors on discovery
+  - [doc] Add host-ntp-time feature doc
+  - CP-308545 Add host.timezone
+  - Update last_known_schema_hash
+  - CP-308856 host.get_ntp_synchronized
+  - CP-308855: host.set_servertime
+  - CP-54476 Merge ntp disable/enable to ntp mode
+  - Use timedatectl to enable/disable ntp
+  - Fix `/run/chrony-dhcp` does not exist
+  - Update datamodel lifecycle and bump schema
+  - CA-420533: Only clear RestartVM guidance on up-to-date hosts
+  - qcow-stream-tool: Add read_headers command
+  - python3: Use pre-parsed cluster allocation data in qcow2-to-stdout
+  - vhd_tool_wrapper: Make vhd_of_device generic
+  - qcow_tool_wrapper: Read headers of QCOW2-backed VDIs on export
+  - qcow_tool_wrapper: Implement parse_header to determine allocated clusters
+  - Update lifecycle
+  - opam: add missing dependencies
+  - CA-420856: Re-read inventory file when resetting network
+  - opam: generate metadata for uuid with dune
+  - libs: remove unused type parameters
+  - git-blame: ignore another formatting commit
+  - sdk-gen: make code compatible with ocaml 5.4
+  - CA-421991: Fix QEMU coredumps on XS9
+  - CA-421914: preserve Host.numa_affinity_policy across pool join
+  - CA-421847: set vcpu affinity if node claim succeeded
+  - CA-422071: preserve latest_synced_updates_applied and pending_guidances* across pool join
+  - CA-422071: add unit test for Host.create_params
+  - XSI-2088: CA-422080: External auth can not support large forest
+  - CA-422072 Add new fields to host create params
+  - XSI-2088: CA-422080: Code refine for comments
+  - ocaml/xapi-idl: change CLI help tests
+  - ocaml: prepare formatting for new ocamlformat
+  - coverage: remove dependency on bisect_ppx
+  - CP-310867 Sort output of diagnostic-timing-stats
+  - XSI-2093: CA-422229: Host should not register all IPs to DNS server
+  - [doc] Improvements on management of trusted certificates
+  - CA-422282 Fix race condition about xenops cache
+  - libs: add try_map to listext
+  - database: Make a custom exception when fetching of db connections fails
+  - ocaml: remove usages of List.hd
+  - ocaml/libs: List.last and List.head now return options
+  - ocaml: replace List.(hd (rev list)) with List.last
+  - ocaml: use new List.head instead of List.nth_opt
+  - vhd-tool: Add read_headers command for determining allocated blocks
+  - stream_vdi: Factor out send_one into a top-level function
+  - xapi_vdi_helpers: Move backing_file_of_device from vhd_tool_wrapper
+  - xapi_vdi_helpers: Split backing_file_of_device in two
+  - vhd_tool_wrapper: Add parse_header to determine allocated blocks
+  - stream_vdi: Only process allocated clusters for VHD and QCOW
+  - tapctl: Return Option instead of raising Not_found
+  - stream_vdi: Move to using Mtime_clock.counter
+  - dune-project: Add yojson as vhd-tool dependency
+  - vhd_qcow_parsing: Only use the basename in the with_logfile_fd call
+  - CA-422187: fix NUMA on XS8
+  - xenops: Fix migrate parameter ordering
+  - libs: add Stat module in Unixext to handle special device IDs
+  - ocaml: Unify handling of major and minor device IDs
+  - vhd_tool_wrapper: generate detailed errors when getting tapctl devices
+    
+  * Fri Dec 05 2025 Steven Woods <steven.woods@citrix.com> - 25.39.0-1
+  - CA-420968: compute the amount of physical cores available on a NUMA node set
+  - CA-420968: ensure compatibility between NUMARequest.fits and plan
+  - CA-420968: track number of physical cores during a NUMA planning request
+  - CA-420968: introduce an explicit name for the current NUMA policy: Prio_mem_only
+  - CA-420968: avoid large performance hit on small NUMA nodes
+  - [doc] add missing command to xs-trace
+  - numa_placement: use Seq instead of List
+  - CA-419908: Move module Watcher ahead for future use in module VM
+  - s/xe-syslog-reconfigure: Keep disclaimer in remote.conf
+  - opam: update metadata
+  - ocaml/xapi: remove unused xmlrpc_sexpr module
+  - ocaml/libs/http-lib: remove unused mime module
+  - ocaml: reduce and guard all users of Pool.get_all |> List.hd
+  - CA-419908: Update xenstore watcher to refresh domains when VM is renamed
+  - Refactor IntMap to use built-in Int module in Map.Make
+  - CP-309847: Make HTTP/80 configurable
+  - CP-31566 define xenopsd fast resume operation
+  - fixup! CP-31566 define xenopsd fast resume operation
+  - increase max supported NVMe request size
+  
+  * Thu Nov 27 2025 Steven Woods <steven.woods@citrix.com> - 25.38.0-1
+  - Refactor: Rename Http.Request.uri -> path
+  - RPC: Add "/RPC2" route for the RPC handler
+  - Compute PCI device directory only once
+  - CA-418993: Enable PCI ROM BAR before attempting to give permissions to the VM
+  - [doc] fix typo in command to create new certificates
+  - rrdd: Add HTTP paths /host_rrds and /vm_rrds
+  - nbd: use URI type for /var/xapi/xapi socket
+  - idl: Remove FIXME comment in datamodel_pool
+  - CP-49045: add unit test for db_get_by_uuid when a uuid is changed
+  - CP-49045: factor out uuid_of_row
+  - CP-49045: update UUID index when the uuid is changed
+  - CP-49045: optimize database uuid lookup: use index
+  - Reuse Filename.concat and // operator
+  - quicktest: Add delta tests for VHD data integrity suite
+  - Correct parameter description in assert_can_migrate
+  - CA-418227: Handle exceptions in At_least_once_more.again
+  - CA-418227: Catch exceptions from host.update_allowed_operations
+  - CA-418227: Detect rolling upgrade after setting software_version
+  - CA-421084: xstringext: Improve performance of escaped
+  - xstringext: Test escaped against reference implementation
+  - xstringext: Add benchmark for escaped
+  - quicktest: Add qcow to VDI integrity tests
+  
+  * Wed Nov 12 2025 Steven Woods <steven.woods@citrix.com> - 25.37.0-1
+  - xapi-stdext: remove unused functions from listext
+  - xapi-stdext: consolidate listext's chop tests
+  - xapi-stdext: introduce split_at to listext
+  - xapi-stdext: replace List's chop with split_at
+  - stunnel_cache: remove ad-hoc chop implementation
+  - stunnel_cache: use timestamps for cache evictions instead of IDs
+  - [perfmon] Fix typo in variable name
+  - xapi: remove some usages of common, exception-raising functions
+  - xapi-consts: use a variant to reify valid values of cluster stack
+  - xapi: open firewall for XHAd only if xHAd is actually selected
+  - localdb: expose option-based get functions
+  - xapi_ha: avoid raising Not_found when joining a liveset
+  - quality-gate: capture more unnecessary List.length cases
+  - xapi_ha: add more information to not found errors
+  - CA-419238: Remove /etc/dnf/repos.override.d/99-config_manager.repo after using
+  - quicktest: reduce indentation in vdi module
+  - quicktest: test tags being copied on vdi clone and snapshot
+  - xapi_vdi: copy tags on VDI clone and snapshot
+  - CP-309791: Update samba to 4.21
+  - CP-310555: Rotate machine password through winbind
+  - Rename encode_bdf function
+  - XSI-2025: Only abort HA host reenable for unpluggable PIFs
+  
+  * Fri Oct 31 2025 Steven Woods <steven.woods@citrix.com> - 25.36.0-1
+  - Move xenopsd's xenctrl_ext to ocaml/libs/
+  - Add Makefile for with "format" target
+  - Fix front matter for Hugo
+  - CA-419227 Add logs for debug
+    - CA-419227 Move force_state_reset after refresh_vm
+  - docs: add documentation about setting up alarms
+  
+  * Wed Oct 29 2025 Steven Woods <steven.woods@citrix.com> - 25.35.0-1
+  - [doc] Host network device ordering
+  - CP-44103: Ordering network devices - IDL changes
+  - CP-44103: Ordering network devices - ordering logic
+  - CP-44103: Unit tests for ordering network devices
+  - CP-54445: Filter out ibft devices which are for boot from iSCSI SAN
+  - CP-44106: Update networkd config after sort
+  - CP-44106: Do not clear interface_order in networkdb
+  - CP-44107: Add Interface.get_interface_positions
+  - CP-53614: Update xapi pif introduce
+  - CP-53614: Use get_all to get net interfaces
+  - CP-53718: Update device name in xapi pif refresh
+  - Minor change: correct comments
+  - CP-44105: Adjust Net.reset_state for pool.eject_self
+  - CP-53719: Update monitor and collecting list for host network devices
+  - CP-308116: Write management_address_type to inventory
+  - CP-308116: Update hard code eth in network-init
+  - CP-54444: Return MAC addresses to host installer
+  - Change expect files for networkd command
+  - CP-308260: Handle networkd upgrade
+  - CP-308260: Generate changed_interfaces list for upgrade
+  - CP-308260: Update inventory after upgrade
+  - CP-308115 Ensure networkd start after systemd-udev-settle.service
+  - Fix review comments
+  - CP-54441 Adapt interface ordering in xe-reset-networking
+  - Use systemctl to stop xapi service in xe-reset-networking
+  - CP-308450 Refine the bridge name converting
+  - CP-308450 Use the position in new network name_label
+  - CP-54468 Handle USB network devices in network devices sort
+  - CA-414651 Fix device rename in PIF after RPU
+  - Sync pif.device when its type is vlan or sriov
+  - Delete unused function Xapi_pif.refresh
+  - Abstract get_pif_position in xapi_pif_helpers
+  - Copy bonds from master using pif position
+  - Copy network sriovs from master using pif position
+  - ocaml/libs: Check if blocks are filled with zeros in vhd_format
+  - zerocheck: write a failing test
+  - zerocheck: fix check for strings longer than 2 GiBs
+  - zerocheck: exposing the length to users is unsafe and not needed
+  - datamodel_lifecycle: fix release of functions from #6717
+  - Update datamodel_lifecycle
+  - CA-418759: Failed to start attach-static-vdis
+  - Make CI shellcheck happy
+  - unixpwd: putpwent() is GNU extension
+  - forkexecd: memcpy() and strcpy() comes from string.h
+  - forkexecd: explicitly cast `struct sockaddr_un` to `struct sockaddr`
+  - Add numa.md design sketch; new fields to to VM_metrics.
+  
+  * Wed Oct 22 2025 Steven Woods <steven.woods@citrix.com> - 25.34.0-1
+  - CP-308927 Add nr_nodes in host.cpu_info to expose numa nodes count
+  - CP-308873 Update software_version to reflect the newly applied livepatch after apply_livepatch
+  - CP-308800: Add firewalld control function
+  - CP-308800: Dynamic control http firewall service
+  - CP-308800: Dynamic control xha firewalld service
+  - CP-308800: Dynamic control cluster firewalld service
+  - CP-308800: Dynamic control VxLan firewalld service
+  - CP-308800: Dynamic control ssh firewalld service
+  - CP-308800: Revert https_only sync logic
+  - CP-308800: Dynamic control iptables port
+  - CP-308859 Track user_agents
+  - Add unit test
+  - Add host.get_tracked_user_agents
+  - CP-308798: Dynamic control NBD firewalld service
+  - CP-308873 Parse kernel livepatch list and drop the status
+  - CP-308864 Dump the pvs_target_version into VM_guest_metric.service
+  - CA-417366 make_xen_livepatch_list can not Parse the Output of xen-livepatch
+  - CP-309535: Extract function get_nbd_interfaces
+  - CP-309535: Add a function all_service_types
+  - CP-309535: Add API update_firewalld_service_status
+  - CP-309535: Update firewalld service when start
+  - CP-309535: Add CLI host-update-firewalld-service-status
+  - CP-309535: Update datamodel_lifecycle
+  - CP-309535: Add a service to update firewalld
+  - CA-417520: Fix 2 HA firewalld issues
+  - CP-47867: Add observer uuid to span attributes
+  - More missing unix dependencies
+  - CI: Add OCaml 5.3 as experimental build
+  - xenopsd/bootloader: No need to create /var/run/xend/boot anymore
+  - doc: change outdated information in storage
+  - doc: update better VM revert proposal
+  - CA-418960: VM with vTPM Delete doesn't remove the snapshot
+ 
 * Tue Jan 13 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 25.33.1-2.3
 - Print what capabilities are missing when migration fails
 

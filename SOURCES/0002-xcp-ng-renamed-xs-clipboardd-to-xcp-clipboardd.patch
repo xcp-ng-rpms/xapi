@@ -1,4 +1,4 @@
-From feb970c80b7b36784614824944c92c02eb5cc236 Mon Sep 17 00:00:00 2001
+From 4a4e15616a2ac1d671bee7709ced00dfa3845a02 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 11:11:46 +0200
 Subject: [PATCH] [xcp-ng] renamed xs-clipboardd to xcp-clipboardd
@@ -9,10 +9,10 @@ Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/ocaml/xenopsd/scripts/qemu-wrapper b/ocaml/xenopsd/scripts/qemu-wrapper
-index b1d811e71..44c925187 100644
+index 554590d07..e4a0c2846 100644
 --- a/ocaml/xenopsd/scripts/qemu-wrapper
 +++ b/ocaml/xenopsd/scripts/qemu-wrapper
-@@ -306,7 +306,7 @@ def main(argv):
+@@ -293,7 +293,7 @@ def main(argv):
  
      print("Exec: %s %s" % (qemu_dm, " ".join(qemu_args)))
  

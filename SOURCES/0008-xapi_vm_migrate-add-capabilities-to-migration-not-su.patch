@@ -1,8 +1,8 @@
-From 5bf2fb7064057dadb7b43181a09397898f375295 Mon Sep 17 00:00:00 2001
+From 974d92cb1fcad6941e011602506a9a10055e15da Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 19 Dec 2025 12:17:23 +0000
-Subject: [PATCH 10/10] xapi_vm_migrate: add capabilities to migration not
- supported by sr error
+Subject: [PATCH] xapi_vm_migrate: add capabilities to migration not supported
+ by sr error
 
 The error does not make it clear at all what are the capabilities that
 are stopping it from supporting migration, which makes debugging issues
@@ -47,6 +47,3 @@ index 374201466..5883eb821 100644
      raise Api_errors.(Server_error (sr_does_not_support_migration, msg))
  
  let assert_sr_support_operations ~__context ~vdi_map ~remote ~local_ops
--- 
-2.52.0
-
