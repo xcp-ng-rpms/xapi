@@ -1,0 +1,65 @@
+From 7ef334d6d68a2a475e6b4486a5bbca82a641fc1c Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 4 Feb 2026 13:27:05 +0000
+Subject: [PATCH] python3/qcow2-to-stdout: Switch to sparse interval format for
+ nonzero_clusters
+
+nonzero_clusters no longer contain every single allocated cluster and instead
+are intervals of allocated clusters.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ python3/libexec/qcow2-to-stdout.py | 37 ++++++++++++++++--------------
+ 1 file changed, 20 insertions(+), 17 deletions(-)
+
+diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
+index 1f876ec4e..0f473e4a4 100755
+--- a/python3/libexec/qcow2-to-stdout.py
++++ b/python3/libexec/qcow2-to-stdout.py
+@@ -224,26 +224,29 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits,
+             # In case input_file is bigger than diff_file_name, first check
+             # if clusters from diff_file_name differ, and then check if the
+             # rest contain data
+-            diff_nonzero_clusters_set = set(diff_nonzero_clusters)
+-            for cluster in nonzero_clusters:
+-                if cluster >= last_diff_cluster:
+-                    allocate_cluster(cluster)
+-                elif cluster in diff_nonzero_clusters_set:
+-                    # If a cluster has different data from the original_cluster
+-                    # then it must be allocated
+-                    cluster_data = os.pread(fd, cluster_size, cluster_size * cluster)
+-                    original_cluster = os.pread(diff_fd, cluster_size, cluster_size * cluster)
+-                    check_cluster_allocate(cluster, cluster_data, original_cluster)
+-                    diff_nonzero_clusters_set.remove(cluster)
+-                else:
+-                    allocate_cluster(cluster)
++            diff_nonzero_clusters_set = Interval(diff_nonzero_clusters)
++
++            for (cluster_left, cluster_right) in nonzero_clusters:
++                for cluster in range(cluster_left, cluster_right+1):
++                    if cluster >= last_diff_cluster:
++                        allocate_cluster(cluster)
++                    elif cluster in diff_nonzero_clusters_set:
++                        # If a cluster has different data from the original_cluster
++                        # then it must be allocated
++                        cluster_data = os.pread(fd, cluster_size, cluster_size * cluster)
++                        original_cluster = os.pread(diff_fd, cluster_size, cluster_size * cluster)
++                        check_cluster_allocate(cluster, cluster_data, original_cluster)
++                    else:
++                        allocate_cluster(cluster)
+ 
+             # These are not present in the original file
+-            for cluster in diff_nonzero_clusters_set:
+-                allocate_cluster(cluster)
++            for (cluster_left, cluster_right) in diff_nonzero_clusters_set:
++                for cluster in range(cluster_left, cluster_right+1):
++                    allocate_cluster(cluster)
+         else:
+-            for cluster in nonzero_clusters:
+-                allocate_cluster(cluster)
++            for (cluster_left, cluster_right) in nonzero_clusters:
++                for cluster in range(cluster_left, cluster_right+1):
++                    allocate_cluster(cluster)
+ 
+     else:
+         zero_cluster = bytes(cluster_size)

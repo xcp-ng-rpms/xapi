@@ -1,4 +1,4 @@
-From d9ff65e606a86d3a714d34fb9d8138dfd00dbe35 Mon Sep 17 00:00:00 2001
+From 53aa774a3d1e7633729675a43a4f23c136239de6 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 21 Jan 2026 09:52:21 +0000
 Subject: [PATCH] qcow-stream-tool: Use tail-recursive functions in

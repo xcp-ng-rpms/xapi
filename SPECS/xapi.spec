@@ -106,6 +106,12 @@ Patch1008: 0008-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/6856
 Patch1009: 0009-qcow-stream-tool-Use-tail-recursive-functions-in-rea.patch
 
+Patch1010: 0010-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
+Patch1011: 0011-vhd_format-Switch-to-sparse-interval-format-for-bloc.patch
+Patch1012: 0012-vhd_qcow_parsing-Parse-the-new-interval-based-data_c.patch
+Patch1013: 0013-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
+Patch1014: 0014-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

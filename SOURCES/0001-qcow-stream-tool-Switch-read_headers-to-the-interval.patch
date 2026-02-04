@@ -1,0 +1,60 @@
+From 7e4c4de87f7fd3d3271a8537c40ac7d33e07dd14 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 4 Feb 2026 13:29:40 +0000
+Subject: [PATCH] qcow-stream-tool: Switch read_headers to the interval-based
+ sparse format
+
+Qcow_stream now uses Qcow_mapping to store information on allocated clusters,
+which offers .to_interval_seq, outputting a list of pairs representing
+intervals of allocated virtual clusters.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-stream-tool/qcow_stream_tool.ml | 26 +++++++++++-----------
+ 1 file changed, 13 insertions(+), 13 deletions(-)
+
+diff --git a/ocaml/qcow-stream-tool/qcow_stream_tool.ml b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+index 41b57c9a3..ebcc39950 100644
+--- a/ocaml/qcow-stream-tool/qcow_stream_tool.ml
++++ b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+@@ -12,17 +12,17 @@ module Impl = struct
+       let* virtual_size, cluster_bits, _, data_cluster_map =
+         Qcow_stream.start_stream_decode fd
+       in
+-      let clusters = Qcow_types.Cluster.Map.bindings data_cluster_map in
+       let clusters =
+-        List.map
+-          (fun (_, virt_address) ->
+-            let ( >> ) = Int64.shift_right_logical in
+-            let address =
+-              Int64.to_int (virt_address >> Int32.to_int cluster_bits)
+-            in
+-            `Int address
+-          )
+-          clusters
++        Qcow_mapping.to_interval_seq data_cluster_map
++          (Int64.of_int32 cluster_bits)
++        |> Seq.map (fun (left_cluster, right_cluster) ->
++            `List
++              [
++                `Int (Int64.to_int left_cluster)
++              ; `Int (Int64.to_int right_cluster)
++              ]
++        )
++        |> List.of_seq
+       in
+       let json =
+         `Assoc
+@@ -63,9 +63,9 @@ module Cli = struct
+ 
+   let read_headers_cmd =
+     let doc =
+-      "Determine allocated clusters by parsing qcow2 file at the provided \
+-       path. Returns JSON like the following: {'virtual_size': X, \
+-       'cluster_bits': Y, 'data_clusters': [1,2,3]}"
++      "Determine intervals of allocated clusters by parsing qcow2 file at the \
++       provided path. Returns JSON like the following: {'virtual_size': X, \
++       'cluster_bits': Y, 'data_clusters': [[1,13],[17,17],[19,272]]}"
+     in
+     let man = [`S "DESCRIPTION"; `P doc] in
+     Cmd.v
