@@ -1,0 +1,23 @@
+From 287c038c315086293e56e2db03e2a51078223aea Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 9 Feb 2026 09:33:11 +0000
+Subject: [PATCH] xenopsd: Force higher setmaxmem value
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 19d209c73..58ca27d9c 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -1496,7 +1496,7 @@ module VM = struct
+               (* XXX: we would like to be able to cancel an in-progress
+                  with_reservation *)
+               let dbg = Xenops_task.get_dbg task in
+-              Mem.with_reservation dbg min_kib max_kib
++              Mem.with_reservation dbg (Int64.add min_kib 1_000_000L) (Int64.add max_kib 1_000_000L)
+                 (fun target_plus_overhead_kib reservation_id ->
+                   let domain_config, persistent =
+                     match persistent.VmExtra.domain_config with
