@@ -1,4 +1,4 @@
-From 81b1dc3f69ae6fef1006ddd917f7788391315d29 Mon Sep 17 00:00:00 2001
+From 57e6e0f753c477929b17989c21ab068aaf26c569 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 4 Feb 2026 13:20:56 +0000
 Subject: [PATCH] python3/qcow2-to-stdout: Implement Interval for checking

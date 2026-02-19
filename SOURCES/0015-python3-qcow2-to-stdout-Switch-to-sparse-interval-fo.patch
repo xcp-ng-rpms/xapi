@@ -1,4 +1,4 @@
-From 8a176214352b27be076b6e6a59e81e3063f3962b Mon Sep 17 00:00:00 2001
+From 87647a4e01bfd7699aeacdc0947191929747e68f Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 4 Feb 2026 13:27:05 +0000
 Subject: [PATCH] python3/qcow2-to-stdout: Switch to sparse interval format for

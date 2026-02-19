@@ -107,10 +107,11 @@ Patch1008: 0008-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 Patch1009: 0009-qcow-stream-tool-Use-tail-recursive-functions-in-rea.patch
 
 Patch1010: 0010-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
-Patch1011: 0011-vhd_format-Switch-to-sparse-interval-format-for-bloc.patch
-Patch1012: 0012-vhd_qcow_parsing-Parse-the-new-interval-based-data_c.patch
-Patch1013: 0013-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
-Patch1014: 0014-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
+Patch1011: 0011-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
+Patch1012: 0012-vhd-tool-Add-read_headers_interval-command.patch
+Patch1013: 0013-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
+Patch1014: 0014-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
+Patch1015: 0015-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

@@ -1,0 +1,41 @@
+From ca6d829eeab68fa2d22b78a5af523fe9e8b396e6 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 18 Feb 2026 15:28:20 +0000
+Subject: [PATCH] xapi_globs: Add vhd_legacy_blocks_format feature flag
+
+This allows to switch on the more efficient interval format later.
+(QCOW always uses the new format)
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_globs.ml | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index b84647949..719c4229b 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -1144,6 +1144,10 @@ let validate_reusable_pool_session = ref false
+ let vm_sysprep_enabled = ref true
+ (* enable VM.sysprep API *)
+ 
++let vhd_legacy_blocks_format = ref true
++(* If false, uses an interval-based JSON blocks format for VHD instead of the
++   legacy format which includes all the allocated clusters *)
++
+ let vm_sysprep_wait = ref 5.0 (* seconds *)
+ 
+ let test_open = ref 0
+@@ -1859,6 +1863,12 @@ let other_options =
+     , (fun () -> string_of_float !vm_sysprep_wait)
+     , "Time in seconds to wait for VM to recognise inserted CD"
+     )
++  ; ( "vhd-legacy-blocks-format"
++    , Arg.Set vhd_legacy_blocks_format
++    , (fun () -> string_of_bool !vhd_legacy_blocks_format)
++    , "Choose whether legacy/sparse block format will be used for determining \
++       allocated VHD clusters"
++    )
+   ; ( "max-span-depth"
+     , Arg.Set_int max_span_depth
+     , (fun () -> string_of_int !max_span_depth)
