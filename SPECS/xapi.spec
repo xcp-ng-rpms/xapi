@@ -26,7 +26,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 25.33.1
-Release: 2.1.0.ydi.3%{?xsrel}%{?dist}
+Release: 2.1.0.ydi.4%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -183,8 +183,7 @@ Requires: dnf
 ## For dnf plugins like config-manager
 #Requires: dnf5-plugins
 # XCP-ng END
-# XCP-ng: package is not yet public, and is emulated by XAPI
-#Requires: dmv-utils
+Requires: dmv-utils
 %endif
 Requires: python3-xcp-libs
 %if 0%{?build_python2}
@@ -1535,7 +1534,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Mon Dec 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.33.1-2.1.0.ydi.3
+* Mon Dec 01 2025 Yann Dirson <yann.dirson@vates.tech> - 25.33.1-2.1.0.ydi.4
 - Rebuild for v9
 - Do not require python2-udev on v9+
 - list identified missing Requires
