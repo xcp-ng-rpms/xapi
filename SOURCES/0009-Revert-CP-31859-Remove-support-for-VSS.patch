@@ -1,0 +1,241 @@
+From 70dc0a905499e9d48e1ce2e6109940b4122fd890 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 19 Feb 2026 15:57:08 +0000
+Subject: [PATCH] Revert "CP-31859 Remove support for VSS"
+
+This reverts commit 867bf71408e06ee20b0e882f74f0104889fec58d.
+---
+ ocaml/idl/datamodel_vm.ml        |   1 -
+ ocaml/xapi/message_forwarding.ml |  20 ++++++
+ ocaml/xapi/xapi_vm.ml            |   7 +++
+ ocaml/xapi/xapi_vm.mli           |   3 +
+ ocaml/xapi/xapi_vm_lifecycle.ml  |  11 ++--
+ ocaml/xapi/xapi_vm_snapshot.ml   | 104 +++++++++++++++++++++++++++++++
+ 6 files changed, 141 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/idl/datamodel_vm.ml b/ocaml/idl/datamodel_vm.ml
+index 17178314a..6d6b520c8 100644
+--- a/ocaml/idl/datamodel_vm.ml
++++ b/ocaml/idl/datamodel_vm.ml
+@@ -413,7 +413,6 @@ let snapshot_with_quiesce =
+       [
+         (Published, rel_orlando, "")
+       ; (Deprecated, rel_quebec, "Dummy transition")
+-      ; (Removed, rel_quebec, "VSS support has been removed")
+       ]
+     ~doc:
+       "Snapshots the specified VM with quiesce, making a new VM. Snapshot \
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index 528146300..c6853d898 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -1625,6 +1625,26 @@ functor
+         in
+         do_op_on ~local_fn ~__context ~host:suitable_host ~remote_fn
+ 
++      let snapshot_with_quiesce ~__context ~vm ~new_name =
++        info "VM.snapshot_with_quiesce: VM = '%s'; new_name = '%s'"
++          (vm_uuid ~__context vm) new_name ;
++        let local_fn = Local.VM.snapshot_with_quiesce ~vm ~new_name in
++        (* We mark the VM as snapshoting. We don't mark the disks; the implementation of the snapshot uses the API   *)
++        (* to snapshot and lock the individual VDIs. We don't give any atomicity guarantees here but we do prevent   *)
++        (* disk corruption.                                                                                          *)
++        with_vm_operation ~__context ~self:vm ~doc:"VM.snapshot_with_quiesce"
++          ~op:`snapshot_with_quiesce (fun () ->
++            let power_state = Db.VM.get_power_state ~__context ~self:vm in
++            let forward =
++              if power_state = `Running then
++                forward_vm_op
++              else
++                forward_to_access_srs
++            in
++            let remote_fn =Client.VM.snapshot_with_quiesce ~vm ~new_name in
++            forward ~local_fn ~__context ~vm ~remote_fn
++        )
++
+       (* Used for the VM.copy when an SR is specified *)
+       let forward_to_access_srs_and ~local_fn ~__context ~remote_fn ?vm
+           ?extra_sr () =
+diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
+index ad6d21fc9..180de4a3d 100644
+--- a/ocaml/xapi/xapi_vm.ml
++++ b/ocaml/xapi/xapi_vm.ml
+@@ -713,6 +713,13 @@ let snapshot ~__context ~vm ~new_name ~ignore_vdis =
+   TaskHelper.set_cancellable ~__context ;
+   Xapi_vm_snapshot.snapshot ~__context ~vm ~new_name ~ignore_vdis
+ 
++(* Snapshot_with_quiesce triggers the VSS plugin which will then calls the VM.snapshot API call.     *)
++(* Thus, to avoid dead-locks, do not put snapshot and snapshot_with_quiesce on the same waiting line *)
++let snapshot_with_quiesce ~__context ~vm ~new_name =
++  Pool_features.assert_enabled ~__context ~f:Features.VSS;
++  TaskHelper.set_cancellable ~__context;
++  Xapi_vm_snapshot.snapshot_with_quiesce ~__context ~vm ~new_name
++
+ (* As we will destroy the domain ourself, we grab the vm_lock here in order to tell the event thread to *)
+ (* do not look at this domain. The message forwarding layer already checked that the VM reference we    *)
+ (* revert too is still valid. *)
+diff --git a/ocaml/xapi/xapi_vm.mli b/ocaml/xapi/xapi_vm.mli
+index b3f07d38a..cd810af6d 100644
+--- a/ocaml/xapi/xapi_vm.mli
++++ b/ocaml/xapi/xapi_vm.mli
+@@ -218,6 +218,9 @@ val snapshot :
+ 
+ val revert : __context:Context.t -> snapshot:[`VM] Ref.t -> unit
+ 
++val snapshot_with_quiesce :
++  __context:Context.t -> vm:[`VM] Ref.t -> new_name:string -> [`VM] Ref.t
++
+ val checkpoint :
+   __context:Context.t -> vm:API.ref_VM -> new_name:string -> [`VM] Ref.t
+ 
+diff --git a/ocaml/xapi/xapi_vm_lifecycle.ml b/ocaml/xapi/xapi_vm_lifecycle.ml
+index 6d1ce9a53..ecffbd140 100644
+--- a/ocaml/xapi/xapi_vm_lifecycle.ml
++++ b/ocaml/xapi/xapi_vm_lifecycle.ml
+@@ -611,10 +611,13 @@ let check_operation_error ~__context ~ref =
+     (* VSS support has been removed *)
+     let current_error =
+       check current_error (fun () ->
+-          if op = `snapshot_with_quiesce then
+-            Some (Api_errors.vm_snapshot_with_quiesce_not_supported, [ref_str])
+-          else
+-            None
++        if op = `snapshot_with_quiesce &&
++            match vmgmr with
++            | None -> true
++            | Some gm -> let other = gm.Db_actions.vM_guest_metrics_other in
++              not (List.mem_assoc "feature-quiesce" other || List.mem_assoc "feature-snapshot" other)
++      then Some (Api_errors.vm_snapshot_with_quiesce_not_supported, [ ref_str ])
++      else None
+       )
+     in
+     (* Check for an error due to VDI caching/reset behaviour *)
+diff --git a/ocaml/xapi/xapi_vm_snapshot.ml b/ocaml/xapi/xapi_vm_snapshot.ml
+index fe7c7bed9..3c8e6b31d 100644
+--- a/ocaml/xapi/xapi_vm_snapshot.ml
++++ b/ocaml/xapi/xapi_vm_snapshot.ml
+@@ -21,6 +21,7 @@ module Listext = Xapi_stdext_std.Listext.List
+ module D = Debug.Make (struct let name = "xapi_vm_snapshot" end)
+ 
+ module Xs = Ezxenstore_core.Xenstore
++module Watch = Ezxenstore_core.Watch
+ open D
+ 
+ (*************************************************************************************************)
+@@ -59,6 +60,10 @@ let is_flag_set ~xs ~flag ~domid ~vm =
+       (Ref.string_of vm) domid (Printexc.to_string e) ;
+     false
+ 
++let quiesce_enabled ~xs ~domid ~vm =
++  let aux x = is_flag_set ~xs ~domid ~vm ~flag:x in
++  aux "feature-snapshot" || aux "feature-quiesce"
++
+ (* we want to compare the integer at the end of a common string, ie. strings as x="/local/..../3" *)
+ (* and y="/local/.../12". The result should be x < y.                                             *)
+ let compare_snapid_chunks s1 s2 =
+@@ -67,6 +72,105 @@ let compare_snapid_chunks s1 s2 =
+   else
+     compare s1 s2
+ 
++(* wait for the VSS provider (or similar piece of software running inside the guest) to quiesce *)
++(* the applications of the VM and to call VM.snapshot. After that, the VSS provider is supposed *)
++(* to tell us if everything happened nicely.                                                    *)
++let wait_for_snapshot ~__context ~vm ~xs ~domid ~new_name =
++  let value = Watch.value_to_appear (snapshot_path ~xs ~domid "status") in
++  match Watch.wait_for ~xs ~timeout:!Xapi_globs.snapshot_with_quiesce_timeout value with
++  | "snapshot-created" ->
++    (* Get the transportable snap ID *)
++    debug "wait_for_snapshot: getting the transportable ID";
++    let snapid = xs.Xs.directory (snapshot_path ~xs ~domid "snapid") in
++    let snapid = List.sort compare_snapid_chunks snapid in
++    let read_chunk x = xs.Xs.read (snapshot_path ~xs ~domid ("snapid/" ^ x)) in
++    let snapid = String.concat "" (List.map read_chunk snapid) in
++
++    (* Get the uuid of the snapshot VM *)
++    debug "wait_for_snapshot: getting uuid of the snapshot VM";
++    let snapshot_uuid =
++      try xs.Xs.read (snapshot_path ~xs ~domid "snapuuid")
++      with _ ->
++        error "The snapshot has not been correctly created; did snapwatchd create a full VM snapshot?";
++        raise (Api_errors.Server_error (Api_errors.vm_snapshot_with_quiesce_failed, [ Ref.string_of vm ])) in
++    let snapshot_ref =
++      try Db.VM.get_by_uuid ~__context ~uuid:snapshot_uuid
++      with _ ->
++        error "The snapshot UUID provided by snapwatchd is not a valid UUID.";
++        raise (Api_errors.Server_error (Api_errors.vm_snapshot_with_quiesce_failed, [ Ref.string_of vm ])) in
++
++    Db.VM.set_transportable_snapshot_id ~__context ~self:snapshot_ref ~value:snapid;
++    Db.VM.set_name_label ~__context ~self:snapshot_ref ~value:new_name;
++
++    (* update the snapshot-info field *)
++    Db.VM.remove_from_snapshot_info ~__context ~self:snapshot_ref ~key:Xapi_vm_clone.disk_snapshot_type;
++    Db.VM.add_to_snapshot_info ~__context ~self:snapshot_ref ~key:Xapi_vm_clone.disk_snapshot_type ~value:Xapi_vm_clone.quiesced;
++
++    (* Update is-vmss-snapshot field for snapshot taken from VMSS policy *)
++    if Xapi_vmss.is_vmss_snapshot ~__context then
++      Db.VM.set_is_vmss_snapshot ~__context ~self:snapshot_ref  ~value:true;
++
++    snapshot_ref
++
++  | "snapshot-error" ->
++    (* If an error was occured we get the error type and return *)
++    let error_str = xs.Xs.read (snapshot_path ~xs ~domid "error") in
++    let error_code () = try xs.Xs.read (snapshot_path ~xs ~domid "error/code") with _ -> "0" in
++    error "wait_for_snapshot: %s" error_str;
++    if List.mem error_str [
++        Api_errors.xen_vss_req_error_init_failed;
++        Api_errors.xen_vss_req_error_prov_not_loaded;
++        Api_errors.xen_vss_req_error_no_volumes_supported;
++        Api_errors.xen_vss_req_error_start_snapshot_set_failed;
++        Api_errors.xen_vss_req_error_adding_volume_to_snapset_failed;
++        Api_errors.xen_vss_req_error_preparing_writers;
++        Api_errors.xen_vss_req_error_creating_snapshot;
++        Api_errors.xen_vss_req_error_creating_snapshot_xml_string ]
++    then raise (Api_errors.Server_error (error_str, [ Ref.string_of vm; error_code () ]))
++    else raise (Api_errors.Server_error (Api_errors.vm_snapshot_with_quiesce_failed, [ Ref.string_of vm; error_str ]))
++
++  | e ->
++    failwith (Printf.sprintf "wait_for_snapshot: unexpected result (%s)" e)
++
++(* We fail if the guest does not support quiesce mode. Normally, that should be detected *)
++(* dynamically by the xapi_vm_lifecycle.update_allowed_operations call.                  *)
++let snapshot_with_quiesce ~__context ~vm ~new_name =
++  debug "snapshot_with_quiesce: begin";
++  Xapi_vmss.show_task_in_xencenter ~__context ~vm;
++  let domid = Int64.to_int (Db.VM.get_domid ~__context ~self:vm) in
++  let result = Xs.with_xs (fun xs ->
++      (* 1. We first check if the VM supports quiesce-mode *)
++      if quiesce_enabled ~xs ~domid ~vm
++      then begin Xapi_stdext_pervasives.Pervasiveext.finally
++          (fun () ->
++             (* 2. if it the case, we can trigger a VSS snapshot *)
++             xs.Xs.rm (snapshot_cleanup_path ~xs ~domid);
++             xs.Xs.write (snapshot_path ~xs ~domid "action") "create-snapshot";
++
++             try
++               debug "Snapshot_with_quiesce: waiting for the VSS agent to proceed";
++               let value = Watch.key_to_disappear (snapshot_path ~xs ~domid "action") in
++               Watch.wait_for ~xs ~timeout:(60.) value;
++               debug "Snapshot_with_quiesce: waiting for the VSS agent to take a snapshot";
++               try wait_for_snapshot ~__context ~vm ~xs ~domid ~new_name
++               with Watch.Timeout _ ->
++                 error "time-out while waiting for VSS snapshot";
++                 raise (Api_errors.Server_error (Api_errors.vm_snapshot_with_quiesce_timeout, [ Ref.string_of vm ]))
++
++             with Watch.Timeout _ ->
++               error "VSS plugin does not respond";
++               raise (Api_errors.Server_error (Api_errors.vm_snapshot_with_quiesce_plugin_does_not_respond, [ Ref.string_of vm ])))
++
++          (fun () ->
++             xs.Xs.rm (snapshot_cleanup_path ~xs ~domid))
++
++      end else begin
++        error "Quiesce snapshot not supported";
++        raise (Api_errors.Server_error (Api_errors.vm_snapshot_with_quiesce_not_supported, [ Ref.string_of vm ]))
++      end) in
++  debug "snapshot_with_quiesce: end";
++  result
++
+ (*************************************************************************************************)
+ (* Checkpoint                                                                                    *)
+ (*************************************************************************************************)

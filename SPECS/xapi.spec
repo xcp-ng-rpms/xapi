@@ -106,6 +106,8 @@ Patch1008: 0008-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/6856
 Patch1009: 0009-qcow-stream-tool-Use-tail-recursive-functions-in-rea.patch
 
+Patch1010: 0009-Revert-CP-31859-Remove-support-for-VSS.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
