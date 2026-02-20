@@ -1,4 +1,4 @@
-From 4faaaa418c2285321cabff098368ad42cac5b6c1 Mon Sep 17 00:00:00 2001
+From 333abde9b71a4203c84889844da9e2cd89d19be2 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 11:05:15 +0200
 Subject: [PATCH] [xcp-ng] configure xapi.conf to meet our needs
