@@ -62,8 +62,8 @@ Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
 # Extra configuration
 #Source26: xenserver9.conf
-# NTP configureation for xenserver
-#Source27: xenserver-ntp.conf
+# replace NTP configuration
+Source27: xcpng-ntp.conf
 
 # Xapi compiles to a baseline of Xen 4.17
 
@@ -708,8 +708,7 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 echo %{_sysconfdir}/xapi.conf.d/xenserver9.conf >> core-files
 %endif
 
-#XCP-ng: don't distribute xenserver's ntp hostnames
-#%{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
+%{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
 
 %clean
 rm -rf $RPM_BUILD_ROOT
@@ -1118,8 +1117,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 %{_unitdir}/xapi-ssh-monitor.service
 %{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
-#XCP-ng: do not provide xenserver's ntp hostnames
-#%config(noreplace) %{_sysconfdir}/xapi.conf.d/xenserver-ntp.conf
+%config(noreplace) %{_sysconfdir}/xapi.conf.d/xcpng-ntp.conf
 %if 0%{?xenserver} < 9
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
 %else
@@ -1503,6 +1501,7 @@ Coverage files from unit tests
 %changelog
 * Wed Feb 18 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.1
 - Update to upstream 26.1.3-1
+- Provide configuration for NTP servers, keep the previous servers for now
 - *** Upstream changelog ***
  * Tue Feb 10 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.3-1
  - CA-423708: xapi: Wrap {vhd,qcow}-tool read_header invocation in a thread
