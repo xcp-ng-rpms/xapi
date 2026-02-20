@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1.1%{?xsrel}%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1499,6 +1499,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Feb 20 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.3-1.2
+- Rebuild on openssl-3
+
 * Wed Feb 18 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.1
 - Update to upstream 26.1.3-1
 - Provide configuration for NTP servers, keep the previous servers for now
