@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -957,7 +957,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 ## This (and likely the daemon-reload above) should really be fixed with XS9, though it isn't a huge issue
 plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1)
 # XCP-ng: remove pvsproxy.service as it's a proprietary component
-/usr/bin/systemctl restart "$plugins" 'qemu-stats@*' 2>&1 || :
+/usr/bin/systemctl restart $plugins 'qemu-stats@*' 2>&1 || :
 #systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service 2>&1 || :
 
 %files core -f core-files
@@ -1499,6 +1499,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Mar 04 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.3
+- Fix restart of metrics plugins on update
+
 * Fri Feb 20 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.3-1.2
 - Rebuild on openssl-3
 
