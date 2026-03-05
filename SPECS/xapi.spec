@@ -710,9 +710,6 @@ echo %{_sysconfdir}/xapi.conf.d/xenserver9.conf >> core-files
 
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
 
-%clean
-rm -rf $RPM_BUILD_ROOT
-
 %pre -n xenopsd
 /usr/bin/getent passwd qemu >/dev/null 2>&1 || /usr/sbin/useradd \
     -M -U -r \
@@ -1499,7 +1496,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Mar 04 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.3
+* Tue Mar 03 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.3
 - Fix restart of metrics plugins on update
 
 * Fri Feb 20 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.3-1.2
