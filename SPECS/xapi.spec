@@ -710,9 +710,6 @@ echo %{_sysconfdir}/xapi.conf.d/xenserver9.conf >> core-files
 
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
 
-%clean
-rm -rf $RPM_BUILD_ROOT
-
 %pre -n xenopsd
 /usr/bin/getent passwd qemu >/dev/null 2>&1 || /usr/sbin/useradd \
     -M -U -r \
