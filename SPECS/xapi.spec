@@ -1496,7 +1496,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Mar 04 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.3
+* Tue Mar 03 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.3
 - Fix restart of metrics plugins on update
 
 * Fri Feb 20 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.3-1.2
