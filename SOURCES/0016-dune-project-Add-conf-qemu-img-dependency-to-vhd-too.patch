@@ -1,0 +1,35 @@
+From adcfde73e32b5537064e8055f165f205656d4897 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 5 Mar 2026 08:21:42 +0000
+Subject: [PATCH] dune-project: Add conf-qemu-img dependency to vhd-tool
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ dune-project       | 1 +
+ opam/vhd-tool.opam | 1 +
+ 2 files changed, 2 insertions(+)
+
+diff --git a/dune-project b/dune-project
+index 5c5ac7ca2..1cb80d8ff 100644
+--- a/dune-project
++++ b/dune-project
+@@ -506,6 +506,7 @@
+   cohttp
+   cohttp-lwt
+   conf-libssl
++  (conf-qemu-img :with-test)
+   (cstruct
+    (>= "3.0.0"))
+   (ezxenstore
+diff --git a/opam/vhd-tool.opam b/opam/vhd-tool.opam
+index 0edc71774..8437e3f64 100644
+--- a/opam/vhd-tool.opam
++++ b/opam/vhd-tool.opam
+@@ -16,6 +16,7 @@ depends: [
+   "cohttp"
+   "cohttp-lwt"
+   "conf-libssl"
++  "conf-qemu-img" {with-test}
+   "cstruct" {>= "3.0.0"}
+   "ezxenstore" {= version}
+   "forkexec" {= version}

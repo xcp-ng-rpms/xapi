@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.3%{?dist}
+Release: 1%{?xsrel}.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -98,6 +98,17 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
+Patch1007: 0007-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
+Patch1008: 0008-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
+Patch1009: 0009-vhd-tool-Add-cram-tests-for-read_headers.patch
+Patch1010: 0010-vhd-tool-Add-read_headers_interval-command.patch
+Patch1011: 0011-vhd-tool-Add-read_headers_interval-to-the-cram-test.patch
+Patch1012: 0012-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
+Patch1013: 0013-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
+Patch1014: 0014-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
+Patch1015: 0015-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
+Patch1016: 0016-dune-project-Add-conf-qemu-img-dependency-to-vhd-too.patch
+Patch1017: 0017-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1496,6 +1507,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Mar 6 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.4
+- Switch to optimized data cluster format for VHD and QCOW,
+  reducing memory consumption on QCOW import
+
 * Tue Mar 03 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.3
 - Fix restart of metrics plugins on update
 

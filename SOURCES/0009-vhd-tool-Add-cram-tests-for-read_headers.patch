@@ -1,0 +1,55 @@
+From 5aa7043c6fa44bbe586944c606af7bb63e00ecce Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 19 Feb 2026 10:18:00 +0000
+Subject: [PATCH] vhd-tool: Add cram tests for read_headers
+
+This is just an easy way to make sure the semantics are preserved in any
+future refactorings, without having to run full VHD exports.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/vhd-tool/cli/dune           |  4 ++++
+ ocaml/vhd-tool/cli/read_headers.t | 22 ++++++++++++++++++++++
+ 2 files changed, 26 insertions(+)
+ create mode 100644 ocaml/vhd-tool/cli/read_headers.t
+
+diff --git a/ocaml/vhd-tool/cli/dune b/ocaml/vhd-tool/cli/dune
+index ab223996a..001030403 100644
+--- a/ocaml/vhd-tool/cli/dune
++++ b/ocaml/vhd-tool/cli/dune
+@@ -71,3 +71,7 @@
+   (section libexec_root)
+   (files (get_vhd_vsize.exe as xapi/get_vhd_vsize) (sparse_dd.exe as xapi/sparse_dd))
+ )
++
++(cram
++ (package vhd-tool)
++ (deps main.exe))
+diff --git a/ocaml/vhd-tool/cli/read_headers.t b/ocaml/vhd-tool/cli/read_headers.t
+new file mode 100644
+index 000000000..c9be02d81
+--- /dev/null
++++ b/ocaml/vhd-tool/cli/read_headers.t
+@@ -0,0 +1,22 @@
++Create a sparse raw file
++  $ dd if=/dev/random of=test.raw bs=2097152 count=16 > /dev/null 2>&1
++  $ dd if=/dev/zero of=test.raw bs=2097152 count=10 seek=3 conv=notrunc > /dev/null 2>&1
++
++Convert to .vhd
++  $ qemu-img convert -f raw -O vpc test.raw test.vhd
++
++Check if the right clusters are found to be allocated (legacy JSON format)
++  $ ./main.exe read_headers test.vhd
++  {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[0,1,2,13,14,15]}
++
++Check fully allocated file
++  $ dd if=/dev/random of=test.raw bs=2097152 count=16 > /dev/null 2>&1
++  $ qemu-img convert -f raw -O vpc test.raw test.vhd
++  $ ./main.exe read_headers test.vhd
++  {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]}
++
++Check empty file
++  $ dd if=/dev/zero of=test.raw bs=2097152 count=16 > /dev/null 2>&1
++  $ qemu-img convert -f raw -O vpc test.raw test.vhd
++  $ ./main.exe read_headers test.vhd
++  {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[]}

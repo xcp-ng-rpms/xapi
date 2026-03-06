@@ -1,4 +1,4 @@
-From 38764599f24f1e69ab918239d6765bf171cfb0a6 Mon Sep 17 00:00:00 2001
+From 3a436645ce4418878553e9384df5e5fa9e793b8d Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 17:10:15 +0200
 Subject: [PATCH] [xcp-ng] update db tunnel protocol from other config
@@ -26,44 +26,48 @@ transition for tunnels created before XCP-ng 8.2.
 
 Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
 ---
- ocaml/xapi/xapi_db_upgrade.ml | 25 +++++++++++++++++++++++++
- 1 file changed, 25 insertions(+)
+ ocaml/xapi/xapi_db_upgrade.ml | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
 
 diff --git a/ocaml/xapi/xapi_db_upgrade.ml b/ocaml/xapi/xapi_db_upgrade.ml
-index e1f0eba63..1b1b2ac79 100644
+index aba1cf154..7fb4ee160 100644
 --- a/ocaml/xapi/xapi_db_upgrade.ml
 +++ b/ocaml/xapi/xapi_db_upgrade.ml
-@@ -106,6 +106,10 @@ let jura =
+@@ -106,6 +106,11 @@ let jura =
    , Datamodel_common.jura_release_schema_minor_vsn
    )
  
 +let quebec =
 +  ( Datamodel_common.quebec_release_schema_major_vsn
-+  , Datamodel_common.quebec_release_schema_minor_vsn )
++  , Datamodel_common.quebec_release_schema_minor_vsn
++  )
 +
  let yangtze =
    ( Datamodel_common.yangtze_release_schema_major_vsn
    , Datamodel_common.yangtze_release_schema_minor_vsn
-@@ -964,6 +968,26 @@ let upgrade_ca_fingerprints =
+@@ -965,6 +970,29 @@ let upgrade_ca_fingerprints =
        )
    }
  
 +let fill_tunnel_protocol =
 +  {
-+    description=
-+      "Fill up the new field protocol of a Tunnel"
++    description= "Fill up the new field protocol of a Tunnel"
 +  ; version= (fun x -> x <= quebec)
 +  ; fn=
 +      (fun ~__context ->
 +        Db.Tunnel.get_all ~__context
 +        |> List.iter (fun self ->
-+          let pif = Db.Tunnel.get_access_PIF ~__context ~self in
-+          let network = Db.PIF.get_network ~__context ~self:pif in
-+          let other_config = Db.Network.get_other_config ~__context ~self:network in
-+          let encapsulation = List.assoc_opt "xo:sdn-controller:encapsulation" other_config
-+            |> Option.value ~default:"gre" in
-+          let value = Record_util.tunnel_protocol_of_string encapsulation in
-+          Db.Tunnel.set_protocol ~__context ~self ~value
++            let pif = Db.Tunnel.get_access_PIF ~__context ~self in
++            let network = Db.PIF.get_network ~__context ~self:pif in
++            let other_config =
++              Db.Network.get_other_config ~__context ~self:network
++            in
++            let encapsulation =
++              List.assoc_opt "xo:sdn-controller:encapsulation" other_config
++              |> Option.value ~default:"gre"
++            in
++            let value = Record_util.tunnel_protocol_of_string encapsulation in
++            Db.Tunnel.set_protocol ~__context ~self ~value
 +        )
 +      )
 +  }
@@ -71,7 +75,7 @@ index e1f0eba63..1b1b2ac79 100644
  let rules =
    [
      upgrade_domain_type
-@@ -994,6 +1018,7 @@ let rules =
+@@ -995,6 +1023,7 @@ let rules =
    ; empty_pool_uefi_certificates
    ; upgrade_update_guidance
    ; upgrade_ca_fingerprints

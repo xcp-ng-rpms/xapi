@@ -1,0 +1,37 @@
+From 39f12a16e7fd8aa8ddbc2ba3f10c1c2829590740 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 19 Feb 2026 10:19:16 +0000
+Subject: [PATCH] vhd-tool: Add read_headers_interval to the cram test
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/vhd-tool/cli/read_headers.t | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/ocaml/vhd-tool/cli/read_headers.t b/ocaml/vhd-tool/cli/read_headers.t
+index c9be02d81..ea9ad0366 100644
+--- a/ocaml/vhd-tool/cli/read_headers.t
++++ b/ocaml/vhd-tool/cli/read_headers.t
+@@ -9,14 +9,22 @@ Check if the right clusters are found to be allocated (legacy JSON format)
+   $ ./main.exe read_headers test.vhd
+   {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[0,1,2,13,14,15]}
+ 
++Check if the right clusters are found to be allocated (interval-based JSON format)
++  $ ./main.exe read_headers_interval test.vhd
++  {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[[0,2],[13,15]]}
++
+ Check fully allocated file
+   $ dd if=/dev/random of=test.raw bs=2097152 count=16 > /dev/null 2>&1
+   $ qemu-img convert -f raw -O vpc test.raw test.vhd
+   $ ./main.exe read_headers test.vhd
+   {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]}
++  $ ./main.exe read_headers_interval test.vhd
++  {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[[0,15]]}
+ 
+ Check empty file
+   $ dd if=/dev/zero of=test.raw bs=2097152 count=16 > /dev/null 2>&1
+   $ qemu-img convert -f raw -O vpc test.raw test.vhd
+   $ ./main.exe read_headers test.vhd
+   {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[]}
++  $ ./main.exe read_headers_interval test.vhd
++  {"virtual_size":33562624,"cluster_bits":21,"data_clusters":[]}
