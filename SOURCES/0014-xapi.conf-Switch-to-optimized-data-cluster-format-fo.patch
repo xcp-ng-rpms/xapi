@@ -1,0 +1,22 @@
+From 1eff08ae05c491102c7a37769d65a1fd27d1d87c Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 6 Mar 2026 09:45:45 +0000
+Subject: [PATCH] xapi.conf: Switch to optimized data cluster format for VHD
+ and QCOW
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ scripts/xapi.conf | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/scripts/xapi.conf b/scripts/xapi.conf
+index 396e7da96..7fc2e8046 100644
+--- a/scripts/xapi.conf
++++ b/scripts/xapi.conf
+@@ -410,3 +410,6 @@ create-tools-sr = true
+ 
+ # Allows to modify the host's scheduler granularity
+ allow-host-sched-gran-modification = true
++
++# Switches to optimized data cluster format for VHD and QCOW
++vhd-legacy-blocks-format=false

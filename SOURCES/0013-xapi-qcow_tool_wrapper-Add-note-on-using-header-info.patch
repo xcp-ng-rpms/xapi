@@ -1,0 +1,27 @@
+From 2a659abeb5bfae658086d534bb99eab0b29944d9 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 6 Feb 2026 09:05:27 +0000
+Subject: [PATCH] xapi/qcow_tool_wrapper: Add note on using header information
+ from VHD files
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/qcow_tool_wrapper.ml | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index 24f396f0d..947c5d2ba 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -60,6 +60,11 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+      to avoid reading all of the raw disk *)
+   let input_fd = Result.map read_header qcow_path |> Result.to_option in
+ 
++  (* TODO: If VHD headers are to be consulted as well, qcow2-to-stdout
++     needs to properly account for cluster_bits. Currently QCOW2 export
++     from VHD-backed VDIs will just revert to raw, without any
++     allocation accounting. *)
++
+   (* Parse the header of the VDI we are diffing against as well *)
+   let relative_to_qcow_path =
+     match relative_to with
