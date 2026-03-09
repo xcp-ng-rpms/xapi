@@ -131,6 +131,7 @@ BuildRequires: sm
 BuildRequires: xen-ocaml-devel
 BuildRequires: blktap-devel
 BuildRequires: openssl-devel
+BuildRequires: qemu-img
 
 %description
 XCP toolstack.
