@@ -1,5 +1,5 @@
-%global package_speccommit 975eeff49e5be3ef6614bd5fc87c5945fdb559bf
-%global package_srccommit v26.1.3
+%global package_speccommit 9ec21e0f7584989f91b5d2666018ce9e94c9b5b1
+%global package_srccommit v26.1.4
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.3
+Version: 26.1.4
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.3.tar.gz
+Source0: xen-api-26.1.4.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1455,6 +1455,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Mar 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-1
+- XSI-2155: keep track of outstanding domain builds in NUMA placement
+- CA-424055: NUMA: avoid using up the entire memory on node0
+
 * Tue Feb 10 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.3-1
 - CA-423708: xapi: Wrap {vhd,qcow}-tool read_header invocation in a thread
 
