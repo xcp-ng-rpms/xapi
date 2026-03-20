@@ -1,5 +1,5 @@
-%global package_speccommit 9ec21e0f7584989f91b5d2666018ce9e94c9b5b1
-%global package_srccommit v26.1.4
+%global package_speccommit 9b06d1a01d5d82a4885021a88cee7d07be5e0514
+%global package_srccommit v26.4.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.4
+Version: 26.4.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.4.tar.gz
+Source0: xen-api-26.4.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -65,24 +65,18 @@ Source26: xenserver9.conf
 # NTP configureation for xenserver
 Source27: xenserver-ntp.conf
 
-# Xapi compiles to a baseline of Xen 4.17
-
-# Xen 4.20
-%if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
-Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
-Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
-Patch3: 0004-rrd3.patch
-Patch5: 0003-CP-53658-adapt-claim_pages-to-version-in-xen-4.21-wi.patch
-Patch6: 0005-xenopsd-xc-do-not-try-keep-track-of-free-memory-when.patch
-Patch7: CP-54065-xenopsd-log-xenguest-mem_pnode-for-debuggin.patch
-%endif
+# Xapi compiles to a baseline of Xen 4.20
 
 # Xen 4.21
+%if "%{dist}" == ".xsx"
+Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
+Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
+%endif
+
+# Xen upstream
 %if "%{dist}" == ".xsu"
-Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
-Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
-Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
-Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
+Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
+Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
 
 %{?_cov_buildrequires}
@@ -307,8 +301,10 @@ Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 %if 0%{?xenserver} >= 9
 # NUMA memory claims v2
-Requires:       xen-hypervisor >= 4.20.1-5
-Requires:       xen-dom0-libs >= 4.20.1-5
+Requires:       xen-hypervisor >= 4.20.2-5
+Requires:       xen-dom0-libs >= 4.20.2-5
+Requires:       xen-dom0-tools >= 4.20.2-5
+Requires:       kernel >= 6.6.98-18
 %endif
 
 %description -n xenopsd-xc
@@ -1455,27 +1451,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Fri Mar 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-1
-- XSI-2155: keep track of outstanding domain builds in NUMA placement
-- CA-424055: NUMA: avoid using up the entire memory on node0
-
-* Tue Feb 10 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.3-1
-- CA-423708: xapi: Wrap {vhd,qcow}-tool read_header invocation in a thread
-
-* Fri Feb 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.2-1
-- XSI-2128: Ignore RBAC when destroying internal tasks
-
-* Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.1-1
-- lifecycle: refresh with version 26.1.0
-- ci: prepare for lcm status
-- Check that suspend SR has enough space to save VM state
-- CP-311102: Make migration timeouts configurable
-- qcow-stream-tool: Use tail-recursive functions in read_headers
-- Don't depend on LANG for running tests
-- CA-419840 improve logging for VDI.forget
-- CA-419840 mark CD VBD as empty when its VDI is removed
-- CA-422713: XSI-2105: Pool.join failed due to AD status corrupt
-- CA-422713: Reset numbered_release for lcm
+* Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
 - xapi_sm: remove nested call to serialize function
 - xapi_sm: add interface
 - listext: add better description to set_difference
@@ -1484,7 +1460,92 @@ Coverage files from unit tests
 - storage_access: avoid the addition of multiple SM with the same type
 - xapi_sm: Don't allow host_pending_features that are empty
 - storage_access: log when there are SM duplicates on startup
+- Don't block switching to a different edition when HA is enabled
+- CP-423204: add new xenctrl field claimed to xenctrlext
+- CP-423204: use new xenctrlext field node_meminfo.claimed
+- CP-423204: use new xenctrlext function HostNuma.numa_get_meminfo
+- CP-311020: ldaps design: declare error codes
 - CA-423369: fix suspend-SR space check
+- CP-309998: ignore small amount of pages in other nodes
+
+* Fri Jan 30 2026 Rob Hoes <rob.hoes@citrix.com> - 26.3.0-1
+- CP-311020: Design for enabling ldaps for external auth
+- Check that suspend SR has enough space to save VM state
+- CP-309060: Domain CPU RRD3 metric - numa_node_nonaffine_vcpus
+- xenopsd/xc: adapt claim_pages to new single numa node version (CP-53658)
+- xenopsd-xc: do not try keep track of free memory when planning NUMA nodes (CA-411684)
+- CP-54238: RRD4: rebase over rrdp_squeezed.ml
+- CA-412929: work around a small amount of internal pages in unclaimed node
+- CP-310822: RRD4 :link Xenctrlext in rrdp-squeezed
+- Update datamodel lifecycle
+- CP-53658: only use xc_domain_claim_pages_node if defined
+- reformat code using latest ocamlformat 0.28.1
+- CP-310822: use only xenctrlext
+- CA-422713: XSI-2105: Pool.join failed due to AD status corrupt
+- CA-419840 mark CD VBD as empty when its VDI is removed
+- CP-311102: Make migration timeouts configurable
+- CA-423064: Trigger group upgrades in addition to package upgrades
+- datamodel_errors: generalize error for sr_suspend_space_insufficient
+- CA-423064: Also check group upgrade when determining updates available
+- qcow-stream-tool: Use tail-recursive functions in read_headers
+- Don't depend on LANG for running tests
+- Fix -Wreturn-type warning in xenctrlext_stubs.c
+- CA-423213: Fix bundle URL construct
+- CP-311020: Add force option to external_auth_set_ldaps for debug
+- Don't use CRLs for pool internal host-host TLS communications
+- stunnel: add doccoments to the configuration functions
+- CA-423173: XAPI underestimates low memory emergency pool size
+- [maintenance]: fix formatting
+- CA-423172: Xen uses ~294 pages/vCPU, not 256
+- CA-422187: only ENOMEM is retrieable when a single-node NUMA claim fails
+- CA-422187,CA-422188: either always use claims or never use claims
+- CA-422187: more accurate debug messages
+- CA-422187: plumb migration pages through
+- CP-311165 XSI-1958 rely on Linux guest to announce control features
+- CP-311215: Remove legacy PBIS code
+- CA-414586 add message-limit to xapi.conf
+- CP-311169: samba: include /etc/samba/smb.extra.conf
+
+* Mon Jan 19 2026 Rob Hoes <rob.hoes@citrix.com> - 26.2.0-1
+- Numa: add to xenopsd/xapi events
+- CP-309998: Add NUMA fields to VM_metrics
+- CP-309998: Set NUMA VM metrics from xapi_xenops
+- CP-309998: Add NUMA VM metrics to CLI
+- CLI: add get_map to numa-node-memory
+- Prepare NUMA/Xen bindings
+- Use #ifdef XEN_DOMCTL_NUMA_OP_GET_NODE_PAGES
+- Update VM's numa state
+- docs: add documentation about setting up alarms
+- [perfmon] Fix typo in variable name
+- xapi-stdext: remove unused functions from listext
+- xapi-stdext: consolidate listext's chop tests
+- xapi-stdext: introduce split_at to listext
+- xapi-stdext: replace List's chop with split_at
+- stunnel_cache: remove ad-hoc chop implementation
+- stunnel_cache: use timestamps for cache evictions instead of IDs
+- xapi: remove some usages of common, exception-raising functions
+- xapi-consts: use a variant to reify valid values of cluster stack
+- xapi: open firewall for XHAd only if xHAd is actually selected
+- localdb: expose option-based get functions
+- xapi_ha: avoid raising Not_found when joining a liveset
+- quality-gate: capture more unnecessary List.length cases
+- xapi_ha: add more information to not found errors
+- quicktest: reduce indentation in vdi module
+- quicktest: test tags being copied on vdi clone and snapshot
+- xapi_vdi: copy tags on VDI clone and snapshot
+- CA-419238: Remove /etc/dnf/repos.override.d/99-config_manager.repo after using
+- CP-309791: Update samba to 4.21
+- CP-310555: Rotate machine password through winbind
+- Adjust new test code for numa changes
+- CP-310822: use stub_xc_domain_numa_get_node_pages from Xen
+- CP-310956: Remove legacy winbind configuration
+- Update API lifecycle information
+- Update lifecycle meta data for NUMA API calls
+- Xen-4.19+ domctl_create_config.vmtrace_buf_kb
+- Xen-4.20+ domctl_create_config.altp2m_ops
+- CA-422448: Write proxy credentials to repo file instead of command line
+- Make proxy_config non-optional
+- CA-419840 improve logging for VDI.forget
 
 * Tue Jan 13 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.0-1
 - CP-54217: Add a new pool level field to limit the vnc console access
