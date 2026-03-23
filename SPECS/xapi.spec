@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.4%{?dist}
+Release: 1%{?xsrel}.5%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -110,6 +110,10 @@ Patch1011: 0011-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
 Patch1012: 0012-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
 Patch1013: 0013-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
 Patch1014: 0014-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
+
+# Temporary revert of read_headers optimization, to be resolved properly
+# by fixing qcow-stream-tool to consider the whole chain
+Patch1015: 0015-qcow_tool_wrapper-Don-t-read-headers-of-QCOW2-backed.patch
 
 
 %{?_cov_buildrequires}
@@ -1509,6 +1513,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Mar 23 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.5
+- Fix QCOW2-backed VDI snapshots not being exported properly
+
 * Fri Mar 6 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.4
 - Switch to optimized data cluster format for VHD and QCOW,
   reducing memory consumption on QCOW import
