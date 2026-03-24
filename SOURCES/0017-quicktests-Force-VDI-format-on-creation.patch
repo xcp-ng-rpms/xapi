@@ -1,0 +1,324 @@
+From 9b93103bbcc42368a2b07410fea8270bc6b45210 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 30 Mar 2026 15:23:42 +0000
+Subject: [PATCH] quicktests: Force VDI format on creation
+
+Not specifying the format on SR's with default image format=qcow2 would break
+delta tests for VHD (since they require two vhd images to calculate differences
+between). Force the format in VDI.create instead.
+
+Force vhd format for max_vdi_size tests, since they're only exporting to vhd
+(and testing its max size).
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/quicktest/qt.ml                         | 11 ++-
+ ocaml/quicktest/qt.mli                        |  1 +
+ ocaml/quicktest/quicktest_max_vdi_size.ml     |  5 +-
+ .../quicktest_vdi_ops_data_integrity.ml       | 82 +++++++++++--------
+ python3/libexec/qcow2-to-stdout.py            |  3 +-
+ 5 files changed, 60 insertions(+), 42 deletions(-)
+
+diff --git a/ocaml/quicktest/qt.ml b/ocaml/quicktest/qt.ml
+index 5cb8b342f..49eeffc56 100644
+--- a/ocaml/quicktest/qt.ml
++++ b/ocaml/quicktest/qt.ml
+@@ -180,20 +180,23 @@ module VDI = struct
+ 
+   let test_vdi_name_description = "VDI for storage quicktest"
+ 
+-  let make rpc session_id ?(virtual_size = 4194304L) sR =
++  let make rpc session_id ?(virtual_size = 4194304L) ?backing_format sR =
++    let sm_config =
++      match backing_format with Some x -> [("image-format", x)] | None -> []
++    in
+     Client.Client.VDI.create ~sR ~session_id ~rpc
+       ~name_label:test_vdi_name_label
+       ~name_description:test_vdi_name_description ~_type:`user ~sharable:false
+       ~read_only:false ~virtual_size ~xenstore_data:[] ~other_config:[] ~tags:[]
+-      ~sm_config:[]
++      ~sm_config
+ 
+   let with_destroyed rpc session_id self f =
+     Xapi_stdext_pervasives.Pervasiveext.finally f (fun () ->
+         Client.Client.VDI.destroy ~rpc ~session_id ~self
+     )
+ 
+-  let with_new rpc session_id ?(virtual_size = 4194304L) sr f =
+-    let self = make rpc session_id ~virtual_size sr in
++  let with_new rpc session_id ?(virtual_size = 4194304L) ?backing_format sr f =
++    let self = make rpc session_id ~virtual_size ?backing_format sr in
+     with_destroyed rpc session_id self (fun () -> f self)
+ 
+   let with_any rpc session_id sr_info f =
+diff --git a/ocaml/quicktest/qt.mli b/ocaml/quicktest/qt.mli
+index e0f2bb8ac..6423c6060 100644
+--- a/ocaml/quicktest/qt.mli
++++ b/ocaml/quicktest/qt.mli
+@@ -73,6 +73,7 @@ module VDI : sig
+        rpc
+     -> API.ref_session
+     -> ?virtual_size:int64
++    -> ?backing_format:string
+     -> API.ref_SR
+     -> (API.ref_VDI -> 'a)
+     -> 'a
+diff --git a/ocaml/quicktest/quicktest_max_vdi_size.ml b/ocaml/quicktest/quicktest_max_vdi_size.ml
+index 43e2582ab..cdddd2b96 100644
+--- a/ocaml/quicktest/quicktest_max_vdi_size.ml
++++ b/ocaml/quicktest/quicktest_max_vdi_size.ml
+@@ -1,6 +1,6 @@
+ let with_max_vdi rpc session_id sr f =
+   Qt.VDI.with_new rpc session_id ~virtual_size:Constants.max_vhd_size sr
+-    (fun vdi ->
++    ~backing_format:"vhd" (fun vdi ->
+       (* We write some data to the very end of the VDI to ensure the IO code
+          gets tested with large offsets *)
+       Qt.VDI.with_open rpc session_id vdi `RW (fun fd ->
+@@ -43,7 +43,8 @@ let test_export_import rpc session_id sr_info () =
+       |> ignore ;
+       Xapi_stdext_pervasives.Pervasiveext.finally
+         (fun () ->
+-          Qt.VDI.with_new rpc session_id ~virtual_size sR (fun new_vdi ->
++          Qt.VDI.with_new rpc session_id ~virtual_size sR ~backing_format:format
++            (fun new_vdi ->
+               let new_vdi_uuid =
+                 Client.Client.VDI.get_uuid ~rpc ~session_id ~self:new_vdi
+               in
+diff --git a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+index 01d830b87..0bba68064 100644
+--- a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
++++ b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+@@ -57,13 +57,14 @@ let checksum rpc session_id vdi =
+       Digest.to_hex (Digest.file path)
+   )
+ 
+-let check_vdi_unchanged rpc session_id ~vdi_size ~prepare_vdi ~vdi_op sr_info ()
+-    =
++let check_vdi_unchanged rpc session_id ~vdi_size ~prepare_vdi ~vdi_op
++    ~backing_format sr_info () =
+   let sR = sr_info.Qt.sr in
+-  Qt.VDI.with_new ~virtual_size:vdi_size rpc session_id sR (fun vdi ->
++  Qt.VDI.with_new ~virtual_size:vdi_size ~backing_format rpc session_id sR
++    (fun vdi ->
+       prepare_vdi rpc session_id vdi ;
+       let checksum_original = checksum rpc session_id vdi in
+-      let new_vdi = vdi_op rpc session_id sR vdi in
++      let new_vdi = vdi_op rpc session_id sR vdi backing_format in
+       Qt.VDI.with_destroyed rpc session_id new_vdi (fun () ->
+           let checksum_copy = checksum rpc session_id new_vdi in
+           if checksum_copy <> checksum_original then
+@@ -77,11 +78,12 @@ let check_vdi_unchanged rpc session_id ~vdi_size ~prepare_vdi ~vdi_op sr_info ()
+   )
+ 
+ let check_vdi_delta rpc session_id ~vdi_size ~prepare_vdi ~prepare_vdi_base
+-    ~vdi_op sr_info () =
++    ~vdi_op ~backing_format sr_info () =
+   let sR = sr_info.Qt.sr in
+-  Qt.VDI.with_new ~virtual_size:vdi_size rpc session_id sR
++  Qt.VDI.with_new ~virtual_size:vdi_size ~backing_format rpc session_id sR
+   @@ fun vdi_original ->
+-  Qt.VDI.with_new ~virtual_size:vdi_size rpc session_id sR @@ fun base_vdi ->
++  Qt.VDI.with_new ~virtual_size:vdi_size ~backing_format rpc session_id sR
++  @@ fun base_vdi ->
+   prepare_vdi rpc session_id vdi_original ;
+   let checksum_original = checksum rpc session_id vdi_original in
+   prepare_vdi_base rpc session_id base_vdi ;
+@@ -96,7 +98,7 @@ let check_vdi_delta rpc session_id ~vdi_size ~prepare_vdi ~prepare_vdi_base
+          checksum_copy checksum_original
+       )
+ 
+-let copy_vdi rpc session_id sr vdi =
++let copy_vdi rpc session_id sr vdi _ =
+   Client.Client.VDI.copy ~rpc ~session_id ~vdi ~base_vdi:API.Ref.null
+     ~into_vdi:API.Ref.null ~sr
+ 
+@@ -117,14 +119,15 @@ let export_vdi_to_file ~rpc ~session_id ~exportformat ?base_vdi ~vdi () =
+   |> ignore ;
+   file
+ 
+-let create_new_vdi ~rpc ~session_id ~sR ~vdi =
++let create_new_vdi ~rpc ~session_id ~sR ~vdi ~backing_format =
+   let virtual_size =
+     Client.Client.VDI.get_virtual_size ~rpc ~session_id ~self:vdi
+   in
++  let sm_config = [("image-format", backing_format)] in
+   let new_vdi =
+     Client.Client.VDI.create ~rpc ~session_id ~name_label:""
+       ~name_description:"" ~sR ~virtual_size ~_type:`user ~sharable:false
+-      ~read_only:false ~other_config:[] ~xenstore_data:[] ~sm_config:[] ~tags:[]
++      ~read_only:false ~other_config:[] ~xenstore_data:[] ~sm_config ~tags:[]
+   in
+   let new_vdi_uuid =
+     Client.Client.VDI.get_uuid ~rpc ~session_id ~self:new_vdi
+@@ -141,11 +144,13 @@ let import_file_into_vdi ~file ~vdi_uuid ~exportformat =
+     ]
+   |> ignore
+ 
+-let export_import_vdi rpc session_id ~exportformat sR vdi =
++let export_import_vdi rpc session_id ~exportformat sR vdi backing_format =
+   let file = export_vdi_to_file ~rpc ~session_id ~exportformat ~vdi () in
+   Xapi_stdext_pervasives.Pervasiveext.finally
+     (fun () ->
+-      let new_vdi_uuid, new_vdi = create_new_vdi ~rpc ~session_id ~sR ~vdi in
++      let new_vdi_uuid, new_vdi =
++        create_new_vdi ~rpc ~session_id ~sR ~vdi ~backing_format
++      in
+       import_file_into_vdi ~file ~vdi_uuid:new_vdi_uuid ~exportformat ;
+       new_vdi
+     )
+@@ -177,79 +182,83 @@ let delta_export_import_vhd = export_delta_import_vdi ~exportformat:"vhd"
+ 
+ let delta_export_import_qcow = export_delta_import_vdi ~exportformat:"qcow2"
+ 
+-let data_integrity_tests vdi_op op_name =
++let data_integrity_tests vdi_op op_name backing_format =
+   [
+     ( op_name ^ ": small empty VDI"
+     , `Slow
+-    , check_vdi_unchanged ~vdi_size:Sizes.(4L ** mib) ~prepare_vdi:noop ~vdi_op
++    , check_vdi_unchanged
++        ~vdi_size:Sizes.(4L ** mib)
++        ~prepare_vdi:noop ~vdi_op ~backing_format
+     )
+   ; ( op_name ^ ": small random VDI"
+     , `Slow
+     , check_vdi_unchanged
+         ~vdi_size:Sizes.(4L ** mib)
+-        ~prepare_vdi:write_random_data ~vdi_op
++        ~prepare_vdi:write_random_data ~vdi_op ~backing_format
+     )
+   ; ( op_name ^ ": small full VDI"
+     , `Slow
+-    , check_vdi_unchanged ~vdi_size:Sizes.(4L ** mib) ~prepare_vdi:fill ~vdi_op
++    , check_vdi_unchanged
++        ~vdi_size:Sizes.(4L ** mib)
++        ~prepare_vdi:fill ~vdi_op ~backing_format
+     )
+   ]
+ 
+-let delta_data_integrity_tests vdi_op op_name =
++let delta_data_integrity_tests vdi_op op_name backing_format =
+   [
+     ( op_name ^ ": delta between empty & empty VDI"
+     , `Slow
+-    , check_vdi_delta
++    , check_vdi_delta ~backing_format
+         ~vdi_size:Sizes.(4L ** mib)
+         ~prepare_vdi:noop ~prepare_vdi_base:noop ~vdi_op
+     )
+   ; ( op_name ^ ": delta between random & empty VDI"
+     , `Slow
+-    , check_vdi_delta
++    , check_vdi_delta ~backing_format
+         ~vdi_size:Sizes.(4L ** mib)
+         ~prepare_vdi:write_random_data ~prepare_vdi_base:noop ~vdi_op
+     )
+   ; ( op_name ^ ": delta between random & random VDI"
+     , `Slow
+-    , check_vdi_delta
++    , check_vdi_delta ~backing_format
+         ~vdi_size:Sizes.(4L ** mib)
+         ~prepare_vdi:write_random_data ~prepare_vdi_base:write_random_data
+         ~vdi_op
+     )
+   ; ( op_name ^ ": delta between full and empty VDI"
+     , `Slow
+-    , check_vdi_delta
++    , check_vdi_delta ~backing_format
+         ~vdi_size:Sizes.(4L ** mib)
+         ~prepare_vdi:fill ~prepare_vdi_base:noop ~vdi_op
+     )
+   ; ( op_name ^ ": delta between full and random VDI"
+     , `Slow
+-    , check_vdi_delta
++    , check_vdi_delta ~backing_format
+         ~vdi_size:Sizes.(4L ** mib)
+         ~prepare_vdi:fill ~prepare_vdi_base:write_random_data ~vdi_op
+     )
+   ; ( op_name ^ ": delta between full and full VDI"
+     , `Slow
+-    , check_vdi_delta
++    , check_vdi_delta ~backing_format
+         ~vdi_size:Sizes.(4L ** mib)
+         ~prepare_vdi:fill ~prepare_vdi_base:fill ~vdi_op
+     )
+   ]
+ 
+-let large_data_integrity_tests vdi_op op_name =
++let large_data_integrity_tests vdi_op op_name backing_format =
+   let b = Random.int64 16L in
+   [
+     ( op_name ^ ": ~2GiB empty VDI"
+     , `Slow
+     , check_vdi_unchanged
+         ~vdi_size:Sizes.((2L ** gib) +* b)
+-        ~prepare_vdi:noop ~vdi_op
++        ~prepare_vdi:noop ~vdi_op ~backing_format
+     )
+   ; ( op_name ^ ": ~2GiB random VDI"
+     , `Slow
+     , check_vdi_unchanged
+         ~vdi_size:Sizes.((2L ** gib) +* b)
+-        ~prepare_vdi:write_random_data ~vdi_op
++        ~prepare_vdi:write_random_data ~vdi_op ~backing_format
+     )
+   ]
+ 
+@@ -266,30 +275,33 @@ let supported_gfs2_srs test_case =
+   test_case |> conn |> sr (sr_with_vdi_create_destroy |> SR.has_type "gfs2")
+ 
+ let tests () =
+-  (data_integrity_tests copy_vdi "VDI.copy" |> supported_srs)
+-  @ (large_data_integrity_tests copy_vdi "VDI.copy" |> supported_srs)
+-  @ (data_integrity_tests export_import_raw "VDI export/import to/from raw file"
++  (data_integrity_tests copy_vdi "VDI.copy" "vhd" |> supported_srs)
++  @ (large_data_integrity_tests copy_vdi "VDI.copy" "vhd" |> supported_srs)
++  @ (data_integrity_tests export_import_raw
++       "VDI export/import to/from raw\n  file" "vhd"
+     |> supported_srs
+     )
+-  @ (data_integrity_tests export_import_vhd "VDI export/import to/from VHD file"
++  @ (data_integrity_tests export_import_vhd
++       "VDI export/import to/from VHD\n  file" "vhd"
+     |> supported_srs
+     )
+   @ (delta_data_integrity_tests delta_export_import_vhd
+-       "VDI delta export/import to/from VHD file"
++       "VDI delta export/import to/from VHD file" "vhd"
+     |> supported_srs
+     )
+-  @ (data_integrity_tests export_import_tar "VDI export/import to/from TAR file"
++  @ (data_integrity_tests export_import_tar
++       "VDI export/import to/from TAR\n  file" "vhd"
+     |> supported_srs
+     )
+   @ (data_integrity_tests export_import_qcow
+-       "VDI export/import to/from QCOW file"
++       "VDI export/import to/from QCOW file" "qcow2"
+     |> supported_srs
+     )
+   @ (delta_data_integrity_tests delta_export_import_qcow
+-       "VDI delta export/import to/from QCOW file"
++       "VDI delta export/import to/from QCOW file" "qcow2"
+     |> supported_srs
+     )
+   @ (large_data_integrity_tests export_import_tar
+-       "VDI export/import to/from TAR file"
++       "VDI export/import to/from TAR file" "vhd"
+     |> supported_gfs2_srs
+     )
+diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
+index 0fae40f76..00fee7d2f 100755
+--- a/python3/libexec/qcow2-to-stdout.py
++++ b/python3/libexec/qcow2-to-stdout.py
+@@ -106,7 +106,8 @@ class Interval:
+         interval if true
+         """
+         # Check if cluster is within [min, max]
+-        if self.intervals[-1][1] < cluster or self.intervals[0][0] > cluster:
++        if (len(self.intervals) == 0 or
++            (self.intervals[-1][1] < cluster or self.intervals[0][0] > cluster)):
+             return False
+ 
+         # Binary search for the interval that could contain the cluster
