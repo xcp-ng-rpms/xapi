@@ -1,0 +1,80 @@
+From d34dd12b1f15ce342db2839bf01f834f91a6337a Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 25 Mar 2026 13:38:41 +0000
+Subject: [PATCH] stream_vdi: Avoid chunk duplication when exporting from
+ QCOW2-backed VDIs
+
+VHD clusters are larger than stream_vdi's chunks, while QCOW2 clusters are
+smaller. Therefore, in the case where a previous cluster interval's chunks
+overlap with the current interval's chunks, stream_vdi duplicated them,
+corrupting the .XVA
+
+For example, if cluster intervals are [[0,0],[15,15]] and 16 clusters fit into
+a chunk (the current case), then the 0th chunk would be copied twice.
+
+To avoid this, track the previous chunk that was copied (they are always
+iterated over in ascending order), and skip it if there is an overlap.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/stream_vdi.ml | 47 ++++++++++++++++++++++++++--------------
+ 1 file changed, 31 insertions(+), 16 deletions(-)
+
+diff --git a/ocaml/xapi/stream_vdi.ml b/ocaml/xapi/stream_vdi.ml
+index cc61e958d..eefb19d6a 100644
+--- a/ocaml/xapi/stream_vdi.ml
++++ b/ocaml/xapi/stream_vdi.ml
+@@ -368,22 +368,37 @@ let send_one ofd (__context : Context.t) rpc session_id progress refresh_session
+                   (cluster_size + chunk_size - 1) / chunk_size
+                 in
+                 (* Iterate over allocated intervals, copying every cluster inside *)
+-                List.iter
+-                  (fun (cluster_no_left, cluster_no_right) ->
+-                    let calc_chunk cluster =
+-                      let cluster_offset = cluster * cluster_size in
+-                      let chunk_no = cluster_offset / chunk_size in
+-                      chunk_no
+-                    in
+-                    let left_chunk_no = calc_chunk cluster_no_left in
+-                    let right_chunk_no =
+-                      calc_chunk cluster_no_right + chunks_in_cluster - 1
+-                    in
+-                    for i = left_chunk_no to right_chunk_no do
+-                      process_chunk i ~force:false
+-                    done
+-                  )
+-                  cluster_list ;
++                let _ =
++                  List.fold_left
++                    (fun prev_chunk (cluster_no_left, cluster_no_right) ->
++                      let calc_chunk cluster =
++                        let cluster_offset = cluster * cluster_size in
++                        let chunk_no = cluster_offset / chunk_size in
++                        chunk_no
++                      in
++                      let left_chunk_no = calc_chunk cluster_no_left in
++                      let right_chunk_no =
++                        calc_chunk cluster_no_right + chunks_in_cluster - 1
++                      in
++
++                      (* If a chunk contains multiple clusters, we could have
++                       already copied it. In that case, start with the
++                       following chunk. *)
++                      let left_chunk_no =
++                        if left_chunk_no = prev_chunk then
++                          left_chunk_no + 1
++                        else
++                          left_chunk_no
++                      in
++
++                      for i = left_chunk_no to right_chunk_no do
++                        process_chunk i ~force:false
++                      done ;
++
++                      right_chunk_no
++                    )
++                    (-1) cluster_list
++                in
+ 
+                 process_chunk last_chunk ~force:true
+             with e ->

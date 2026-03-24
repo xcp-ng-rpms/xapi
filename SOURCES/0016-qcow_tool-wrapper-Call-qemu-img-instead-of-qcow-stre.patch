@@ -1,0 +1,322 @@
+From cc4235d94d41952816d3623d27622e6d3f93ca3c Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 27 Mar 2026 14:27:08 +0000
+Subject: [PATCH] qcow_tool-wrapper: Call qemu-img instead of qcow-stream-tool
+
+This proves much more reliable than code based on ocaml-qcow.
+
+Since qemu-img has a different format (with the needed information spread
+across two files resulting from calls to 'qemu-img info' and 'qemu-img map'),
+change the parsing code in vhd_qcow_parsing and qcow2-to-stdout.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/qcow_tool_wrapper.ml    | 87 ++++++++++++++++++++++--------
+ ocaml/xapi/vhd_qcow_parsing.ml     | 32 ++++++++++-
+ ocaml/xapi/vhd_qcow_parsing.mli    |  3 ++
+ python3/libexec/qcow2-to-stdout.py | 74 +++++++++++++++----------
+ 4 files changed, 145 insertions(+), 51 deletions(-)
+
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index 947c5d2ba..57f27fb2d 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -22,32 +22,43 @@ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+   Vhd_qcow_parsing.run_tool qcow_tool progress_cb args ~input_fd:unix_fd
+ 
+ let read_header qcow_path =
+-  let args = ["read_headers"; qcow_path] in
+-  let qcow_tool = !Xapi_globs.qcow_stream_tool in
+-  let pipe_reader, pipe_writer = Unix.pipe ~cloexec:true () in
+-
+   let progress_cb _ = () in
+-  let (_ : Thread.t) =
++  let run_in_thread tool args pipe_writer replace_fds =
+     Thread.create
+       (fun () ->
+         Xapi_stdext_pervasives.Pervasiveext.finally
+           (fun () ->
+-            Vhd_qcow_parsing.run_tool qcow_tool progress_cb args
+-              ~output_fd:pipe_writer
++            Vhd_qcow_parsing.run_tool tool progress_cb args
++              ~output_fd:pipe_writer ~replace_fds
+           )
+           (fun () -> Unix.close pipe_writer)
+       )
+       ()
+   in
+-  pipe_reader
++
++  let map_pipe_reader, map_pipe_writer = Unix.pipe ~cloexec:true () in
++  let (_ : Thread.t) =
++    run_in_thread "/usr/bin/qemu-img"
++      ["map"; qcow_path; "--output=json"]
++      map_pipe_writer []
++  in
++
++  let info_pipe_reader, info_pipe_writer = Unix.pipe ~cloexec:true () in
++  let (_ : Thread.t) =
++    run_in_thread "/usr/bin/qemu-img"
++      ["info"; qcow_path; "--output=json"]
++      info_pipe_writer []
++  in
++
++  (map_pipe_reader, info_pipe_reader)
+ 
+ let parse_header qcow_path =
+-  let pipe_reader = read_header qcow_path in
+-  Vhd_qcow_parsing.parse_header pipe_reader
++  let pipe, _ = read_header qcow_path in
++  Vhd_qcow_parsing.parse_header pipe
+ 
+ let parse_header_interval qcow_path =
+-  let pipe_reader = read_header qcow_path in
+-  Vhd_qcow_parsing.parse_header_interval pipe_reader
++  let pipes = read_header qcow_path in
++  Vhd_qcow_parsing.parse_header_qemu_img pipes
+ 
+ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) (_size : Int64.t) =
+@@ -58,7 +69,7 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+ 
+   (* If VDI is backed by QCOW, parse the header to determine nonzero clusters
+      to avoid reading all of the raw disk *)
+-  let input_fd = Result.map read_header qcow_path |> Result.to_option in
++  let input_fds = Result.map read_header qcow_path |> Result.to_option in
+ 
+   (* TODO: If VHD headers are to be consulted as well, qcow2-to-stdout
+      needs to properly account for cluster_bits. Currently QCOW2 export
+@@ -73,9 +84,13 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     | None ->
+         None
+   in
+-  let diff_fd = Option.map read_header relative_to_qcow_path in
++  let diff_fds = Option.map read_header relative_to_qcow_path in
++
++  let map_fd_string = Uuidx.(to_string (make ())) in
++  let info_fd_string = Uuidx.(to_string (make ())) in
++  let diff_map_fd_string = Uuidx.(to_string (make ())) in
++  let diff_info_fd_string = Uuidx.(to_string (make ())) in
+ 
+-  let unique_string = Uuidx.(to_string (make ())) in
+   let args =
+     [path]
+     @ (match relative_to with None -> [] | Some vdi -> ["--diff"; vdi])
+@@ -83,18 +98,46 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+       | None ->
+           []
+       | Some _ ->
+-          ["--json-header-diff"; unique_string]
++          [
++            "--json-header-diff-map"
++          ; diff_map_fd_string
++          ; "--json-header-diff-info"
++          ; diff_info_fd_string
++          ]
+       )
+-    @ match qcow_path with Error _ -> [] | Ok _ -> ["--json-header"]
++    @
++    match qcow_path with
++    | Error _ ->
++        []
++    | Ok _ ->
++        [
++          "--json-header-map"
++        ; map_fd_string
++        ; "--json-header-info"
++        ; info_fd_string
++        ]
+   in
+   let qcow_tool = !Xapi_globs.qcow_to_stdout in
+-  let replace_fds = Option.map (fun fd -> [(unique_string, fd)]) diff_fd in
++  let replace_fds =
++    Option.map
++      (fun (map_fd, info_fd) ->
++        let rfds = [(map_fd_string, map_fd); (info_fd_string, info_fd)] in
++        match diff_fds with
++        | Some (diff_map_fd, diff_info_fd) ->
++            (diff_map_fd_string, diff_map_fd)
++            :: (diff_info_fd_string, diff_info_fd)
++            :: rfds
++        | None ->
++            rfds
++      )
++      input_fds
++  in
+   Xapi_stdext_pervasives.Pervasiveext.finally
+     (fun () ->
+-      Vhd_qcow_parsing.run_tool qcow_tool progress_cb args ?input_fd
+-        ~output_fd:unix_fd ?replace_fds
++      Vhd_qcow_parsing.run_tool qcow_tool progress_cb args ~output_fd:unix_fd
++        ?replace_fds
+     )
+     (fun () ->
+-      Option.iter Unix.close input_fd ;
+-      Option.iter Unix.close diff_fd
++      Option.iter (fun (x, y) -> Unix.close x ; Unix.close y) input_fds ;
++      Option.iter (fun (x, y) -> Unix.close x ; Unix.close y) diff_fds
+     )
+diff --git a/ocaml/xapi/vhd_qcow_parsing.ml b/ocaml/xapi/vhd_qcow_parsing.ml
+index 0956b4d8f..90ed8a7b2 100644
+--- a/ocaml/xapi/vhd_qcow_parsing.ml
++++ b/ocaml/xapi/vhd_qcow_parsing.ml
+@@ -44,11 +44,14 @@ let run_tool tool ?(replace_fds = []) ?input_fd ?output_fd
+       error "%s output: %s" tool out ;
+       raise (Api_errors.Server_error (Api_errors.vdi_io_error, [out]))
+ 
+-let parse_header_aux pipe_reader =
++let read_json pipe_reader =
+   let ic = Unix.in_channel_of_descr pipe_reader in
+   let buf = Buffer.create 4096 in
+   let json = Yojson.Basic.from_channel ~buf ~fname:"header.json" ic in
+-  In_channel.close ic ;
++  In_channel.close ic ; json
++
++let parse_header_aux pipe_reader =
++  let json = read_json pipe_reader in
+   let cluster_size =
+     1 lsl Yojson.Basic.Util.(member "cluster_bits" json |> to_int)
+   in
+@@ -61,6 +64,31 @@ let parse_header pipe_reader =
+   in
+   (cluster_size, cluster_list)
+ 
++let parse_header_qemu_img (map_pipe_reader, info_pipe_reader) =
++  let info_json = read_json info_pipe_reader in
++  let cluster_size =
++    Yojson.Basic.Util.(member "cluster-size" info_json |> to_int)
++  in
++  let map_json = read_json map_pipe_reader in
++  let cluster_list =
++    Yojson.Basic.Util.(
++      map_json
++      |> to_list
++      |> List.filter_map (fun i ->
++          let present = member "data" i |> to_bool in
++          if present then
++            let start_cluster = (member "start" i |> to_int) / cluster_size in
++            let end_cluster =
++              start_cluster + ((member "length" i |> to_int) / cluster_size) - 1
++            in
++            Some (start_cluster, end_cluster)
++          else
++            None
++      )
++    )
++  in
++  (cluster_size, cluster_list)
++
+ let parse_header_interval pipe_reader =
+   let cluster_size, json = parse_header_aux pipe_reader in
+   let cluster_list =
+diff --git a/ocaml/xapi/vhd_qcow_parsing.mli b/ocaml/xapi/vhd_qcow_parsing.mli
+index 2df479d92..f43b56dab 100644
+--- a/ocaml/xapi/vhd_qcow_parsing.mli
++++ b/ocaml/xapi/vhd_qcow_parsing.mli
+@@ -24,3 +24,6 @@ val run_tool :
+ val parse_header : Unix.file_descr -> int * int list
+ 
+ val parse_header_interval : Unix.file_descr -> int * (int * int) list
++
++val parse_header_qemu_img :
++  Unix.file_descr * Unix.file_descr -> int * (int * int) list
+diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
+index 0f473e4a4..0fae40f76 100755
+--- a/python3/libexec/qcow2-to-stdout.py
++++ b/python3/libexec/qcow2-to-stdout.py
+@@ -488,18 +488,36 @@ def main():
+         action="store_true",
+     )
+     parser.add_argument(
+-        "--json-header",
+-        dest="json_header",
+-        help="stdin contains a JSON of pre-parsed QCOW2 information"
+-        "(virtual_size, data_clusters, cluster_bits)",
+-        action="store_true",
++        "--json-header-map",
++        dest="json_header_map",
++        help="File descriptor that contains a JSON of pre-parsed QCOW2"
++        "data clusters information for input_file",
++        type=int,
++        default=None,
+     )
+     parser.add_argument(
+-        "--json-header-diff",
+-        dest="json_header_diff",
+-        metavar="json_header_diff",
+-        help="File descriptor that contains a JSON of pre-parsed QCOW2 "
+-        "information for the diff_file_name",
++        "--json-header-info",
++        dest="json_header_info",
++        help="File descriptor that contains a JSON of pre-parsed QCOW2"
++        "virtual size, cluster size information for input_file",
++        type=int,
++        default=None,
++    )
++    parser.add_argument(
++        "--json-header-diff-map",
++        dest="json_header_diff_map",
++        metavar="json_header_diff_map",
++        help="File descriptor that contains a JSON of pre-parsed QCOW2"
++        "data clusters for diff_file_name",
++        type=int,
++        default=None,
++    )
++    parser.add_argument(
++        "--json-header-diff-info",
++        dest="json_header_diff_info",
++        metavar="json_header_diff_info",
++        help="File descriptor that contains a JSON of pre-parsed QCOW2"
++        "virtual size, cluster size information for diff_file_name",
+         type=int,
+         default=None,
+     )
+@@ -512,29 +530,31 @@ def main():
+     nonzero_clusters = None
+     diff_virtual_size = None
+     diff_nonzero_clusters = None
+-    if args.json_header:
+-        json_header = json.load(sys.stdin)
++
++    def parse_json_files(info_fd, map_fd):
++        map_f = os.fdopen(map_fd)
++        info_f = os.fdopen(info_fd)
++        map_json = json.load(map_f)
++        info_json = json.load(info_f)
++
+         try:
+-            virtual_size = json_header['virtual_size']
+-            source_cluster_size = 2 ** json_header['cluster_bits']
+-            if source_cluster_size != args.cluster_size:
+-                args.cluster_size = source_cluster_size
+-            nonzero_clusters = json_header['data_clusters']
+-        except KeyError as e:
+-            raise RuntimeError(f'Incomplete JSON - missing value for {str(e)}') from e
+-    if args.json_header_diff:
+-        f = os.fdopen(args.json_header_diff)
+-        json_header = json.load(f)
+-        try:
+-            diff_virtual_size = json_header['virtual_size']
+-            if 2 ** json_header['cluster_bits'] == args.cluster_size:
+-                diff_nonzero_clusters = json_header['data_clusters']
++            virt_size = info_json['virtual-size']
++            cluster_size = info_json['cluster-size']
++            if cluster_size == args.cluster_size:
++                clusters = [ [int(el["start"] / cluster_size), int((el["start"] + el["length"]) / cluster_size) - 1] for el in map_json if el["data"] ]
+             else:
+                 sys.exit(f"[Error] Cluster size in the files being compared are "
+-                         f"different: {2**json_header['cluster_bits']} vs. {args.cluster_size}")
++                         f"different: {info_json['cluster-size']} vs. {args.cluster_size}")
++            return virt_size, clusters
+         except KeyError as e:
+             raise RuntimeError(f'Incomplete JSON for the diff - missing value for {str(e)}') from e
+ 
++
++    if args.json_header_info and args.json_header_map:
++        virtual_size, nonzero_clusters = parse_json_files(args.json_header_info, args.json_header_map)
++    if args.json_header_diff_info and args.json_header_diff_map:
++        diff_virtual_size, diff_nonzero_clusters = parse_json_files(args.json_header_diff_info, args.json_header_diff_map)
++
+     if not os.path.exists(args.input_file):
+         sys.exit(f"[Error] {args.input_file} does not exist.")
+ 
