@@ -585,7 +585,8 @@ It is responsible for giving access only to a specific VM to varstored.
 %{?_cov_prepare}
 
 %build
-./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --xapi_version=%{version} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
+./configure --xenopsd_libexecdir %{_libexecdir}/xenopsd --qemu_wrapper_dir=%{_libdir}/xen/bin --sbindir=%{_sbindir} --mandir=%{_mandir} --bindir=%{_bindir} --prefix %{_prefix} --libdir %{ocaml_libdir} --xapi_api_version_major=%{api_version_major} --xapi_api_version_minor=%{api_version_minor}
+echo '(version "%{version}")' >> dune-project
 export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
@@ -1581,6 +1582,7 @@ Coverage files from unit tests
 - Fix extra_file logic used for xenserver9.conf
 - Backport upstream patches for QEMU 10 compatibility (CP-312095)
 - Add a safety net to abort build when binaries embed a version then cannot grok
+- Don't rely on upstream mechanism for the version
 - Hacks and temporary measures:
   - On XCP-ng 9, require dhcp-client not dhclient
   - Revert the 26.1.3-1.4 changes relying on qcow support in xs-opam
