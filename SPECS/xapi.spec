@@ -12,7 +12,11 @@
 %bcond_without dnf_plugin
 %bcond_without own_yum_dir
 # XS9 requires extra configration
+%if 0%{?xcpng}
+%bcond_with extra_config
+%else
 %bcond_without extra_config
+%endif
 # XS9 reset all epoch to 0
 %define qemu_epoch 2
 %else
@@ -60,8 +64,10 @@ Source23: inventory.py
 # For xs9, move these config files from xenserver-release
 Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
+%if %{with extra_config}
 # Extra configuration
-#Source26: xenserver9.conf
+Source26: xenserver9.conf
+%endif
 # replace NTP configuration
 Source27: xcpng-ntp.conf
 
@@ -1560,6 +1566,7 @@ Coverage files from unit tests
 - Require iptables-legacy
 - Comment out the runtime dependency on oxenstored-split-out-from-xen
 - Revert the 26.1.3-1.4 changes, relying on qcow support in xs-opam.
+- Fix extra_file logic used for xenserver9.conf
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
