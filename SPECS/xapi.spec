@@ -605,18 +605,21 @@ echo /opt/xensource/www >> core-files
 echo /var/lib/xcp >> core-files
 
 # HACK: fix dune-build-info's job: replace $sha-dirty strings with version
-dirtystr=$(git describe --always --dirty --abbrev=7)
-dirtylen=${#dirtystr}
-version=%{version}
-verlen=${#version}
-# since we use sed we have to write as many bytes, so pad with spaces
-fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
-replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
-grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
-    xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
-sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
-# make sure the hack did its job
-! grep -r -e "-dirty"
+# Note: when building from a SRPM there is no git history
+if [ -r .git ]; then
+    dirtystr=$(git describe --always --dirty --abbrev=7)
+    dirtylen=${#dirtystr}
+    version=%{version}
+    verlen=${#version}
+    # since we use sed we have to write as many bytes, so pad with spaces
+    fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+    replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+    grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+        xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+    sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+fi
+# make sure we don't have any "-dirty" string in the build
+! grep -r -e "-dirty" $RPM_BUILD_ROOT
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
