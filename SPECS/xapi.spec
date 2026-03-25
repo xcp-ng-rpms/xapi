@@ -93,19 +93,6 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/6895
-# Temporarily dropped unit test commits to avoid qemu-img build dependency,
-# flipped the xapi.conf switch
-Patch1007: 0007-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
-Patch1008: 0008-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
-Patch1009: 0009-vhd-tool-Add-read_headers_interval-command.patch
-Patch1010: 0010-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
-Patch1011: 0011-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
-Patch1012: 0012-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
-Patch1013: 0013-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
-Patch1014: 0014-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
-
-
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1569,6 +1556,7 @@ Coverage files from unit tests
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - Require iptables-legacy
 - Comment out the runtime dependency on oxenstored-split-out-from-xen
+- Revert the 26.1.3-1.4 changes, relying on qcow support in xs-opam.
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
