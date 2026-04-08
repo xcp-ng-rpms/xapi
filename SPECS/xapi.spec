@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.5%{?dist}
+Release: 1%{?xsrel}.6%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -111,10 +111,11 @@ Patch1012: 0012-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
 Patch1013: 0013-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
 Patch1014: 0014-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# Temporary revert of read_headers optimization, to be resolved properly
-# by fixing qcow-stream-tool to consider the whole chain
-Patch1015: 0015-qcow_tool_wrapper-Don-t-read-headers-of-QCOW2-backed.patch
-
+# Proper fix for QCOW issues - to be upstreamed
+Patch1015: 0015-stream_vdi-Avoid-chunk-duplication-when-exporting-fr.patch
+Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
+Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
+Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -231,6 +232,8 @@ BuildRequires: systemd
 Requires: oxenstored >= 0.0.2
 %endif
 Requires: kpatch
+# Requires: qemu-img - only needed for QCOW2-backed VDIs, which can only be
+# present with QCOW2 storage stack, which does provide qemu-img
 
 # XCP-ng: add missing requires towards nbd
 Requires: nbd
@@ -1513,6 +1516,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Mar 24 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.6
+- When exporting QCOW2-backed VDIs, read headers of the whole snapshot chain
+- Fix duplicated chunks during VM export resulting in an invalid XVA
+
 * Mon Mar 23 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.5
 - Fix QCOW2-backed VDI snapshots not being exported properly
 
