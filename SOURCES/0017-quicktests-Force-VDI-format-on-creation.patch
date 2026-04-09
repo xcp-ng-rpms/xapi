@@ -1,4 +1,4 @@
-From 9b93103bbcc42368a2b07410fea8270bc6b45210 Mon Sep 17 00:00:00 2001
+From e79db0e2e13cbd31f017fecd28c642d46b2d488b Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Mon, 30 Mar 2026 15:23:42 +0000
 Subject: [PATCH] quicktests: Force VDI format on creation

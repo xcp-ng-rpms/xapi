@@ -1,0 +1,57 @@
+From 37c204e133c41824eec5b25b603f57ad4b6042d4 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 5 Mar 2026 08:21:42 +0000
+Subject: [PATCH] dune-project: Add conf-qemu-img dependency to vhd-tool and
+ xapi
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ dune-project       | 2 ++
+ opam/vhd-tool.opam | 1 +
+ opam/xapi.opam     | 1 +
+ 3 files changed, 4 insertions(+)
+
+diff --git a/dune-project b/dune-project
+index 5c5ac7ca2..08594902b 100644
+--- a/dune-project
++++ b/dune-project
+@@ -390,6 +390,7 @@
+   cmdliner
+   cohttp
+   conf-pam
++  conf-qemu-img
+   (crowbar :with-test)
+   cstruct
+   ctypes
+@@ -506,6 +507,7 @@
+   cohttp
+   cohttp-lwt
+   conf-libssl
++  (conf-qemu-img :with-test)
+   (cstruct
+    (>= "3.0.0"))
+   (ezxenstore
+diff --git a/opam/vhd-tool.opam b/opam/vhd-tool.opam
+index 0edc71774..8437e3f64 100644
+--- a/opam/vhd-tool.opam
++++ b/opam/vhd-tool.opam
+@@ -16,6 +16,7 @@ depends: [
+   "cohttp"
+   "cohttp-lwt"
+   "conf-libssl"
++  "conf-qemu-img" {with-test}
+   "cstruct" {>= "3.0.0"}
+   "ezxenstore" {= version}
+   "forkexec" {= version}
+diff --git a/opam/xapi.opam b/opam/xapi.opam
+index 34dd9af3b..edaf3cab6 100644
+--- a/opam/xapi.opam
++++ b/opam/xapi.opam
+@@ -22,6 +22,7 @@ depends: [
+   "cmdliner"
+   "cohttp"
+   "conf-pam"
++  "conf-qemu-img"
+   "crowbar" {with-test}
+   "cstruct"
+   "ctypes"
