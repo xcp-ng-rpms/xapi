@@ -1,4 +1,4 @@
-From 92c6927bcaf79f65fe703474d7f982b736a30b01 Mon Sep 17 00:00:00 2001
+From 853bc2fb7ee563d3cc5980fea08fd4a45646894f Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 18 Feb 2026 15:45:19 +0000
 Subject: [PATCH] vhd-tool: Add read_headers_interval command

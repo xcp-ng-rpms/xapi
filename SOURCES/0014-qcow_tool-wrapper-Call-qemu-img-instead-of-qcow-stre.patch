@@ -1,4 +1,4 @@
-From 6f419d56c4b42f8f842556a92593c4a9d9195352 Mon Sep 17 00:00:00 2001
+From f57f89339be1bc0e9f563b15cee54ca772c569f5 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 27 Mar 2026 14:27:08 +0000
 Subject: [PATCH] qcow_tool-wrapper: Call qemu-img instead of qcow-stream-tool
@@ -14,11 +14,12 @@ Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
  ocaml/xapi/qcow_tool_wrapper.ml    | 87 ++++++++++++++++++++++--------
  ocaml/xapi/vhd_qcow_parsing.ml     | 32 ++++++++++-
  ocaml/xapi/vhd_qcow_parsing.mli    |  3 ++
+ ocaml/xapi/xapi_globs.ml           |  3 ++
  python3/libexec/qcow2-to-stdout.py | 74 +++++++++++++++----------
- 4 files changed, 145 insertions(+), 51 deletions(-)
+ 5 files changed, 148 insertions(+), 51 deletions(-)
 
 diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
-index 947c5d2ba..57f27fb2d 100644
+index 947c5d2ba..652db754a 100644
 --- a/ocaml/xapi/qcow_tool_wrapper.ml
 +++ b/ocaml/xapi/qcow_tool_wrapper.ml
 @@ -22,32 +22,43 @@ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
@@ -49,14 +50,14 @@ index 947c5d2ba..57f27fb2d 100644
 +
 +  let map_pipe_reader, map_pipe_writer = Unix.pipe ~cloexec:true () in
 +  let (_ : Thread.t) =
-+    run_in_thread "/usr/bin/qemu-img"
++    run_in_thread !Xapi_globs.qemu_img
 +      ["map"; qcow_path; "--output=json"]
 +      map_pipe_writer []
 +  in
 +
 +  let info_pipe_reader, info_pipe_writer = Unix.pipe ~cloexec:true () in
 +  let (_ : Thread.t) =
-+    run_in_thread "/usr/bin/qemu-img"
++    run_in_thread !Xapi_globs.qemu_img
 +      ["info"; qcow_path; "--output=json"]
 +      info_pipe_writer []
 +  in
@@ -220,11 +221,32 @@ index 2df479d92..f43b56dab 100644
 +
 +val parse_header_qemu_img :
 +  Unix.file_descr * Unix.file_descr -> int * (int * int) list
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index c1db14af7..4dbea438a 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -845,6 +845,8 @@ let qcow_to_stdout = ref "/opt/xensource/libexec/qcow2-to-stdout.py"
+ 
+ let qcow_stream_tool = ref "qcow-stream-tool"
+ 
++let qemu_img = ref "/usr/lib64/xen/bin/qemu-img"
++
+ let fence = ref "fence"
+ 
+ let host_bugreport_upload = ref "host-bugreport-upload"
+@@ -2020,6 +2022,7 @@ module Resources = struct
+     ; ("vhd-tool", vhd_tool, "Path to vhd-tool")
+     ; ("qcow_to_stdout", qcow_to_stdout, "Path to qcow-to-stdout script")
+     ; ("qcow_stream_tool", qcow_stream_tool, "Path to qcow-stream-tool")
++    ; ("qemu-img", qemu_img, "Path to qemu-img")
+     ; ("fence", fence, "Path to fence binary, used for HA host fencing")
+     ; ( "host-bugreport-upload"
+       , host_bugreport_upload
 diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
-index 0f473e4a4..0fae40f76 100755
+index 43bcbc402..00fee7d2f 100755
 --- a/python3/libexec/qcow2-to-stdout.py
 +++ b/python3/libexec/qcow2-to-stdout.py
-@@ -488,18 +488,36 @@ def main():
+@@ -489,18 +489,36 @@ def main():
          action="store_true",
      )
      parser.add_argument(
@@ -271,7 +293,7 @@ index 0f473e4a4..0fae40f76 100755
          type=int,
          default=None,
      )
-@@ -512,29 +530,31 @@ def main():
+@@ -513,29 +531,31 @@ def main():
      nonzero_clusters = None
      diff_virtual_size = None
      diff_nonzero_clusters = None

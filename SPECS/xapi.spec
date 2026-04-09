@@ -87,7 +87,7 @@ Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v26.1.0..v26.1.0-8.3
+#   - git format-patch --no-numbered --no-signature v26.1.4..v26.1.4-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -102,20 +102,19 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/6895
 # Temporarily dropped unit test commits to avoid qemu-img build dependency,
 # flipped the xapi.conf switch
-Patch1007: 0007-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
-Patch1008: 0008-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
-Patch1009: 0009-vhd-tool-Add-read_headers_interval-command.patch
-Patch1010: 0010-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
-Patch1011: 0011-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
-Patch1012: 0012-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
-Patch1013: 0013-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
-Patch1014: 0014-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
+Patch1007: 0007-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
+Patch1008: 0008-vhd-tool-Add-read_headers_interval-command.patch
+Patch1009: 0009-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
+Patch1010: 0010-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
+Patch1011: 0011-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
+Patch1012: 0012-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
+Patch1013: 0013-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
+Patch1014: 0014-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
+Patch1015: 0015-qcow-stream-tool-Drop-read_headers.patch
 
-# Proper fix for QCOW issues - to be upstreamed
-Patch1015: 0015-stream_vdi-Avoid-chunk-duplication-when-exporting-fr.patch
-Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
-Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
-Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
+# Upstream PR: https://github.com/xapi-project/xen-api/pull/6998
+Patch1016: 0016-quicktests-Force-VDI-format-on-creation.patch
+
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1516,9 +1515,12 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Fri Mar 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-1
-- XSI-2155: keep track of outstanding domain builds in NUMA placement
-- CA-424055: NUMA: avoid using up the entire memory on node0
+* Thu Apr 9 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.4-1.1
+- Update to upstream 26.1.4-1
+- *** Upstream changelog ***
+  * Fri Mar 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-1
+  - XSI-2155: keep track of outstanding domain builds in NUMA placement
+  - CA-424055: NUMA: avoid using up the entire memory on node0
 
 * Tue Apr 14 2026 Sebastien Rodot <sebastien.rodot@vates.tech> - 26.1.3-1.8
 - Rework local patch [xcp-ng] open/close openflow port to open the port conditionally

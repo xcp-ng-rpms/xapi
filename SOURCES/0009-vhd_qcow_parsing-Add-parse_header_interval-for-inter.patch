@@ -1,4 +1,4 @@
-From 12cd403d6460b09b92c333d205e703ebf0eab093 Mon Sep 17 00:00:00 2001
+From c816ca604e60037b29e36984afa10288168591dd Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 18 Feb 2026 16:03:38 +0000
 Subject: [PATCH] vhd_qcow_parsing: Add parse_header_interval for
@@ -14,11 +14,11 @@ Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
 ---
  ocaml/xapi/qcow_tool_wrapper.ml  |   4 ++
  ocaml/xapi/qcow_tool_wrapper.mli |   2 +
- ocaml/xapi/stream_vdi.ml         | 105 ++++++++++++++++++++++---------
- ocaml/xapi/vhd_qcow_parsing.ml   |  23 ++++++-
+ ocaml/xapi/stream_vdi.ml         | 120 +++++++++++++++++++++++--------
+ ocaml/xapi/vhd_qcow_parsing.ml   |  23 +++++-
  ocaml/xapi/vhd_qcow_parsing.mli  |   2 +
- ocaml/xapi/vhd_tool_wrapper.ml   |  15 ++++-
- 6 files changed, 119 insertions(+), 32 deletions(-)
+ ocaml/xapi/vhd_tool_wrapper.ml   |  15 +++-
+ 6 files changed, 133 insertions(+), 33 deletions(-)
 
 diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
 index c04617f4f..24f396f0d 100644
@@ -46,15 +46,18 @@ index c1c4a6426..16cede3bb 100644
 +
 +val parse_header_interval : string -> int * (int * int) list
 diff --git a/ocaml/xapi/stream_vdi.ml b/ocaml/xapi/stream_vdi.ml
-index 9b4e5bebd..cc61e958d 100644
+index 9b4e5bebd..4481cb767 100644
 --- a/ocaml/xapi/stream_vdi.ml
 +++ b/ocaml/xapi/stream_vdi.ml
-@@ -306,37 +306,86 @@ let send_one ofd (__context : Context.t) rpc session_id progress refresh_session
+@@ -306,37 +306,99 @@ let send_one ofd (__context : Context.t) rpc session_id progress refresh_session
            | Ok (Some (driver, path)) when driver = "vhd" || driver = "qcow2"
              -> (
              try
 -              (* Read backing file headers, then only read and write
--                 allocated clusters from the bitmap *)
++              let last_chunk = Int64.((to_int size - 1) / to_int chunk_size) in
++              if !Xapi_globs.vhd_legacy_blocks_format then
++                (* Read backing file headers, then only read and write
+                  allocated clusters from the bitmap *)
 -              let cluster_size, cluster_list =
 -                match driver with
 -                | "vhd" ->
@@ -68,25 +71,6 @@ index 9b4e5bebd..cc61e958d 100644
 -                get_allocated_chunks_from_clusters cluster_size cluster_list
 -              in
 -              (* First and last chunks are always written - it's a limitation
--                 of the XVA format *)
-               let last_chunk =
-                 Int64.((to_int size - to_int chunk_size + 1) / to_int chunk_size)
-               in
--              let set = set |> ChunkSet.add 0 |> ChunkSet.add last_chunk in
--              ChunkSet.iter
--                (fun this_chunk_no ->
--                  let offset = Int64.(mul (of_int this_chunk_no) chunk_size) in
--                  let _ =
--                    write_chunk this_chunk_no offset
--                      ~write_check:(fun _ _ -> true)
--                      ~seek:true ~timeout_workaround:false
--                  in
--                  ()
--                )
--                set
-+              if !Xapi_globs.vhd_legacy_blocks_format then
-+                (* Read backing file headers, then only read and write
-+                 allocated clusters from the bitmap *)
 +                let cluster_size, cluster_list =
 +                  match driver with
 +                  | "vhd" ->
@@ -100,7 +84,22 @@ index 9b4e5bebd..cc61e958d 100644
 +                  get_allocated_chunks_from_clusters cluster_size cluster_list
 +                in
 +                (* First and last chunks are always written - it's a limitation
-+                 of the XVA format *)
+                  of the XVA format *)
+-              let last_chunk =
+-                Int64.((to_int size - to_int chunk_size + 1) / to_int chunk_size)
+-              in
+-              let set = set |> ChunkSet.add 0 |> ChunkSet.add last_chunk in
+-              ChunkSet.iter
+-                (fun this_chunk_no ->
+-                  let offset = Int64.(mul (of_int this_chunk_no) chunk_size) in
+-                  let _ =
+-                    write_chunk this_chunk_no offset
+-                      ~write_check:(fun _ _ -> true)
+-                      ~seek:true ~timeout_workaround:false
+-                  in
+-                  ()
+-                )
+-                set
 +                let set = set |> ChunkSet.add 0 |> ChunkSet.add last_chunk in
 +                ChunkSet.iter
 +                  (fun this_chunk_no ->
@@ -143,22 +142,37 @@ index 9b4e5bebd..cc61e958d 100644
 +                  (cluster_size + chunk_size - 1) / chunk_size
 +                in
 +                (* Iterate over allocated intervals, copying every cluster inside *)
-+                List.iter
-+                  (fun (cluster_no_left, cluster_no_right) ->
-+                    let calc_chunk cluster =
-+                      let cluster_offset = cluster * cluster_size in
-+                      let chunk_no = cluster_offset / chunk_size in
-+                      chunk_no
-+                    in
-+                    let left_chunk_no = calc_chunk cluster_no_left in
-+                    let right_chunk_no =
-+                      calc_chunk cluster_no_right + chunks_in_cluster - 1
-+                    in
-+                    for i = left_chunk_no to right_chunk_no do
-+                      process_chunk i ~force:false
-+                    done
-+                  )
-+                  cluster_list ;
++                let _ =
++                  List.fold_left
++                    (fun prev_chunk (cluster_no_left, cluster_no_right) ->
++                      let calc_chunk cluster =
++                        let cluster_offset = cluster * cluster_size in
++                        let chunk_no = cluster_offset / chunk_size in
++                        chunk_no
++                      in
++                      let left_chunk_no = calc_chunk cluster_no_left in
++                      let right_chunk_no =
++                        calc_chunk cluster_no_right + chunks_in_cluster - 1
++                      in
++
++                      (* If a chunk contains multiple clusters, we could have
++                       already copied it. In that case, start with the
++                       following chunk. *)
++                      let left_chunk_no =
++                        if left_chunk_no = prev_chunk then
++                          left_chunk_no + 1
++                        else
++                          left_chunk_no
++                      in
++
++                      for i = left_chunk_no to right_chunk_no do
++                        process_chunk i ~force:false
++                      done ;
++
++                      right_chunk_no
++                    )
++                    (-1) cluster_list
++                in
 +
 +                process_chunk last_chunk ~force:true
              with e ->
