@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.6%{?dist}
+Release: 1%{?xsrel}.7%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1516,6 +1516,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Apr 13 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.7
+- Apply new formatting to patches
+
 * Tue Mar 24 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.6
 - When exporting QCOW2-backed VDIs, read headers of the whole snapshot chain
 - Fix duplicated chunks during VM export resulting in an invalid XVA
