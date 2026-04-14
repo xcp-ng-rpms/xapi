@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.7%{?dist}
+Release: 1%{?xsrel}.8%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1516,6 +1516,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Apr 14 2026 Sebastien Rodot <sebastien.rodot@vates.tech> - 26.1.3-1.8
+- Rework local patch [xcp-ng] open/close openflow port to open the port conditionally
+
 * Mon Apr 13 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.7
 - Apply new formatting to patches
 

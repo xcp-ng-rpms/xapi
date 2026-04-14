@@ -1,4 +1,4 @@
-From cc4235d94d41952816d3623d27622e6d3f93ca3c Mon Sep 17 00:00:00 2001
+From 6f419d56c4b42f8f842556a92593c4a9d9195352 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 27 Mar 2026 14:27:08 +0000
 Subject: [PATCH] qcow_tool-wrapper: Call qemu-img instead of qcow-stream-tool
@@ -277,14 +277,7 @@ index 0f473e4a4..0fae40f76 100755
      diff_nonzero_clusters = None
 -    if args.json_header:
 -        json_header = json.load(sys.stdin)
-+
-+    def parse_json_files(info_fd, map_fd):
-+        map_f = os.fdopen(map_fd)
-+        info_f = os.fdopen(info_fd)
-+        map_json = json.load(map_f)
-+        info_json = json.load(info_f)
-+
-         try:
+-        try:
 -            virtual_size = json_header['virtual_size']
 -            source_cluster_size = 2 ** json_header['cluster_bits']
 -            if source_cluster_size != args.cluster_size:
@@ -295,7 +288,14 @@ index 0f473e4a4..0fae40f76 100755
 -    if args.json_header_diff:
 -        f = os.fdopen(args.json_header_diff)
 -        json_header = json.load(f)
--        try:
++
++    def parse_json_files(info_fd, map_fd):
++        map_f = os.fdopen(map_fd)
++        info_f = os.fdopen(info_fd)
++        map_json = json.load(map_f)
++        info_json = json.load(info_f)
++
+         try:
 -            diff_virtual_size = json_header['virtual_size']
 -            if 2 ** json_header['cluster_bits'] == args.cluster_size:
 -                diff_nonzero_clusters = json_header['data_clusters']

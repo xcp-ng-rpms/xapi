@@ -1,4 +1,4 @@
-From de49984976741b027edbed1fa2331ae51540d033 Mon Sep 17 00:00:00 2001
+From d1bf4d44a2d6f52bd4891101da5e3b88e53f69ab Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 17:06:38 +0200
 Subject: [PATCH] [xcp-ng] open/close openflow port
@@ -8,27 +8,59 @@ The PR is here https://github.com/xapi-project/xen-api/pull/4188
 This patch does it until we have another way to do it.
 
 Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+
+XCPNG-2470 open/close openflow port only if needed
+XO uses `pool:other_config["xo:sdn-controller:of-method"]` to tell us the method used to manage OpenFlow rules.
+if it is "channel", XO will need port 6653 to be opened to directly manage rules, else it will use xapi plugin (via standard xe methods).
+
+Signed-off-by: Sebastien Marie <semarie@kapouay.eu.org>
 ---
- python3/plugins/openvswitch-config-update | 2 ++
- 1 file changed, 2 insertions(+)
+ python3/plugins/openvswitch-config-update | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
 
 diff --git a/python3/plugins/openvswitch-config-update b/python3/plugins/openvswitch-config-update
-index 834788cf1..9c988db03 100755
+index 834788cf1..aa5a11d85 100755
 --- a/python3/plugins/openvswitch-config-update
 +++ b/python3/plugins/openvswitch-config-update
-@@ -74,6 +74,7 @@ def update(session, args):
-     if not controller and currentControllers:
-         delete_cacert()
-         runCmd([iptablectl, "close", "6640"])
+@@ -68,6 +68,13 @@ def update(session, args):
+             controller_protocol, controller_address, controller_port
+         )
+ 
++    # assume 'channel' if XO didn't set the property
++    of_method = pool["other_config"].get("xo:sdn-controller:of-method") or "channel"
++
++    # migration: unconditionnally close 6653 if not need
++    if of_method != "channel":
 +        runCmd([iptablectl, "close", "6653"])
++
+     ret_str = ""
+     currentControllers = vswitchCurrentControllers()
+ 
+@@ -83,7 +90,7 @@ def update(session, args):
+         delete_cacert()
          with contextlib.suppress(Exception):
              emergency_reset(session, None)
-         removeControllerCfg()
-@@ -274,6 +275,7 @@ def setControllerCfg(bootstrap, controller):
+-        setControllerCfg(bootstrap, controller)
++        setControllerCfg(bootstrap, controller, of_method)
+         new_controller = True
+         ret_str += "Successfully set controller to %s.  " % controller
+ 
+@@ -231,7 +238,7 @@ def removeControllerCfg():
+     vswitchCfgMod(["--", "del-manager", "--", "del-ssl"])
+ 
+ 
+-def setControllerCfg(bootstrap, controller):
++def setControllerCfg(bootstrap, controller, of_method):
+     # /etc/xensource/xapi-ssl.pem is mentioned twice below because it
+     # contains both the private key and the certificate.
+     if bootstrap:
+@@ -274,6 +281,9 @@ def setControllerCfg(bootstrap, controller):
                  controller,
              ]
          )
-+    runCmd([iptablectl, "open", "6653"])
++    # open 6653 only if we need it
++    if of_method == "channel":
++        runCmd([iptablectl, "open", "6653"])
  
  
  def composeController(protocol, controllerIP, tcpport):
