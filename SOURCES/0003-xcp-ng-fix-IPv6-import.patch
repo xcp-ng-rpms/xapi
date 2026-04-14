@@ -1,4 +1,4 @@
-From 081e3da54536e198bc11d3b2682c4b94d252dc1d Mon Sep 17 00:00:00 2001
+From 06dd952d393c2bb6ada8aa4218b44c50deae271c Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 14:59:05 +0200
 Subject: [PATCH] [xcp-ng] fix IPv6 import
@@ -8,14 +8,14 @@ See: https://github.com/mirage/ocaml-cohttp/issues/997
 
 Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
 ---
- ocaml/xapi/xapi_vm.ml | 18 +++++++++++++++++-
- 1 file changed, 17 insertions(+), 1 deletion(-)
+ ocaml/xapi/xapi_vm.ml | 28 +++++++++++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
 
 diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
-index 21b1704e8..ad6d21fc9 100644
+index 2d4595b6d..b2a61a8ec 100644
 --- a/ocaml/xapi/xapi_vm.ml
 +++ b/ocaml/xapi/xapi_vm.ml
-@@ -1527,7 +1527,23 @@ let rec import_inner n ~__context ~url ~sr ~full_restore ~force =
+@@ -1562,7 +1562,33 @@ let rec import_inner n ~__context ~url ~sr ~full_restore ~force =
              Cohttp.Request.Make (Cohttp_posix_io.Unbuffered_IO) in
            let module Response =
              Cohttp.Response.Make (Cohttp_posix_io.Unbuffered_IO) in
@@ -29,14 +29,24 @@ index 21b1704e8..ad6d21fc9 100644
 +          let headers = Cohttp.Header.init () in
 +          let headers =
 +            Cohttp.Header.add_unless_exists headers "host"
-+              (match Uri.scheme uri with
-+              | Some "httpunix" -> ""
++              ( match Uri.scheme uri with
++              | Some "httpunix" ->
++                  ""
 +              | _ -> (
-+                (maybe_wrap_IPv6_literal (Uri.host_with_default ~default:"localhost" uri))
++                  maybe_wrap_IPv6_literal
++                    (Uri.host_with_default ~default:"localhost" uri)
 +                  ^
-+                  match Uri.port uri with Some p -> ":" ^ string_of_int p | None -> ""))
++                  match Uri.port uri with
++                  | Some p ->
++                      ":" ^ string_of_int p
++                  | None ->
++                      ""
++                )
++              )
 +          in
-+          let request = Cohttp.Request.make ~meth:`GET ?headers:(Some headers) uri in
++          let request =
++            Cohttp.Request.make ~meth:`GET ?headers:(Some headers) uri
++          in
            let ic =
              {
                Cohttp_posix_io.Unbuffered_IO.header_buffer= None
