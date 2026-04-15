@@ -1,4 +1,4 @@
-From 9457b3799dff894706b0a2f111d6bfedb6c33505 Mon Sep 17 00:00:00 2001
+From 5f1a2bf1194e6bcd544a287e19d0144f419a1c19 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Sat, 18 Oct 2025 09:21:18 +0100
 Subject: [PATCH] [xcp-ng] do not change rsyslog configuration
@@ -17,8 +17,8 @@ Reverts commit 468eb75dddfea6db512a8bfb4860ff2042efab66.
 
 Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
 ---
- scripts/xe-syslog-reconfigure | 32 +++++++++++++++++++++++++++-----
- 1 file changed, 27 insertions(+), 5 deletions(-)
+ scripts/xe-syslog-reconfigure | 28 +++++++++++++++++++++++++---
+ 1 file changed, 25 insertions(+), 3 deletions(-)
 
 diff --git a/scripts/xe-syslog-reconfigure b/scripts/xe-syslog-reconfigure
 index fa5ad0b79..cc64a3030 100644
@@ -28,16 +28,11 @@ index fa5ad0b79..cc64a3030 100644
    shift
  done
  
--
--echo "# /etc/rsyslog.d/remote.conf is managed by xe-syslog-reconfigure (do not edit)" > /etc/rsyslog.d/remote.conf
--if [ $remote -eq 1 ]; then
--  echo "*.* @$host" >> /etc/rsyslog.d/remote.conf
 +if [ -r /etc/syslog.conf ]; then
 +  conf_file=/etc/syslog.conf
 +  service=syslog
- fi
- 
--systemctl restart rsyslog
++fi
++
 +if [ -r /etc/rsyslog.conf ]; then
 +  conf_file=/etc/rsyslog.conf
 +  service=rsyslog
@@ -52,13 +47,16 @@ index fa5ad0b79..cc64a3030 100644
 +  echo "Error: unable to determine syslog service" >&2
 +  exit 1
 +fi
-+
+ 
+-echo "# /etc/rsyslog.d/remote.conf is managed by xe-syslog-reconfigure (do not edit)" > /etc/rsyslog.d/remote.conf
 +sed -e '/^\*\.\*.*[@~]/ d' $conf_file >/etc/syslog.$$
-+if [ $remote -eq 1 ]; then
+ if [ $remote -eq 1 ]; then
+-  echo "*.* @$host" >> /etc/rsyslog.d/remote.conf
 +  echo -e "*.* @$host\n*.* ~" >>/etc/syslog.$$
 +else
 +  echo "*.* ~" >>/etc/syslog.$$
-+fi
-+
+ fi
+ 
+-systemctl restart rsyslog
 +[ -s /etc/syslog.$$ ] && mv -f /etc/syslog.$$ $conf_file
 +systemctl restart $service

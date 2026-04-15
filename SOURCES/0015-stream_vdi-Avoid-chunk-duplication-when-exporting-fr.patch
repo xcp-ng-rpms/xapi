@@ -1,4 +1,4 @@
-From d34dd12b1f15ce342db2839bf01f834f91a6337a Mon Sep 17 00:00:00 2001
+From d9c0738cdd405f0dc9c02a2070cf2fd7862a0b8a Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 25 Mar 2026 13:38:41 +0000
 Subject: [PATCH] stream_vdi: Avoid chunk duplication when exporting from

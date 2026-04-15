@@ -1,4 +1,4 @@
-From 8066f85fa63696e4b8b4b7592c902cf085816da0 Mon Sep 17 00:00:00 2001
+From 3ac21b330df5dc232045debcacce75fdc4609611 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 18 Feb 2026 15:28:20 +0000
 Subject: [PATCH] xapi_globs: Add vhd_legacy_blocks_format feature flag
