@@ -204,7 +204,12 @@ Requires: sm
 Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
 %if 0%{?xenserver} >= 9
+%if 0%{?xcpng}
+# missing files prevent enabling firewalld
+Requires: iptables-legacy
+%else
 Requires: firewalld
+%endif
 %else
 # firewall-port needs iptables-service to perform
 # `service iptables save`
@@ -1560,6 +1565,7 @@ Coverage files from unit tests
 - Add missing core dep on openssl-perl (c_rehash)
 - Add in core directories whose lack blocks startup:
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
+- Stay away from firewalld for now, use iptables-legacy
 - Comment out the runtime dependency on oxenstored-split-out-from-xen
 - Revert the 26.1.3-1.4 changes, relying on qcow support in xs-opam.
 - Fix extra_file logic used for xenserver9.conf
