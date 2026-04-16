@@ -742,7 +742,9 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %if 0%{?xenserver} < 9
 echo "ssh-auto-mode=false" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
 %else
+%if ! 0%{?xcpng}
 echo "firewall-backend=firewalld" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/firewall-backend.conf
+%endif
 %endif
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
@@ -1175,7 +1177,9 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 %if 0%{?xenserver} < 9
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
 %else
+%if ! 0%{?xcpng}
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/firewall-backend.conf
+%endif
 %endif
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
