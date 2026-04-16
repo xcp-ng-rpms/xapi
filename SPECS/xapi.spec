@@ -18,7 +18,7 @@
 %bcond_without extra_config
 %endif
 # XS9 reset all epoch to 0
-%define qemu_epoch 2
+%define qemu_epoch 0
 %else
 %bcond_without python2_compat
 %define qemu_epoch 2
@@ -1555,7 +1555,6 @@ Coverage files from unit tests
 - Don't rely on upstream mechanism for the version
 - HACK replace $sha-dirty strings with $version
 - On XCP-ng 9, require dhcp-client not dhclient
-- Hack the qemu epoch to stay compatible with current qemu
 - Fix xcp-rrdd posttans parsing of systemctl output
 - Add missing rrdd-plugins dep on sysstat (iostat)
 - Add missing core dep on openssl-perl (c_rehash)
