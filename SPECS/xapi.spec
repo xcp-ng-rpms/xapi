@@ -117,6 +117,11 @@ Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
 Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
 Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
 
+# Testing supported image format
+Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1013: 0003-Bumping-database-schema-version.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
