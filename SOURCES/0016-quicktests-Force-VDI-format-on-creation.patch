@@ -1,23 +1,30 @@
-From 2302eca9fba517580171f6853a201b9b06fef83b Mon Sep 17 00:00:00 2001
+From 684d2e755a2b6cfc3ed454b182f091f5fd20e4f9 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
-Date: Mon, 30 Mar 2026 15:23:42 +0000
+Date: Thu, 9 Apr 2026 07:26:25 +0000
 Subject: [PATCH] quicktests: Force VDI format on creation
 
-Not specifying the format on SR's with default image format=qcow2 would break
-delta tests for VHD (since they require two vhd images to calculate differences
-between). Force the format in VDI.create instead.
+Sort of a follow-up to #6908, which filtered out SRs that only offer QCOW2
+backing files. This commit allows running delta tests on SRs that offer both
+QCOW2 and VHD backing files (with QCOW2 as the default).
 
-Force vhd format for max_vdi_size tests, since they're only exporting to vhd
-(and testing its max size).
+Not specifying the format on SRs with default image format=qcow2 breaks
+delta tests for VHD (since they require two vhd images to calculate
+differences between).
+
+Force the format in VDI.create through sm-config instead. The sm-config
+parameter is ignored if it's not supported (i.e. on XenServer VHD-only
+SMAPIv1 SRs).
+
+Force format=vhd for max_vdi_size tests as well, since they're only exporting
+to vhd (and testing its max size), this speeds up the tests.
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
 ---
  ocaml/quicktest/qt.ml                         | 11 ++-
  ocaml/quicktest/qt.mli                        |  1 +
  ocaml/quicktest/quicktest_max_vdi_size.ml     |  5 +-
- .../quicktest_vdi_ops_data_integrity.ml       | 82 +++++++++++--------
- python3/libexec/qcow2-to-stdout.py            |  3 +-
- 5 files changed, 60 insertions(+), 42 deletions(-)
+ .../quicktest_vdi_ops_data_integrity.ml       | 78 +++++++++++--------
+ 4 files changed, 56 insertions(+), 39 deletions(-)
 
 diff --git a/ocaml/quicktest/qt.ml b/ocaml/quicktest/qt.ml
 index 5cb8b342f..49eeffc56 100644
@@ -86,7 +93,7 @@ index 43e2582ab..cdddd2b96 100644
                  Client.Client.VDI.get_uuid ~rpc ~session_id ~self:new_vdi
                in
 diff --git a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
-index 01d830b87..0bba68064 100644
+index 01d830b87..6d6934154 100644
 --- a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
 +++ b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
 @@ -57,13 +57,14 @@ let checksum rpc session_id vdi =
@@ -271,16 +278,14 @@ index 01d830b87..0bba68064 100644
  let tests () =
 -  (data_integrity_tests copy_vdi "VDI.copy" |> supported_srs)
 -  @ (large_data_integrity_tests copy_vdi "VDI.copy" |> supported_srs)
--  @ (data_integrity_tests export_import_raw "VDI export/import to/from raw file"
 +  (data_integrity_tests copy_vdi "VDI.copy" "vhd" |> supported_srs)
 +  @ (large_data_integrity_tests copy_vdi "VDI.copy" "vhd" |> supported_srs)
-+  @ (data_integrity_tests export_import_raw
-+       "VDI export/import to/from raw\n  file" "vhd"
+   @ (data_integrity_tests export_import_raw "VDI export/import to/from raw file"
++       "vhd"
      |> supported_srs
      )
--  @ (data_integrity_tests export_import_vhd "VDI export/import to/from VHD file"
-+  @ (data_integrity_tests export_import_vhd
-+       "VDI export/import to/from VHD\n  file" "vhd"
+   @ (data_integrity_tests export_import_vhd "VDI export/import to/from VHD file"
++       "vhd"
      |> supported_srs
      )
    @ (delta_data_integrity_tests delta_export_import_vhd
@@ -290,7 +295,7 @@ index 01d830b87..0bba68064 100644
      )
 -  @ (data_integrity_tests export_import_tar "VDI export/import to/from TAR file"
 +  @ (data_integrity_tests export_import_tar
-+       "VDI export/import to/from TAR\n  file" "vhd"
++       "VDI export/import to/from TAR  file" "vhd"
      |> supported_srs
      )
    @ (data_integrity_tests export_import_qcow
@@ -308,17 +313,3 @@ index 01d830b87..0bba68064 100644
 +       "VDI export/import to/from TAR file" "vhd"
      |> supported_gfs2_srs
      )
-diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
-index 0fae40f76..00fee7d2f 100755
---- a/python3/libexec/qcow2-to-stdout.py
-+++ b/python3/libexec/qcow2-to-stdout.py
-@@ -106,7 +106,8 @@ class Interval:
-         interval if true
-         """
-         # Check if cluster is within [min, max]
--        if self.intervals[-1][1] < cluster or self.intervals[0][0] > cluster:
-+        if (len(self.intervals) == 0 or
-+            (self.intervals[-1][1] < cluster or self.intervals[0][0] > cluster)):
-             return False
- 
-         # Binary search for the interval that could contain the cluster

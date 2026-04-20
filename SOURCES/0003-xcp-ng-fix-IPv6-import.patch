@@ -1,4 +1,4 @@
-From 06dd952d393c2bb6ada8aa4218b44c50deae271c Mon Sep 17 00:00:00 2001
+From af66fd79b1ef5300a8ee2ca1795e79d96831586f Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 14:59:05 +0200
 Subject: [PATCH] [xcp-ng] fix IPv6 import

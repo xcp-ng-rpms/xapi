@@ -1,4 +1,4 @@
-From ea30332d1b388910d6cdc3efeb279863c7416c3c Mon Sep 17 00:00:00 2001
+From 4e82e26018e9ba941d0aba8066610fbc03c17080 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 4 Feb 2026 13:27:05 +0000
 Subject: [PATCH] python3/qcow2-to-stdout: Switch to sparse interval format for
@@ -13,10 +13,10 @@ Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
  1 file changed, 20 insertions(+), 17 deletions(-)
 
 diff --git a/python3/libexec/qcow2-to-stdout.py b/python3/libexec/qcow2-to-stdout.py
-index 1f876ec4e..0f473e4a4 100755
+index 912314f34..43bcbc402 100755
 --- a/python3/libexec/qcow2-to-stdout.py
 +++ b/python3/libexec/qcow2-to-stdout.py
-@@ -224,26 +224,29 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits,
+@@ -225,26 +225,29 @@ def write_qcow2_content(input_file, cluster_size, refcount_bits,
              # In case input_file is bigger than diff_file_name, first check
              # if clusters from diff_file_name differ, and then check if the
              # rest contain data

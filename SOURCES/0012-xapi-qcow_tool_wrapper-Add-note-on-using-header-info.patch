@@ -1,4 +1,4 @@
-From 4f8775c2cbae5988d5dfa34443b523e48a7cfd98 Mon Sep 17 00:00:00 2001
+From cbf7b3bcd4b7a31439da4a74ad8ddf106c985325 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 6 Feb 2026 09:05:27 +0000
 Subject: [PATCH] xapi/qcow_tool_wrapper: Add note on using header information
