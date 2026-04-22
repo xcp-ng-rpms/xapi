@@ -613,22 +613,36 @@ echo /usr/libexec/xapi/cluster-stack >> core-files
 echo /opt/xensource/www >> core-files
 echo /var/lib/xcp >> core-files
 
-# HACK: fix dune-build-info's job: replace $sha-dirty strings with version
-# Note: when building from a SRPM there is no git history
-if [ -r .git ]; then
-    dirtystr=$(git describe --always --dirty --abbrev=7)
+# HACK: when building from the git repo, fix dune-build-info's job:
+# replace $sha(-dirty) strings with intended version, when we assume
+# https://github.com/ocaml/dune/issues/11225 will be triggered
+if [ "$(git rev-parse --show-toplevel)" == "$(env GIT_CEILING_DIRECTORIES= git rev-parse --show-toplevel)" ]; then
+    echo "Unsetting GIT_CEILING_DIRECTORIES does not impact git repo discovery: '$(git rev-parse --show-toplevel)'.  Good?"
+else
+    dirtystr=$(GIT_CEILING_DIRECTORIES= git describe --always --dirty --abbrev=7)
     dirtylen=${#dirtystr}
     version=%{version}
     verlen=${#version}
     # since we use sed we have to write as many bytes, so pad with spaces
     fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
     replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
-    grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
-        xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
-    sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+    # only trigger subst if there is need for fixing
+    echo "Checking for binaries with garbled versions (note GIT_CEILING_DIRECTORIES='$GIT_CEILING_DIRECTORIES')..."
+    if grep -rl "${dirtystr}" $RPM_BUILD_ROOT; then
+        if [ $verlen -gt $dirtylen ]; then
+            echo >&2 "ERROR: version string too long to fix back into binaries"
+            exit 1
+        fi
+        echo "WARNING: binaries need to be patched, replacing '=${dirtylen}:${dirtystr}' with '${replacement}'"
+        grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+            xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+        sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+    fi
 fi
-# make sure we don't have any "-dirty" string in the build
-! grep -r -e "-dirty" $RPM_BUILD_ROOT
+
+# make sure we don't have any "-dirty" string in the build, while
+# avoiding legit "xen-set-global-dirty-log"
+! grep -r -e "-dirty[^-]" $RPM_BUILD_ROOT || false
 
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
