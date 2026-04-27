@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.8%{?dist}
+Release: 1%{?xsrel}.9%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -116,6 +116,10 @@ Patch1015: 0015-stream_vdi-Avoid-chunk-duplication-when-exporting-fr.patch
 Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
 Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
 Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
+
+Patch1019: 0019-Remove-handling-of-VBD.other_config-backend-local.patch
+Patch1020: 0020-Do-not-recognise-VM.other_config-is_system_domain.patch
+Patch1021: 0021-Do-not-recognise-VM-PBD-.other_config-storage_driver.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1516,6 +1520,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Apr 27 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.9
+- Fixes for XSA-489 (CVE-2026-23559, CVE-2026-23560, CVE-2026-23561)
+
 * Tue Apr 14 2026 Sebastien Rodot <sebastien.rodot@vates.tech> - 26.1.3-1.8
 - Rework local patch [xcp-ng] open/close openflow port to open the port conditionally
 
