@@ -117,6 +117,11 @@ Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
 Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
 Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
 
+Patch1019: 0019-xapi_vm-Implement-RBAC-checking-for-keys-in-set_othe.patch
+Patch1020: 0020-xapi_vm-Implement-RBAC-checking-for-VM.platform-keys.patch
+Patch1021: 0021-update-schematest.patch
+
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

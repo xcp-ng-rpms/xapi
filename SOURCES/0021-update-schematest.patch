@@ -1,0 +1,23 @@
+From 6378430ae9e1843b90482ef5c67e68bbbfdfa86d Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 27 Apr 2026 13:25:07 +0000
+Subject: [PATCH] update schematest
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/idl/schematest.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index a90bf8687..4af7d368d 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "a01358e3ff5f42d5aee162e995d2ec05"
++let last_known_schema_hash = "88b40556fd6a45af918900ff6d8079c5"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
