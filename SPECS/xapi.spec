@@ -1,4 +1,4 @@
-%global package_speccommit 9ec21e0f7584989f91b5d2666018ce9e94c9b5b1
+%global package_speccommit 761f6635b994734483d07103e03f8c83f0391225
 %global package_srccommit v26.1.4
 
 # This matches the location where xen installs the ocaml libraries
@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.4
-Release: 1%{?xsrel}%{?dist}
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -84,6 +84,11 @@ Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
+
+# Security patches from xapi-89
+Patch1: 0001-xapi89-backend-local.patch
+Patch2: 0002-xapi89-system-domain.patch
+Patch3: 0003-xapi89-storage-driver-domain.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1455,6 +1460,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Apr 24 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-2
+- Security patches from xapi-89
+
 * Fri Mar 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-1
 - XSI-2155: keep track of outstanding domain builds in NUMA placement
 - CA-424055: NUMA: avoid using up the entire memory on node0

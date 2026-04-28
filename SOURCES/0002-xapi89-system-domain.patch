@@ -1,0 +1,70 @@
+commit 4afc1b4879a2011fcd10b781f565ae86094b5816
+Author: Rob Hoes <rob.hoes@citrix.com>
+Date:   Fri Apr 24 11:32:34 2026 +0000
+
+    Do not recognise VM.other_config:is_system_domain
+    
+    This code is either obsolete or should use a first-class field (TBD).
+    
+    This is part of XSA-489 / CVE-2026-23560.
+    
+    Signed-off-by: Rob Hoes <rob.hoes@citrix.com>
+    (cherry picked from commit 013755b3da0ae5d19ea86985fc6226cd4567afea)
+
+diff --git a/ocaml/xapi/system_domains.ml b/ocaml/xapi/system_domains.ml
+index c610424ae..5ae5af128 100644
+--- a/ocaml/xapi/system_domains.ml
++++ b/ocaml/xapi/system_domains.ml
+@@ -23,16 +23,9 @@ open D
+ 
+ (** If a VM is a system domain then xapi will perform lifecycle operations on demand,
+     and will allow this VM to start even if a host is disabled. *)
+-let system_domain_key = "is_system_domain"
+ 
+-let bool_of_string x = try bool_of_string x with _ -> false
+-
+-let is_system_domain snapshot =
+-  snapshot.API.vM_is_control_domain
+-  ||
+-  let oc = snapshot.API.vM_other_config in
+-  List.mem_assoc system_domain_key oc
+-  && bool_of_string (List.assoc system_domain_key oc)
++let is_system_domain snapshot = snapshot.API.vM_is_control_domain
++(* NOTE: code that recognises the other_config:is_system_domain key has been dropped *)
+ 
+ let get_is_system_domain ~__context ~self =
+   is_system_domain (Db.VM.get_record ~__context ~self)
+@@ -42,15 +35,6 @@ let get_is_system_domain ~__context ~self =
+    order shouldn't matter because everyone will always update them to the same value.
+    It's therefore safe to throw away exceptions. *)
+ 
+-let set_is_system_domain ~__context ~self ~value =
+-  Helpers.log_exn_continue
+-    (Printf.sprintf "set_is_system_domain self = %s" (Ref.string_of self))
+-    (fun () ->
+-      Db.VM.remove_from_other_config ~__context ~self ~key:system_domain_key ;
+-      Db.VM.add_to_other_config ~__context ~self ~key:system_domain_key ~value
+-    )
+-    ()
+-
+ (** If a VM is a driver domain then it hosts backends for either disk or network
+     devices. We link PBD.other_config:storage_driver_domain_key to
+     VM.other_config:storage_driver_domain_key and we ensure the VM is marked as
+@@ -83,7 +67,7 @@ let vm_set_storage_driver_domain ~__context ~self ~value =
+     ()
+ 
+ let record_pbd_storage_driver_domain ~__context ~pbd ~domain =
+-  set_is_system_domain ~__context ~self:domain ~value:"true" ;
++  (* set_is_system_domain ~__context ~self:domain ~value:"true" ; *)
+   pbd_set_storage_driver_domain ~__context ~self:pbd
+     ~value:(Ref.string_of domain) ;
+   vm_set_storage_driver_domain ~__context ~self:domain ~value:(Ref.string_of pbd)
+@@ -113,7 +97,7 @@ let storage_driver_domain_of_pbd ~__context ~pbd =
+ 
+ let storage_driver_domain_of_pbd ~__context ~pbd =
+   let domain = storage_driver_domain_of_pbd ~__context ~pbd in
+-  set_is_system_domain ~__context ~self:domain ~value:"true" ;
++  (*  set_is_system_domain ~__context ~self:domain ~value:"true" ; *)
+   pbd_set_storage_driver_domain ~__context ~self:pbd
+     ~value:(Ref.string_of domain) ;
+   vm_set_storage_driver_domain ~__context ~self:domain ~value:(Ref.string_of pbd) ;

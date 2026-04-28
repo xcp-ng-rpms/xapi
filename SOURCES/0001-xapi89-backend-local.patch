@@ -1,0 +1,48 @@
+commit 96ca5ceab9ebe6b07b9f969173904eb4b735cb0c
+Author: Rob Hoes <rob.hoes@citrix.com>
+Date:   Fri Apr 24 10:49:14 2026 +0000
+
+    Remove handling of VBD.other_config:backend-local
+    
+    There is no use case for it anymore.
+    
+    This is part of XSA-489 / CVE-2026-23559.
+    
+    Signed-off-by: Rob Hoes <rob.hoes@citrix.com>
+    (cherry picked from commit 0fbe2c616863d391a1bd3a469eb4c767aa20fb28)
+
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index 4dbea438a..b543e1375 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -242,8 +242,6 @@ let vbd_polling_idle_threshold_key = "polling-idle-threshold"
+ 
+ (* set in VBD other-config *)
+ 
+-let vbd_backend_local_key = "backend-local" (* set in VBD other-config *)
+-
+ let mac_seed = "mac_seed" (* set in a VM to generate MACs by hash chaining *)
+ 
+ let ( ** ) = Int64.mul
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index a340d5f4e..05cfd8f81 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -678,16 +678,7 @@ module MD = struct
+              )
+         )
+     in
+-    let backend_of_vbd vbd =
+-      let vbd_oc = vbd.API.vBD_other_config in
+-      if List.mem_assoc Xapi_globs.vbd_backend_local_key vbd_oc then (
+-        let path = List.assoc Xapi_globs.vbd_backend_local_key vbd_oc in
+-        warn "Using local override for VBD backend: %s -> %s" vbd.API.vBD_uuid
+-          path ;
+-        Some (Local path)
+-      ) else
+-        disk_of_vdi ~__context ~self:vbd.API.vBD_VDI
+-    in
++    let backend_of_vbd vbd = disk_of_vdi ~__context ~self:vbd.API.vBD_VDI in
+     let can_attach_early =
+       let sr_opt =
+         try Some (Db.VDI.get_SR ~__context ~self:vbd.API.vBD_VDI)
