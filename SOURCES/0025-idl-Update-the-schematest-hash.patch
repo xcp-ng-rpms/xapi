@@ -1,0 +1,34 @@
+From 3e22e16eda66e2ef38bd4f75abad60b51f8771be Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 27 Apr 2026 13:22:52 +0000
+Subject: [PATCH] idl: Update the schematest hash
+
+The only difference in the schematest comes from changing the type of the
+other_config and platform fields from RW to StaticRO, which is necessary to
+provide custom implementations of setters.
+
+With a modified schematest, the diff is:
+
+    <     "qualifier": "RW",
+    ---
+    >     "qualifier": "StaticRO",
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+(similar to commit 47d8a6f9ead39f01fe0af353dae60a11b8305591)
+---
+ ocaml/idl/schematest.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index a90bf8687..4af7d368d 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "a01358e3ff5f42d5aee162e995d2ec05"
++let last_known_schema_hash = "88b40556fd6a45af918900ff6d8079c5"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in

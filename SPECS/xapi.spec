@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.3
-Release: 1%{?xsrel}.9%{?dist}
+Release: 1%{?xsrel}.10%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -117,9 +117,18 @@ Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
 Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
 Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
 
+# XSA-489 fixes, in v26.1.11 upstream (https://github.com/xapi-project/xen-api/pull/7034)
 Patch1019: 0019-Remove-handling-of-VBD.other_config-backend-local.patch
 Patch1020: 0020-Do-not-recognise-VM.other_config-is_system_domain.patch
 Patch1021: 0021-Do-not-recognise-VM-PBD-.other_config-storage_driver.patch
+
+# in v26.1.5 upstream (https://github.com/xapi-project/xen-api/commit/8bbfa01c84e70d231124e6dffde55a56af687a61)
+Patch1022: 0022-Refresh-remote-session-during-long-migrations.patch
+
+# XSA-489 fixes, in v26.1.11 upstream (https://github.com/xapi-project/xen-api/pull/7046)
+Patch1023: 0023-xapi_vm-Implement-RBAC-checking-for-keys-in-set_othe.patch
+Patch1024: 0024-xapi_vm-Implement-per-key-RBAC-checking-for-VM.platf.patch
+Patch1025: 0025-idl-Update-the-schematest-hash.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1520,6 +1529,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Apr 30 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.10
+- Fix for expiring sessions breaking long migrations
+- More fixes for XSA-489 (CVE-2026-23562, CVE-2026-42486)
+
 * Mon Apr 27 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.9
 - Fixes for XSA-489 (CVE-2026-23559, CVE-2026-23560, CVE-2026-23561)
 
