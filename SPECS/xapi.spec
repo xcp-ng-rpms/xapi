@@ -121,6 +121,9 @@ Patch1019: 0019-Remove-handling-of-VBD.other_config-backend-local.patch
 Patch1020: 0020-Do-not-recognise-VM.other_config-is_system_domain.patch
 Patch1021: 0021-Do-not-recognise-VM-PBD-.other_config-storage_driver.patch
 
+Patch1022: 0022-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
+
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

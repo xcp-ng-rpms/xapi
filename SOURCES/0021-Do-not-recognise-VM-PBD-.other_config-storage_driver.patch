@@ -10,9 +10,9 @@ This is part of XSA-489 / CVE-2026-23561.
 Signed-off-by: Rob Hoes <rob.hoes@citrix.com>
 (cherry picked from commit 65714e2bbd114579e698ae958649350b3c75bee1)
 ---
- ocaml/xapi/system_domains.ml  | 134 +++-------------------------------
+ ocaml/xapi/system_domains.ml  | 142 ++++------------------------------
  ocaml/xapi/system_domains.mli |  14 ----
- 2 files changed, 9 insertions(+), 139 deletions(-)
+ 2 files changed, 13 insertions(+), 143 deletions(-)
 
 diff --git a/ocaml/xapi/system_domains.ml b/ocaml/xapi/system_domains.ml
 index 5ae5af128..0b053d1dd 100644
@@ -37,16 +37,13 @@ index 5ae5af128..0b053d1dd 100644
 -   For now note that although two threads may attempt to update these keys in parallel,
 -   order shouldn't matter because everyone will always update them to the same value.
 -   It's therefore safe to throw away exceptions. *)
-+(* NOTE: the storage domain functionality used to be based on
-+   other-config:storage_driver_domain, which has been dropped *)
- 
+-
 -(** If a VM is a driver domain then it hosts backends for either disk or network
 -    devices. We link PBD.other_config:storage_driver_domain_key to
 -    VM.other_config:storage_driver_domain_key and we ensure the VM is marked as
 -    a system domain. *)
 -let storage_driver_domain_key = "storage_driver_domain"
-+let pbd_of_vm ~__context:_ ~vm:_ = None
- 
+-
 -let pbd_set_storage_driver_domain ~__context ~self ~value =
 -  Helpers.log_exn_continue
 -    (Printf.sprintf "pbd_set_storage_driver_domain self = %s"
@@ -59,9 +56,7 @@ index 5ae5af128..0b053d1dd 100644
 -        ~value
 -    )
 -    ()
-+let storage_driver_domain_of_pbd ~__context ~pbd:_ =
-+  Helpers.get_domain_zero ~__context
- 
+-
 -let vm_set_storage_driver_domain ~__context ~self ~value =
 -  Helpers.log_exn_continue
 -    (Printf.sprintf "vm_set_storage_driver_domain self = %s" (Ref.string_of self)
@@ -73,9 +68,7 @@ index 5ae5af128..0b053d1dd 100644
 -        ~value
 -    )
 -    ()
-+let storage_driver_domain_of_vbd ~__context ~vbd:_ =
-+  Helpers.get_domain_zero ~__context
- 
+-
 -let record_pbd_storage_driver_domain ~__context ~pbd ~domain =
 -  (* set_is_system_domain ~__context ~self:domain ~value:"true" ; *)
 -  pbd_set_storage_driver_domain ~__context ~self:pbd
@@ -160,6 +153,17 @@ index 5ae5af128..0b053d1dd 100644
 -      (string_of_transport transport)
 -      (Printexc.to_string e) ;
 -    false
++(* NOTE: the storage domain functionality used to be based on
++   other-config:storage_driver_domain, which has been dropped *)
++
++let pbd_of_vm ~__context:_ ~vm:_ = None
++
++let storage_driver_domain_of_pbd ~__context ~pbd:_ =
++  Helpers.get_domain_zero ~__context
++
++let storage_driver_domain_of_vbd ~__context ~vbd:_ =
++  Helpers.get_domain_zero ~__context
++
 +let storage_driver_domain_of_sr_type ~__context ~_type:_ =
 +  Helpers.get_domain_zero ~__context
  
