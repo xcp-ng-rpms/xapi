@@ -130,6 +130,13 @@ Patch1023: 0023-xapi_vm-Implement-RBAC-checking-for-keys-in-set_othe.patch
 Patch1024: 0024-xapi_vm-Implement-per-key-RBAC-checking-for-VM.platf.patch
 Patch1025: 0025-idl-Update-the-schematest-hash.patch
 
+Patch1026: 0026-CP-53843-tracing-link-internal-subtasks-traces.patch
+Patch1027: 0027-CP-53843-refactor-the-code.patch
+Patch1028: 0028-CP-53843-reusable-session-for-sm_exec.patch
+Patch1029: 0029-CP-53843-Move-session-handling-logic-out-of-sm_exec.patch
+Patch1030: 0030-xapi_vm_migrate-Log-session-ref-in-the-refreshing-th.patch
+Patch1031: 0031-sparse_dd-Report-progress-in-smaller-increments.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

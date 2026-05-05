@@ -1,0 +1,46 @@
+From afdfaea49ed1aaea5546094b6560172c9bc84c4b Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 5 May 2026 12:29:01 +0000
+Subject: [PATCH] xapi_vm_migrate: Log session ref in the refreshing thread
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_vm_migrate.ml | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_vm_migrate.ml b/ocaml/xapi/xapi_vm_migrate.ml
+index d6405f149..60a8bb469 100644
+--- a/ocaml/xapi/xapi_vm_migrate.ml
++++ b/ocaml/xapi/xapi_vm_migrate.ml
+@@ -1459,22 +1459,27 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vif_map ~vgpu_map
+             Clock.Timer.start ~duration:Mtime.Span.((threshold + 5) * s)
+           in
+           let next_refresh = ref (just_refreshed ()) in
+-          debug "%s: starting refreshing thread" __FUNCTION__ ;
++          debug "%s: starting refreshing thread for session '%s'" __FUNCTION__
++            (Ref.string_of session_id) ;
+           while Atomic.get keep_refreshing do
+             if Clock.Timer.has_expired !next_refresh then (
+               refresh_session () ;
+-              debug "%s: refresh_session called" __FUNCTION__ ;
++              debug "%s: refresh_session called for session '%s'" __FUNCTION__
++                (Ref.string_of session_id) ;
+               next_refresh := just_refreshed ()
+             ) ;
+             Thread.delay 10.
+           done ;
+-          debug "%s: stopping refreshing thread" __FUNCTION__
++          debug "%s: stopping refreshing thread for session '%s'" __FUNCTION__
++            (Ref.string_of session_id)
+         )
+         ()
+     in
+     let new_vm =
+       Fun.protect ~finally:(fun () ->
+-          debug "%s: setting keep_refreshing to false" __FUNCTION__ ;
++          debug "%s: setting keep_refreshing to false for session '%s'"
++            __FUNCTION__
++            (Ref.string_of remote.session) ;
+           Atomic.set keep_refreshing false
+       )
+       @@ fun () ->

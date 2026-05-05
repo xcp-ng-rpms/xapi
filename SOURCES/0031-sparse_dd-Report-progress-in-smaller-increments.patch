@@ -1,0 +1,72 @@
+From ad7cb9d3ab865f90596140ef684aad08bff42943 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 5 May 2026 12:31:21 +0000
+Subject: [PATCH] sparse_dd: Report progress in smaller increments
+
+db_gc_util cleans up pending tasks older than 24 hours that haven't had
+measurable progress in the last 10 minutes. Since sparse_dd only reports whole
+percentage points of progress, a migration that takes > 24 hours will be deemed
+inactive and its task killed, causing errors.
+
+Report progress up to the tenth of a percentage point (3 digits of precision
+after the dot in a float representing the fraction of progress) instead, which
+should update progress more frequently for a long-running task.
+
+Since task's progress is reported as a fraction, report it from sparse_dd
+directly, instead of multiplying by 100.0 and then dividing by 100.0 in xapi.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/vhd-tool/cli/sparse_dd.ml | 15 +++++++--------
+ ocaml/xapi/sparse_dd_wrapper.ml |  4 ++--
+ 2 files changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/vhd-tool/cli/sparse_dd.ml b/ocaml/vhd-tool/cli/sparse_dd.ml
+index ab8d87969..c4f86bfc7 100644
+--- a/ocaml/vhd-tool/cli/sparse_dd.ml
++++ b/ocaml/vhd-tool/cli/sparse_dd.ml
+@@ -186,7 +186,7 @@ module Progress = struct
+   (** Report progress complete to another program reading stdout *)
+   let report fraction =
+     if !machine_readable_progress then (
+-      let s = Printf.sprintf "Progress: %.0f" (fraction *. 100.) in
++      let s = Printf.sprintf "Progress: %.3f" fraction in
+       let data = Cstruct.create (String.length s) in
+       Cstruct.blit_from_string s 0 data 0 (String.length s) ;
+       Chunked.(marshal header (make ~sector:0L data)) ;
+@@ -260,14 +260,13 @@ let start = Unix.gettimeofday ()
+ 
+ (* Helper function to print nice progress info *)
+ let progress_cb =
+-  let last_percent = ref (-1) in
++  let last_fraction = ref (-1.) in
+   function
+-  | fraction ->
+-      let new_percent = int_of_float (fraction *. 100.) in
+-      if !last_percent <> new_percent then Progress.report fraction ;
+-      if !last_percent / 10 <> new_percent / 10 then
+-        debug "progress %d%%" new_percent ;
+-      last_percent := new_percent
++  | new_fraction ->
++      if new_fraction -. !last_fraction > 0.001 then (
++        Progress.report new_fraction ;
++        last_fraction := new_fraction
++      )
+ 
+ let _ =
+   Vhd_format_lwt.File.use_unbuffered := true ;
+diff --git a/ocaml/xapi/sparse_dd_wrapper.ml b/ocaml/xapi/sparse_dd_wrapper.ml
+index c7d899283..1d90f187a 100644
+--- a/ocaml/xapi/sparse_dd_wrapper.ml
++++ b/ocaml/xapi/sparse_dd_wrapper.ml
+@@ -150,8 +150,8 @@ let dd_internal progress_cb base prezeroed verify_cert ?(proto = None) infile
+                   let data = Bytes.to_string chunk.Chunk.data in
+                   debug "sparse_dd: %s" data ;
+                   try
+-                    Scanf.sscanf data "Progress: %d" (fun progress ->
+-                        progress_cb (Continuing (float_of_int progress /. 100.))
++                    Scanf.sscanf data "Progress: %f" (fun progress ->
++                        progress_cb (Continuing progress)
+                     )
+                   with e ->
+                     Unix.kill (Forkhelpers.getpid pid) Sys.sigterm ;
