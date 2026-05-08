@@ -129,6 +129,7 @@ Patch1022: 0022-Refresh-remote-session-during-long-migrations.patch
 Patch1023: 0023-xapi_vm-Implement-RBAC-checking-for-keys-in-set_othe.patch
 Patch1024: 0024-xapi_vm-Implement-per-key-RBAC-checking-for-VM.platf.patch
 Patch1025: 0025-idl-Update-the-schematest-hash.patch
+Patch1026: 0026-test.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
