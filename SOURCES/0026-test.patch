@@ -1,0 +1,56 @@
+From 4b166c2ba2e810b137e5117739ced0e9f9baa184 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 11 May 2026 07:53:50 +0000
+Subject: [PATCH] test
+
+---
+ ocaml/xapi/xapi_vm_helpers.ml | 26 ++++++++++++++++++++------
+ 1 file changed, 20 insertions(+), 6 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index 58d296511..01ebcf661 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -873,22 +873,36 @@ let get_possible_hosts_for_vm ~__context ~vm ~snapshot =
+     given [guest] can run on the given [host]. Returns true if and only if the
+     guest can run on the host. *)
+ let vm_can_run_on_host ~__context ~vm ~snapshot ~do_memory_check host =
++  debug "vm_can_run_on_host (%s): do_memory_check=%b" (Ref.string_of host)
++    do_memory_check ;
+   let is_control_domain = Db.VM.get_is_control_domain ~__context ~self:vm in
+   let host_has_proper_version () =
+-    if Helpers.rolling_upgrade_in_progress ~__context then
+-      Helpers.Checks.RPU.host_has_highest_version_in_pool ~__context
+-        ~host:(Helpers.LocalObject host)
+-    else
++    if Helpers.rolling_upgrade_in_progress ~__context then (
++      let x =
++        Helpers.Checks.RPU.host_has_highest_version_in_pool ~__context
++          ~host:(Helpers.LocalObject host)
++      in
++      debug "host_has_proper_version: %b" x ;
++      x
++    ) else (
++      debug "host_has_proper_version: true" ;
+       true
++    )
++  in
++  let host_enabled () =
++    let x = Db.Host.get_enabled ~__context ~self:host in
++    debug "host_enabled: %b" x ; x
+   in
+-  let host_enabled () = Db.Host.get_enabled ~__context ~self:host in
+   let host_live () =
+     let host_metrics = Db.Host.get_metrics ~__context ~self:host in
+-    Db.Host_metrics.get_live ~__context ~self:host_metrics
++    let x = Db.Host_metrics.get_live ~__context ~self:host_metrics in
++    debug "host_live: %b" x ; x
+   in
+   let host_can_run_vm () =
++    debug "host_can_run_vm: before" ;
+     assert_can_boot_here ~__context ~self:vm ~host ~snapshot ~do_memory_check
+       ~do_cpuid_check:true () ;
++    debug "host_can_run_vm: after, true" ;
+     true
+   in
+   let host_evacuate_in_progress =
