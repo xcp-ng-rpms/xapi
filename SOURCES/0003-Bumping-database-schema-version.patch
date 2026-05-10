@@ -1,0 +1,28 @@
+From b77231fa23be91b7b5c8b731bd7d3d8696927da4 Mon Sep 17 00:00:00 2001
+From: Guillaume <guillaume.thouvenin@vates.tech>
+Date: Thu, 14 Aug 2025 16:40:39 +0200
+Subject: [PATCH] Bumping database schema version
+
+A new field supported_image_format and new parameters have been added for:
+  - VM.migrate_send
+  - VM.assert_can_migrate
+  - VDI.pool_migrate
+
+Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
+---
+ ocaml/idl/datamodel_common.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
+index 819b7c6..4786d2d 100644
+--- a/ocaml/idl/datamodel_common.ml
++++ b/ocaml/idl/datamodel_common.ml
+@@ -10,7 +10,7 @@ open Datamodel_roles
+               to leave a gap for potential hotfixes needing to increment the schema version.*)
+ let schema_major_vsn = 5
+ 
+-let schema_minor_vsn = 789
++let schema_minor_vsn = 790
+ 
+ (* Historical schema versions just in case this is useful later *)
+ let rio_schema_major_vsn = 5

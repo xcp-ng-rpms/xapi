@@ -130,6 +130,11 @@ Patch1023: 0023-xapi_vm-Implement-RBAC-checking-for-keys-in-set_othe.patch
 Patch1024: 0024-xapi_vm-Implement-per-key-RBAC-checking-for-VM.platf.patch
 Patch1025: 0025-idl-Update-the-schematest-hash.patch
 
+# Testing supported image format
+Patch1011: 0001-Datamodel-add-supported_image_format-field-to-SM-obj.patch
+Patch1012: 0002-Allow-selection-of-image-format-during-migration.patch
+Patch1013: 0003-Bumping-database-schema-version.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
