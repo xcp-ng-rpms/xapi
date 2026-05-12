@@ -1,4 +1,4 @@
-%global package_speccommit 761f6635b994734483d07103e03f8c83f0391225
+%global package_speccommit be30a202eff02510abdf7df47986a974a00e1d03
 %global package_srccommit v26.1.4
 
 # This matches the location where xen installs the ocaml libraries
@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.4
-Release: 2%{?xsrel}%{?dist}
+Release: 3%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -89,6 +89,7 @@ Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 Patch1: 0001-xapi89-backend-local.patch
 Patch2: 0002-xapi89-system-domain.patch
 Patch3: 0003-xapi89-storage-driver-domain.patch
+Patch4: 0004-xapi89-other-config-platform.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1460,6 +1461,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Apr 29 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-3
+- Final security patch from xapi-89
+
 * Fri Apr 24 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-2
 - Security patches from xapi-89
 
