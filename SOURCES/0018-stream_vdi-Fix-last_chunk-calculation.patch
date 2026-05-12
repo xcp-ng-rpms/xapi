@@ -1,4 +1,4 @@
-From 8180301ae30a3605b0cadd1868f1728c57ef7590 Mon Sep 17 00:00:00 2001
+From 68588d3658330674cbe43d3385f8ccabb4fd4408 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 8 Apr 2026 12:28:32 +0000
 Subject: [PATCH] stream_vdi: Fix last_chunk calculation
