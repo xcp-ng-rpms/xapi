@@ -99,37 +99,6 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/6895
-# Temporarily dropped unit test commits to avoid qemu-img build dependency,
-# flipped the xapi.conf switch
-Patch1007: 0007-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
-Patch1008: 0008-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
-Patch1009: 0009-vhd-tool-Add-read_headers_interval-command.patch
-Patch1010: 0010-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
-Patch1011: 0011-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
-Patch1012: 0012-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
-Patch1013: 0013-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
-Patch1014: 0014-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
-
-# Proper fix for QCOW issues - to be upstreamed
-Patch1015: 0015-stream_vdi-Avoid-chunk-duplication-when-exporting-fr.patch
-Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
-Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
-Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
-
-# XSA-489 fixes, in v26.1.11 upstream (https://github.com/xapi-project/xen-api/pull/7034)
-Patch1019: 0019-Remove-handling-of-VBD.other_config-backend-local.patch
-Patch1020: 0020-Do-not-recognise-VM.other_config-is_system_domain.patch
-Patch1021: 0021-Do-not-recognise-VM-PBD-.other_config-storage_driver.patch
-
-# in v26.1.5 upstream (https://github.com/xapi-project/xen-api/commit/8bbfa01c84e70d231124e6dffde55a56af687a61)
-Patch1022: 0022-Refresh-remote-session-during-long-migrations.patch
-
-# XSA-489 fixes, in v26.1.11 upstream (https://github.com/xapi-project/xen-api/pull/7046)
-Patch1023: 0023-xapi_vm-Implement-RBAC-checking-for-keys-in-set_othe.patch
-Patch1024: 0024-xapi_vm-Implement-per-key-RBAC-checking-for-VM.platf.patch
-Patch1025: 0025-idl-Update-the-schematest-hash.patch
-
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
