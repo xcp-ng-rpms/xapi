@@ -1,5 +1,5 @@
-%global package_speccommit 975eeff49e5be3ef6614bd5fc87c5945fdb559bf
-%global package_srccommit v26.1.3
+%global package_speccommit be30a202eff02510abdf7df47986a974a00e1d03
+%global package_srccommit v26.1.4
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.3
-Release: 1%{?xsrel}.10%{?dist}
+Version: 26.1.4
+Release: 3%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.3.tar.gz
+Source0: xen-api-26.1.4.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -85,9 +85,15 @@ Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
 
+# Security patches from xapi-89
+Patch1: 0001-xapi89-backend-local.patch
+Patch2: 0002-xapi89-system-domain.patch
+Patch3: 0003-xapi89-storage-driver-domain.patch
+Patch4: 0004-xapi89-other-config-platform.patch
+
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v26.1.0..v26.1.0-8.3
+#   - git format-patch --no-numbered --no-signature v26.1.4..v26.1.4-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -117,18 +123,9 @@ Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
 Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
 Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
 
-# XSA-489 fixes, in v26.1.11 upstream (https://github.com/xapi-project/xen-api/pull/7034)
-Patch1019: 0019-Remove-handling-of-VBD.other_config-backend-local.patch
-Patch1020: 0020-Do-not-recognise-VM.other_config-is_system_domain.patch
-Patch1021: 0021-Do-not-recognise-VM-PBD-.other_config-storage_driver.patch
-
 # in v26.1.5 upstream (https://github.com/xapi-project/xen-api/commit/8bbfa01c84e70d231124e6dffde55a56af687a61)
-Patch1022: 0022-Refresh-remote-session-during-long-migrations.patch
+Patch1019: 0019-Refresh-remote-session-during-long-migrations.patch
 
-# XSA-489 fixes, in v26.1.11 upstream (https://github.com/xapi-project/xen-api/pull/7046)
-Patch1023: 0023-xapi_vm-Implement-RBAC-checking-for-keys-in-set_othe.patch
-Patch1024: 0024-xapi_vm-Implement-per-key-RBAC-checking-for-VM.platf.patch
-Patch1025: 0025-idl-Update-the-schematest-hash.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1529,7 +1526,20 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Thu Apr 30 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.10
+* Tue May 12 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.4-3.1
+- Update to upstream 26.1.4-3
+- *** Upstream changelog ***
+  * Wed Apr 29 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-3
+  - Final security patch from xapi-89
+
+  * Fri Apr 24 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-2
+  - Security patches from xapi-89
+
+  * Fri Mar 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-1
+  - XSI-2155: keep track of outstanding domain builds in NUMA placement
+  - CA-424055: NUMA: avoid using up the entire memory on node0
+
+* Thu Apr 30 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.3-1.10
 - Fix for expiring sessions breaking long migrations
 - More fixes for XSA-489 (CVE-2026-23562, CVE-2026-42486)
 
@@ -1542,14 +1552,14 @@ Coverage files from unit tests
 * Mon Apr 13 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.3-1.7
 - Apply new formatting to patches
 
-* Tue Mar 24 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.6
+* Tue Mar 24 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.3-1.6
 - When exporting QCOW2-backed VDIs, read headers of the whole snapshot chain
 - Fix duplicated chunks during VM export resulting in an invalid XVA
 
-* Mon Mar 23 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.5
+* Mon Mar 23 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.3-1.5
 - Fix QCOW2-backed VDI snapshots not being exported properly
 
-* Fri Mar 6 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.4
+* Fri Mar 6 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.3-1.4
 - Switch to optimized data cluster format for VHD and QCOW,
   reducing memory consumption on QCOW import
 

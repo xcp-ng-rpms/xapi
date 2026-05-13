@@ -1,46 +1,16 @@
-From e2abec812b4517f0d029c43c24974bc1c566e72d Mon Sep 17 00:00:00 2001
-From: Andrii Sultanov <andriy.sultanov@vates.tech>
-Date: Mon, 27 Apr 2026 09:16:20 +0000
-Subject: [PATCH] xapi_vm: Implement RBAC checking for keys in set_other_config
-
-map_keys_roles parameter was RBAC checked for
-{add_to,remove_from}_other_config, but set_other_config allowed
-circumventing this check.
-
-Since VM is the only object that has a key ("pci") in other_config
-with the privilege level required for modification higher than that of the
-other_config field generally, this meant that vm-admin could not modify the
-"pci" key in other_config through add_to_other_config, but could circumvent the
-check with set_other_config.
-
-Implement a checker for VM.other_config setters based on Task's manual RBAC
-checker (introduced in a3f2c6e8f4edc089913b3f0208b0140ca0fef0c5)
-
-This is part of XSA-489 / CVE-2026-23562
-
-Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
-(cherry picked from commit 2469636281681d4589c4b580d2d9e56c4f5ff497)
----
- ocaml/idl/datamodel_vm.ml        |  58 +++++++++-
- ocaml/xapi/helpers.ml            | 182 ++++++++++++++++++++++++++++++
- ocaml/xapi/message_forwarding.ml |  14 +++
- ocaml/xapi/xapi_task.ml          | 187 +------------------------------
- ocaml/xapi/xapi_vm.ml            |  12 ++
- ocaml/xapi/xapi_vm.mli           |   9 ++
- 6 files changed, 280 insertions(+), 182 deletions(-)
-
 diff --git a/ocaml/idl/datamodel_vm.ml b/ocaml/idl/datamodel_vm.ml
-index 17178314a..419f82662 100644
+index 17178314a..d556ef812 100644
 --- a/ocaml/idl/datamodel_vm.ml
 +++ b/ocaml/idl/datamodel_vm.ml
-@@ -2383,6 +2383,59 @@ let sysprep =
+@@ -2383,6 +2383,105 @@ let sysprep =
         as part of a reboot."
      ~allowed_roles:_R_VM_ADMIN ()
  
 +module Other_config = struct
 +  let protected_keys =
 +    [
-+      ("pci", _R_POOL_ADMIN)
++      ("hvm_serial", _R_POOL_ADMIN)
++    ; ("pci", _R_POOL_ADMIN)
 +    ; ("folder", _R_VM_OP)
 +    ; ("XenCenter.CustomFields.*", _R_VM_OP)
 +    ]
@@ -90,20 +60,80 @@ index 17178314a..419f82662 100644
 +      ~flags:[`Session] ()
 +end
 +
++module Platform = struct
++  let protected_keys = [("hvm_serial", _R_POOL_ADMIN)]
++
++  let call =
++    call
++      ~lifecycle:[(Published, rel_rio, "platform-specific configuration")]
++      ~allowed_roles:_R_VM_ADMIN
++
++  let add_to_platform =
++    call ~name:"add_to_platform"
++      ~doc:"Add the given key-value pair to the platform field of the given VM."
++      ~params:
++        [
++          (Ref _vm, "self", "reference to object")
++        ; (String, "key", "Key to add")
++        ; (String, "value", "Value to add")
++        ]
++      ~map_keys_roles:protected_keys ~flags:[`Session] ()
++
++  let remove_from_platform =
++    call ~name:"remove_from_platform"
++      ~doc:
++        "Remove the given key and its corresponding value from the platform \
++         field of the given VM. If the key is not in that Map, then do \
++         nothing."
++      ~params:
++        [
++          (Ref _vm, "self", "reference to object")
++        ; (String, "key", "Key of entry to remove")
++        ]
++      ~map_keys_roles:protected_keys ~flags:[`Session] ()
++
++  (* map_keys_roles can't be cited here, since they're only implemented for
++   {add_to,remove_from}_platform, RBAC handling is done in a manual
++   implementation. *)
++  let set_platform =
++    call ~name:"set_platform" ~doc:"Set the platform field of the given VM."
++      ~params:
++        [
++          (Ref _vm, "self", "reference to object")
++        ; (Map (String, String), "value", "New value to set")
++        ]
++      ~flags:[`Session] ()
++end
++
  let vm_uefi_mode =
    Enum
      ( "vm_uefi_mode"
-@@ -2586,6 +2639,9 @@ let t =
+@@ -2586,6 +2685,12 @@ let t =
        ; add_to_blocked_operations
        ; remove_from_blocked_operations
        ; sysprep
 +      ; Other_config.add_to_other_config
 +      ; Other_config.remove_from_other_config
 +      ; Other_config.set_other_config
++      ; Platform.add_to_platform
++      ; Platform.remove_from_platform
++      ; Platform.set_platform
        ]
      ~contents:
        ([
-@@ -2725,7 +2781,7 @@ let t =
+@@ -2714,9 +2819,10 @@ let t =
+             ~qualifier:DynamicRO ~ty:(Set (Ref _vtpm)) "VTPMs" "virtual TPMs"
+         ; namespace ~name:"PV" ~contents:pv ()
+         ; namespace ~name:"HVM" ~contents:hvm ()
+-        ; field
++        ; field ~qualifier:StaticRO
+             ~ty:(Map (String, String))
+             ~lifecycle:[(Published, rel_rio, "platform-specific configuration")]
++            ~map_keys_roles:[("hvm_serial", _R_POOL_ADMIN)]
+             "platform" "platform-specific configuration"
+         ; field
+             ~lifecycle:
+@@ -2725,13 +2831,14 @@ let t =
                ; (Deprecated, rel_boston, "Field was never used")
                ]
              "PCI_bus" "PCI bus path for pass-through devices"
@@ -112,11 +142,31 @@ index 17178314a..419f82662 100644
              ~lifecycle:[(Published, rel_rio, "additional configuration")]
              ~ty:(Map (String, String))
              "other_config" "additional configuration"
+             ~map_keys_roles:
+               [
+                 ("pci", _R_POOL_ADMIN)
++              ; ("hvm_serial", _R_POOL_ADMIN)
+               ; ("folder", _R_VM_OP)
+               ; ("XenCenter.CustomFields.*", _R_VM_OP)
+               ]
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index a90bf8687..4af7d368d 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "a01358e3ff5f42d5aee162e995d2ec05"
++let last_known_schema_hash = "88b40556fd6a45af918900ff6d8079c5"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
 diff --git a/ocaml/xapi/helpers.ml b/ocaml/xapi/helpers.ml
-index e791dc72c..3a3008c24 100644
+index 09a1f822d..7fdb646aa 100644
 --- a/ocaml/xapi/helpers.ml
 +++ b/ocaml/xapi/helpers.ml
-@@ -2466,3 +2466,185 @@ module AuthenticationCache = struct
+@@ -2470,3 +2470,185 @@ module AuthenticationCache = struct
            None
    end
  end
@@ -214,9 +264,9 @@ index e791dc72c..3a3008c24 100644
 +   entire field is usually higher than the role(s) required for
 +   individually-protected keys.
 +
-+   Task and VM's "set_other_config" are special cases where lower-privileged
-+   sessions must be able to manipulate a subset of entries (those not
-+   protected by a more privileged role).
++   {Task,VM}.set_other_config and VM.set_platform are special cases where
++   lower-privileged sessions must be able to manipulate a subset of entries
++   (those not protected by a more privileged role).
 +*)
 +let set_map_with_rbac ~__context ~self ~value ~get_fn ~set_fn ~match_protected
 +    ~object_name ~field_name =
@@ -303,10 +353,10 @@ index e791dc72c..3a3008c24 100644
 +           ~permission:disallowed ~action
 +        )
 diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
-index 83786bd8a..53245fbc0 100644
+index 6f7a1e93a..6f6659fc5 100644
 --- a/ocaml/xapi/message_forwarding.ml
 +++ b/ocaml/xapi/message_forwarding.ml
-@@ -3167,6 +3167,20 @@ functor
+@@ -3171,6 +3171,34 @@ functor
            ~policy (fun () ->
              forward_vm_op ~local_fn ~__context ~vm:self ~remote_fn
          )
@@ -324,6 +374,20 @@ index 83786bd8a..53245fbc0 100644
 +      let set_other_config ~__context ~self ~value =
 +        info "VM.set_other_config: self = '%s'" (vm_uuid ~__context self) ;
 +        Local.VM.set_other_config ~__context ~self ~value
++
++      let add_to_platform ~__context ~self ~key ~value =
++        info "VM.add_to_platform: self = '%s', key = '%s'"
++          (vm_uuid ~__context self) key ;
++        Local.VM.add_to_platform ~__context ~self ~key ~value
++
++      let remove_from_platform ~__context ~self ~key =
++        info "VM.remove_from_platform: self = '%s', key = '%s'"
++          (vm_uuid ~__context self) key ;
++        Local.VM.remove_from_platform ~__context ~self ~key
++
++      let set_platform ~__context ~self ~value =
++        info "VM.set_platform: self = '%s'" (vm_uuid ~__context self) ;
++        Local.VM.set_platform ~__context ~self ~value
      end
  
      module VM_metrics = struct end
@@ -532,10 +596,10 @@ index 8c6ebf00a..93c91c9af 100644
 +    ~get_fn:Db.Task.get_other_config ~set_fn:Db.Task.set_other_config
 +    ~match_protected ~object_name:"task" ~field_name:"other_config"
 diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
-index b2a61a8ec..9c1c57872 100644
+index 44a0b2c55..a33c45795 100644
 --- a/ocaml/xapi/xapi_vm.ml
 +++ b/ocaml/xapi/xapi_vm.ml
-@@ -1806,3 +1806,15 @@ let sysprep ~__context ~self ~unattend ~timeout =
+@@ -1781,3 +1781,27 @@ let sysprep ~__context ~self ~unattend ~timeout =
        raise Api_errors.(Server_error (sysprep, [uuid; msg]))
    | exception e ->
        raise e
@@ -551,11 +615,23 @@ index b2a61a8ec..9c1c57872 100644
 +  Helpers.set_map_with_rbac ~__context ~self ~value
 +    ~get_fn:Db.VM.get_other_config ~set_fn:Db.VM.set_other_config
 +    ~match_protected ~object_name:"vm" ~field_name:"other_config"
++
++let add_to_platform ~__context ~self ~key ~value =
++  Db.VM.add_to_platform ~__context ~self ~key ~value
++
++let remove_from_platform ~__context ~self ~key =
++  Db.VM.remove_from_platform ~__context ~self ~key
++
++let set_platform ~__context ~self ~value =
++  let match_protected = Helpers.match_protected_key "VM" in
++  Helpers.set_map_with_rbac ~__context ~self ~value ~get_fn:Db.VM.get_platform
++    ~set_fn:Db.VM.set_platform ~match_protected ~object_name:"vm"
++    ~field_name:"platform"
 diff --git a/ocaml/xapi/xapi_vm.mli b/ocaml/xapi/xapi_vm.mli
-index b3f07d38a..af682a834 100644
+index b3f07d38a..5c3392e4e 100644
 --- a/ocaml/xapi/xapi_vm.mli
 +++ b/ocaml/xapi/xapi_vm.mli
-@@ -457,3 +457,12 @@ val sysprep :
+@@ -457,3 +457,21 @@ val sysprep :
    -> unattend:SecretString.t
    -> timeout:float
    -> unit
@@ -567,4 +643,13 @@ index b3f07d38a..af682a834 100644
 +  __context:Context.t -> self:API.ref_VM -> key:string -> unit
 +
 +val set_other_config :
++  __context:Context.t -> self:API.ref_VM -> value:(string * string) list -> unit
++
++val add_to_platform :
++  __context:Context.t -> self:API.ref_VM -> key:string -> value:string -> unit
++
++val remove_from_platform :
++  __context:Context.t -> self:API.ref_VM -> key:string -> unit
++
++val set_platform :
 +  __context:Context.t -> self:API.ref_VM -> value:(string * string) list -> unit

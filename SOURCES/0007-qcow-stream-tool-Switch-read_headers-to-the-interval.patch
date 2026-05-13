@@ -1,4 +1,4 @@
-From 85fb02bebf56f371cd920ee57cb8db0d7f2fea63 Mon Sep 17 00:00:00 2001
+From 68fc6eda16b06475b438a0c0a940dda27d9dcfee Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Wed, 4 Feb 2026 13:29:40 +0000
 Subject: [PATCH] qcow-stream-tool: Switch read_headers to the interval-based

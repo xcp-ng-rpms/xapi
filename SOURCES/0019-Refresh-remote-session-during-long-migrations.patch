@@ -1,4 +1,4 @@
-From c4035d70bd8cdfc3a9f53a796e79c3b4985f4b89 Mon Sep 17 00:00:00 2001
+From 9090ad43d3b4ed5ef3cb55300f4a130e4705ddcc Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Wed, 28 Jan 2026 13:43:02 +0100
 Subject: [PATCH] Refresh remote session during long migrations

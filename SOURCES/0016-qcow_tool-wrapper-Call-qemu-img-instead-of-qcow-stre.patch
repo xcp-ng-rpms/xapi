@@ -1,4 +1,4 @@
-From 6f419d56c4b42f8f842556a92593c4a9d9195352 Mon Sep 17 00:00:00 2001
+From e6b59fdf157e5b3ba0e100a1557152b4e66bce78 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 27 Mar 2026 14:27:08 +0000
 Subject: [PATCH] qcow_tool-wrapper: Call qemu-img instead of qcow-stream-tool

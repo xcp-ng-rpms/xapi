@@ -1,17 +1,15 @@
-From 789273f14385f44d2e3061919693926ee358a6b8 Mon Sep 17 00:00:00 2001
-From: Rob Hoes <rob.hoes@citrix.com>
-Date: Fri, 24 Apr 2026 11:32:34 +0000
-Subject: [PATCH] Do not recognise VM.other_config:is_system_domain
+commit 4afc1b4879a2011fcd10b781f565ae86094b5816
+Author: Rob Hoes <rob.hoes@citrix.com>
+Date:   Fri Apr 24 11:32:34 2026 +0000
 
-This code is either obsolete or should use a first-class field (TBD).
-
-This is part of XSA-489 / CVE-2026-23560.
-
-Signed-off-by: Rob Hoes <rob.hoes@citrix.com>
-(cherry picked from commit 013755b3da0ae5d19ea86985fc6226cd4567afea)
----
- ocaml/xapi/system_domains.ml | 24 ++++--------------------
- 1 file changed, 4 insertions(+), 20 deletions(-)
+    Do not recognise VM.other_config:is_system_domain
+    
+    This code is either obsolete or should use a first-class field (TBD).
+    
+    This is part of XSA-489 / CVE-2026-23560.
+    
+    Signed-off-by: Rob Hoes <rob.hoes@citrix.com>
+    (cherry picked from commit 013755b3da0ae5d19ea86985fc6226cd4567afea)
 
 diff --git a/ocaml/xapi/system_domains.ml b/ocaml/xapi/system_domains.ml
 index c610424ae..5ae5af128 100644

@@ -1,4 +1,4 @@
-From 5f1a2bf1194e6bcd544a287e19d0144f419a1c19 Mon Sep 17 00:00:00 2001
+From a736ceb2cb94d03cbd5a1cee7f800ad7aad24855 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Sat, 18 Oct 2025 09:21:18 +0100
 Subject: [PATCH] [xcp-ng] do not change rsyslog configuration
