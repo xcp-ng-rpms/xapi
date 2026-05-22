@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.4
-Release: 3%{?xsrel}.1%{?dist}
+Release: 3%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -125,6 +125,9 @@ Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
 
 # in v26.1.5 upstream (https://github.com/xapi-project/xen-api/commit/8bbfa01c84e70d231124e6dffde55a56af687a61)
 Patch1019: 0019-Refresh-remote-session-during-long-migrations.patch
+
+# in v26.1.7 upstream
+Patch1020: 0020-Don-t-deny-smartcards-in-usb-policy.conf.patch
 
 
 %{?_cov_buildrequires}
@@ -1526,6 +1529,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri May 22 2026 Tu Dinh <ngoc-tu.dinh@vates.tech> - 26.1.4-3.2
+- Don't deny smartcards in usb-policy.conf
+
 * Tue May 12 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.4-3.1
 - Update to upstream 26.1.4-3
 - *** Upstream changelog ***
