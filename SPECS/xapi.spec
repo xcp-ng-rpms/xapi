@@ -170,6 +170,7 @@ Group: System/Hypervisor
 Requires:       %{name}-cov = %{version}-%{release}
 %endif
 Requires: hwdata
+Requires: dmidecode
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
 Requires: vhd-tool
@@ -1529,6 +1530,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+# * next
+# - Add dmidecode to xapi-core Requires
+
 * Fri May 22 2026 Tu Dinh <ngoc-tu.dinh@vates.tech> - 26.1.4-3.2
 - Don't deny smartcards in usb-policy.conf
 
