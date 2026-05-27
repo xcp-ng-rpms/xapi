@@ -203,7 +203,12 @@ Requires: sm
 Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
 %if 0%{?xenserver} >= 9
+%if 0%{?xcpng}
+# missing files prevent enabling firewalld
+Requires: iptables-legacy
+%else
 Requires: firewalld
+%endif
 %else
 # firewall-port needs iptables-service to perform
 # `service iptables save`
@@ -715,7 +720,9 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %if 0%{?xenserver} < 9
 echo "ssh-auto-mode=false" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
 %else
+%if ! 0%{?xcpng}
 echo "firewall-backend=firewalld" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/firewall-backend.conf
+%endif
 %endif
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
@@ -1148,7 +1155,9 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 %if 0%{?xenserver} < 9
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
 %else
+%if ! 0%{?xcpng}
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/firewall-backend.conf
+%endif
 %endif
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
@@ -1537,6 +1546,7 @@ Coverage files from unit tests
 - Hacks and temporary measures:
   - On XCP-ng 9, require dhcp-client not dhclient
   - Revert the 26.1.3-1.4 changes relying on qcow support in xs-opam
+  - Stay away from firewalld for now, use iptables-legacy
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
