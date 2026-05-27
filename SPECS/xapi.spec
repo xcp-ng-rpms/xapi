@@ -235,7 +235,8 @@ BuildRequires: systemd
 # XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
 #Requires: genisoimage
 %if 0%{?xenserver} >= 9
-Requires: oxenstored >= 0.0.2
+# XCP-ng: this should be packaged first, falling back to Xen's
+#Requires: oxenstored >= 0.0.2
 %endif
 Requires: kpatch
 
