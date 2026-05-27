@@ -352,7 +352,10 @@ Requires:       emu-manager
 # Describe minimum qemu version required.
 # If a new major/incompatible version of qemu is released then it will need to:
 # Conflicts: xenopsd-xc < $current_version
+# XCP-ng: we're not to the point to require qemu on arm64 yet
+%ifnarch aarch64
 Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
+%endif
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 %if 0%{?xenserver} >= 9
 # NUMA memory claims v2
@@ -1551,6 +1554,7 @@ Coverage files from unit tests
 - Don't rely on upstream mechanism for the version
 - Hacks and temporary measures:
   - On XCP-ng 9, require dhcp-client not dhclient
+  - Don't pull qemu on arm64 for now
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
