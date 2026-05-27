@@ -1,0 +1,34 @@
+From fb485a1f30f47151b23b988d31aed56c4c60ba10 Mon Sep 17 00:00:00 2001
+From: Tu Dinh <ngoc-tu.dinh@vates.tech>
+Date: Fri, 20 Mar 2026 13:40:16 +0100
+Subject: [PATCH] Don't deny smartcards in usb-policy.conf
+
+Backport of 651a7b9da1d3c4ec009782bca330bac5d05a4111.
+
+Removing this device class from the USB config would let admins
+configure VMs for digital signing purposes.
+
+These devices are also not very useful in Dom0.
+
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+(cherry picked from commit 30af482f9db7e483a519a95e89ef13afb25200bd)
+
+Origin: https://github.com/xapi-project/xen-api/pull/6967
+Bug-Vates: XCPNG-3307
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+---
+ scripts/usb-policy.conf | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/scripts/usb-policy.conf b/scripts/usb-policy.conf
+index e14a11d68..c851ab6cf 100644
+--- a/scripts/usb-policy.conf
++++ b/scripts/usb-policy.conf
+@@ -20,7 +20,6 @@ ALLOW:vid=056a pid=00fb class=03 # Wacom DTU tablet
+ DENY: class=03 subclass=01 prot=01 # HID Boot keyboards
+ DENY: class=03 subclass=01 prot=02 # HID Boot mice
+ DENY: class=0a # CDC-Data
+-DENY: class=0b # Smartcard
+ DENY: class=e0 # Wireless controller
+ DENY: class=ef subclass=04 # Miscellaneous network devices
+ ALLOW: # Otherwise allow everything else
