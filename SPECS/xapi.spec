@@ -229,7 +229,8 @@ BuildRequires: systemd
 # XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
 #Requires: genisoimage
 %if 0%{?xenserver} >= 9
-Requires: oxenstored >= 0.0.2
+# XCP-ng: this should be packaged first, falling back to Xen's
+#Requires: oxenstored >= 0.0.2
 %endif
 Requires: kpatch
 
@@ -1571,6 +1572,7 @@ Coverage files from unit tests
   - Revert the 26.1.3-1.4 changes relying on qcow support in xs-opam
   - Stay away from firewalld for now, use iptables-legacy
   - Replace $sha-dirty strings with $version
+  - Comment out the runtime dependency on oxenstored-split-out-from-xen
 - *** Upstream changelog ***
   * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
   - xapi_sm: remove nested call to serialize function
