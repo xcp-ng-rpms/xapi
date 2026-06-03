@@ -129,6 +129,8 @@ Patch1019: 0019-Refresh-remote-session-during-long-migrations.patch
 # in v26.1.7 upstream
 Patch1020: 0020-Don-t-deny-smartcards-in-usb-policy.conf.patch
 
+Patch1021: 0021-pci-Disallow-passthrough-for-boot-devices.patch
+
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
