@@ -1,0 +1,27 @@
+From 99dfa126939bad02504b33adb704c7bf711040ca Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Tue, 19 May 2026 14:13:28 +0100
+Subject: [PATCH] gitignore: ignore _mock directory
+
+used for running dune in a build root without conflicting with the
+normal _build that is used by editors or other tools
+
+This separate directory can be used by setting an environment variable:
+
+    DUNE_BUILD_DIR=_mock dune build ocaml/quicktest/ --profile=release -w
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ .gitignore | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/.gitignore b/.gitignore
+index 93ad84407..c68c675a0 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,4 +1,5 @@
+ _build/
++_mock/
+ *.bak
+ *.native
+ .merlin

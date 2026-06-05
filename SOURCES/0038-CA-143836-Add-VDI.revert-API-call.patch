@@ -1,0 +1,195 @@
+From 926b095f783fefa2fcfe63021e6d7dd241d7d419 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Thu, 2 Oct 2025 17:09:28 +0100
+Subject: [PATCH] CA-143836: Add VDI.revert API call
+
+The API function is needed to be able to forward it across the pool and
+to block other operations on the VDI while it's running.
+
+It's unused for the time being.
+
+Signed-off-by: John Else <john.else@citrix.com>
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/idl/datamodel.ml                     | 12 ++++++++++
+ ocaml/idl/datamodel_common.ml              |  2 +-
+ ocaml/tests/record_util/old_record_util.ml |  2 ++
+ ocaml/xapi-cli-server/record_util.ml       |  2 ++
+ ocaml/xapi/message_forwarding.ml           | 17 ++++++++++++++
+ ocaml/xapi/xapi_sr_operations.ml           |  2 ++
+ ocaml/xapi/xapi_vdi.ml                     | 27 ++++++++++++++++++++++
+ ocaml/xapi/xapi_vdi.mli                    |  2 ++
+ 8 files changed, 65 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 16bd65622..83c3d97b6 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -4267,6 +4267,7 @@ module SR = struct
+         ; ("vdi_generate_config", "Generating the configuration of the VDI")
+         ; ("vdi_resize_online", "Resizing the VDI online")
+         ; ("vdi_update", "Refreshing the fields on the VDI")
++        ; ("vdi_revert", "Reverting a VDI to the snapshot")
+         ; ("pbd_create", "Creating a PBD for this SR")
+         ; ("pbd_destroy", "Destroying one of this SR's PBDs")
+         ]
+@@ -5447,6 +5448,16 @@ module VDI = struct
+          different SR. The destination SR must be visible to the guest."
+       ~allowed_roles:_R_VM_POWER_ADMIN ()
+ 
++  let revert =
++    call ~name:"revert" ~in_oss_since:None ~lifecycle:[]
++      ~params:
++        [(Ref _vdi, "snapshot", "The snapshot to which we want to revert")]
++      ~doc:
++        "Copy the contents of a snapshot to the VDI it's related to. The \
++         original contents of the VDI are lost."
++      ~errs:[Api_errors.unimplemented_in_sm_backend]
++      ~allowed_roles:_R_VM_POWER_ADMIN ~doc_tags:[Snapshots] ()
++
+   let introduce_params first_rel =
+     [
+       {
+@@ -6229,6 +6240,7 @@ module VDI = struct
+         ; data_destroy
+         ; list_changed_blocks
+         ; get_nbd_info
++        ; revert
+         ]
+       ~contents:
+         ([
+diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
+index bb8413396..93a3fbc6f 100644
+--- a/ocaml/idl/datamodel_common.ml
++++ b/ocaml/idl/datamodel_common.ml
+@@ -10,7 +10,7 @@ open Datamodel_roles
+               to leave a gap for potential hotfixes needing to increment the schema version.*)
+ let schema_major_vsn = 5
+ 
+-let schema_minor_vsn = 793
++let schema_minor_vsn = 794
+ 
+ (* Historical schema versions just in case this is useful later *)
+ let rio_schema_major_vsn = 5
+diff --git a/ocaml/tests/record_util/old_record_util.ml b/ocaml/tests/record_util/old_record_util.ml
+index ba01a52d3..d6850e7d2 100644
+--- a/ocaml/tests/record_util/old_record_util.ml
++++ b/ocaml/tests/record_util/old_record_util.ml
+@@ -360,6 +360,8 @@ let sr_operation_to_string : API.storage_operations -> string = function
+       "VDI.resize_online"
+   | `vdi_update ->
+       "VDI.update"
++  | `vdi_revert ->
++      "VDI.revert"
+ 
+ let vbd_operation_to_string = function
+   | `attach ->
+diff --git a/ocaml/xapi-cli-server/record_util.ml b/ocaml/xapi-cli-server/record_util.ml
+index a11b30dec..cf6042eee 100644
+--- a/ocaml/xapi-cli-server/record_util.ml
++++ b/ocaml/xapi-cli-server/record_util.ml
+@@ -175,6 +175,8 @@ let sr_operation_to_string : API.storage_operations -> string = function
+       "VDI.resize_online"
+   | `vdi_update ->
+       "VDI.update"
++  | `vdi_revert ->
++      "VDI.revert"
+   | `pbd_create ->
+       "PBD.create"
+   | `pbd_destroy ->
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index 83786bd8a..7e12dbf5f 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -5438,6 +5438,23 @@ functor
+             forward_vdi_op ~local_fn ~__context ~self:vdi ~remote_fn
+         )
+ 
++      let revert ~__context ~snapshot =
++        let ( let@ ) f x = f x in
++        let doc = "VDI.revert" in
++        info "%s: snapshot = '%s'" doc (vdi_uuid ~__context snapshot) ;
++        let local_fn = Local.VDI.revert ~snapshot in
++        let remote_fn = Client.VDI.revert ~snapshot in
++        let sr = Db.VDI.get_SR ~__context ~self:snapshot in
++        let vdi = Db.VDI.get_snapshot_of ~__context ~self:snapshot in
++        let op () =
++          forward_vdi_op ~local_fn ~__context ~self:snapshot ~remote_fn
++        in
++        let@ () =
++          with_sr_andor_vdi ~__context ~sr:(sr, `vdi_revert)
++            ~vdi:(snapshot, `revert_to) ~doc
++        in
++        with_sr_andor_vdi ~__context ~vdi:(vdi, `revert_from) ~doc op
++
+       let copy ~__context ~vdi ~sr ~base_vdi ~into_vdi =
+         info "VDI.copy: VDI = '%s'; SR = '%s'; base_vdi = '%s'; into_vdi = '%s'"
+           (vdi_uuid ~__context vdi) (sr_uuid ~__context sr)
+diff --git a/ocaml/xapi/xapi_sr_operations.ml b/ocaml/xapi/xapi_sr_operations.ml
+index e74e19863..f011a7d7f 100644
+--- a/ocaml/xapi/xapi_sr_operations.ml
++++ b/ocaml/xapi/xapi_sr_operations.ml
+@@ -48,6 +48,7 @@ let all_ops : API.storage_operations_set =
+   ; `vdi_list_changed_blocks
+   ; `vdi_set_on_boot
+   ; `vdi_introduce
++  ; `vdi_revert
+   ; `update
+   ; `pbd_create
+   ; `pbd_destroy
+@@ -89,6 +90,7 @@ let sm_cap_table : (API.storage_operations * _) list =
+   ; (`vdi_list_changed_blocks, Vdi_configure_cbt)
+   ; (`vdi_set_on_boot, Vdi_reset_on_boot)
+   ; (`update, Sr_update)
++  ; (`vdi_revert, Vdi_revert)
+   ; (* We fake clone ourselves *)
+     (`vdi_snapshot, Vdi_snapshot)
+   ]
+diff --git a/ocaml/xapi/xapi_vdi.ml b/ocaml/xapi/xapi_vdi.ml
+index a847093bb..ab1e6063c 100644
+--- a/ocaml/xapi/xapi_vdi.ml
++++ b/ocaml/xapi/xapi_vdi.ml
+@@ -1118,6 +1118,33 @@ let clone ~__context ~vdi ~driver_params =
+       )
+   )
+ 
++let revert' ~__context ~snapshot =
++  let module C = Storage_interface.StorageAPI (Idl.Exn.GenClient (struct
++    let rpc = Storage_access.rpc
++  end)) in
++  let sr = Db.VDI.get_SR ~__context ~self:snapshot in
++  Sm.assert_pbd_is_plugged ~__context ~sr ;
++  Xapi_vdi_helpers.assert_managed ~__context ~vdi:snapshot ;
++  let snapshot_rec = Db.VDI.get_record ~__context ~self:snapshot in
++
++  let task = Context.get_task_id __context in
++  let snapshot_info =
++    Storage_smapiv1.vdi_info_of_vdi_rec __context snapshot_rec
++  in
++  let sr' =
++    Db.SR.get_uuid ~__context ~self:sr |> Storage_interface.Sr.of_string
++  in
++  (* We don't use transform_storage_exn because of the fallback below *)
++  C.VDI.revert (Ref.string_of task) sr' snapshot_info
++
++let revert ~__context ~snapshot =
++  Storage_utils.transform_storage_exn @@ fun () ->
++  try revert' ~__context ~snapshot
++  with Storage_interface.Storage_error (Unimplemented _) ->
++    debug "Backend does not implement VDI revert: doing it ourselves" ;
++    let msg = [Ref.string_of (Db.VDI.get_SR ~__context ~self:snapshot)] in
++    raise Api_errors.(Server_error (unimplemented_in_sm_backend, msg))
++
+ let copy ~__context ~vdi ~sr ~base_vdi ~into_vdi =
+   Xapi_vdi_helpers.assert_managed ~__context ~vdi ;
+   let task_id = Ref.string_of (Context.get_task_id __context) in
+diff --git a/ocaml/xapi/xapi_vdi.mli b/ocaml/xapi/xapi_vdi.mli
+index 3d60ad31f..68d15e56d 100644
+--- a/ocaml/xapi/xapi_vdi.mli
++++ b/ocaml/xapi/xapi_vdi.mli
+@@ -258,3 +258,5 @@ val _get_nbd_info :
+     [get_server_certificate] function can be provided to avoid querying the real
+     certificate using the Client module, which is what {!get_nbd_info} does,
+     which would cause the unit test to fail. *)
++
++val revert : __context:Context.t -> snapshot:[`VDI] Ref.t -> unit

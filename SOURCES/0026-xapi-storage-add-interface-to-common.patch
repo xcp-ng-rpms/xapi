@@ -1,0 +1,86 @@
+From 73b40e39723b4f68f3458b9aad99fc20164b9b9b Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Thu, 2 Oct 2025 10:12:15 +0100
+Subject: [PATCH] xapi-storage: add interface to common
+
+avoids having unused bindings
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/xapi-storage/generator/lib/common.ml  | 13 +---------
+ ocaml/xapi-storage/generator/lib/common.mli | 28 +++++++++++++++++++++
+ quality-gate.sh                             |  2 +-
+ 3 files changed, 30 insertions(+), 13 deletions(-)
+ create mode 100644 ocaml/xapi-storage/generator/lib/common.mli
+
+diff --git a/ocaml/xapi-storage/generator/lib/common.ml b/ocaml/xapi-storage/generator/lib/common.ml
+index 2c1440275..23d0573e5 100644
+--- a/ocaml/xapi-storage/generator/lib/common.ml
++++ b/ocaml/xapi-storage/generator/lib/common.ml
+@@ -22,18 +22,7 @@ let dbg =
+ 
+ let unit = Param.mk Types.unit
+ 
+-let task_id = Param.mk ~name:"task_id" Types.string
+-
+-(** A URI representing the means for accessing the volume data. The
+-    interpretation of the URI is specific to the implementation. Xapi will
+-    choose which implementation to use based on the URI scheme. *)
+ type uri = string [@@deriving rpcty]
+ 
+-(** List of blocks for copying. *)
+-type blocklist = {
+-    blocksize: int  (** Size of the individual blocks. *)
+-  ; ranges: (int64 * int64) list
+-        (** List of block ranges, where a range is a (start,length) pair,
+-          measured in units of [blocksize] *)
+-}
++type blocklist = {blocksize: int; ranges: (int64 * int64) list}
+ [@@deriving rpcty]
+diff --git a/ocaml/xapi-storage/generator/lib/common.mli b/ocaml/xapi-storage/generator/lib/common.mli
+new file mode 100644
+index 000000000..6820a0bf5
+--- /dev/null
++++ b/ocaml/xapi-storage/generator/lib/common.mli
+@@ -0,0 +1,28 @@
++type exnt = Unimplemented of string
++
++val typ_of_exnt : exnt Rpc.Types.typ
++
++val exnt : exnt Rpc.Types.def
++
++exception DataExn of exnt
++
++val error : exnt Idl.Error.t
++
++val dbg : string Idl.Param.t
++
++val unit : unit Idl.Param.t
++
++val uri : string Rpc.Types.def
++(** A URI representing the means for accessing the volume data. The
++    interpretation of the URI is specific to the implementation. Xapi will
++    choose which implementation to use based on the URI scheme. *)
++
++(** List of blocks for copying. *)
++type blocklist = {
++    blocksize: int  (** Size of the individual blocks. *)
++  ; ranges: (int64 * int64) list
++        (** List of block ranges, where a range is a (start,length) pair,
++          measured in units of [blocksize] *)
++}
++
++val blocklist : blocklist Rpc.Types.def
+diff --git a/quality-gate.sh b/quality-gate.sh
+index c1df9d96f..647482fff 100755
+--- a/quality-gate.sh
++++ b/quality-gate.sh
+@@ -25,7 +25,7 @@ verify-cert () {
+ }
+ 
+ mli-files () {
+-  N=455
++  N=454
+   X="ocaml/tests"
+   X+="|ocaml/quicktest"
+   X+="|ocaml/message-switch/core_test"

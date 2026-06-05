@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.4
-Release: 3%{?xsrel}.2%{?dist}
+Release: 3%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -129,6 +129,28 @@ Patch1019: 0019-Refresh-remote-session-during-long-migrations.patch
 # in v26.1.7 upstream
 Patch1020: 0020-Don-t-deny-smartcards-in-usb-policy.conf.patch
 
+# Upstream PR: https://github.com/xapi-project/xen-api/pull/7116
+# (not merged at the time of writing)
+Patch1021: 0021-gitignore-ignore-_mock-directory.patch
+Patch1022: 0022-record_util-move-to-a-new-private-library.patch
+Patch1023: 0023-ocaml-tests-separate-test_sr_allowed_operations.patch
+Patch1024: 0024-xapi_sr_operations-use-results-for-asserting-valid-o.patch
+Patch1025: 0025-xapi_sr_operations-ensure-the-properties-on-ops-list.patch
+Patch1026: 0026-xapi-storage-add-interface-to-common.patch
+Patch1027: 0027-xapi_vdi-removed-code-commented-in-the-prehistoric-t.patch
+Patch1028: 0028-quicktest-reduce-amount-of-repetition-in-snapshot-te.patch
+Patch1029: 0029-quicktest-switch-asserts-with-alcotest-s-check-in-sn.patch
+Patch1030: 0030-quicktest-test-reverting-snapshots.patch
+Patch1031: 0031-quicktest-test-snapshot-revert-with-CDs.patch
+Patch1032: 0032-xapi_vm_snapshot-Plug-out-destroying-and-cloning-dis.patch
+Patch1033: 0033-xapi_vm_snapshot-move-VDI-related-DB-operations-insi.patch
+Patch1034: 0034-xapi_vm_snapshot-cover-more-code-to-destroy-newly-cl.patch
+Patch1035: 0035-xapi_vm_snapshot-shorten-length-of-comments.patch
+Patch1036: 0036-xapi_vdi-Introduce-VDI-operations-needed-for-revert.patch
+Patch1037: 0037-storage-add-VDI.revert.patch
+Patch1038: 0038-CA-143836-Add-VDI.revert-API-call.patch
+Patch1039: 0039-xapi_vm_snapshot-change-VM.revert-to-use-VDI.revert.patch
+Patch1040: 0040-datamodel_lifecycle-bump.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1530,8 +1552,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-# * next
-# - Add dmidecode to xapi-core Requires
+* Fri Jun 05 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.4-3.3
+- Foundational changes for having a more efficient and safer VM revert
+- Add dmidecode to xapi-core Requires
 
 * Fri May 22 2026 Tu Dinh <ngoc-tu.dinh@vates.tech> - 26.1.4-3.2
 - Don't deny smartcards in usb-policy.conf
