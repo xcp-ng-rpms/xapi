@@ -1,5 +1,5 @@
-%global package_speccommit be30a202eff02510abdf7df47986a974a00e1d03
-%global package_srccommit v26.1.4
+%global package_speccommit 03a9f4d557c39118ef08c632873ced6886485350
+%global package_srccommit v26.1.11
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.4
-Release: 3%{?xsrel}%{?dist}
+Version: 26.1.11
+Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.4.tar.gz
+Source0: xen-api-26.1.11.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -84,12 +84,6 @@ Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
-
-# Security patches from xapi-89
-Patch1: 0001-xapi89-backend-local.patch
-Patch2: 0002-xapi89-system-domain.patch
-Patch3: 0003-xapi89-storage-driver-domain.patch
-Patch4: 0004-xapi89-other-config-platform.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1461,11 +1455,71 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Wed Apr 29 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-3
-- Final security patch from xapi-89
+* Wed Apr 29 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.11-1
+- Remove handling of VBD.other_config:backend-local
+- Do not recognise VM.other_config:is_system_domain
+- Do not recognise {VM;PBD}.other_config:storage_driver_domain
+- CA-426596: Supports SM feature removing
+- Add removed features in debug log
+- xapi_vm: Implement RBAC checking for keys in set_other_config
+- xapi_vm: Implement per-key RBAC checking for VM.platform
 
-* Fri Apr 24 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-2
-- Security patches from xapi-89
+* Tue Apr 21 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.10-1
+- Revert "CA-423816 avoid double counting VM overhead memory"
+
+* Wed Apr 15 2026 Changlei Li <changlei.li@citrix.com> - 26.1.9-1
+- Revert "log/debug: use Ptime's rfc3339 formatting when logging to stdout"
+
+* Tue Apr 14 2026 Changlei Li <changlei.li@citrix.com> - 26.1.8-1
+- CP-48452: Session.UserAgent is now an instance property and has a default value.
+- CP-311919: Bumped version of Java SDK dependency. Also bumped Java version to 17 (LTS)
+- CP-311541: Expose the PS cmdlets so that they can be called without importing the module.
+- CA-423202: Xapi can incorrectly expect livepatches for EOL base versions
+- quicktests: Force VDI format on creation
+- Use the latest version of System.Management.Automation (7.4.14).
+- CA-423816 avoid double counting VM overhead memory
+
+* Tue Mar 31 2026 Changlei Li <changlei.li@cloud.com> - 26.1.7-1
+- CP-311612: skip VDI.other-config test on SMAPIv3+
+- CP-311613: do not attempt to export delta VHD from SMAPIv3
+- Don't deny smartcards in usb-policy.conf
+
+* Thu Mar 19 2026 Changlei Li <changlei.li@cloud.com> - 26.1.6-1
+- xapi-stdext: add try_map_collect to listext
+- xapi_ha: rework error path for attaching statefile VDIs
+- static_vdis: print both reference and uuid when attaching a VDI
+- xapi/helpers: log error message from launching scripts
+- log/debug: use Ptime's rfc3339 formatting when logging to stdout
+- debug: remove ad-hoc String.split_on_char
+- debug: reformat comment
+- xapi-cli-server: stop using SR records to filter ISO-backed PBDs on cross-pool migration
+- xapi-cli-server: stop using SR records for cross pool migrations
+- xapi-cli-server: print reason for failing to select preferred SR
+- CA-424916 don't exit thread/loop on events error
+- Revert "Rewrite update_vm_links"
+- Revert "Update VDI snapshot and parent links after import"
+- CA-423760: Retain host.last_update_hash on an ejected host
+- CA-423760: Reset host.latest_synced_updates_applied
+
+* Tue Mar 10 2026 Changlei Li <changlei.li@cloud.com> - 26.1.5-1
+- Add new stunnel configuration for VM import
+- stunnel: add doccoments to the configuration functions
+- Add comment documenting the 'world' stunnel config
+- CP-311125 unhide AD cache pool parameters in XE CLI
+- Log dangling references on import and export
+- github: create releases for tag on the 26.1-lcm branch
+- Update VDI snapshot and parent links after import
+- Rewrite update_vm_links
+- Refresh remote session during long migrations
+- CA-424021: Add GC rule for PCI records
+- Add GC rule for PUSB records
+- Add GC rule for Feature records
+- XSI-2155: keep track of outstanding domain builds in NUMA placement
+- CA-424055: NUMA: avoid using up the entire memory on node0
+- CA-423682: Dead lock on update repository mutex
+- [Backport] Don't block switching to a different edition when HA is enabled
+- CA-424473 Fix OpaqueRef:NULL in vm import
+- xe-reset-networking: allow the user to perform a network reset without renaming the interface
 
 * Fri Mar 06 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.4-1
 - XSI-2155: keep track of outstanding domain builds in NUMA placement
