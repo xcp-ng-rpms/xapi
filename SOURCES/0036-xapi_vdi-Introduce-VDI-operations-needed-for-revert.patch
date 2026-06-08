@@ -1,0 +1,235 @@
+From 8f716fb6fb693587d1712d5bf86e04e8426d04b4 Mon Sep 17 00:00:00 2001
+From: John Else <john.else@citrix.com>
+Date: Tue, 9 Sep 2014 12:31:03 +0100
+Subject: [PATCH] xapi_vdi: Introduce VDI operations needed for revert
+
+This is for both the live VDI (revert_from) and the snapshot (revert_to)
+
+These correspond to the VM operations `reverting` and `revert`,
+respectively.
+
+Only snapshots backed by an SR that allows clones are allowed to be
+reverted to. This is because SRs supporting revert is not enough to use
+vdi revert without clone: having an incorrect snapshot_of field will
+also cause the use of clone. With this we can ensure that if a bad edge
+case is met the system has a working fallback.
+
+Reverting to "live" snapshot VDIs is allowed, this happens when
+reverting to a checkpoint.
+
+Currently reverting requires the cloning feature because it's not
+possible to discriminate between backends that support vdi revert and
+ones that done. This will be possible once all of them do
+
+Test that VDIs...
+* can be reverted to a snapshot.
+* can be reverted to an attached snapshot.
+* cannot be reverted to a leaf VDI.
+* cannot be reverted to an attached leaf.
+
+Co-authored-by: John Else <john.else@citrix.com>
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+---
+ ocaml/idl/datamodel.ml                      |  2 +
+ ocaml/idl/schematest.ml                     |  2 +-
+ ocaml/tests/record_util/old_record_util.ml  |  4 ++
+ ocaml/tests/test_vdi_allowed_operations.ml  | 49 +++++++++++++++++++++
+ ocaml/tests/test_vdi_allowed_operations.mli |  1 +
+ ocaml/xapi/xapi_vdi.ml                      | 29 +++++++++---
+ 6 files changed, 79 insertions(+), 8 deletions(-)
+ create mode 100644 ocaml/tests/test_vdi_allowed_operations.mli
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 4e4a00a6b..16bd65622 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -5689,6 +5689,8 @@ module VDI = struct
+           )
+         ; ("set_on_boot", "Setting the on_boot field of the VDI")
+         ; ("blocked", "Operations on this VDI are temporarily blocked")
++        ; ("revert_to", "Reverting a VDI to a clone of this snapshot")
++        ; ("revert_from", "Reverting this VDI to a clone of a snapshot")
+         ]
+       )
+ 
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index a90bf8687..0d75d41d0 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "88b40556fd6a45af918900ff6d8079c5"
++let last_known_schema_hash = "f828a19597e924bede4f41b98c166795"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/tests/record_util/old_record_util.ml b/ocaml/tests/record_util/old_record_util.ml
+index 855a2b74b..ba01a52d3 100644
+--- a/ocaml/tests/record_util/old_record_util.ml
++++ b/ocaml/tests/record_util/old_record_util.ml
+@@ -299,6 +299,10 @@ let vdi_operation_to_string : API.vdi_operations -> string = function
+       "set_on_boot"
+   | `blocked ->
+       "blocked"
++  | `revert_to ->
++      "revert_to"
++  | `revert_from ->
++      "revert_from"
+ 
+ let sr_operation_to_string : API.storage_operations -> string = function
+   | `scan ->
+diff --git a/ocaml/tests/test_vdi_allowed_operations.ml b/ocaml/tests/test_vdi_allowed_operations.ml
+index 877b4fa48..001774202 100644
+--- a/ocaml/tests/test_vdi_allowed_operations.ml
++++ b/ocaml/tests/test_vdi_allowed_operations.ml
+@@ -573,6 +573,54 @@ let test_update_allowed_operations () =
+   Alcotest.(check Alcotest_comparators.vdi_operations_set)
+     "update_allowed_operations should be correct" ok_ops allowed_operations
+ 
++(* Tests for revert operation *)
++let test_revert =
++  let test_can_revert_to_snapshot () =
++    let __context = Mock.make_context_with_new_db "Mock context" in
++
++    run_assert_equal_with_vdi ~__context
++      ~vdi_fun:(fun vdi_ref ->
++        Db.VDI.set_is_a_snapshot ~__context ~self:vdi_ref ~value:true
++      )
++      `revert_to (Ok ())
++  in
++  (* VBDs of checkpoints are marked with currently_attached = true, but we still
++     need to be able to revert to them. *)
++  let test_can_revert_to_checkpoint () =
++    let __context = Mock.make_context_with_new_db "Mock context" in
++
++    run_assert_equal_with_vdi ~__context
++      ~vdi_fun:(fun vdi_ref ->
++        Db.VDI.set_is_a_snapshot ~__context ~self:vdi_ref ~value:true ;
++        make_vbd ~__context ~vDI:vdi_ref ~currently_attached:true ~mode:`RW ()
++      )
++      `revert_to (Ok ())
++  in
++  let test_cannot_revert_to_leaf () =
++    let __context = Mock.make_context_with_new_db "Mock context" in
++
++    run_assert_equal_with_vdi ~__context
++      ~vdi_fun:(fun _ -> ())
++      `revert_to
++      (Error (Api_errors.only_revert_snapshot, []))
++  in
++  let test_cannot_revert_live () =
++    let __context = Mock.make_context_with_new_db "Mock context" in
++
++    run_assert_equal_with_vdi ~__context
++      ~vdi_fun:(fun vdi_ref ->
++        make_vbd ~__context ~vDI:vdi_ref ~currently_attached:true ~mode:`RW ()
++      )
++      `revert_from
++      (Error (Api_errors.vdi_in_use, []))
++  in
++  [
++    ("Revert: Can revert to snapshot", `Quick, test_can_revert_to_snapshot)
++  ; ("Revert: Can revert to checkpoint", `Quick, test_can_revert_to_checkpoint)
++  ; ("Revert: Cannot revert to leaf", `Quick, test_cannot_revert_to_leaf)
++  ; ("Revert: Cannot revert live", `Quick, test_cannot_revert_live)
++  ]
++
+ let test =
+   [
+     ("test_ca98944", `Quick, test_ca98944)
+@@ -586,3 +634,4 @@ let test =
+       ("test_null_vm", `Quick, test_null_vm)
+     ; ("test_update_allowed_operations", `Quick, test_update_allowed_operations)
+     ]
++  @ test_revert
+diff --git a/ocaml/tests/test_vdi_allowed_operations.mli b/ocaml/tests/test_vdi_allowed_operations.mli
+new file mode 100644
+index 000000000..dd02dd1f7
+--- /dev/null
++++ b/ocaml/tests/test_vdi_allowed_operations.mli
+@@ -0,0 +1 @@
++val test : (string * [> `Quick] * (unit -> unit)) list
+diff --git a/ocaml/xapi/xapi_vdi.ml b/ocaml/xapi/xapi_vdi.ml
+index 7ce251f08..a847093bb 100644
+--- a/ocaml/xapi/xapi_vdi.ml
++++ b/ocaml/xapi/xapi_vdi.ml
+@@ -39,7 +39,7 @@ let feature_of_op =
+       Some Vdi_resize_online
+   | `generate_config ->
+       Some Vdi_generate_config
+-  | `clone ->
++  | `clone | `revert_to | `revert_from ->
+       Some Vdi_clone
+   | `mirror ->
+       Some Vdi_mirror
+@@ -210,11 +210,16 @@ let check_operation_error ~__context ?sr_records:_ ?(pbd_records = [])
+     (* check to see whether VBDs exist which are using this VDI *)
+ 
+     (* If the VBD is currently_attached then some operations can still be
+-       performed ie: VDI.clone (if the VM is suspended we have to have the
+-        'allow_clone_suspended_vm' flag); VDI.snapshot; VDI.resize_online;
+-        'blocked' (CP-831); VDI.data_destroy: it is not allowed on VDIs linked
+-        to a VM, but the implementation first waits for the VDI's VBDs to be
+-        unplugged and destroyed, and the checks are performed there.
++       performed ie:
++       - VDI.clone (if the VM is suspended we have to have the
++         'allow_clone_suspended_vm' flag)
++       - VDI.snapshot
++       - VDI.resize_online
++       - VDI.blocked (CP-831)
++       - VDI.data_destroy: it is not allowed on VDIs linked to a VM, but the
++         implementation first waits for the VDI's VBDs to be unplugged and
++         destroyed, and the checks are performed there
++       - VDI.revert: is allowed as checkpoints have currently_attached VBDs
+     *)
+     let operation_can_be_performed_live =
+       match op with
+@@ -222,6 +227,7 @@ let check_operation_error ~__context ?sr_records:_ ?(pbd_records = [])
+       | `resize_online
+       | `blocked
+       | `clone
++      | `revert_to
+       | `mirror
+       | `enable_cbt
+       | `disable_cbt
+@@ -305,6 +311,8 @@ let check_operation_error ~__context ?sr_records:_ ?(pbd_records = [])
+       | `resize
+       | `resize_online
+       | `snapshot
++      | `revert_to
++      | `revert_from
+       | `set_on_boot ->
+           false
+       | `blocked
+@@ -347,6 +355,8 @@ let check_operation_error ~__context ?sr_records:_ ?(pbd_records = [])
+       | `resize
+       | `resize_online
+       | `snapshot
++      | `revert_to
++      | `revert_from
+       | `update ->
+           true
+     in
+@@ -387,7 +397,7 @@ let check_operation_error ~__context ?sr_records:_ ?(pbd_records = [])
+           Error (Api_errors.vdi_has_rrds, [_ref])
+         else
+           Ok ()
+-    | `destroy ->
++    | `destroy | `revert_from ->
+         check_destroy ()
+     | `data_destroy ->
+         if not record.Db_actions.vDI_is_a_snapshot then
+@@ -445,6 +455,11 @@ let check_operation_error ~__context ?sr_records:_ ?(pbd_records = [])
+           Error (Api_errors.vdi_on_boot_mode_incompatible_with_operation, [])
+         else
+           Ok ()
++    | `revert_to ->
++        if not record.Db_actions.vDI_is_a_snapshot then
++          Error (Api_errors.only_revert_snapshot, [])
++        else
++          Ok ()
+     | `mirror
+     | `clone
+     | `generate_config

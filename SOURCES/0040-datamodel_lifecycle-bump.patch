@@ -1,0 +1,22 @@
+From e021d89fb5905315a1bd5ff75f39954cdf52b273 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Fri, 5 Jun 2026 16:56:39 +0100
+Subject: [PATCH] datamodel_lifecycle: bump
+
+---
+ ocaml/idl/datamodel_lifecycle.ml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ocaml/idl/datamodel_lifecycle.ml b/ocaml/idl/datamodel_lifecycle.ml
+index f60c057a1..fa681cce9 100644
+--- a/ocaml/idl/datamodel_lifecycle.ml
++++ b/ocaml/idl/datamodel_lifecycle.ml
+@@ -237,6 +237,8 @@ let prototyped_of_message = function
+       Some "22.26.0"
+   | "VTPM", "create" ->
+       Some "22.26.0"
++  | "VDI", "revert" ->
++      Some "26.1.4-next"
+   | "host", "set_servertime" ->
+       Some "26.0.0"
+   | "host", "get_ntp_synchronized" ->
