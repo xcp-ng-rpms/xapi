@@ -1,4 +1,4 @@
-From 25e82977eb9243b4a7f5ede2cf6ba4e8389c168d Mon Sep 17 00:00:00 2001
+From f61b543fbccf2dacf6f1f9304e6ad45f172d76a5 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Wed, 24 Sep 2025 10:27:37 +0100
 Subject: [PATCH] storage: add VDI.revert

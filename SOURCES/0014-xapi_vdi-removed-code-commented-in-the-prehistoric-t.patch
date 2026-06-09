@@ -1,4 +1,4 @@
-From 6af4461d4e932075afb2f286933e3c2d9a2e6c9d Mon Sep 17 00:00:00 2001
+From ace20c759a4ffb5886ac912d6504868a4e16e29d Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Wed, 24 Sep 2025 14:13:05 +0100
 Subject: [PATCH] xapi_vdi: removed code commented in the prehistoric times

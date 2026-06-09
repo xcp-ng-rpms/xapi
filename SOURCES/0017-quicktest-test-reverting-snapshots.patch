@@ -1,4 +1,4 @@
-From 62df13b2009c80044516a933663bb782c19865ea Mon Sep 17 00:00:00 2001
+From e9a30670d18c8502ceea8b70fd8ec83a31ee3612 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 15 May 2026 16:36:33 +0100
 Subject: [PATCH] quicktest: test reverting snapshots
@@ -10,7 +10,7 @@ Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
  2 files changed, 35 insertions(+), 10 deletions(-)
 
 diff --git a/ocaml/quicktest/qt.ml b/ocaml/quicktest/qt.ml
-index 97b1013f4..7c74122ee 100644
+index 58cb40560..7a0bed84f 100644
 --- a/ocaml/quicktest/qt.ml
 +++ b/ocaml/quicktest/qt.ml
 @@ -192,7 +192,9 @@ module VDI = struct
@@ -23,7 +23,7 @@ index 97b1013f4..7c74122ee 100644
 +          (* Already destroyed, ignore *) ()
      )
  
-   let with_new rpc session_id ?(virtual_size = 4194304L) ?backing_format
+   let with_new rpc session_id ?(virtual_size = Int64.(mul (mul 4L 1024L) 1024L))
 diff --git a/ocaml/quicktest/quicktest_vm_snapshot.ml b/ocaml/quicktest/quicktest_vm_snapshot.ml
 index 30302b84e..b3d6c9c8d 100644
 --- a/ocaml/quicktest/quicktest_vm_snapshot.ml

@@ -1,4 +1,4 @@
-From 926b095f783fefa2fcfe63021e6d7dd241d7d419 Mon Sep 17 00:00:00 2001
+From d07a26106e6db826f972917cb4bcf4d9a6a43f2e Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Thu, 2 Oct 2025 17:09:28 +0100
 Subject: [PATCH] CA-143836: Add VDI.revert API call
@@ -22,7 +22,7 @@ Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
  8 files changed, 65 insertions(+), 1 deletion(-)
 
 diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
-index 16bd65622..83c3d97b6 100644
+index 260bbee84..8b4f162eb 100644
 --- a/ocaml/idl/datamodel.ml
 +++ b/ocaml/idl/datamodel.ml
 @@ -4267,6 +4267,7 @@ module SR = struct
@@ -98,10 +98,10 @@ index a11b30dec..cf6042eee 100644
        "PBD.create"
    | `pbd_destroy ->
 diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
-index 83786bd8a..7e12dbf5f 100644
+index 6f6659fc5..6e86413a4 100644
 --- a/ocaml/xapi/message_forwarding.ml
 +++ b/ocaml/xapi/message_forwarding.ml
-@@ -5438,6 +5438,23 @@ functor
+@@ -5471,6 +5471,23 @@ functor
              forward_vdi_op ~local_fn ~__context ~self:vdi ~remote_fn
          )
  

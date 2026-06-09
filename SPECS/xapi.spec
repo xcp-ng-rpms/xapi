@@ -1,5 +1,5 @@
-%global package_speccommit be30a202eff02510abdf7df47986a974a00e1d03
-%global package_srccommit v26.1.4
+%global package_speccommit 03a9f4d557c39118ef08c632873ced6886485350
+%global package_srccommit v26.1.11
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.4
-Release: 3%{?xsrel}.3%{?dist}
+Version: 26.1.11
+Release: 1%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.4.tar.gz
+Source0: xen-api-26.1.11.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -85,15 +85,9 @@ Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
 
-# Security patches from xapi-89
-Patch1: 0001-xapi89-backend-local.patch
-Patch2: 0002-xapi89-system-domain.patch
-Patch3: 0003-xapi89-storage-driver-domain.patch
-Patch4: 0004-xapi89-other-config-platform.patch
-
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v26.1.4..v26.1.4-8.3
+#   - git format-patch --no-numbered --no-signature v26.1.11..v26.1.11-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -105,52 +99,32 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/6895
-# Temporarily dropped unit test commits to avoid qemu-img build dependency,
-# flipped the xapi.conf switch
-Patch1007: 0007-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
-Patch1008: 0008-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
-Patch1009: 0009-vhd-tool-Add-read_headers_interval-command.patch
-Patch1010: 0010-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
-Patch1011: 0011-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
-Patch1012: 0012-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
-Patch1013: 0013-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
-Patch1014: 0014-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
-
-# Proper fix for QCOW issues - to be upstreamed
-Patch1015: 0015-stream_vdi-Avoid-chunk-duplication-when-exporting-fr.patch
-Patch1016: 0016-qcow_tool-wrapper-Call-qemu-img-instead-of-qcow-stre.patch
-Patch1017: 0017-quicktests-Force-VDI-format-on-creation.patch
-Patch1018: 0018-stream_vdi-Fix-last_chunk-calculation.patch
-
-# in v26.1.5 upstream (https://github.com/xapi-project/xen-api/commit/8bbfa01c84e70d231124e6dffde55a56af687a61)
-Patch1019: 0019-Refresh-remote-session-during-long-migrations.patch
-
-# in v26.1.7 upstream
-Patch1020: 0020-Don-t-deny-smartcards-in-usb-policy.conf.patch
+# Flips the xapi.conf switch to get the optimized QCOW2 codepath, upstream
+# still uses the legacy default for safety
+Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
 # Upstream PR: https://github.com/xapi-project/xen-api/pull/7116
 # (not merged at the time of writing)
-Patch1021: 0021-gitignore-ignore-_mock-directory.patch
-Patch1022: 0022-record_util-move-to-a-new-private-library.patch
-Patch1023: 0023-ocaml-tests-separate-test_sr_allowed_operations.patch
-Patch1024: 0024-xapi_sr_operations-use-results-for-asserting-valid-o.patch
-Patch1025: 0025-xapi_sr_operations-ensure-the-properties-on-ops-list.patch
-Patch1026: 0026-xapi-storage-add-interface-to-common.patch
-Patch1027: 0027-xapi_vdi-removed-code-commented-in-the-prehistoric-t.patch
-Patch1028: 0028-quicktest-reduce-amount-of-repetition-in-snapshot-te.patch
-Patch1029: 0029-quicktest-switch-asserts-with-alcotest-s-check-in-sn.patch
-Patch1030: 0030-quicktest-test-reverting-snapshots.patch
-Patch1031: 0031-quicktest-test-snapshot-revert-with-CDs.patch
-Patch1032: 0032-xapi_vm_snapshot-Plug-out-destroying-and-cloning-dis.patch
-Patch1033: 0033-xapi_vm_snapshot-move-VDI-related-DB-operations-insi.patch
-Patch1034: 0034-xapi_vm_snapshot-cover-more-code-to-destroy-newly-cl.patch
-Patch1035: 0035-xapi_vm_snapshot-shorten-length-of-comments.patch
-Patch1036: 0036-xapi_vdi-Introduce-VDI-operations-needed-for-revert.patch
-Patch1037: 0037-storage-add-VDI.revert.patch
-Patch1038: 0038-CA-143836-Add-VDI.revert-API-call.patch
-Patch1039: 0039-xapi_vm_snapshot-change-VM.revert-to-use-VDI.revert.patch
-Patch1040: 0040-datamodel_lifecycle-bump.patch
+Patch1008: 0008-gitignore-ignore-_mock-directory.patch
+Patch1009: 0009-record_util-move-to-a-new-private-library.patch
+Patch1010: 0010-ocaml-tests-separate-test_sr_allowed_operations.patch
+Patch1011: 0011-xapi_sr_operations-use-results-for-asserting-valid-o.patch
+Patch1012: 0012-xapi_sr_operations-ensure-the-properties-on-ops-list.patch
+Patch1013: 0013-xapi-storage-add-interface-to-common.patch
+Patch1014: 0014-xapi_vdi-removed-code-commented-in-the-prehistoric-t.patch
+Patch1015: 0015-quicktest-reduce-amount-of-repetition-in-snapshot-te.patch
+Patch1016: 0016-quicktest-switch-asserts-with-alcotest-s-check-in-sn.patch
+Patch1017: 0017-quicktest-test-reverting-snapshots.patch
+Patch1018: 0018-quicktest-test-snapshot-revert-with-CDs.patch
+Patch1019: 0019-xapi_vm_snapshot-Plug-out-destroying-and-cloning-dis.patch
+Patch1020: 0020-xapi_vm_snapshot-move-VDI-related-DB-operations-insi.patch
+Patch1021: 0021-xapi_vm_snapshot-cover-more-code-to-destroy-newly-cl.patch
+Patch1022: 0022-xapi_vm_snapshot-shorten-length-of-comments.patch
+Patch1023: 0023-xapi_vdi-Introduce-VDI-operations-needed-for-revert.patch
+Patch1024: 0024-storage-add-VDI.revert.patch
+Patch1025: 0025-CA-143836-Add-VDI.revert-API-call.patch
+Patch1026: 0026-xapi_vm_snapshot-change-VM.revert-to-use-VDI.revert.patch
+Patch1027: 0027-datamodel_lifecycle-bump.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1552,6 +1526,75 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Jun 09 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.11-1.1
+- Update to upstream 26.1.11-1
+- *** Upstream changelog ***
+  * Wed Apr 29 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.11-1
+  - Remove handling of VBD.other_config:backend-local
+  - Do not recognise VM.other_config:is_system_domain
+  - Do not recognise {VM;PBD}.other_config:storage_driver_domain
+  - CA-426596: Supports SM feature removing
+  - Add removed features in debug log
+  - xapi_vm: Implement RBAC checking for keys in set_other_config
+  - xapi_vm: Implement per-key RBAC checking for VM.platform
+
+  * Tue Apr 21 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.10-1
+  - Revert "CA-423816 avoid double counting VM overhead memory"
+
+  * Wed Apr 15 2026 Changlei Li <changlei.li@citrix.com> - 26.1.9-1
+  - Revert "log/debug: use Ptime's rfc3339 formatting when logging to stdout"
+
+  * Tue Apr 14 2026 Changlei Li <changlei.li@citrix.com> - 26.1.8-1
+  - CP-48452: Session.UserAgent is now an instance property and has a default value.
+  - CP-311919: Bumped version of Java SDK dependency. Also bumped Java version to 17 (LTS)
+  - CP-311541: Expose the PS cmdlets so that they can be called without importing the module.
+  - CA-423202: Xapi can incorrectly expect livepatches for EOL base versions
+  - quicktests: Force VDI format on creation
+  - Use the latest version of System.Management.Automation (7.4.14).
+  - CA-423816 avoid double counting VM overhead memory
+
+  * Tue Mar 31 2026 Changlei Li <changlei.li@cloud.com> - 26.1.7-1
+  - CP-311612: skip VDI.other-config test on SMAPIv3+
+  - CP-311613: do not attempt to export delta VHD from SMAPIv3
+  - Don't deny smartcards in usb-policy.conf
+
+  * Thu Mar 19 2026 Changlei Li <changlei.li@cloud.com> - 26.1.6-1
+  - xapi-stdext: add try_map_collect to listext
+  - xapi_ha: rework error path for attaching statefile VDIs
+  - static_vdis: print both reference and uuid when attaching a VDI
+  - xapi/helpers: log error message from launching scripts
+  - log/debug: use Ptime's rfc3339 formatting when logging to stdout
+  - debug: remove ad-hoc String.split_on_char
+  - debug: reformat comment
+  - xapi-cli-server: stop using SR records to filter ISO-backed PBDs on cross-pool migration
+  - xapi-cli-server: stop using SR records for cross pool migrations
+  - xapi-cli-server: print reason for failing to select preferred SR
+  - CA-424916 don't exit thread/loop on events error
+  - Revert "Rewrite update_vm_links"
+  - Revert "Update VDI snapshot and parent links after import"
+  - CA-423760: Retain host.last_update_hash on an ejected host
+  - CA-423760: Reset host.latest_synced_updates_applied
+
+  * Tue Mar 10 2026 Changlei Li <changlei.li@cloud.com> - 26.1.5-1
+  - Add new stunnel configuration for VM import
+  - stunnel: add doccoments to the configuration functions
+  - Add comment documenting the 'world' stunnel config
+  - CP-311125 unhide AD cache pool parameters in XE CLI
+  - Log dangling references on import and export
+  - github: create releases for tag on the 26.1-lcm branch
+  - Update VDI snapshot and parent links after import
+  - Rewrite update_vm_links
+  - Refresh remote session during long migrations
+  - CA-424021: Add GC rule for PCI records
+  - Add GC rule for PUSB records
+  - Add GC rule for Feature records
+  - XSI-2155: keep track of outstanding domain builds in NUMA placement
+  - CA-424055: NUMA: avoid using up the entire memory on node0
+  - CA-423682: Dead lock on update repository mutex
+  - [Backport] Don't block switching to a different edition when HA is enabled
+  - CA-424473 Fix OpaqueRef:NULL in vm import
+  - xe-reset-networking: allow the user to perform a network reset without renaming the interface
+
 * Fri Jun 05 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.4-3.3
 - Foundational changes for having a more efficient and safer VM revert
 - Add dmidecode to xapi-core Requires

@@ -1,4 +1,4 @@
-From 3c8519421ac253c3e87ee3745fe2315ffad0ff2b Mon Sep 17 00:00:00 2001
+From c164697a4ca7a990e580de9801f08e95ccb2a522 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Mon, 6 Oct 2025 11:15:11 +0100
 Subject: [PATCH] xapi_vm_snapshot: change VM.revert to use VDI.revert
@@ -33,14 +33,14 @@ Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
  5 files changed, 180 insertions(+), 54 deletions(-)
 
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index 0d75d41d0..f5a188444 100644
+index 328e12fdd..b7816f7e1 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
  (* BEWARE: if this changes, check that schema has been bumped accordingly in
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
  
--let last_known_schema_hash = "f828a19597e924bede4f41b98c166795"
+-let last_known_schema_hash = "23c1d4d13c144daa5dade4bc1d5f6c71"
 +let last_known_schema_hash = "199f30c56632b4780af33b04f57e16e9"
  
  let current_schema_hash : string =
@@ -75,7 +75,7 @@ index 7ad7e2e83..c710d611f 100644
    (* Helper to filter SRs of specific types *)
    let has_one_of_types types sr_info =
 diff --git a/ocaml/quicktest/qt_filter.mli b/ocaml/quicktest/qt_filter.mli
-index ba8a74163..1fea4e804 100644
+index afd271839..8601cc24f 100644
 --- a/ocaml/quicktest/qt_filter.mli
 +++ b/ocaml/quicktest/qt_filter.mli
 @@ -60,6 +60,8 @@ module SR : sig

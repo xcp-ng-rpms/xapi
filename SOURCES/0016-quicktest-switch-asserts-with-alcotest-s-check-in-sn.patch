@@ -1,4 +1,4 @@
-From fd37f01011bea60b1abe507e89b33b86ef013c8f Mon Sep 17 00:00:00 2001
+From 0b410d2cf98a9f18f7807d1a1d7dd9facb972b65 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 15 May 2026 15:58:23 +0100
 Subject: [PATCH] quicktest: switch asserts with alcotest's check in snapshot

@@ -1,4 +1,4 @@
-From 8f716fb6fb693587d1712d5bf86e04e8426d04b4 Mon Sep 17 00:00:00 2001
+From c3d0bb8f2445b834cc26c6492488dbd1f0184d2b Mon Sep 17 00:00:00 2001
 From: John Else <john.else@citrix.com>
 Date: Tue, 9 Sep 2014 12:31:03 +0100
 Subject: [PATCH] xapi_vdi: Introduce VDI operations needed for revert
@@ -40,7 +40,7 @@ Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
  create mode 100644 ocaml/tests/test_vdi_allowed_operations.mli
 
 diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
-index 4e4a00a6b..16bd65622 100644
+index 8a2e58df5..260bbee84 100644
 --- a/ocaml/idl/datamodel.ml
 +++ b/ocaml/idl/datamodel.ml
 @@ -5689,6 +5689,8 @@ module VDI = struct
@@ -53,7 +53,7 @@ index 4e4a00a6b..16bd65622 100644
        )
  
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index a90bf8687..0d75d41d0 100644
+index 4af7d368d..328e12fdd 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
@@ -61,7 +61,7 @@ index a90bf8687..0d75d41d0 100644
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
  
 -let last_known_schema_hash = "88b40556fd6a45af918900ff6d8079c5"
-+let last_known_schema_hash = "f828a19597e924bede4f41b98c166795"
++let last_known_schema_hash = "23c1d4d13c144daa5dade4bc1d5f6c71"
  
  let current_schema_hash : string =
    let open Datamodel_types in

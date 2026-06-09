@@ -1,4 +1,4 @@
-From 73b40e39723b4f68f3458b9aad99fc20164b9b9b Mon Sep 17 00:00:00 2001
+From d9d516d1ce94b4ad34ac2d15af427d4ff0bce5e1 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Thu, 2 Oct 2025 10:12:15 +0100
 Subject: [PATCH] xapi-storage: add interface to common

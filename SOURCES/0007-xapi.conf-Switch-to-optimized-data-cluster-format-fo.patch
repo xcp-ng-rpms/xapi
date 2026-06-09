@@ -1,4 +1,4 @@
-From 210e3ad6c96c17c56e5095ebb581b58643db0409 Mon Sep 17 00:00:00 2001
+From 1d3f60f59ae50807af83b789e325d82a4ea5f593 Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 6 Mar 2026 09:45:45 +0000
 Subject: [PATCH] xapi.conf: Switch to optimized data cluster format for VHD

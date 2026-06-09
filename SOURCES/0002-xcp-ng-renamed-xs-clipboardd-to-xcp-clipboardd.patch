@@ -1,4 +1,4 @@
-From 8a7a6b4b390963e5ec1bb8ec7470def122a15a6e Mon Sep 17 00:00:00 2001
+From 1241af8fa7a3f0c6d737328475fdcbb28bdabe13 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 11:11:46 +0200
 Subject: [PATCH] [xcp-ng] renamed xs-clipboardd to xcp-clipboardd
