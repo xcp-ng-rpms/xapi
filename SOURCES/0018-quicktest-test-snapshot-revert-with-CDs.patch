@@ -1,4 +1,4 @@
-From c0261d7ade0f7ae98fc7f38cff1da72a78563e1e Mon Sep 17 00:00:00 2001
+From 39fd7454f80d32536a84cb661025b16a934aa015 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Thu, 28 May 2026 15:40:33 +0100
 Subject: [PATCH] quicktest: test snapshot revert with CDs

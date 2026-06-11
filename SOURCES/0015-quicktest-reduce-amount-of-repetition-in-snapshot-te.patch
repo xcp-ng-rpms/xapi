@@ -1,4 +1,4 @@
-From 4afb3d64f4eff20fc479ad3713b756ef6408d5e3 Mon Sep 17 00:00:00 2001
+From 55eb7dc7b4ad0e10551918d2df2b9db5129dd13b Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 15 May 2026 15:27:31 +0100
 Subject: [PATCH] quicktest: reduce amount of repetition in snapshot tests
@@ -7,24 +7,23 @@ No change in behaviour
 
 Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
 ---
- ocaml/quicktest/qt.ml                     |  20 ++-
+ ocaml/quicktest/qt.ml                     |  18 ++-
  ocaml/quicktest/qt.mli                    |   2 +
- ocaml/quicktest/quicktest_vm_snapshot.ml  | 189 +++++++++-------------
+ ocaml/quicktest/quicktest_vm_snapshot.ml  | 187 +++++++++-------------
  ocaml/quicktest/quicktest_vm_snapshot.mli |  13 ++
- 4 files changed, 106 insertions(+), 118 deletions(-)
+ 4 files changed, 102 insertions(+), 118 deletions(-)
  create mode 100644 ocaml/quicktest/quicktest_vm_snapshot.mli
 
 diff --git a/ocaml/quicktest/qt.ml b/ocaml/quicktest/qt.ml
-index 49eeffc56..97b1013f4 100644
+index c743c2a49..58cb40560 100644
 --- a/ocaml/quicktest/qt.ml
 +++ b/ocaml/quicktest/qt.ml
-@@ -180,23 +180,27 @@ module VDI = struct
- 
+@@ -181,15 +181,14 @@ module VDI = struct
    let test_vdi_name_description = "VDI for storage quicktest"
  
--  let make rpc session_id ?(virtual_size = 4194304L) ?backing_format sR =
-+  let make rpc session_id ?(virtual_size = 4194304L) ?backing_format
-+      ?(name_label = test_vdi_name_label)
+   let make rpc session_id ?(virtual_size = Int64.(mul (mul 4L 1024L) 1024L))
+-      ?backing_format sR =
++      ?backing_format ?(name_label = test_vdi_name_label)
 +      ?(name_description = test_vdi_name_description) sR =
      let sm_config =
        match backing_format with Some x -> [("image-format", x)] | None -> []
@@ -40,13 +39,13 @@ index 49eeffc56..97b1013f4 100644
  
    let with_destroyed rpc session_id self f =
      Xapi_stdext_pervasives.Pervasiveext.finally f (fun () ->
-         Client.Client.VDI.destroy ~rpc ~session_id ~self
+@@ -197,8 +196,11 @@ module VDI = struct
      )
  
--  let with_new rpc session_id ?(virtual_size = 4194304L) ?backing_format sr f =
+   let with_new rpc session_id ?(virtual_size = Int64.(mul (mul 4L 1024L) 1024L))
+-      ?backing_format sr f =
 -    let self = make rpc session_id ~virtual_size ?backing_format sr in
-+  let with_new rpc session_id ?(virtual_size = 4194304L) ?backing_format
-+      ?name_label ?name_description sr f =
++      ?backing_format ?name_label ?name_description sr f =
 +    let self =
 +      make rpc session_id ~virtual_size ?backing_format ?name_label
 +        ?name_description sr
@@ -68,10 +67,10 @@ index 6423c6060..e4c22246f 100644
      -> (API.ref_VDI -> 'a)
      -> 'a
 diff --git a/ocaml/quicktest/quicktest_vm_snapshot.ml b/ocaml/quicktest/quicktest_vm_snapshot.ml
-index f6e976bb2..2af0cb79c 100644
+index 54c0489f3..2af0cb79c 100644
 --- a/ocaml/quicktest/quicktest_vm_snapshot.ml
 +++ b/ocaml/quicktest/quicktest_vm_snapshot.ml
-@@ -1,123 +1,95 @@
+@@ -1,125 +1,95 @@
 +(* Copyright (C) 2026 Vates.
 +
 +   This program is free software; you can redistribute it and/or modify
@@ -99,9 +98,7 @@ index f6e976bb2..2af0cb79c 100644
    print_endline (Printf.sprintf "Template has uuid: %s%!" uuid) ;
 -  let vdi =
 -    Client.Client.VDI.create ~rpc ~session_id ~name_label:"small"
--      ~name_description:__LOC__ ~sR:sr ~virtual_size:4194304L ~_type:`user
--      ~sharable:false ~read_only:false ~other_config:[] ~xenstore_data:[]
--      ~sm_config:[] ~tags:[]
+-      ~name_description:__LOC__ ~sR:sr
 +  let@ vm = Qt.VM.with_new rpc session_id ~template:vm_template ~sr in
 +  print_endline (Printf.sprintf "Installed new VM") ;
 +  print_endline
@@ -110,19 +107,21 @@ index f6e976bb2..2af0cb79c 100644
 +    ) ;
 +  let@ vdi =
 +    Qt.VDI.with_new rpc session_id ~name_label:"small" ~name_description:__LOC__
-+      ~virtual_size:Int64.(mul (mul 4L 1024L) 1024L)
+       ~virtual_size:Int64.(mul (mul 4L 1024L) 1024L)
+-      ~_type:`user ~sharable:false ~read_only:false ~other_config:[]
+-      ~xenstore_data:[] ~sm_config:[] ~tags:[]
 +      sr
    in
 -  let vdi2 =
 -    Client.Client.VDI.create ~rpc ~session_id ~name_label:"small2"
--      ~name_description:__LOC__ ~sR:sr ~virtual_size:4194304L ~_type:`user
--      ~sharable:false ~read_only:false ~other_config:[] ~xenstore_data:[]
--      ~sm_config:[] ~tags:[]
+-      ~name_description:__LOC__ ~sR:sr
 +  ignore (create_vbd_disk rpc session_id vm vdi "0") ;
 +  let@ vdi2 =
 +    Qt.VDI.with_new rpc session_id ~name_label:"small2"
 +      ~name_description:__LOC__
-+      ~virtual_size:Int64.(mul (mul 4L 1024L) 1024L)
+       ~virtual_size:Int64.(mul (mul 4L 1024L) 1024L)
+-      ~_type:`user ~sharable:false ~read_only:false ~other_config:[]
+-      ~xenstore_data:[] ~sm_config:[] ~tags:[]
 +      sr
    in
 -  Qt.VM.with_new rpc session_id ~template:vm_template (fun vm ->
@@ -270,7 +269,7 @@ index f6e976bb2..2af0cb79c 100644
    let sr = sr_info.Qt.sr in
    List.iter
      (with_setup rpc session_id sr vm_template)
-@@ -125,10 +97,7 @@ let test rpc session_id sr_info vm_template () =
+@@ -127,10 +97,7 @@ let test rpc session_id sr_info vm_template () =
  
  let tests () =
    let open Qt_filter in

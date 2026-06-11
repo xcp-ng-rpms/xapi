@@ -1,4 +1,4 @@
-From e8ab9409e3d51c9a76ebb37c174b79a4936e7b52 Mon Sep 17 00:00:00 2001
+From efa75149003bd7be7725bf6014e6e52e196a0c24 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Tue, 10 Feb 2026 09:22:52 +0100
 Subject: [PATCH] xapi_sr_operations: use results for asserting valid ops
