@@ -1,0 +1,379 @@
+From 2e1706ced52c3756c732b08fd8bd064e122fd569 Mon Sep 17 00:00:00 2001
+From: Tu Dinh <ngoc-tu.dinh@vates.tech>
+Date: Mon, 8 Jun 2026 18:01:14 +0200
+Subject: [PATCH] Add DHCP setting for VIF IP configuration
+
+XAPI exposes a VIF.configure_ipv4/v6 message to instruct guest agents to
+configure the VM's IP settings on the host's behalf.
+
+This feature currently works by setting /local/domain/<domid>/xenserver/
+device/vif/<N>/static-ip-setting/enabled to one of the following values:
+
+enabled=0: None (unconfigured), so IP settings are decided by the VM
+           itself
+enabled=1: Static, using the address and gateway values in the same key
+
+From the modes above, there's no way to go from a static IP config back
+to DHCP, and therefore, someone wanting to switch back to DHCP would
+need to log into the VM and make the changes there.
+
+Add a new VIF configuration mode that specifies enabled=2. This mode
+instructs the guest to configure its VIF to use DHCP (on IPv4) or any
+appropriate method to obtain an IP address automatically (on IPv6).
+
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+(cherry picked from commit d045710cbe934c49c7021db6d021c32637384b00)
+---
+ ocaml/idl/datamodel.ml                     |  8 ++++++--
+ ocaml/idl/datamodel_common.ml              |  2 +-
+ ocaml/idl/schematest.ml                    |  2 +-
+ ocaml/tests/record_util/old_enum_all.ml    |  4 ++--
+ ocaml/tests/record_util/old_record_util.ml | 12 ++++++++++--
+ ocaml/xapi-idl/xen/xenops_interface.ml     |  2 ++
+ ocaml/xapi/xapi_vif.mli                    |  4 ++--
+ ocaml/xapi/xapi_xenops.ml                  |  4 ++++
+ ocaml/xe-cli/bash-completion               |  4 ++--
+ ocaml/xenopsd/lib/xenops_server.ml         | 16 ++++++++++------
+ ocaml/xenopsd/xc/xenops_server_xen.ml      | 16 ++++++++++++----
+ 11 files changed, 52 insertions(+), 22 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 8b4f162eb..033d65d26 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -3511,6 +3511,7 @@ module VIF = struct
+              guest-dependent)"
+           )
+         ; ("Static", "Static IPv4 address configuration")
++        ; ("DHCP", "Acquire an IP address by DHCP")
+         ]
+       )
+ 
+@@ -3523,6 +3524,7 @@ module VIF = struct
+              guest-dependent)"
+           )
+         ; ("Static", "Static IPv6 address configuration")
++        ; ("Autoconf", "Acquire an IPv6 address automatically")
+         ]
+       )
+ 
+@@ -3739,6 +3741,7 @@ module VIF = struct
+           , rel_dundee
+           , "Configure IPv4 settings for this virtual interface"
+           )
++        ; (Extended, "26.1.14", "Mode extended with 'DHCP' value")
+         ]
+       ~doc:"Configure IPv4 settings for this virtual interface"
+       ~versioned_params:
+@@ -3753,7 +3756,7 @@ module VIF = struct
+         ; {
+             param_type= ipv4_configuration_mode
+           ; param_name= "mode"
+-          ; param_doc= "Whether to use static or no IPv4 assignment"
++          ; param_doc= "Whether to use DHCP, static or no IPv4 assignment"
+           ; param_release= dundee_release
+           ; param_default= None
+           }
+@@ -3786,6 +3789,7 @@ module VIF = struct
+           , rel_dundee
+           , "Configure IPv6 settings for this virtual interface"
+           )
++        ; (Extended, "26.1.14", "Mode extended with 'Autoconf' value")
+         ]
+       ~doc:"Configure IPv6 settings for this virtual interface"
+       ~versioned_params:
+@@ -3800,7 +3804,7 @@ module VIF = struct
+         ; {
+             param_type= ipv6_configuration_mode
+           ; param_name= "mode"
+-          ; param_doc= "Whether to use static or no IPv6 assignment"
++          ; param_doc= "Whether to use autoconf, static or no IPv6 assignment"
+           ; param_release= dundee_release
+           ; param_default= None
+           }
+diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
+index 93a3fbc6f..03a8f9c3d 100644
+--- a/ocaml/idl/datamodel_common.ml
++++ b/ocaml/idl/datamodel_common.ml
+@@ -10,7 +10,7 @@ open Datamodel_roles
+               to leave a gap for potential hotfixes needing to increment the schema version.*)
+ let schema_major_vsn = 5
+ 
+-let schema_minor_vsn = 794
++let schema_minor_vsn = 795
+ 
+ (* Historical schema versions just in case this is useful later *)
+ let rio_schema_major_vsn = 5
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index b7816f7e1..667cabe3e 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "199f30c56632b4780af33b04f57e16e9"
++let last_known_schema_hash = "12ad3aae56af6e1c9b9e9eeec63ce7d2"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/tests/record_util/old_enum_all.ml b/ocaml/tests/record_util/old_enum_all.ml
+index f58cdc754..bd2bdd8d6 100644
+--- a/ocaml/tests/record_util/old_enum_all.ml
++++ b/ocaml/tests/record_util/old_enum_all.ml
+@@ -121,9 +121,9 @@ let all_ip_configuration_mode = [`None; `DHCP; `Static]
+ 
+ let all_pif_igmp_status = [`enabled; `disabled; `unknown]
+ 
+-let all_vif_ipv6_configuration_mode = [`None; `Static]
++let all_vif_ipv6_configuration_mode = [`None; `Static; `Autoconf]
+ 
+-let all_vif_ipv4_configuration_mode = [`None; `Static]
++let all_vif_ipv4_configuration_mode = [`None; `Static; `DHCP]
+ 
+ let all_vif_locking_mode = [`network_default; `locked; `unlocked; `disabled]
+ 
+diff --git a/ocaml/tests/record_util/old_record_util.ml b/ocaml/tests/record_util/old_record_util.ml
+index d6850e7d2..5a32d7b12 100644
+--- a/ocaml/tests/record_util/old_record_util.ml
++++ b/ocaml/tests/record_util/old_record_util.ml
+@@ -878,6 +878,8 @@ let vif_ipv4_configuration_mode_to_string = function
+       "None"
+   | `Static ->
+       "Static"
++  | `DHCP ->
++      "DHCP"
+ 
+ let vif_ipv4_configuration_mode_of_string m =
+   match String.lowercase_ascii m with
+@@ -885,8 +887,10 @@ let vif_ipv4_configuration_mode_of_string m =
+       `None
+   | "static" ->
+       `Static
++  | "dhcp" ->
++      `DHCP
+   | s ->
+-      record_failure "Expected 'none' or 'static', got %s" s
++      record_failure "Expected 'dhcp','none' or 'static', got %s" s
+ 
+ let ipv6_configuration_mode_to_string = function
+   | `None ->
+@@ -916,6 +920,8 @@ let vif_ipv6_configuration_mode_to_string = function
+       "None"
+   | `Static ->
+       "Static"
++  | `Autoconf ->
++      "Autoconf"
+ 
+ let vif_ipv6_configuration_mode_of_string m =
+   match String.lowercase_ascii m with
+@@ -923,8 +929,10 @@ let vif_ipv6_configuration_mode_of_string m =
+       `None
+   | "static" ->
+       `Static
++  | "autoconf" ->
++      `Autoconf
+   | s ->
+-      record_failure "Expected 'none' or 'static', got %s" s
++      record_failure "Expected 'none', 'autoconf' or 'static', got %s" s
+ 
+ let primary_address_type_to_string = function
+   | `IPv4 ->
+diff --git a/ocaml/xapi-idl/xen/xenops_interface.ml b/ocaml/xapi-idl/xen/xenops_interface.ml
+index f27b4ec00..2e93d2c2a 100644
+--- a/ocaml/xapi-idl/xen/xenops_interface.ml
++++ b/ocaml/xapi-idl/xen/xenops_interface.ml
+@@ -322,6 +322,7 @@ module Vif = struct
+   type ipv4_configuration =
+     | Unspecified4
+     | Static4 of string list * string option
++    | DHCP4
+   [@@deriving rpcty]
+ 
+   (* a list of CIDRs and optionally a gateway *)
+@@ -331,6 +332,7 @@ module Vif = struct
+   type ipv6_configuration =
+     | Unspecified6
+     | Static6 of string list * string option
++    | Autoconf6
+   [@@deriving rpcty]
+ 
+   (* a list of CIDRs and optionally a gateway *)
+diff --git a/ocaml/xapi/xapi_vif.mli b/ocaml/xapi/xapi_vif.mli
+index 782bab119..2d98a7dc3 100644
+--- a/ocaml/xapi/xapi_vif.mli
++++ b/ocaml/xapi/xapi_vif.mli
+@@ -115,7 +115,7 @@ val remove_ipv6_allowed :
+ val configure_ipv4 :
+      __context:Context.t
+   -> self:[`VIF] Ref.t
+-  -> mode:[`None | `Static]
++  -> mode:[`None | `Static | `DHCP]
+   -> address:string
+   -> gateway:string
+   -> unit
+@@ -124,7 +124,7 @@ val configure_ipv4 :
+ val configure_ipv6 :
+      __context:Context.t
+   -> self:[`VIF] Ref.t
+-  -> mode:[`None | `Static]
++  -> mode:[`None | `Static | `Autoconf]
+   -> address:string
+   -> gateway:string
+   -> unit
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index 05cfd8f81..aedc369c9 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -852,6 +852,8 @@ module MD = struct
+               Some vif.API.vIF_ipv4_gateway
+           in
+           Vif.Static4 (vif.API.vIF_ipv4_addresses, gateway)
++      | `DHCP ->
++          Vif.DHCP4
+     in
+     let ipv6_configuration =
+       match vif.API.vIF_ipv6_configuration_mode with
+@@ -865,6 +867,8 @@ module MD = struct
+               Some vif.API.vIF_ipv6_gateway
+           in
+           Vif.Static6 (vif.API.vIF_ipv6_addresses, gateway)
++      | `Autoconf ->
++          Vif.Autoconf6
+     in
+     let extra_private_keys =
+       [("vif-uuid", vif.API.vIF_uuid); ("network-uuid", net.API.network_uuid)]
+diff --git a/ocaml/xe-cli/bash-completion b/ocaml/xe-cli/bash-completion
+index d11195c66..1e2e6c72f 100644
+--- a/ocaml/xe-cli/bash-completion
++++ b/ocaml/xe-cli/bash-completion
+@@ -161,10 +161,10 @@ _xe()
+                     suggested_modes="dhcp,static,none,autoconf"
+                 elif [ "${COMP_WORDS[1]}" == "vif-configure-ipv4" ]; then
+                     IFS=$'\n,'
+-                    suggested_modes="static,none"
++                    suggested_modes="dhcp,static,none"
+                 elif [ "${COMP_WORDS[1]}" == "vif-configure-ipv6" ]; then
+                     IFS=$'\n,'
+-                    suggested_modes="static,none"
++                    suggested_modes="static,none,autoconf"
+                 elif [ "${OLDSTYLE_WORDS[1]}" == "bond-set-mode" ] || [ "${OLDSTYLE_WORDS[1]}" == "bond-create" ]; then
+                     IFS=$'\n,'
+                     suggested_modes="balance-slb,active-backup,lacp"
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 55e5844ee..30748b0d2 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -2034,16 +2034,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
+       let setting =
+         match ipv4_configuration with
+         | Vif.Unspecified4 ->
+-            ""
++            "None"
+         | Vif.Static4 (address, gateway) -> (
+           match gateway with
+           | None ->
+-              Printf.sprintf "address:%s" (String.concat "; " address)
++              Printf.sprintf "Static: address:%s" (String.concat "; " address)
+           | Some value ->
+-              Printf.sprintf "address:%s gateway:%s"
++              Printf.sprintf "Static: address:%s gateway:%s"
+                 (String.concat "; " address)
+                 value
+         )
++        | Vif.DHCP4 ->
++            "DHCP"
+       in
+       debug "VIF.set_ipv4_configuration %s %s" (VIF_DB.string_of_id id) setting ;
+       finally
+@@ -2058,16 +2060,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
+       let setting =
+         match ipv6_configuration with
+         | Vif.Unspecified6 ->
+-            ""
++            "None"
+         | Vif.Static6 (address6, gateway6) -> (
+           match gateway6 with
+           | None ->
+-              Printf.sprintf "address6:%s" (String.concat "; " address6)
++              Printf.sprintf "Static: address6:%s" (String.concat "; " address6)
+           | Some value ->
+-              Printf.sprintf "address6:%s gateway6:%s"
++              Printf.sprintf "Static: address6:%s gateway6:%s"
+                 (String.concat "; " address6)
+                 value
+         )
++        | Vif.Autoconf6 ->
++            "Autoconf"
+       in
+       debug "VIF.set_ipv6_configuration %s %s" (VIF_DB.string_of_id id) setting ;
+       finally
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 19337c062..91ef328e5 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -4816,6 +4816,8 @@ module VIF = struct
+       | Static4 ([], _) ->
+           internal_error
+             "Static IPv4 configuration selected, but no address specified."
++      | DHCP4 ->
++          [("enabled", "2")]
+     in
+     let ipv6_setting =
+       match vif.ipv6_configuration with
+@@ -4835,6 +4837,8 @@ module VIF = struct
+       | Static6 ([], _) ->
+           internal_error
+             "Static IPv6 configuration selected, but no address specified."
++      | Autoconf6 ->
++          [("enabled6", "2")]
+     in
+     let settings = constant_setting @ ipv4_setting @ ipv6_setting in
+     List.map
+@@ -5174,12 +5178,12 @@ module VIF = struct
+                 )
+     )
+ 
+-  let set_ip_unspecified xs xenstore_path suffix =
++  let set_ip_unspecified_or_autoconf xs xenstore_path suffix enabled_mode =
+     Xs.transaction xs (fun t ->
+         let ip_setting_enabled =
+           Printf.sprintf "%s/%s%s" xenstore_path "enabled" suffix
+         in
+-        t.Xst.write ip_setting_enabled "0" ;
++        t.Xst.write ip_setting_enabled enabled_mode ;
+         let ip_setting_address =
+           Printf.sprintf "%s/%s%s" xenstore_path "address" suffix
+         in
+@@ -5221,12 +5225,14 @@ module VIF = struct
+         in
+         match ipv4_configuration with
+         | Unspecified4 ->
+-            set_ip_unspecified xs xenstore_path ""
++            set_ip_unspecified_or_autoconf xs xenstore_path "" "0"
+         | Static4 (address :: _, gateway) ->
+             set_ip_static xs xenstore_path "" address gateway
+         | Static4 ([], _) ->
+             internal_error
+               "Static IPv4 configuration selected, but no address specified."
++        | DHCP4 ->
++            set_ip_unspecified_or_autoconf xs xenstore_path "" "2"
+     )
+ 
+   let set_ipv6_configuration _task vm vif ipv6_configuration =
+@@ -5239,12 +5245,14 @@ module VIF = struct
+         in
+         match ipv6_configuration with
+         | Unspecified6 ->
+-            set_ip_unspecified xs xenstore_path "6"
++            set_ip_unspecified_or_autoconf xs xenstore_path "6" "0"
+         | Static6 (address :: _, gateway) ->
+             set_ip_static xs xenstore_path "6" address gateway
+         | Static6 ([], _) ->
+             internal_error
+               "Static IPv6 configuration selected, but no address specified."
++        | Autoconf6 ->
++            set_ip_unspecified_or_autoconf xs xenstore_path "6" "2"
+     )
+ 
+   let set_pvs_proxy _task vm vif proxy =
