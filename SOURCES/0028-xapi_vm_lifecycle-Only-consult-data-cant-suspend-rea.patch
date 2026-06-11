@@ -1,0 +1,85 @@
+From 6f9a1a1a4ed2f6dc191dee4bfa0dc6d42450c20f Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 29 Apr 2026 08:30:59 +0000
+Subject: [PATCH] xapi_vm_lifecycle: Only consult data-cant-suspend-reason and
+ feature-suspend for live VMs
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Otherwise, a shutdown VM that had data/cant_suspend_reason populated during its
+runtime will not be migratable with VM_NON_SUSPENDABLE error.
+
+Additionally uses Xapi_vm_lifecycle_helpers.is_live (which checks for both
+`Paused and `Running) instead of a check for `Running to determine if the VM is
+live.
+
+The following matrix of cases was tested:
+
+[x] Test on migratable Windows (shouldn't block suspend) → OK
+
+[x] Test on Windows with a non-migratable device (should block suspend as VM
+    lacks feature) → OK
+
+[x] Test on migratable Linux with XenServer tools (shouldn't block) → OK
+
+[x] Test on migratable Linux with XCP-ng tools (shouldn't block) → OK
+
+[x] Test on Linux with a non-migratable device (should block) → OK
+
+[x] Test nopv Windows/Linux without unmigratable devices with manual
+    `feature-suspend` xenstore entry forced (shouldn't block, should
+    resume correctly)
+
+  [x] Windows BIOS → OK
+
+  [x] Linux BIOS → OK
+
+[x] Test VDI migration on VM that had cant_suspend_reason populated but was
+    shut down (shouldn't block VDI migration) → OK
+
+Fixes: c895469f5 ("xapi_vm_lifecycle: Disallow suspend when cant_suspend_reason is present")
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+(cherry picked from commit 3d4d26bbe06d7ba839977b29b997951ae7075105)
+---
+ ocaml/xapi/xapi_vm_lifecycle.ml | 11 +++++------
+ 1 file changed, 5 insertions(+), 6 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_vm_lifecycle.ml b/ocaml/xapi/xapi_vm_lifecycle.ml
+index 37bfc045d..6cad01d83 100644
+--- a/ocaml/xapi/xapi_vm_lifecycle.ml
++++ b/ocaml/xapi/xapi_vm_lifecycle.ml
+@@ -193,10 +193,10 @@ let has_definitely_booted_pv ~vmmr =
+  *  (which is advisory only) and false (more permissive) when we are potentially about
+  *  to perform an operation. This makes a difference for ops that require the guest to
+  *  react helpfully. *)
+-let check_op_for_feature ~__context ~vmr:_ ~vmmr ~vmgmr ~power_state ~op ~ref
+-    ~strict =
++let check_op_for_feature ~__context ~vmr:_ ~vmmr ~vmgmr ~op ~ref ~strict =
++  let is_live = Xapi_vm_lifecycle_helpers.is_live ~__context ~self:ref in
+   let implicit_support =
+-    power_state <> `Running
++    (not is_live)
+     (* PV guests offer support implicitly *)
+     || has_definitely_booted_pv ~vmmr
+     || Xapi_pv_driver_version.(has_pv_drivers (of_guest_metrics vmgmr))
+@@ -205,7 +205,7 @@ let check_op_for_feature ~__context ~vmr:_ ~vmmr ~vmgmr ~power_state ~op ~ref
+   let some_err e = Some (e, [Ref.string_of ref]) in
+   let lack_feature feature = not (has_feature ~vmgmr ~feature) in
+   match op with
+-  | `suspend | `checkpoint | `pool_migrate | `migrate_send -> (
++  | (`suspend | `checkpoint | `pool_migrate | `migrate_send) when is_live -> (
+     match get_feature ~vmgmr ~feature:"data-cant-suspend-reason" with
+     | Some reason ->
+         Some (Api_errors.vm_non_suspendable, [Ref.string_of ref; reason])
+@@ -610,8 +610,7 @@ let check_operation_error ~__context ~ref =
+     (* check for any HVM guest feature needed by the op *)
+     let current_error =
+       check current_error (fun () ->
+-          check_op_for_feature ~__context ~vmr ~vmmr ~vmgmr ~power_state ~op
+-            ~ref ~strict
++          check_op_for_feature ~__context ~vmr ~vmmr ~vmgmr ~op ~ref ~strict
+       )
+     in
+     (* VSS support has been removed *)

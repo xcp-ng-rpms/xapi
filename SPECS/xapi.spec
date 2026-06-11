@@ -126,6 +126,9 @@ Patch1025: 0025-CA-143836-Add-VDI.revert-API-call.patch
 Patch1026: 0026-xapi_vm_snapshot-change-VM.revert-to-use-VDI.revert.patch
 Patch1027: 0027-datamodel_lifecycle-bump.patch
 
+# In v26.1.12 upstream
+Patch1028: 0028-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1527,6 +1530,7 @@ Coverage files from unit tests
 
 %changelog
 * Tue Jun 09 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.11-1.1
+- Fix shutdown VMs not being migratable due to errors generated when the VM was running
 - Update to upstream 26.1.11-1
 - *** Upstream changelog ***
   * Wed Apr 29 2026 Rob Hoes <rob.hoes@citrix.com> - 26.1.11-1
