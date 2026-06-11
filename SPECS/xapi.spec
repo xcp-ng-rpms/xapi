@@ -87,7 +87,7 @@ Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v26.1.11..v26.1.11-8.3
+#   - git format-patch --no-numbered --no-signature --histogram v26.1.11..v26.1.11-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
