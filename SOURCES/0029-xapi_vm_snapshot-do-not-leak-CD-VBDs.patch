@@ -1,0 +1,41 @@
+From 4d2ab4e6f133f395e7250186050eb326813c9595 Mon Sep 17 00:00:00 2001
+From: Pau Ruiz Safont <pau.safont@vates.tech>
+Date: Wed, 17 Jun 2026 16:14:42 +0100
+Subject: [PATCH] xapi_vm_snapshot: do not leak CD VBDs
+
+Because all the snapshot's CD VBDs are cloned in all cases, the reverted
+VM's CD VBDs must be destroyed in all cases, add them unconditionally to
+the VBDs being destroyed.
+
+Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
+(cherry picked from commit 20e8b3bb5b44406560d08fa6d5c925b089bfa091)
+---
+ ocaml/xapi/xapi_vm_snapshot.ml | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_vm_snapshot.ml b/ocaml/xapi/xapi_vm_snapshot.ml
+index 95764a6c4..4ecab7e58 100644
+--- a/ocaml/xapi/xapi_vm_snapshot.ml
++++ b/ocaml/xapi/xapi_vm_snapshot.ml
+@@ -253,9 +253,9 @@ let revert_vbds ~__context ~rpc ~session_id ~snapshot ~vm =
+   let snap_disks_snapshot_of = VDISet.map get_snapshot_of snap_disks_all in
+ 
+   let vm_VBDs_all = Db.VM.get_VBDs ~__context ~self:vm |> VBDSet.of_list in
+-  let vm_VBDs_disk =
++  let vm_VBDs_disk, vm_VBDs_CD =
+     (* Filter VBDs to ensure that we don't read empty CDROMs *)
+-    VBDSet.filter
++    VBDSet.partition
+       (fun vbd -> Db.VBD.get_type ~__context ~self:vbd = `Disk)
+       vm_VBDs_all
+   in
+@@ -309,7 +309,8 @@ let revert_vbds ~__context ~rpc ~session_id ~snapshot ~vm =
+   in
+ 
+   let vm_vbds_to_be_destroyed =
+-    filter_vbds_from_vdis vm_VBDs_all vm_disks_to_be_destroyed
++    let ( +++ ) = VBDSet.union in
++    filter_vbds_from_vdis vm_VBDs_all vm_disks_to_be_destroyed +++ vm_VBDs_CD
+   in
+ 
+   let snap_VBDs_reverted =
