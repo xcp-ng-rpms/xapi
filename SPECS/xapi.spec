@@ -32,7 +32,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.4.0
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -98,6 +98,11 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
+
+# XS patches (present in v26.9.0)
+Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
+Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
+Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1558,6 +1563,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 03 2026 Julian Vetter <julian.vetter@vates.tech> - 26.4.0-1.2
+- Backport upstream patches for QEMU 10 compatibility (CP-312095)
+
 * Tue Mar 24 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
 - Sync packaging with XS9
 - Do not require python2-udev on v9+
