@@ -99,6 +99,11 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
+# XS patches (present in v26.9.0)
+Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
+Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
+Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1535,7 +1540,7 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Mar 24 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
+* Tue Jul 07 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
 - Sync packaging with XS9
 - Do not require python2-udev on v9+
 - Add some missing Requires
@@ -1543,6 +1548,7 @@ Coverage files from unit tests
 - Add in core directories whose lack blocks startup:
   /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
 - Fix extra_file logic used for xenserver9.conf
+- Backport upstream patches for QEMU 10 compatibility (CP-312095)
 - Hacks and temporary measures:
   - On XCP-ng 9, require dhcp-client not dhclient
   - Revert the 26.1.3-1.4 changes relying on qcow support in xs-opam
