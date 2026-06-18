@@ -1,4 +1,4 @@
-From 2e1706ced52c3756c732b08fd8bd064e122fd569 Mon Sep 17 00:00:00 2001
+From 264ebb41a63edb16caecab3a94dda18cc8f9982d Mon Sep 17 00:00:00 2001
 From: Tu Dinh <ngoc-tu.dinh@vates.tech>
 Date: Mon, 8 Jun 2026 18:01:14 +0200
 Subject: [PATCH] Add DHCP setting for VIF IP configuration

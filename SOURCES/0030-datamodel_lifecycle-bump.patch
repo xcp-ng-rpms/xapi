@@ -1,4 +1,4 @@
-From ece03cbad180284c4b7a4a96db2aafd10174073d Mon Sep 17 00:00:00 2001
+From 097d1eb07f2d49a21429fb7418d5484242a2d0de Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 5 Jun 2026 16:56:39 +0100
 Subject: [PATCH] datamodel_lifecycle: bump

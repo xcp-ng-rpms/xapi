@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.11
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -124,13 +124,16 @@ Patch1023: 0023-xapi_vdi-Introduce-VDI-operations-needed-for-revert.patch
 Patch1024: 0024-storage-add-VDI.revert.patch
 Patch1025: 0025-CA-143836-Add-VDI.revert-API-call.patch
 Patch1026: 0026-xapi_vm_snapshot-change-VM.revert-to-use-VDI.revert.patch
-Patch1027: 0027-datamodel_lifecycle-bump.patch
+Patch1027: 0027-xapi_vm_snapshot-Fail-VM.revert-when-a-VDI.revert-ac.patch
+Patch1028: 0028-quicktest-test-for-number-of-CD-VBDs.patch
+Patch1029: 0029-xapi_vm_snapshot-do-not-leak-CD-VBDs.patch
+Patch1030: 0030-datamodel_lifecycle-bump.patch
 
 # In v26.1.12 upstream
-Patch1028: 0028-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
+Patch1031: 0031-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
 
 # In v26.1.14 upstream
-Patch1029: 0029-Add-DHCP-setting-for-VIF-IP-configuration.patch
+Patch1032: 0032-Add-DHCP-setting-for-VIF-IP-configuration.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1532,6 +1535,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Jun 15 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.11-1.2
+- Allow VM revert to fail when there's an actual error on VDI revert
+
 * Tue Jun 09 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.11-1.1
 - Fix shutdown VMs not being migratable due to errors generated when the VM was running
 - Allow moving VMs back to DHCP from static IP with configure_ipv4/6
