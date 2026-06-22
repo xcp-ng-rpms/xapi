@@ -1,5 +1,5 @@
-%global package_speccommit 03a9f4d557c39118ef08c632873ced6886485350
-%global package_srccommit v26.1.11
+%global package_speccommit c229c52d2bc744b6aaf37c59ad378b981d1037ba
+%global package_srccommit v26.1.12
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.11
-Release: 1%{?xsrel}.3%{?dist}
+Version: 26.1.12
+Release: 1%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.11.tar.gz
+Source0: xen-api-26.1.12.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -246,6 +246,7 @@ Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
 Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
+Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
@@ -1540,6 +1541,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue May 12 2026 Changlei Li <changlei.li@citrix.com> - 26.1.12-1
+- Merge feature/trusted-certs
+- xapi_vm_lifecycle: Only consult data-cant-suspend-reason and feature-suspend for live VMs
+- CP-53843: reusable session for sm_exec
+
 * Fri Jul 03 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.11-1.3
 - Fix non-snapshotted VBDs staying attached after VM.revert
 
