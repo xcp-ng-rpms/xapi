@@ -1,5 +1,5 @@
-%global package_speccommit c229c52d2bc744b6aaf37c59ad378b981d1037ba
-%global package_srccommit v26.1.12
+%global package_speccommit bdbd504162cd2bd228e9ddc27fcfd3f77973cc44
+%global package_srccommit v26.1.13
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.12
+Version: 26.1.13
 Release: 1%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.12.tar.gz
+Source0: xen-api-26.1.13.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -247,8 +247,9 @@ Requires(postun): xs-presets >= 1.3
 Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
+Provides: XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
-Conflicts: varstored < 1.2.0-1
+Conflicts: varstored < 1.3.4-2
 BuildRequires: systemd
 %{?systemd_requires}
 # XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
@@ -1541,6 +1542,21 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Jun 02 2026 Changlei Li <changlei.li@citrix.com> - 26.1.13-1
+- [Backport] CA-426857: Should not apply live patches when RebootHost is mandatory
+- [LCM] Update lifecycle of APIs for trusted certificates
+- message_forwarding: Don't block cross-pool migrations for unbootable VMs
+- xapi-cli-server: set name description for SRs, when given
+- CA-426408: Consider chunks in task expiry calculation
+- CA-427419 Add timeout in fetch_server_cert
+- CP-311907: Add VM.secureboot_certificates_state field
+- CP-311908: Add versioned VM.set_NVRAM_EFI_variables with update parameter
+- CP-312160: update design doc according to review comments
+- CP-311905: VM.update_secureboot_certificates_on_boot interface
+- CA-427271: update non secureboot vm certificate state
+- Add log when conn_limit_tcp is reached for easy diagnose
+- stunnel: assign the tests to the package
+
 * Tue May 12 2026 Changlei Li <changlei.li@citrix.com> - 26.1.12-1
 - Merge feature/trusted-certs
 - xapi_vm_lifecycle: Only consult data-cant-suspend-reason and feature-suspend for live VMs
