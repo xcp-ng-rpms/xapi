@@ -190,7 +190,10 @@ Requires: libdnf5-plugin-xapitoken
 # For dnf plugins like config-manager
 Requires: dnf5-plugins
 %endif
+# XCP-ng: dmv-utils not yet available for aarch64 / xcpng
+%if ! 0%{?xcpng}
 Requires: dmv-utils
+%endif
 %endif
 Requires: python3-xcp-libs
 %if %{with python2_compat}
@@ -217,7 +220,10 @@ Requires: python3-opentelemetry-exporter-zipkin
 %if 0%{?xenserver} >= 9
 %if 0%{?xcpng}
 # missing files prevent enabling firewalld
+# XCP-ng: iptables-legacy not yet available for aarch64
+%ifarch x86_64
 Requires: iptables-legacy
+%endif
 %else
 Requires: firewalld
 %endif
