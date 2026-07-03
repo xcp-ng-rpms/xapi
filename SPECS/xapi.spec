@@ -103,8 +103,7 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # still uses the legacy default for safety
 Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/7116
-# (not merged at the time of writing)
+# In v26.1.14 upstream
 Patch1008: 0008-gitignore-ignore-_mock-directory.patch
 Patch1009: 0009-record_util-move-to-a-new-private-library.patch
 Patch1010: 0010-ocaml-tests-separate-test_sr_allowed_operations.patch
@@ -137,6 +136,9 @@ Patch1032: 0032-Add-DHCP-setting-for-VIF-IP-configuration.patch
 
 # In v26.1.15 upstream
 Patch1033: 0033-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
+
+# In v26.1.16 upstream
+Patch1034: 0034-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
