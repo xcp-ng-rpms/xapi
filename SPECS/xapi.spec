@@ -135,6 +135,9 @@ Patch1031: 0031-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
 # In v26.1.14 upstream
 Patch1032: 0032-Add-DHCP-setting-for-VIF-IP-configuration.patch
 
+Patch1033: 0033-debugtest.patch
+Patch1034: 0034-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
