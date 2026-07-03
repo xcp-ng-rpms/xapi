@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.11
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -134,6 +134,9 @@ Patch1031: 0031-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
 
 # In v26.1.14 upstream
 Patch1032: 0032-Add-DHCP-setting-for-VIF-IP-configuration.patch
+
+# In v26.1.15 upstream
+Patch1033: 0033-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1535,6 +1538,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 03 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.11-1.3
+- Fix non-snapshotted VBDs staying attached after VM.revert
+
 * Mon Jun 15 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.11-1.2
 - Allow VM revert to fail when there's an actual error on VDI revert
 
