@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.11
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -103,8 +103,7 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # still uses the legacy default for safety
 Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/7116
-# (not merged at the time of writing)
+# In v26.1.14 upstream
 Patch1008: 0008-gitignore-ignore-_mock-directory.patch
 Patch1009: 0009-record_util-move-to-a-new-private-library.patch
 Patch1010: 0010-ocaml-tests-separate-test_sr_allowed_operations.patch
@@ -134,6 +133,12 @@ Patch1031: 0031-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
 
 # In v26.1.14 upstream
 Patch1032: 0032-Add-DHCP-setting-for-VIF-IP-configuration.patch
+
+# In v26.1.15 upstream
+Patch1033: 0033-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
+
+# In v26.1.16 upstream
+Patch1034: 0034-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1535,6 +1540,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Jul 03 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.11-1.3
+- Fix non-snapshotted VBDs staying attached after VM.revert
+
 * Mon Jun 15 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 26.1.11-1.2
 - Allow VM revert to fail when there's an actual error on VDI revert
 
