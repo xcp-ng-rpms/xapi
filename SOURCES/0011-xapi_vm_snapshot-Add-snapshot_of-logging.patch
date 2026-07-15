@@ -1,0 +1,36 @@
+From c3f6d0ccdffec9ccdef93913368a91627ba8a563 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 15 Jul 2026 14:11:53 +0000
+Subject: [PATCH] xapi_vm_snapshot: Add snapshot_of logging
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_vm_snapshot.ml | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/ocaml/xapi/xapi_vm_snapshot.ml b/ocaml/xapi/xapi_vm_snapshot.ml
+index fe7c7bed9..ffadd9cc2 100644
+--- a/ocaml/xapi/xapi_vm_snapshot.ml
++++ b/ocaml/xapi/xapi_vm_snapshot.ml
+@@ -271,6 +271,11 @@ let update_vifs_vbds_vgpus_and_vusbs ~__context ~snapshot ~vm =
+              3) Update each of these snapshots so that their snapshot_of points
+                 to the new cloned disk. *)
+           let open Xapi_database.Db_filter_types in
++
++        debug "%s: Updating the snapshot_of fields for VDIs to %s"
++        __FUNCTION__
++        (Ref.string_of cloned_disk) ;
++
+           let snapshot_of = Db.VDI.get_snapshot_of ~__context ~self:snap_disk in
+           let all_snaps_in_tree =
+             Db.VDI.get_refs_where ~__context
+@@ -279,6 +284,9 @@ let update_vifs_vbds_vgpus_and_vusbs ~__context ~snapshot ~vm =
+           in
+           List.iter
+             (fun snapshot ->
++          debug "%s: Updating the snapshot_of fields for VDI %s from %s"
++            __FUNCTION__ (Ref.string_of snapshot)
++            (Ref.string_of snapshot_of);
+               Db.VDI.set_snapshot_of ~__context ~self:snapshot
+                 ~value:cloned_disk
+             )

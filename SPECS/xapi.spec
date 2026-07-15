@@ -102,6 +102,8 @@ Patch1008: 0008-xenops-Fix-migrate-parameter-ordering.patch
 Patch1009: 0009-xapi_vm_migrate-share-function-to-check-capabilities.patch
 Patch1010: 0010-xapi_vm_migrate-add-capabilities-to-migration-not-su.patch
 
+Patch1011: 0011-xapi_vm_snapshot-Add-snapshot_of-logging.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
