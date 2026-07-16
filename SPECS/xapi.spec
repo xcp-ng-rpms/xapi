@@ -140,6 +140,8 @@ Patch1033: 0033-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
 # In v26.1.16 upstream
 Patch1034: 0034-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
 
+Patch1035: 0035-xapi_vm_snapshot-Add-logging-for-snapshot_of-modific.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
