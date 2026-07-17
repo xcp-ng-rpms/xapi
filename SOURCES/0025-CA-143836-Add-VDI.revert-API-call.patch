@@ -1,4 +1,4 @@
-From d07a26106e6db826f972917cb4bcf4d9a6a43f2e Mon Sep 17 00:00:00 2001
+From d8a871e9eb18f460fb40aa923153cb9f73e7ece8 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Thu, 2 Oct 2025 17:09:28 +0100
 Subject: [PATCH] CA-143836: Add VDI.revert API call
@@ -59,15 +59,15 @@ index 260bbee84..8b4f162eb 100644
        ~contents:
          ([
 diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
-index bb8413396..93a3fbc6f 100644
+index 03a8f9c3d..9a2e5496b 100644
 --- a/ocaml/idl/datamodel_common.ml
 +++ b/ocaml/idl/datamodel_common.ml
 @@ -10,7 +10,7 @@ open Datamodel_roles
                to leave a gap for potential hotfixes needing to increment the schema version.*)
  let schema_major_vsn = 5
  
--let schema_minor_vsn = 793
-+let schema_minor_vsn = 794
+-let schema_minor_vsn = 795
++let schema_minor_vsn = 796
  
  (* Historical schema versions just in case this is useful later *)
  let rio_schema_major_vsn = 5
@@ -98,10 +98,10 @@ index a11b30dec..cf6042eee 100644
        "PBD.create"
    | `pbd_destroy ->
 diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
-index 6f6659fc5..6e86413a4 100644
+index 59e151c86..d2b9e2846 100644
 --- a/ocaml/xapi/message_forwarding.ml
 +++ b/ocaml/xapi/message_forwarding.ml
-@@ -5471,6 +5471,23 @@ functor
+@@ -5553,6 +5553,23 @@ functor
              forward_vdi_op ~local_fn ~__context ~self:vdi ~remote_fn
          )
  

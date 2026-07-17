@@ -1,4 +1,4 @@
-From 4d2ab4e6f133f395e7250186050eb326813c9595 Mon Sep 17 00:00:00 2001
+From 2775da165acd5b556a9c4c1702b55f8b2a78048d Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Wed, 17 Jun 2026 16:14:42 +0100
 Subject: [PATCH] xapi_vm_snapshot: do not leak CD VBDs

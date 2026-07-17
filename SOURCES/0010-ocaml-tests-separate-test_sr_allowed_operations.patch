@@ -1,4 +1,4 @@
-From 2f74a06c51f28e9c58bd28ae058e2c7a9e7e7f8a Mon Sep 17 00:00:00 2001
+From e6747f84e7c1df8ef98dc7546060ce0f04d43842 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Mon, 9 Feb 2026 15:40:53 +0100
 Subject: [PATCH] ocaml/tests: separate test_sr_allowed_operations

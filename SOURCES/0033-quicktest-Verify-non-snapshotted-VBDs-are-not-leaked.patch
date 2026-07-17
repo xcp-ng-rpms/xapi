@@ -1,4 +1,4 @@
-From 8c5b575b5c2d74fc413397e482849fe0fd5cc879 Mon Sep 17 00:00:00 2001
+From 4cf49b5aa895c41fa26c9b69f022d65ca6e985df Mon Sep 17 00:00:00 2001
 From: Andrii Sultanov <andriy.sultanov@vates.tech>
 Date: Fri, 3 Jul 2026 07:53:20 +0000
 Subject: [PATCH] quicktest: Verify non-snapshotted VBDs are not leaked on

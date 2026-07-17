@@ -1,4 +1,4 @@
-From 264ebb41a63edb16caecab3a94dda18cc8f9982d Mon Sep 17 00:00:00 2001
+From a1d4b0a2f00d3f0dbb6dfa4c690581c4a7485c1d Mon Sep 17 00:00:00 2001
 From: Tu Dinh <ngoc-tu.dinh@vates.tech>
 Date: Mon, 8 Jun 2026 18:01:14 +0200
 Subject: [PATCH] Add DHCP setting for VIF IP configuration
@@ -92,28 +92,28 @@ index 8b4f162eb..033d65d26 100644
            ; param_default= None
            }
 diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
-index 93a3fbc6f..03a8f9c3d 100644
+index 9a2e5496b..e6df2d239 100644
 --- a/ocaml/idl/datamodel_common.ml
 +++ b/ocaml/idl/datamodel_common.ml
 @@ -10,7 +10,7 @@ open Datamodel_roles
                to leave a gap for potential hotfixes needing to increment the schema version.*)
  let schema_major_vsn = 5
  
--let schema_minor_vsn = 794
-+let schema_minor_vsn = 795
+-let schema_minor_vsn = 796
++let schema_minor_vsn = 797
  
  (* Historical schema versions just in case this is useful later *)
  let rio_schema_major_vsn = 5
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index b7816f7e1..667cabe3e 100644
+index e1ee19886..582a9df0b 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
  (* BEWARE: if this changes, check that schema has been bumped accordingly in
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
  
--let last_known_schema_hash = "199f30c56632b4780af33b04f57e16e9"
-+let last_known_schema_hash = "12ad3aae56af6e1c9b9e9eeec63ce7d2"
+-let last_known_schema_hash = "9b33f67f55f2add144fabd7af33bcb55"
++let last_known_schema_hash = "247a7b080219583e50e3e1a3c3c85b08"
  
  let current_schema_hash : string =
    let open Datamodel_types in
@@ -261,10 +261,10 @@ index d11195c66..1e2e6c72f 100644
                      IFS=$'\n,'
                      suggested_modes="balance-slb,active-backup,lacp"
 diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
-index 55e5844ee..30748b0d2 100644
+index 8771f2afe..1b47d532b 100644
 --- a/ocaml/xenopsd/lib/xenops_server.ml
 +++ b/ocaml/xenopsd/lib/xenops_server.ml
-@@ -2034,16 +2034,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
+@@ -2040,16 +2040,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
        let setting =
          match ipv4_configuration with
          | Vif.Unspecified4 ->
@@ -286,7 +286,7 @@ index 55e5844ee..30748b0d2 100644
        in
        debug "VIF.set_ipv4_configuration %s %s" (VIF_DB.string_of_id id) setting ;
        finally
-@@ -2058,16 +2060,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
+@@ -2064,16 +2066,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
        let setting =
          match ipv6_configuration with
          | Vif.Unspecified6 ->

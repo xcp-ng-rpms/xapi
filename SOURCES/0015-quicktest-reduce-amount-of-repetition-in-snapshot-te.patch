@@ -1,4 +1,4 @@
-From 55eb7dc7b4ad0e10551918d2df2b9db5129dd13b Mon Sep 17 00:00:00 2001
+From 74516fabfb638f2f84b4ac4f8ce8a1450d26d99d Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 15 May 2026 15:27:31 +0100
 Subject: [PATCH] quicktest: reduce amount of repetition in snapshot tests

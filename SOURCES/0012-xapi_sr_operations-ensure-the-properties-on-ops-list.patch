@@ -1,4 +1,4 @@
-From 2e0cacc7426c64c725f71368a51a3f00a821d3ee Mon Sep 17 00:00:00 2001
+From a05406e6bb210aca476cbe48c33c3afac07dd6a4 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Mon, 9 Feb 2026 10:31:47 +0100
 Subject: [PATCH] xapi_sr_operations: ensure the properties on ops lists always

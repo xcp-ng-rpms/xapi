@@ -1,4 +1,4 @@
-From 097d1eb07f2d49a21429fb7418d5484242a2d0de Mon Sep 17 00:00:00 2001
+From 810a73acbab446972d9a2fec2a419e1e3cbf5f6c Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 5 Jun 2026 16:56:39 +0100
 Subject: [PATCH] datamodel_lifecycle: bump
@@ -8,10 +8,10 @@ Subject: [PATCH] datamodel_lifecycle: bump
  1 file changed, 2 insertions(+)
 
 diff --git a/ocaml/idl/datamodel_lifecycle.ml b/ocaml/idl/datamodel_lifecycle.ml
-index f60c057a1..fa681cce9 100644
+index a2c143148..0a0faeb7e 100644
 --- a/ocaml/idl/datamodel_lifecycle.ml
 +++ b/ocaml/idl/datamodel_lifecycle.ml
-@@ -237,6 +237,8 @@ let prototyped_of_message = function
+@@ -241,6 +241,8 @@ let prototyped_of_message = function
        Some "22.26.0"
    | "VTPM", "create" ->
        Some "22.26.0"

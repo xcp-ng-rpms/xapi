@@ -128,17 +128,14 @@ Patch1028: 0028-quicktest-test-for-number-of-CD-VBDs.patch
 Patch1029: 0029-xapi_vm_snapshot-do-not-leak-CD-VBDs.patch
 Patch1030: 0030-datamodel_lifecycle-bump.patch
 
-# In v26.1.12 upstream
-Patch1031: 0031-xapi_vm_lifecycle-Only-consult-data-cant-suspend-rea.patch
-
 # In v26.1.14 upstream
-Patch1032: 0032-Add-DHCP-setting-for-VIF-IP-configuration.patch
+Patch1031: 0031-Add-DHCP-setting-for-VIF-IP-configuration.patch
 
 # In v26.1.15 upstream
-Patch1033: 0033-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
+Patch1032: 0032-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
 
 # In v26.1.16 upstream
-Patch1034: 0034-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
+Patch1033: 0033-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1542,25 +1539,28 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Jun 02 2026 Changlei Li <changlei.li@citrix.com> - 26.1.13-1
-- [Backport] CA-426857: Should not apply live patches when RebootHost is mandatory
-- [LCM] Update lifecycle of APIs for trusted certificates
-- message_forwarding: Don't block cross-pool migrations for unbootable VMs
-- xapi-cli-server: set name description for SRs, when given
-- CA-426408: Consider chunks in task expiry calculation
-- CA-427419 Add timeout in fetch_server_cert
-- CP-311907: Add VM.secureboot_certificates_state field
-- CP-311908: Add versioned VM.set_NVRAM_EFI_variables with update parameter
-- CP-312160: update design doc according to review comments
-- CP-311905: VM.update_secureboot_certificates_on_boot interface
-- CA-427271: update non secureboot vm certificate state
-- Add log when conn_limit_tcp is reached for easy diagnose
-- stunnel: assign the tests to the package
+* Fri Jul 17 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.13-1.1
+- Update to upstream 26.1.13-1
+- *** Upstream changelog ***
+  * Tue Jun 02 2026 Changlei Li <changlei.li@citrix.com> - 26.1.13-1
+  - [Backport] CA-426857: Should not apply live patches when RebootHost is mandatory
+  - [LCM] Update lifecycle of APIs for trusted certificates
+  - message_forwarding: Don't block cross-pool migrations for unbootable VMs
+  - xapi-cli-server: set name description for SRs, when given
+  - CA-426408: Consider chunks in task expiry calculation
+  - CA-427419 Add timeout in fetch_server_cert
+  - CP-311907: Add VM.secureboot_certificates_state field
+  - CP-311908: Add versioned VM.set_NVRAM_EFI_variables with update parameter
+  - CP-312160: update design doc according to review comments
+  - CP-311905: VM.update_secureboot_certificates_on_boot interface
+  - CA-427271: update non secureboot vm certificate state
+  - Add log when conn_limit_tcp is reached for easy diagnose
+  - stunnel: assign the tests to the package
 
-* Tue May 12 2026 Changlei Li <changlei.li@citrix.com> - 26.1.12-1
-- Merge feature/trusted-certs
-- xapi_vm_lifecycle: Only consult data-cant-suspend-reason and feature-suspend for live VMs
-- CP-53843: reusable session for sm_exec
+  * Tue May 12 2026 Changlei Li <changlei.li@citrix.com> - 26.1.12-1
+  - Merge feature/trusted-certs
+  - xapi_vm_lifecycle: Only consult data-cant-suspend-reason and feature-suspend for live VMs
+  - CP-53843: reusable session for sm_exec
 
 * Fri Jul 03 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.11-1.3
 - Fix non-snapshotted VBDs staying attached after VM.revert

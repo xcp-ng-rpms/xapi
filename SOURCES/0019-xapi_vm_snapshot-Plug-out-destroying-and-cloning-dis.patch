@@ -1,4 +1,4 @@
-From 0d8e44119cdeca89a937bc4eba89305225769710 Mon Sep 17 00:00:00 2001
+From 18a703e6cbd3a123c28ccd77718f657329d1481e Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Wed, 8 Oct 2025 10:46:15 +0100
 Subject: [PATCH] xapi_vm_snapshot: Plug out destroying and cloning disks into
