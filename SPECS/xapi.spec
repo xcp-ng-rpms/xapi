@@ -107,6 +107,7 @@ Patch2003: 0003-Adjust-schematest-hash-and-other-tests.patch
 Patch2004: 0004-debug-prints.patch
 Patch2005: 0005-minimal-xenguest-handling-for-arm.patch
 Patch2006: 0001-xenopsd-Force-higher-setmaxmem-value.patch
+Patch2007: xenopsd-xc-pass-the-guest-ramdisk-through-as-an-ARM-.patch
 
 
 %{?_cov_buildrequires}
