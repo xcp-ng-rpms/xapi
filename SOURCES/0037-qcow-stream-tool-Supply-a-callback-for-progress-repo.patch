@@ -1,0 +1,25 @@
+From 9aa6933dffe25cc473967fc25c42b6638fcbdb4c Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 20 Jul 2026 13:32:00 +0000
+Subject: [PATCH] qcow-stream-tool: Supply a callback for progress reporting
+
+Tracking-reference: XCPNG-3562
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/qcow-stream-tool/qcow_stream_tool.ml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/qcow-stream-tool/qcow_stream_tool.ml b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+index 6228ec46e..6f486396d 100644
+--- a/ocaml/qcow-stream-tool/qcow_stream_tool.ml
++++ b/ocaml/qcow-stream-tool/qcow_stream_tool.ml
+@@ -2,7 +2,8 @@ open Cmdliner
+ 
+ module Impl = struct
+   let stream_decode output =
+-    Qcow_stream.stream_decode Unix.stdin output ;
++    let progress_cb x = if x < 100 then Printf.printf "%03d%!" x in
++    Qcow_stream.stream_decode ~progress_cb Unix.stdin output ;
+     `Ok ()
+ end
+ 

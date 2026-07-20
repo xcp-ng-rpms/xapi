@@ -140,6 +140,10 @@ Patch1033: 0033-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
 # In v26.1.16 upstream
 Patch1034: 0034-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
 
+Patch1035: 0035-xapi-vhd_tool_wrapper-Move-common-logic-to-vhd_qcow_.patch
+Patch1036: 0036-python3-qcow2-to-stdout-Report-progress-in-percentag.patch
+Patch1037: 0037-qcow-stream-tool-Supply-a-callback-for-progress-repo.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

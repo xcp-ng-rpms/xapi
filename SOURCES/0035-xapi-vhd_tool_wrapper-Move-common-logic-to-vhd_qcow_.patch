@@ -1,0 +1,257 @@
+From 1cb7c4d7f533652b18529c8b25586a98d206c4b9 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 20 Jul 2026 14:22:01 +0000
+Subject: [PATCH] xapi/vhd_tool_wrapper: Move common logic to vhd_qcow_parsing
+
+This removes the duplicated logic (Vhd_qcow_parsing.run_tool and
+Vhd_tool_wrapper.run_vhd_tool were pretty much the same function with minor
+differences).
+
+Vhd_qcow_parsing.run_tool will now try to read back the progress percentages
+reported over stdout if ~output_fd was not specified, following
+Vhd_tool_wrapper.run_vhd_tool's behaviour
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/qcow_tool_wrapper.ml |  6 +--
+ ocaml/xapi/vhd_qcow_parsing.ml  | 83 +++++++++++++++++++++++++--------
+ ocaml/xapi/vhd_qcow_parsing.mli |  2 +-
+ ocaml/xapi/vhd_tool_wrapper.ml  | 62 ++----------------------
+ 4 files changed, 72 insertions(+), 81 deletions(-)
+
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index 652db754a..ef6961516 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -19,7 +19,7 @@ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) =
+   let args = ["stream_decode"; path] in
+   let qcow_tool = !Xapi_globs.qcow_stream_tool in
+-  Vhd_qcow_parsing.run_tool qcow_tool progress_cb args ~input_fd:unix_fd
++  Vhd_qcow_parsing.run_tool qcow_tool args ~progress_cb ~input_fd:unix_fd
+ 
+ let read_header qcow_path =
+   let progress_cb _ = () in
+@@ -28,7 +28,7 @@ let read_header qcow_path =
+       (fun () ->
+         Xapi_stdext_pervasives.Pervasiveext.finally
+           (fun () ->
+-            Vhd_qcow_parsing.run_tool tool progress_cb args
++            Vhd_qcow_parsing.run_tool tool args ~progress_cb
+               ~output_fd:pipe_writer ~replace_fds
+           )
+           (fun () -> Unix.close pipe_writer)
+@@ -134,7 +134,7 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+   in
+   Xapi_stdext_pervasives.Pervasiveext.finally
+     (fun () ->
+-      Vhd_qcow_parsing.run_tool qcow_tool progress_cb args ~output_fd:unix_fd
++      Vhd_qcow_parsing.run_tool qcow_tool args ~progress_cb ~output_fd:unix_fd
+         ?replace_fds
+     )
+     (fun () ->
+diff --git a/ocaml/xapi/vhd_qcow_parsing.ml b/ocaml/xapi/vhd_qcow_parsing.ml
+index 90ed8a7b2..5bf83f580 100644
+--- a/ocaml/xapi/vhd_qcow_parsing.ml
++++ b/ocaml/xapi/vhd_qcow_parsing.ml
+@@ -16,33 +16,76 @@ module D = Debug.Make (struct let name = __MODULE__ end)
+ 
+ open D
+ 
+-let run_tool tool ?(replace_fds = []) ?input_fd ?output_fd
+-    (_progress_cb : int -> unit) (args : string list) =
++let run_tool tool ?(replace_fds = []) ?input_fd ?output_fd ~progress_cb
++    (args : string list) =
+   info "Executing %s %s" tool (String.concat " " args) ;
++  let to_close = ref [] in
++  let pipe_read, pipe_write =
++    match output_fd with
++    | None ->
++        let r, w = Unix.pipe () in
++        to_close := [r; w] ;
++        (Some r, Some w)
++    | Some x ->
++        (None, Some x)
++  in
++  let close x =
++    match x with
++    | Some x ->
++        if List.mem x !to_close then (
++          Unix.close x ;
++          to_close := List.filter (fun y -> y <> x) !to_close
++        )
++    | None ->
++        ()
++  in
+   (* with_logfile_fd takes a name without slashes *)
+   let log_name = Filename.basename tool in
+   let open Forkhelpers in
+-  match
+-    with_logfile_fd log_name (fun log_fd ->
+-        let pid =
+-          safe_close_and_exec input_fd output_fd (Some log_fd) replace_fds tool
+-            args
+-        in
+-        let _, status = waitpid pid in
+-        if status <> Unix.WEXITED 0 then (
+-          error "qcow-tool failed, returning VDI_IO_ERROR" ;
+-          raise
+-            (Api_errors.Server_error
+-               (Api_errors.vdi_io_error, ["Device I/O errors"])
++  Xapi_stdext_pervasives.Pervasiveext.finally
++    (fun () ->
++      match
++        with_logfile_fd log_name (fun log_fd ->
++            let pid =
++              safe_close_and_exec input_fd pipe_write (Some log_fd) replace_fds
++                tool args
++            in
++            close pipe_write ;
++            match pipe_read with
++            | Some pipe_read -> (
++              try
++                let buf = Bytes.make 3 '\000' in
++                while true do
++                  Xapi_stdext_unix.Unixext.really_read pipe_read buf 0
++                    (Bytes.length buf) ;
++                  progress_cb (int_of_string (Bytes.to_string buf))
++                done
++              with
++              | End_of_file ->
++                  ()
++              | e ->
++                  warn "unexpected error reading progress from vhd-tool: %s"
++                    (Printexc.to_string e)
+             )
++            | None ->
++                () ;
++                let _, status = waitpid pid in
++                if status <> Unix.WEXITED 0 then (
++                  error "qcow-tool failed, returning VDI_IO_ERROR" ;
++                  raise
++                    (Api_errors.Server_error
++                       (Api_errors.vdi_io_error, ["Device I/O errors"])
++                    )
++                )
+         )
++      with
++      | Success (out, _) ->
++          debug "%s successful export (%s)" tool out
++      | Failure (out, _e) ->
++          error "%s output: %s" tool out ;
++          raise (Api_errors.Server_error (Api_errors.vdi_io_error, [out]))
+     )
+-  with
+-  | Success (out, _) ->
+-      debug "%s successful export (%s)" tool out
+-  | Failure (out, _e) ->
+-      error "%s output: %s" tool out ;
+-      raise (Api_errors.Server_error (Api_errors.vdi_io_error, [out]))
++    (fun () -> close pipe_read ; close pipe_write)
+ 
+ let read_json pipe_reader =
+   let ic = Unix.in_channel_of_descr pipe_reader in
+diff --git a/ocaml/xapi/vhd_qcow_parsing.mli b/ocaml/xapi/vhd_qcow_parsing.mli
+index f43b56dab..f2c64f311 100644
+--- a/ocaml/xapi/vhd_qcow_parsing.mli
++++ b/ocaml/xapi/vhd_qcow_parsing.mli
+@@ -17,7 +17,7 @@ val run_tool :
+   -> ?replace_fds:(string * Unix.file_descr) list
+   -> ?input_fd:Unix.file_descr
+   -> ?output_fd:Unix.file_descr
+-  -> (int -> unit)
++  -> progress_cb:(int -> unit)
+   -> string list
+   -> unit
+ 
+diff --git a/ocaml/xapi/vhd_tool_wrapper.ml b/ocaml/xapi/vhd_tool_wrapper.ml
+index a2faa5acc..80599cf55 100644
+--- a/ocaml/xapi/vhd_tool_wrapper.ml
++++ b/ocaml/xapi/vhd_tool_wrapper.ml
+@@ -25,60 +25,6 @@ let vhd_search_path = "/dev/mapper:."
+ let update_task_progress __context x =
+   TaskHelper.set_progress ~__context (float_of_int x /. 100.)
+ 
+-let run_vhd_tool progress_cb args s s' _path =
+-  let vhd_tool = !Xapi_globs.vhd_tool in
+-  info "Executing %s %s" vhd_tool (String.concat " " args) ;
+-  let open Forkhelpers in
+-  let pipe_read, pipe_write = Unix.pipe () in
+-  let to_close = ref [pipe_read; pipe_write] in
+-  let close x =
+-    if List.mem x !to_close then (
+-      Unix.close x ;
+-      to_close := List.filter (fun y -> y <> x) !to_close
+-    )
+-  in
+-  Xapi_stdext_pervasives.Pervasiveext.finally
+-    (fun () ->
+-      match
+-        with_logfile_fd "vhd-tool" (fun log_fd ->
+-            let pid =
+-              safe_close_and_exec None (Some pipe_write) (Some log_fd)
+-                [(s', s)]
+-                vhd_tool args
+-            in
+-            close pipe_write ;
+-            ( try
+-                let buf = Bytes.make 3 '\000' in
+-                while true do
+-                  Xapi_stdext_unix.Unixext.really_read pipe_read buf 0
+-                    (Bytes.length buf) ;
+-                  progress_cb (int_of_string (Bytes.to_string buf))
+-                done
+-              with
+-            | End_of_file ->
+-                ()
+-            | e ->
+-                warn "unexpected error reading progress from vhd-tool: %s"
+-                  (Printexc.to_string e)
+-            ) ;
+-            let _, status = waitpid pid in
+-            if status <> Unix.WEXITED 0 then (
+-              error "vhd-tool failed, returning VDI_IO_ERROR" ;
+-              raise
+-                (Api_errors.Server_error
+-                   (Api_errors.vdi_io_error, ["Device I/O errors"])
+-                )
+-            )
+-        )
+-      with
+-      | Success (out, _) ->
+-          debug "%s" out
+-      | Failure (out, e) ->
+-          error "vhd-tool output: %s" out ;
+-          raise e
+-    )
+-    (fun () -> close pipe_read ; close pipe_write)
+-
+ let receive progress_cb format protocol (s : Unix.file_descr)
+     (length : int64 option) (path : string) (prefix : string) (prezeroed : bool)
+     =
+@@ -114,7 +60,8 @@ let receive progress_cb format protocol (s : Unix.file_descr)
+     else
+       []
+   in
+-  run_vhd_tool progress_cb args s s' path
++  Vhd_qcow_parsing.run_tool !Xapi_globs.vhd_tool args ~progress_cb
++    ~replace_fds:[(s', s)]
+ 
+ let read_vhd_header path ~legacy =
+   let vhd_tool = !Xapi_globs.vhd_tool in
+@@ -132,7 +79,7 @@ let read_vhd_header path ~legacy =
+       (fun () ->
+         Xapi_stdext_pervasives.Pervasiveext.finally
+           (fun () ->
+-            Vhd_qcow_parsing.run_tool vhd_tool progress_cb args
++            Vhd_qcow_parsing.run_tool vhd_tool args ~progress_cb
+               ~output_fd:pipe_writer
+           )
+           (fun () -> Unix.close pipe_writer)
+@@ -213,4 +160,5 @@ let send progress_cb ?relative_to (protocol : string) (dest_format : string)
+     ]
+     @ match relative_to with None -> [] | Some x -> ["--relative-to"; x]
+   in
+-  run_vhd_tool progress_cb args s s' path
++  Vhd_qcow_parsing.run_tool !Xapi_globs.vhd_tool args ~progress_cb
++    ~replace_fds:[(s', s)]
