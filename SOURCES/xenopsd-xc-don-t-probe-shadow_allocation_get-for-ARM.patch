@@ -1,0 +1,51 @@
+From f6357d84f50f08ed3186c8d277f0dc1637bcf60b Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Mon, 20 Jul 2026 14:01:29 +0200
+Subject: [PATCH] xenopsd/xc: don't probe shadow_allocation_get for ARM domains
+
+Whenever the VM type is HVM (i.e., di.hvm_guest), VM.stat computes a
+value for shadow_multiplier_target by calling
+Xenctrl.shadow_allocation_get. Then xapi writes that value back into
+VM.HVM_shadow_multiplier on the next event. ARM domains are always
+created with CDF_hvm | CDF_hap (as required by Xen's
+arch_sanitise_domain_config() for ARM, rejecting any other flag
+combination). But ARM domains never use Xen's x86 shadow-memory pool. On
+ARM there is always a HW-based stage-2 translation.
+shadow_allocation_get therefore always reports 0 pages for an ARM domain
+regardless of actual memory use, which xapi then persists as
+VM.HVM-shadow-multiplier=0 shortly after every boot, clobbering the 1.0
+that was set at domain-build time. Which causes the VM to not boot the
+next time with an error "Cannot start here [Field has invalid value:
+HVM_shadow_multiplier = 0.]". So, force this value to 1 for ARM domains.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 5c9c0924f..af4229857 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -3363,7 +3363,17 @@ module VM = struct
+                   () (* do not RM the 'warned' path to prevent flood *)
+             ) ;
+             let shadow_multiplier_target =
+-              if not di.Xenctrl.hvm_guest then
++              let is_arm =
++                match di.Xenctrl.arch_config with
++                | Xenctrl.ARM _ ->
++                    true
++                | Xenctrl.X86 _ ->
++                    false
++              in
++              (* ARM domains use hardware stage-2 translation, not Xen's x86
++                 shadow-memory pool, so shadow_allocation_get always reports
++                 0 here regardless of actual memory usage. *)
++              if (not di.Xenctrl.hvm_guest) || is_arm then
+                 1.
+               else
+                 try
+-- 
+2.53.0
+

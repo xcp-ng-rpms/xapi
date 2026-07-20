@@ -113,6 +113,7 @@ Patch2004: 0004-cpuid_helpers-skip-CPU-featureset-levelling-for-ARM-.patch
 Patch2005: 0005-minimal-xenguest-handling-for-arm.patch
 Patch2006: 0001-xenopsd-Force-higher-setmaxmem-value.patch
 Patch2007: xenopsd-xc-pass-the-guest-ramdisk-through-as-an-ARM-.patch
+Patch2008: xenopsd-xc-don-t-probe-shadow_allocation_get-for-ARM.patch
 
 
 %{?_cov_buildrequires}
