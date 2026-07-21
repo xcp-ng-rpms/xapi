@@ -137,6 +137,12 @@ Patch1032: 0032-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
 # In v26.1.16 upstream
 Patch1033: 0033-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
 
+Patch1034: 0034-CP-312949-xenopsd-optional-kTLS-sender-for-VM-live-m.patch
+Patch1035: 0035-CP-313264-xenopsd-migration-tls.md-add-design-docume.patch
+Patch1036: 0036-CP-313264-xenopsd-log-the-negotiated-kTLS-version-an.patch
+Patch1037: 0037-stunnel-Adjust-constants-to-the-ones-available-in-th.patch
+Patch1038: 0038-Add-ktls-helper-dune-to-install-ktls-helper-binary.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1352,6 +1358,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 %{_unitdir}/xenopsd-xc.service
 %{_mandir}/man1/xenopsd-xc.1.gz
 %{_libexecdir}/xenopsd/set-domain-uuid
+%{_libexecdir}/xenopsd/ktls-helper
 /opt/xensource/libexec/fence.bin
 /opt/xensource/debug/suspend-image-viewer
 %{_bindir}/list_domains

@@ -1,0 +1,34 @@
+From ff635cd0f89a7e08b9930b99ec2ce9aee3025db3 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 22 Jul 2026 08:03:05 +0000
+Subject: [PATCH] stunnel: Adjust constants to the ones available in the LCM
+ branch
+
+Upstream kTLS depends on 71b7d5ffa894177ae45e81e1e09df4a55818b8fa and more
+commits that introduced Tls_policy. Avoid backporting these and just use the
+old constants
+
+WARNING: Our version of the kernel does not support 256-bit keys in kTLS, so
+limit the list to only the 128-bit cipher.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/libs/stunnel/stunnel.ml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/libs/stunnel/stunnel.ml b/ocaml/libs/stunnel/stunnel.ml
+index 9ff9f0d46..1541741dd 100644
+--- a/ocaml/libs/stunnel/stunnel.ml
++++ b/ocaml/libs/stunnel/stunnel.ml
+@@ -179,9 +179,9 @@ module Openssl = struct
+      callers that must match it (the ktls-helper, which replaces the
+      per-migration stunnel client) share one definition instead of keeping a
+      second copy that can drift. *)
+-  let default_ciphers = Tls_policy.Openssl.default_ciphers
++  let default_ciphers = "ECDHE-RSA-AES128-GCM-SHA256"
+ 
+-  let default_curve = Tls_policy.Openssl.default_curve
++  let default_curve = "secp384r1"
+ end
+ 
+ let config_file ?(accept = None) config host port =
