@@ -1,4 +1,4 @@
-From a076d2e40e613a67944e6e0da36e0d9fe3f9cad5 Mon Sep 17 00:00:00 2001
+From cbab22eb991b2aeb94abd6ab9c2612a40d229791 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 5 Jun 2026 10:22:35 +0100
 Subject: [PATCH] xapi_vm_snapshot: shorten length of comments

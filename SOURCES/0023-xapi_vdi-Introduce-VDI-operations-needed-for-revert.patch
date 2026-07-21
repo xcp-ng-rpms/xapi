@@ -1,4 +1,4 @@
-From c3d0bb8f2445b834cc26c6492488dbd1f0184d2b Mon Sep 17 00:00:00 2001
+From 992f622399af35761b717acd5559b0bf30ebe376 Mon Sep 17 00:00:00 2001
 From: John Else <john.else@citrix.com>
 Date: Tue, 9 Sep 2014 12:31:03 +0100
 Subject: [PATCH] xapi_vdi: Introduce VDI operations needed for revert
@@ -53,15 +53,15 @@ index 8a2e58df5..260bbee84 100644
        )
  
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index 4af7d368d..328e12fdd 100644
+index 5b6bd21dd..9bfd23d3a 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
  (* BEWARE: if this changes, check that schema has been bumped accordingly in
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
  
--let last_known_schema_hash = "88b40556fd6a45af918900ff6d8079c5"
-+let last_known_schema_hash = "23c1d4d13c144daa5dade4bc1d5f6c71"
+-let last_known_schema_hash = "87dce17b30693b57292d1168002b856f"
++let last_known_schema_hash = "ba70ce2024e319b7e3969f9c1d3b0c15"
  
  let current_schema_hash : string =
    let open Datamodel_types in

@@ -1,4 +1,4 @@
-From 09b6c21839bf2471e77d50eab60c7ca07ead5127 Mon Sep 17 00:00:00 2001
+From 85f99def06ba26b165c3fdb23948dfe0b7fb7c56 Mon Sep 17 00:00:00 2001
 From: Changlei Li <changlei.li@citrix.com>
 Date: Wed, 1 Jul 2026 10:03:53 +0800
 Subject: [PATCH] CA-429144: Do not leak new vbds after snapshot

@@ -1,4 +1,4 @@
-From 6a2514a1678a0f91de0e02fa92126ae56745b2a0 Mon Sep 17 00:00:00 2001
+From 07f2262ec8aea02481bc42843192dce27dcaa9ae Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Wed, 8 Oct 2025 17:03:56 +0100
 Subject: [PATCH] xapi_vm_snapshot: cover more code to destroy newly cloned

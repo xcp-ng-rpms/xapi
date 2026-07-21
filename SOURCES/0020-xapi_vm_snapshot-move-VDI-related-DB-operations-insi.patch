@@ -1,4 +1,4 @@
-From d07b158b81cf83c3c346d755ab312e78b840a811 Mon Sep 17 00:00:00 2001
+From 782ccf6397d446a89ce6fce19c027b5c267a33d8 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Wed, 8 Oct 2025 15:14:57 +0100
 Subject: [PATCH] xapi_vm_snapshot: move VDI-related DB operations inside

@@ -1,4 +1,4 @@
-From 1017189f0d06f72d140950d4ae65e255d310e28d Mon Sep 17 00:00:00 2001
+From 39238796be4a020dbc02a2790db1102a0337e3c0 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 8 May 2026 17:10:27 +0100
 Subject: [PATCH] record_util: move to a new private library

@@ -1,4 +1,4 @@
-From c164697a4ca7a990e580de9801f08e95ccb2a522 Mon Sep 17 00:00:00 2001
+From e96d858a3b7a5ee0a258d6c0d8a14800d23fb8ea Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Mon, 6 Oct 2025 11:15:11 +0100
 Subject: [PATCH] xapi_vm_snapshot: change VM.revert to use VDI.revert
@@ -33,15 +33,15 @@ Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
  5 files changed, 180 insertions(+), 54 deletions(-)
 
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index 328e12fdd..b7816f7e1 100644
+index 9bfd23d3a..e1ee19886 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
  (* BEWARE: if this changes, check that schema has been bumped accordingly in
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
  
--let last_known_schema_hash = "23c1d4d13c144daa5dade4bc1d5f6c71"
-+let last_known_schema_hash = "199f30c56632b4780af33b04f57e16e9"
+-let last_known_schema_hash = "ba70ce2024e319b7e3969f9c1d3b0c15"
++let last_known_schema_hash = "9b33f67f55f2add144fabd7af33bcb55"
  
  let current_schema_hash : string =
    let open Datamodel_types in

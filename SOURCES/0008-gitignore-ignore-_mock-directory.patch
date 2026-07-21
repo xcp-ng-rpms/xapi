@@ -1,4 +1,4 @@
-From aa256fbe311c6d728de6d55112c57bb0f11f1ab2 Mon Sep 17 00:00:00 2001
+From 07a54667ee71b9aed85198dd4508fd9ed7948573 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Tue, 19 May 2026 14:13:28 +0100
 Subject: [PATCH] gitignore: ignore _mock directory

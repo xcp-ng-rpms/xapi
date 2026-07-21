@@ -1,4 +1,4 @@
-From 79878daca72e7a479fa182c8d84af10f4f7950f7 Mon Sep 17 00:00:00 2001
+From 934cd1c8e1dc1e652377e23c390ac36569e7751f Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Fri, 12 Jun 2026 10:04:35 +0100
 Subject: [PATCH] xapi_vm_snapshot: Fail VM.revert when a VDI.revert actually

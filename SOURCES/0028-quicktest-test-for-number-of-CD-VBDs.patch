@@ -1,4 +1,4 @@
-From c7ca6e38fad70bd335c552c9cee86ce8fa1a0502 Mon Sep 17 00:00:00 2001
+From 00cfb36c8d10e4c855d598b6a856a1c76cf2beef Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Wed, 17 Jun 2026 16:11:31 +0100
 Subject: [PATCH] quicktest: test for number of CD VBDs
