@@ -1,0 +1,874 @@
+From 450a6220f16316616d65600f2882f308bc5d941e Mon Sep 17 00:00:00 2001
+From: Marcus Granado <marcus.granado@citrix.com>
+Date: Tue, 26 May 2026 10:34:15 +0100
+Subject: [PATCH] CP-312949: xenopsd: optional kTLS sender for VM live
+ migration
+
+stunnel is an external process that provides secure TLS transport for the
+xenguest VM-migrate stream. It's a separate process from xenguest, and
+the dom0 kernel pipes the data between these processes, wasting cpu and
+memory throughput. The result is a slower VM-migrate experience, and
+consequently a slower host-evacuate experience for the user.
+
+This change removes this inefficient data pipe between stunnel and xenguest,
+with a new option to replace stunnel's TLS with kernel TLS (kTLS). When
+this ktls option is enabled, the kernel transparently uses TLS to securely
+transport the data produced by xenguest, without the need to modify
+xenguest and without the need to use stunnel.
+
+This new ktls option uses a small C helper that:
+  (a) uses the same stunnel's OpenSSL library to perform the TLS handshake
+      and install the symmetric key into the kernel to perform kTLS, and
+  (b) hands the kTLS-enabled socket fd back to xenopsd over SCM_RIGHTS,
+      which stunnel can't do.
+xenopsd then treats the fd as an ordinary TCP socket; the kernel encrypts
+on the way out so the stunnel pipe and the extra data copies disappear
+from the xenguest sender side. The receiver side for now still uses stunnel
+on the destination host, and can be updated to use kTLS as well in the
+future.
+
+Measurements indicate significant improvements:
+* host-evacuate time: ~1.50x faster (stunnel/kTLS), depending on the load
+        of the guests (higher load the better, as there is more guest data
+        pages being transmitted, see details in the design page).
+* dom0 cpu usage: ~20% less (see details in the design page).
+
+Activation uses a new xenopsd.conf flag so the existing path remains the
+default and the two paths can be A/B compared on the same build:
+
+    migration-tls = "ktls"      # use the helper
+    migration-tls = "stunnel"   # explicit default
+    migration-tls = ""          # currently defaults to original "stunnel"
+
+If the helper fails for any reason before the fd is handed to the
+migration (binary missing, TLS handshake error, tls.ko not loaded, cipher
+rejected by the kernel, SCM_RIGHTS message lost, helper timeout)
+then xenopsd logs a single warn line:
+
+    migration-tls=ktls connect failed for <host>:<port> (<reason>);
+    falling back to stunnel for this connection
+
+and transparently falls back to the original Open_uri.with_open_uri so
+the migration still proceeds using stunnel as before for the sender.
+
+Signed-off-by: Marcus Granado <marcus.granado@citrix.com>
+---
+ ocaml/ktls-helper/README.md            |  53 +++++
+ ocaml/ktls-helper/helper/Makefile      |  21 ++
+ ocaml/ktls-helper/helper/ktls-helper.c | 275 +++++++++++++++++++++++++
+ ocaml/libs/stunnel/stunnel.ml          |  11 +
+ ocaml/libs/stunnel/stunnel.mli         |  10 +
+ ocaml/xenopsd/lib/migrate_connect.ml   | 238 +++++++++++++++++++++
+ ocaml/xenopsd/lib/migrate_connect.mli  |  45 ++++
+ ocaml/xenopsd/lib/xenops_server.ml     |   6 +-
+ ocaml/xenopsd/lib/xenopsd.ml           |  14 ++
+ ocaml/xenopsd/xc/xc_resources.ml       |   5 +
+ ocaml/xenopsd/xenopsd.conf             |  16 ++
+ 11 files changed, 691 insertions(+), 3 deletions(-)
+ create mode 100644 ocaml/ktls-helper/README.md
+ create mode 100644 ocaml/ktls-helper/helper/Makefile
+ create mode 100644 ocaml/ktls-helper/helper/ktls-helper.c
+ create mode 100644 ocaml/xenopsd/lib/migrate_connect.ml
+ create mode 100644 ocaml/xenopsd/lib/migrate_connect.mli
+
+diff --git a/ocaml/ktls-helper/README.md b/ocaml/ktls-helper/README.md
+new file mode 100644
+index 000000000..95507e5e3
+--- /dev/null
++++ b/ocaml/ktls-helper/README.md
+@@ -0,0 +1,53 @@
++# ktls-helper
++
++Sender-side kTLS helper for VM live migration. It replaces the per-migration
++stunnel client subprocess on the sender: it performs the TLS handshake in
++userspace, installs the symmetric keys into the kernel via kTLS, and hands the
++kTLS-enabled socket fd back to xenopsd via `SCM_RIGHTS`.
++
++Once xenopsd holds the fd, every subsequent `read()`/`write()` is
++decrypted/encrypted by the kernel on the calling thread — no stunnel pipe, no
++extra context switches, no extra copies.
++
++## Enabling
++
++Set the following in `/etc/xenopsd.conf` (or `/etc/xenopsd.conf.d/migration.conf`)
++and restart xenopsd:
++
++```
++migration-tls = ktls
++```
++
++If the option is absent or set to `stunnel` (the default), xenopsd uses the
++existing stunnel-based path. If the helper fails for any reason (binary missing,
++TLS handshake error, kTLS install rejected by the kernel), xenopsd logs a `warn`
++and transparently retries that single connection over stunnel, so the migration
++still succeeds over TLS.
++
++## Invocation contract
++
++```
++ktls-helper \
++    --host <dest-host> \
++    --port <dest-port> \
++    --send-fd <N> \
++    --ciphers <openssl-cipher-list> \
++    --curves <openssl-curve> \
++    [--cert-bundle-file <pem> | --no-verify] \
++    [--sni <name>]
++```
++
++- `--send-fd N` is the integer fd of a Unix-domain socket inherited from
++  xenopsd. After a successful handshake the helper confirms kTLS is installed in
++  both directions, then writes a single byte plus the kTLS-enabled socket fd
++  onto `N` via `SCM_RIGHTS` and exits 0 (the byte is a required carrier for the
++  `SCM_RIGHTS` fd; its value is ignored). On any failure it writes a single line
++  to stderr and exits 1.
++- `--cert-bundle-file` is the PEM trust bundle used to verify the destination
++  (a CA bundle or a pinned peer certificate). `--no-verify` skips verification
++  when pool certificate verification is disabled.
++- `--ciphers` and `--curves` are the OpenSSL cipher list and ECDHE curve the
++  helper must negotiate. They are mandatory and passed by xenopsd from the same
++  `Stunnel.Openssl` TLS policy the stunnel client uses, so the helper carries no
++  cipher policy of its own. The helper refuses to run if either is missing or
++  empty rather than fall back to OpenSSL's broad defaults.
+diff --git a/ocaml/ktls-helper/helper/Makefile b/ocaml/ktls-helper/helper/Makefile
+new file mode 100644
+index 000000000..ef8136421
+--- /dev/null
++++ b/ocaml/ktls-helper/helper/Makefile
+@@ -0,0 +1,21 @@
++# Standalone convenience Makefile for the ktls-helper.
++
++CC      ?= gcc
++CFLAGS  ?= -O2 -Wall -Wextra -Werror -std=gnu99
++LDFLAGS ?=
++LDLIBS  ?= -lssl -lcrypto
++
++BIN     := ktls-helper
++
++all: $(BIN)
++
++$(BIN): ktls-helper.c
++	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $< $(LDLIBS)
++
++install: $(BIN)
++	install -D -m 0755 $(BIN) $(DESTDIR)/usr/libexec/xapi/$(BIN)
++
++clean:
++	rm -f $(BIN)
++
++.PHONY: all install clean
+diff --git a/ocaml/ktls-helper/helper/ktls-helper.c b/ocaml/ktls-helper/helper/ktls-helper.c
+new file mode 100644
+index 000000000..678c73be5
+--- /dev/null
++++ b/ocaml/ktls-helper/helper/ktls-helper.c
+@@ -0,0 +1,275 @@
++/*
++ * ktls-helper — sender-side kTLS helper for VM live migration.
++ *
++ * Steps:
++ *   1. open a TCP socket to the destination host:port
++ *   2. TLS handshake using the pool CA bundle (matching the stunnel migration
++ *      client)
++ *   3. ask OpenSSL to install kTLS (SSL_OP_ENABLE_KTLS) and confirm the kernel
++ *      installed kTLS for BOTH directions (TX and RX) — the migration channel
++ *      is bidirectional
++ *   4. hand the kTLS-enabled socket fd back to xenopsd via SCM_RIGHTS on a
++ *      unix-socket fd inherited from the parent
++ *   5. exit; xenopsd then read()s/write()s plaintext and the kernel
++ *      decrypts/encrypts on the fly
++ *
++ * Build: see the Makefile. Installed at /usr/libexec/xapi/ktls-helper.
++ *
++ * Invocation:
++ *   ktls-helper --host <h> --port <p> --send-fd <N>
++ *               --ciphers <list> --curves <name>
++ *               [--cert-bundle-file <pem> | --no-verify] [--sni <name>]
++ *
++ * Exit codes:
++ *   0  success (kTLS active in both directions, fd handed off)
++ *   1  any failure (TLS handshake, kTLS install, SCM_RIGHTS send, ...)
++ *      stderr carries a single human-readable line for xenopsd to log.
++ */
++
++#define _GNU_SOURCE
++#include <errno.h>
++#include <getopt.h>
++#include <limits.h>
++#include <netdb.h>
++#include <stdarg.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <unistd.h>
++
++#include <netinet/in.h>
++#include <netinet/tcp.h>
++#include <sys/socket.h>
++#include <sys/types.h>
++#include <sys/uio.h>
++
++#include <openssl/err.h>
++#include <openssl/ssl.h>
++#include <openssl/x509.h>
++
++static void die(const char *fmt, ...) __attribute__((noreturn, format(printf, 1, 2)));
++
++static void die(const char *fmt, ...) {
++    va_list ap;
++    va_start(ap, fmt);
++    fputs("ktls-helper: ", stderr);
++    vfprintf(stderr, fmt, ap);
++    fputc('\n', stderr);
++    va_end(ap);
++    exit(1);
++}
++
++static const char *ossl_err(void) {
++    unsigned long e = ERR_peek_last_error();
++    return e ? ERR_reason_error_string(e) : "(no OpenSSL error)";
++}
++
++static int send_fd(int sock, int fd) {
++    char dummy = 'x';
++    struct iovec io = { .iov_base = &dummy, .iov_len = 1 };
++    union {
++        struct cmsghdr cm;
++        char buf[CMSG_SPACE(sizeof(int))];
++    } u;
++    memset(&u, 0, sizeof(u));
++    struct msghdr msg = {0};
++    msg.msg_iov = &io;
++    msg.msg_iovlen = 1;
++    msg.msg_control = u.buf;
++    msg.msg_controllen = sizeof(u.buf);
++    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
++    cmsg->cmsg_level = SOL_SOCKET;
++    cmsg->cmsg_type = SCM_RIGHTS;
++    cmsg->cmsg_len = CMSG_LEN(sizeof(int));
++    memcpy(CMSG_DATA(cmsg), &fd, sizeof(int));
++    ssize_t n;
++    do {
++        n = sendmsg(sock, &msg, 0);
++    } while (n < 0 && errno == EINTR);
++    return (int) n;
++}
++
++static int tcp_connect(const char *host, const char *port) {
++    struct addrinfo hints = {0};
++    hints.ai_family = AF_UNSPEC;
++    hints.ai_socktype = SOCK_STREAM;
++    struct addrinfo *res = NULL;
++    int rc = getaddrinfo(host, port, &hints, &res);
++    if (rc != 0)
++        die("getaddrinfo(%s, %s): %s", host, port, gai_strerror(rc));
++    int fd = -1;
++    int last_errno = 0;
++    for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
++        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
++        if (fd < 0) { last_errno = errno; continue; }
++        if (connect(fd, ai->ai_addr, ai->ai_addrlen) == 0) break;
++        last_errno = errno;
++        close(fd);
++        fd = -1;
++    }
++    freeaddrinfo(res);
++    if (fd < 0)
++        die("connect %s:%s: %s", host, port, strerror(last_errno));
++    int one = 1;
++    (void) setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
++    (void) setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE, &one, sizeof(one));
++    return fd;
++}
++
++int main(int argc, char **argv) {
++    const char *host = NULL;
++    const char *port = NULL;
++    const char *bundle = NULL;
++    const char *ciphers = NULL;
++    const char *curves = NULL;
++    const char *sni = NULL;
++    int send_fd_num = -1;
++    int no_verify = 0;
++
++    static struct option long_opts[] = {
++        {"host",                required_argument, 0, 'h'},
++        {"port",                required_argument, 0, 'p'},
++        {"cert-bundle-file",    required_argument, 0, 'c'},
++        {"ciphers",             required_argument, 0, 'C'},
++        {"curves",              required_argument, 0, 'g'},
++        {"sni",                 required_argument, 0, 's'},
++        {"send-fd",             required_argument, 0, 'f'},
++        {"no-verify",           no_argument,       0, 'n'},
++        {0, 0, 0, 0}
++    };
++    int idx;
++    int c;
++    while ((c = getopt_long(argc, argv, "", long_opts, &idx)) != -1) {
++        switch (c) {
++            case 'h': host = optarg; break;
++            case 'p': port = optarg; break;
++            case 'c': bundle = optarg; break;
++            case 'C': ciphers = optarg; break;
++            case 'g': curves = optarg; break;
++            case 's': sni = optarg; break;
++            case 'n': no_verify = 1; break;
++            case 'f': {
++                /* --send-fd is a Forkhelpers placeholder rewritten to an
++                   integer fd before exec; validate it strictly anyway. */
++                char *end = NULL;
++                errno = 0;
++                long v = strtol(optarg, &end, 10);
++                if (optarg[0] == '\0' || *end != '\0' || errno != 0
++                    || v < 0 || v > INT_MAX)
++                    die("invalid --send-fd value: %s", optarg);
++                send_fd_num = (int) v;
++                break;
++            }
++            default:
++                die("usage: %s --host H --port P --send-fd N "
++                    "--ciphers LIST --curves NAME "
++                    "[--cert-bundle-file PEM | --no-verify] [--sni NAME]", argv[0]);
++        }
++    }
++    if (!host || !port || send_fd_num < 0)
++        die("missing required argument; need --host --port --send-fd");
++    /* --ciphers/--curves are mandatory and must be non-empty. The cipher list
++       and ECDHE curve come from xapi's TLS policy (Stunnel.Openssl) via argv, so
++       the helper keeps no cipher policy of its own. Fail here rather than
++       skip the SSL_CTX_set_cipher_list/set1_groups_list calls below: skipping
++       would leave OpenSSL's broad defaults active, negotiating weaker crypto
++       than the stunnel client this helper replaces. */
++    if (!ciphers || !ciphers[0] || !curves || !curves[0])
++        die("--ciphers and --curves are required and must be non-empty");
++    if (!no_verify && !bundle)
++        die("--cert-bundle-file is required unless --no-verify is given");
++
++    int fd = tcp_connect(host, port);
++
++    const SSL_METHOD *method = TLS_client_method();
++    SSL_CTX *ctx = SSL_CTX_new(method);
++    if (!ctx)
++        die("SSL_CTX_new: %s", ossl_err());
++
++    /* Pin TLSv1.2. This pin is necessary for kTLS, not merely stunnel parity:
++       it prevents TLS1.3 post-handshake KeyUpdate, which the kernel kTLS data
++       path cannot process once OpenSSL has handed off the socket. */
++    SSL_CTX_set_min_proto_version(ctx, TLS1_2_VERSION);
++    SSL_CTX_set_max_proto_version(ctx, TLS1_2_VERSION);
++    /* The cipher list and ECDHE curve arrive via --ciphers/--curves, sourced
++       from xapi's Stunnel.Openssl TLS policy (the same values the stunnel client
++       this helper replaces negotiates), so there is no second copy to drift. */
++    if (SSL_CTX_set_cipher_list(ctx, ciphers) != 1)
++        die("SSL_CTX_set_cipher_list(%s): %s", ciphers, ossl_err());
++    if (SSL_CTX_set1_groups_list(ctx, curves) != 1)
++        die("SSL_CTX_set1_groups_list(%s): %s", curves, ossl_err());
++
++    /* Request kTLS BEFORE the handshake; also forbid renegotiation (defence in
++       depth — the AES-GCM TLS1.2 suites do not renegotiate, and the kernel
++       could not process a post-handoff renegotiation anyway). If kTLS install
++       fails along the way the handshake still succeeds but the BIO_get_ktls_*
++       checks below return 0. */
++    SSL_CTX_set_options(ctx, SSL_OP_ENABLE_KTLS | SSL_OP_NO_RENEGOTIATION);
++
++    if (no_verify) {
++        SSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
++    } else {
++        if (SSL_CTX_load_verify_locations(ctx, bundle, NULL) != 1)
++            die("failed to load --cert-bundle-file %s (expected a PEM bundle): "
++                "%s", bundle, ossl_err());
++        SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, NULL);
++    }
++
++    SSL *ssl = SSL_new(ctx);
++    if (!ssl)
++        die("SSL_new: %s", ossl_err());
++
++    /* BIO_NOCLOSE: SSL_free must not close the underlying fd, since we are
++       handing it to xenopsd. */
++    BIO *bio = BIO_new_socket(fd, BIO_NOCLOSE);
++    if (!bio)
++        die("BIO_new_socket: %s", ossl_err());
++    SSL_set_bio(ssl, bio, bio);
++
++    if (sni && SSL_set_tlsext_host_name(ssl, sni) != 1)
++        die("SSL_set_tlsext_host_name(%s): %s", sni, ossl_err());
++
++    ERR_clear_error();
++    if (SSL_connect(ssl) != 1)
++        die("SSL_connect: %s", ossl_err());
++
++    /* SSL_VERIFY_PEER (set above) already makes SSL_connect fail on a bad
++       certificate, so in normal operation this re-check never fires. It is a
++       defence-in-depth guard against a future change that drops or weakens
++       that flag; if it ever did fire it reports the specific failure reason. */
++    if (!no_verify) {
++        long vr = SSL_get_verify_result(ssl);
++        if (vr != X509_V_OK)
++            die("certificate verification failed: %s",
++                X509_verify_cert_error_string(vr));
++    }
++
++    /* No-plaintext invariant: confirm the kernel installed kTLS in BOTH
++       directions BEFORE handing the fd to xenopsd. The migration channel is
++       bidirectional (the sender both writes the memory image and reads
++       handshake replies on this fd), so TX-only kTLS is not sufficient. These
++       gates MUST stay strictly after SSL_connect and strictly before send_fd
++       below — a refactor must not reorder them, or plaintext could be sent. */
++    if (!BIO_get_ktls_send(SSL_get_wbio(ssl)))
++        die("kTLS TX not installed (tls.ko missing or cipher rejected by "
++            "kernel); negotiated cipher = %s", SSL_get_cipher_name(ssl));
++    if (!BIO_get_ktls_recv(SSL_get_rbio(ssl)))
++        die("kTLS RX not installed (kernel lacks TLS_RX for the negotiated "
++            "cipher); negotiated cipher = %s", SSL_get_cipher_name(ssl));
++
++    if (send_fd(send_fd_num, fd) < 0)
++        die("sendmsg(SCM_RIGHTS) on fd %d: %s", send_fd_num, strerror(errno));
++
++    /* Do NOT SSL_shutdown — it would send close_notify down the socket that
++       xenopsd is about to use. SSL_free is safe (BIO_NOCLOSE). The kTLS state
++       lives in the kernel socket, so userspace teardown here is purely local;
++       end-of-stream integrity is enforced by the migration layer. */
++    SSL_free(ssl);
++    SSL_CTX_free(ctx);
++
++    /* Closing our fd is fine: the kernel keeps the socket alive while xenopsd
++       holds the duplicated fd received via SCM_RIGHTS. */
++    close(fd);
++    close(send_fd_num);
++    return 0;
++}
+diff --git a/ocaml/libs/stunnel/stunnel.ml b/ocaml/libs/stunnel/stunnel.ml
+index 6c3c2748e..9ff9f0d46 100644
+--- a/ocaml/libs/stunnel/stunnel.ml
++++ b/ocaml/libs/stunnel/stunnel.ml
+@@ -173,6 +173,17 @@ let debug_conf_of_env () : string =
+   |> String.lowercase_ascii
+   |> fun x -> List.mem x ["yes"; "true"; "1"] |> debug_conf_of_bool
+ 
++module Openssl = struct
++  (* The OpenSSL-rendered cipher list and ECDHE curve the stunnel client
++     negotiates, re-exported from the single source of truth in Tls_policy so
++     callers that must match it (the ktls-helper, which replaces the
++     per-migration stunnel client) share one definition instead of keeping a
++     second copy that can drift. *)
++  let default_ciphers = Tls_policy.Openssl.default_ciphers
++
++  let default_curve = Tls_policy.Openssl.default_curve
++end
++
+ let config_file ?(accept = None) config host port =
+   ( match config with
+   | None ->
+diff --git a/ocaml/libs/stunnel/stunnel.mli b/ocaml/libs/stunnel/stunnel.mli
+index cf0b3919a..a1633e537 100644
+--- a/ocaml/libs/stunnel/stunnel.mli
++++ b/ocaml/libs/stunnel/stunnel.mli
+@@ -64,6 +64,16 @@ val world : verification_config
+ 
+ val external_host : string -> verification_config
+ 
++module Openssl : sig
++  val default_ciphers : string
++  (** OpenSSL cipher list the stunnel client negotiates; the single source of
++      truth the ktls-helper mirrors. *)
++
++  val default_curve : string
++  (** OpenSSL ECDHE curve the stunnel client pins; the single source of truth
++      the ktls-helper mirrors. *)
++end
++
+ val with_connect :
+      ?unique_id:int
+   -> ?use_fork_exec_helper:bool
+diff --git a/ocaml/xenopsd/lib/migrate_connect.ml b/ocaml/xenopsd/lib/migrate_connect.ml
+new file mode 100644
+index 000000000..f7b44a8a7
+--- /dev/null
++++ b/ocaml/xenopsd/lib/migrate_connect.ml
+@@ -0,0 +1,238 @@
++(*
++ * Copyright (c) Cloud Software Group, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(* TLS transport for the VM-migration data connections in [Xenops_server].
++
++   When [migration-tls = "ktls"] is set in xenopsd.conf and the migration URI
++   uses https, this module spawns the external [ktls-helper] binary to
++   perform the TLS handshake and install a kTLS-enabled socket in the kernel,
++   then receives the resulting socket fd via SCM_RIGHTS and passes it to the
++   caller. The fd behaves like an ordinary TCP socket for [read]/[write]: the
++   kernel encrypts outgoing data and decrypts incoming data transparently.
++
++   On any failure to PRODUCE the kTLS fd (helper missing, handshake error,
++   kTLS install rejected by the kernel, SCM_RIGHTS message lost, ...) this
++   module logs a single [warn] and transparently falls back to the existing
++   [Open_uri.with_open_uri] (stunnel) path, so the migration still succeeds
++   over TLS. Failures raised AFTER the fd has been handed to the caller are
++   migration-layer failures and propagate unchanged. *)
++
++module D = Debug.Make (struct let name = "migrate_connect" end)
++
++(* Transport selected by the xenopsd.conf [migration-tls] option. Empty or
++   unknown values mean the default stunnel path (the historical behaviour). *)
++module Migration_tls = struct
++  type t = Stunnel | Ktls
++
++  let to_string = function Stunnel -> "stunnel" | Ktls -> "ktls"
++
++  (* Parse a conf value, defaulting unknown/empty to [Stunnel] with a warning.
++     Config parsing must never crash xenopsd, so this does not raise (mirrors
++     the [Xenops_server.compressor] convention). *)
++  let of_string s =
++    match String.lowercase_ascii (String.trim s) with
++    | "" | "stunnel" ->
++        Stunnel
++    | "ktls" ->
++        Ktls
++    | other ->
++        D.warn "unknown migration-tls value %S; using stunnel" other ;
++        Stunnel
++end
++
++let migration_tls = ref Migration_tls.Stunnel
++
++let ktls_enabled () = !migration_tls = Migration_tls.Ktls
++
++(* Path to the helper binary. Registered as an Xcp_service resource
++   ("xenopsd-tls-helper") so it is access-checked at startup and overridable in
++   xenopsd.conf; this ref holds the resolved path. *)
++let helper_path = ref "/usr/libexec/xapi/ktls-helper"
++
++(* Maximum time to wait for the helper to finish handshaking and hand back the
++   fd before abandoning the kTLS path and falling back to stunnel. *)
++let helper_timeout = ref 30.0
++
++(* Default port for an https URI with no explicit port. NB: [Constants.https_port]
++   would couple xenopsd's library to xapi-consts; that coupling was reverted for
++   a build issue, so the value is kept local here. *)
++let default_https_port = 443
++
++(* Close [fd] ignoring errors, via the canonical stdext helper. *)
++let close_ignore fd =
++  Xapi_stdext_pervasives.Pervasiveext.ignore_exn (fun () -> Unix.close fd)
++
++let protect ~finally protected =
++  Xapi_stdext_pervasives.Pervasiveext.finally protected finally
++
++(* [let@ () = protect ~finally:cleanup in body] runs [body] then always runs
++   [cleanup], reading top to bottom instead of nesting [body] inside a thunk. *)
++let ( let@ ) f x = f x
++
++let recv_one_fd sock =
++  (* The 16-byte buffer holds enough space for the throwaway 1-byte SCM_RIGHTS
++     control payload the helper sends alongside the fd. *)
++  let buf = Bytes.make 16 '\000' in
++  let _len, _, fd = Fd_send_recv.recv_fd sock buf 0 (Bytes.length buf) [] in
++  fd
++
++(* Build the helper argv from the resolved verification policy and the options.
++   [verify_cert] is the same [Stunnel.verification_config option] the stunnel
++   fallback would use, so the kTLS path honours the pool's certificate-
++   verification on/off switch (single source of truth). *)
++let helper_args ~host ~port ~fd_uuid ~verify_cert =
++  (* SNI selects which certificate the destination serves (the pool-internal
++     cert), independently of whether we verify it, so it is always sent — the
++     migration profile uses "pool", matching the stunnel client. *)
++  let sni_name =
++    Option.bind verify_cert (fun cfg -> cfg.Stunnel.sni)
++    |> Option.value ~default:"pool"
++  in
++  let verify_args =
++    match verify_cert with
++    | None ->
++        (* No CA to verify against: certificate verification is disabled
++           pool-wide (/var/xapi/verify-certificates absent or emergency-disabled)
++           or this is a cross-pool migration. This is the same [verify_cert] the
++           stunnel fallback receives, so the kTLS path mirrors stunnel exactly
++           and is never more permissive. *)
++        ["--no-verify"]
++    | Some cfg ->
++        ["--cert-bundle-file"; cfg.Stunnel.cert_bundle_path]
++  in
++  (* Pass the cipher list and ECDHE curve the helper must negotiate, sourced
++     from the same [Stunnel.Openssl] values the stunnel client uses, so the two
++     paths stay in lock-step and the helper carries no cipher policy of its own. *)
++  let cipher_args =
++    [
++      "--ciphers"
++    ; Stunnel.Openssl.default_ciphers
++    ; "--curves"
++    ; Stunnel.Openssl.default_curve
++    ]
++  in
++  ["--host"; host; "--port"; string_of_int port; "--sni"; sni_name]
++  @ verify_args
++  @ cipher_args
++  @ ["--send-fd"; fd_uuid]
++
++(* Spawn the helper and return the kTLS-enabled fd it sends back via SCM_RIGHTS.
++   Raises on any failure; the caller decides whether to fall back. *)
++let connect_via_ktls_helper ~host ~port ~verify_cert =
++  if not (Sys.file_exists !helper_path) then
++    failwith (Printf.sprintf "kTLS helper not found at %s" !helper_path) ;
++  let sock_xenopsd, sock_helper =
++    Unix.socketpair Unix.PF_UNIX Unix.SOCK_STREAM 0
++  in
++  let fd_uuid = Uuidx.(to_string (make ())) in
++  let configs = [(fd_uuid, sock_helper)] in
++  let args = helper_args ~host ~port ~fd_uuid ~verify_cert in
++  D.debug "spawning %s for %s:%d" !helper_path host port ;
++  let pid =
++    try Forkhelpers.safe_close_and_exec None None None configs !helper_path args
++    with e -> close_ignore sock_helper ; close_ignore sock_xenopsd ; raise e
++  in
++  (* The helper now holds its own copy of sock_helper; we don't need ours. *)
++  close_ignore sock_helper ;
++  (* [sock_xenopsd] is closed on every path by the [protect] cleanup below; the
++     helper is always reaped via [waitpid] (killed first if it times out) so it
++     cannot leak. *)
++  let@ () = protect ~finally:(fun () -> close_ignore sock_xenopsd) in
++  let received_fd =
++    try
++      if
++        not
++          (Xapi_stdext_threads.Threadext.wait_timed_read sock_xenopsd
++             !helper_timeout
++          )
++      then (
++        (* Kill the helper so we don't leak it. *)
++        ( try Unix.kill (Forkhelpers.getpid pid) Sys.sigkill with _ -> ()
++        ) ;
++        failwith
++          (Printf.sprintf "helper did not respond within %.0fs" !helper_timeout)
++      ) ;
++      recv_one_fd sock_xenopsd
++    with e ->
++      (try ignore (Forkhelpers.waitpid pid) with _ -> ()) ;
++      raise e
++  in
++  (* Reap the helper and check its exit status. Close the fd we would return on
++     ANY failure to confirm a clean exit (a raising waitpid, or a non-zero or
++     other status); on a clean exit it is handed to the caller, so it must NOT
++     be closed here. *)
++  ( try
++      match snd (Forkhelpers.waitpid pid) with
++      | Unix.WEXITED 0 ->
++          ()
++      | status ->
++          let reason =
++            match status with
++            | Unix.WEXITED n ->
++                Printf.sprintf "exited with status %d" n
++            | Unix.WSIGNALED n ->
++                Printf.sprintf "killed by signal %d" n
++            | Unix.WSTOPPED n ->
++                Printf.sprintf "stopped by signal %d" n
++          in
++          failwith (Printf.sprintf "ktls-helper %s" reason)
++    with e -> close_ignore received_fd ; raise e
++  ) ;
++  D.debug "received kTLS fd from helper for %s:%d" host port ;
++  received_fd
++
++(** Drop-in replacement for [Open_uri.with_open_uri] on the migration paths.
++
++    - When [migration-tls = "ktls"] and the URI is https, spawn the helper,
++      receive the kTLS-enabled fd via SCM_RIGHTS, and pass it to [f]. On any
++      failure to produce the fd, log a [warn] and fall back to
++      [Open_uri.with_open_uri].
++    - Otherwise behave exactly as [Open_uri.with_open_uri]. *)
++let with_open_uri ?verify_cert uri f =
++  let fallback () = Open_uri.with_open_uri ?verify_cert uri f in
++  let is_https = Uri.scheme uri = Some "https" in
++  if not (is_https && ktls_enabled ()) then
++    fallback ()
++  else
++    match Uri.host uri with
++    | None ->
++        fallback ()
++    | Some host -> (
++        let port = Option.value ~default:default_https_port (Uri.port uri) in
++        (* [Open_uri]'s [?verify_cert] is itself a [verification_config option],
++           so this binding is an option-of-option; flatten it for the helper
++           (the [fallback] above re-passes the original via [?verify_cert]). *)
++        let verify_cert = Option.join verify_cert in
++        (* Only fall back to stunnel when the kTLS path fails to PRODUCE the fd
++           (helper spawn / handshake / kTLS install / SCM_RIGHTS). Once [f fd]
++           is invoked the kTLS fd has been committed; any exception raised by
++           [f] is a migration-layer failure and MUST propagate unchanged, since
++           silently retrying [f] over a fresh stunnel socket would re-enter the
++           in-progress migration on the destination and corrupt its state. *)
++        let fd_or_none =
++          try Some (connect_via_ktls_helper ~host ~port ~verify_cert)
++          with e ->
++            D.warn
++              "migration-tls=ktls connect failed for %s:%d (%s); falling back \
++               to stunnel for this connection"
++              host port (Printexc.to_string e) ;
++            None
++        in
++        match fd_or_none with
++        | None ->
++            fallback ()
++        | Some fd ->
++            let@ () = protect ~finally:(fun () -> close_ignore fd) in
++            f fd
++      )
+diff --git a/ocaml/xenopsd/lib/migrate_connect.mli b/ocaml/xenopsd/lib/migrate_connect.mli
+new file mode 100644
+index 000000000..671af2f84
+--- /dev/null
++++ b/ocaml/xenopsd/lib/migrate_connect.mli
+@@ -0,0 +1,45 @@
++(*
++ * Copyright (c) Cloud Software Group, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** TLS transport for the VM-migration data connections. See the module
++    implementation for the full description of the kTLS helper flow and the
++    transparent stunnel fallback. *)
++
++module Migration_tls : sig
++  type t = Stunnel | Ktls
++
++  val to_string : t -> string
++
++  val of_string : string -> t
++  (** Parse a [xenopsd.conf] [migration-tls] value; empty or unknown values
++      default to [Stunnel] and never raise. *)
++end
++
++val migration_tls : Migration_tls.t ref
++(** The transport selected by the [migration-tls] option in xenopsd.conf. *)
++
++val helper_path : string ref
++(** Path to the migration TLS helper binary, registered as an Xcp_service
++    resource and overridable in xenopsd.conf. *)
++
++val with_open_uri :
++     ?verify_cert:Stunnel.verification_config option
++  -> Uri.t
++  -> (Unix.file_descr -> 'a)
++  -> 'a
++(** Drop-in replacement for [Open_uri.with_open_uri] on the migration paths.
++    With [migration-tls = "ktls"] and an https URI, spawn the helper, receive
++    the kTLS-enabled fd via SCM_RIGHTS, and pass it to [f]; on any failure to
++    produce the fd, log a warning and fall back to [Open_uri.with_open_uri].
++    Otherwise behaves exactly as [Open_uri.with_open_uri]. *)
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 1b47d532b..c5ff7f9cf 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -2868,7 +2868,7 @@ and perform_exn ?result (op : operation) (t : Xenops_task.task_handle) : unit =
+       info "VM %s has memory_limit = %Ld" id state.Vm.memory_limit ;
+       let url = make_url "/migrate/vm/" new_dest_id in
+       let https = Uri.scheme url = Some "https" in
+-      Open_uri.with_open_uri ~verify_cert url (fun vm_fd ->
++      Migrate_connect.with_open_uri ~verify_cert url (fun vm_fd ->
+           let module Handshake = Xenops_migrate.Handshake in
+           let do_request fd extra_cookies url =
+             if not https then Sockopt.set_sock_keepalives fd ;
+@@ -2946,7 +2946,7 @@ and perform_exn ?result (op : operation) (t : Xenops_task.task_handle) : unit =
+           in
+           let save ?vgpu_fd () =
+             let url = make_url "/migrate/mem/" new_dest_id in
+-            Open_uri.with_open_uri ~verify_cert url (fun mem_fd ->
++            Migrate_connect.with_open_uri ~verify_cert url (fun mem_fd ->
+                 (* vm_fd: signaling channel, mem_fd: memory stream *)
+                 do_request mem_fd [] url ;
+                 Handshake.recv_success mem_fd ;
+@@ -2975,7 +2975,7 @@ and perform_exn ?result (op : operation) (t : Xenops_task.task_handle) : unit =
+                 make_url "/migrate/vgpu/"
+                   (VGPU_DB.string_of_id (new_dest_id, dev_id))
+               in
+-              Open_uri.with_open_uri ~verify_cert url (fun vgpu_fd ->
++              Migrate_connect.with_open_uri ~verify_cert url (fun vgpu_fd ->
+                   if not https then Sockopt.set_sock_keepalives vgpu_fd ;
+                   do_request vgpu_fd [(cookie_vgpu_migration, "")] url ;
+                   Handshake.recv_success vgpu_fd ;
+diff --git a/ocaml/xenopsd/lib/xenopsd.ml b/ocaml/xenopsd/lib/xenopsd.ml
+index 8e6c9d1ec..ef3061df7 100644
+--- a/ocaml/xenopsd/lib/xenopsd.ml
++++ b/ocaml/xenopsd/lib/xenopsd.ml
+@@ -343,6 +343,20 @@ let options =
+     , (fun () -> string_of_float !vm_suspend_ack_timeout)
+     , "Timeout in seconds for a VM to acknowledge a suspend request"
+     )
++  ; ( "migration-tls"
++    , Arg.String
++        (fun s ->
++          Migrate_connect.migration_tls :=
++            Migrate_connect.Migration_tls.of_string s
++        )
++    , (fun () ->
++        Migrate_connect.Migration_tls.to_string !Migrate_connect.migration_tls
++      )
++    , "TLS transport for VM migration: 'stunnel' (default) uses the stunnel \
++       client subprocess; 'ktls' uses the ktls-helper to install kTLS on the \
++       migration socket. On any failure the 'ktls' path logs a warning and \
++       falls back to stunnel."
++    )
+   ]
+ 
+ let path () = Filename.concat !sockets_path "xenopsd"
+diff --git a/ocaml/xenopsd/xc/xc_resources.ml b/ocaml/xenopsd/xc/xc_resources.ml
+index 2199fb04a..916ade9e8 100644
+--- a/ocaml/xenopsd/xc/xc_resources.ml
++++ b/ocaml/xenopsd/xc/xc_resources.ml
+@@ -91,6 +91,11 @@ let nonessentials =
+     , igmp_query_injector_script
+     , "path to the igmp query injector script"
+     )
++  ; ( X_OK
++    , "xenopsd-tls-helper"
++    , Migrate_connect.helper_path
++    , "path to the ktls-helper binary used when migration-tls=ktls"
++    )
+   ]
+   @ Resources.hvm_guests
+   @ Resources.pv_guests
+diff --git a/ocaml/xenopsd/xenopsd.conf b/ocaml/xenopsd/xenopsd.conf
+index f8a81ba06..de997e8a4 100644
+--- a/ocaml/xenopsd/xenopsd.conf
++++ b/ocaml/xenopsd/xenopsd.conf
+@@ -122,3 +122,19 @@ disable-logging-for=http tracing tracing_export
+ 
+ # Timeout in seconds for a VM to acknowledge a suspend request
+ # vm-suspend-ack-timeout=30
++
++# TLS transport for VM live migration.
++#   "stunnel" — default; spawn one stunnel client subprocess per migration
++#   "ktls"    — spawn the ktls-helper instead. The helper performs the
++#               TLS handshake, installs the symmetric keys into the kernel via
++#               kTLS, and hands the kTLS-enabled socket fd back to xenopsd over
++#               SCM_RIGHTS. Subsequent reads/writes are decrypted/encrypted by
++#               the kernel — no stunnel pipe on the data path.
++# If the 'ktls' helper fails for any reason xenopsd logs a warning and
++# transparently falls back to the stunnel path for that one connection,
++# so the migration still succeeds.
++# migration-tls = "stunnel"
++
++# Path to the ktls-helper binary (used only when migration-tls=ktls).
++# xenopsd-tls-helper = "/usr/libexec/xapi/ktls-helper"
++

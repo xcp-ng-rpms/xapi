@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.19
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.2.0.ktls.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -137,6 +137,12 @@ Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 Patch1023: 0023-libs-vhd_format-Allow-alternatively-provided-buffers.patch
 Patch1024: 0024-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
 Patch1025: 0025-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
+
+Patch1034: 0034-CP-312949-xenopsd-optional-kTLS-sender-for-VM-live-m.patch
+Patch1035: 0035-CP-313264-xenopsd-migration-tls.md-add-design-docume.patch
+Patch1036: 0036-CP-313264-xenopsd-log-the-negotiated-kTLS-version-an.patch
+Patch1037: 0037-stunnel-Adjust-constants-to-the-ones-available-in-th.patch
+Patch1038: 0038-Add-ktls-helper-dune-to-install-ktls-helper-binary.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1355,6 +1361,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 %{_unitdir}/xenopsd-xc.service
 %{_mandir}/man1/xenopsd-xc.1.gz
 %{_libexecdir}/xenopsd/set-domain-uuid
+%{_libexecdir}/xenopsd/ktls-helper
 /opt/xensource/libexec/fence.bin
 /opt/xensource/debug/suspend-image-viewer
 %{_bindir}/list_domains
