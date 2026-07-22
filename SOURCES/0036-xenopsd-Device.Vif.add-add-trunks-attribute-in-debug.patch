@@ -1,0 +1,28 @@
+From 7e7df0e2331ae4b2debe96f008208e8a39db6643 Mon Sep 17 00:00:00 2001
+From: Sebastien Rodot <sebastien.rodot@vates.tech>
+Date: Mon, 6 Jul 2026 14:08:13 +0200
+Subject: [PATCH] xenopsd: Device.Vif.add: add trunks attribute in debug string
+
+Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
+(cherry picked from commit d8fcd26a92dd1372c6b3b87397ba816ea7a2e07d)
+---
+ ocaml/xenopsd/xc/device.ml | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xenopsd/xc/device.ml b/ocaml/xenopsd/xc/device.ml
+index 9335c2d5f..5dc3d6fb7 100644
+--- a/ocaml/xenopsd/xc/device.ml
++++ b/ocaml/xenopsd/xc/device.ml
+@@ -826,10 +826,11 @@ module Vif = struct
+       ?(extra_private_keys = []) ?(extra_xenserver_keys = [])
+       (task : Xenops_task.task_handle) domid =
+     debug
+-      "Device.Vif.add domid=%d devid=%d mac=%s carrier=%b rate=%s \
++      "Device.Vif.add domid=%d devid=%d mac=%s carrier=%b rate=%s trunks=%s \
+        other_config=[%s] extra_private_keys=[%s] extra_xenserver_keys=[%s]"
+       domid devid mac carrier
+       (match rate with None -> "none" | Some (a, b) -> sprintf "(%Ld,%Ld)" a b)
++      (String.concat "," (List.map Int64.to_string trunks))
+       (String.concat "; " (List.map (fun (k, v) -> k ^ "=" ^ v) other_config))
+       (String.concat "; "
+          (List.map (fun (k, v) -> k ^ "=" ^ v) extra_private_keys)

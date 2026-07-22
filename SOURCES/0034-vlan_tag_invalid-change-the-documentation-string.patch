@@ -1,0 +1,28 @@
+From e1ea847a43374b9bfca03f3655302ccc7d76d037 Mon Sep 17 00:00:00 2001
+From: Sebastien Marie <semarie@kapouay.eu.org>
+Date: Wed, 25 Mar 2026 10:16:26 +0100
+Subject: [PATCH] vlan_tag_invalid: change the documentation string
+
+Use a more generic message to permit to use it in other context than VLAN creation.
+
+Signed-off-by: Sebastien Marie <semarie@kapouay.eu.org>
+(cherry picked from commit 48db100b2b6a3e6dc3c8ab0be2b86065978437ec)
+---
+ ocaml/idl/datamodel_errors.ml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
+index 69ec2e51c..252b9ec42 100644
+--- a/ocaml/idl/datamodel_errors.ml
++++ b/ocaml/idl/datamodel_errors.ml
+@@ -392,8 +392,8 @@ let _ =
+ 
+   error Api_errors.vlan_tag_invalid ["VLAN"]
+     ~doc:
+-      "You tried to create a VLAN, but the tag you gave was invalid -- it must \
+-       be between 0 and 4094. The parameter echoes the VLAN tag you gave."
++      "The VLAN tag you gave was invalid -- it must be between 0 and 4094. The \
++       parameter echoes the VLAN tag you gave."
+     () ;
+   error Api_errors.network_contains_vif ["vifs"]
+     ~doc:"The network contains active VIFs and cannot be deleted." () ;

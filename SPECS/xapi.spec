@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.13
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -87,7 +87,7 @@ Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature --histogram v26.1.11..v26.1.11-8.3
+#   - git format-patch --no-numbered --no-signature --histogram v26.1.13..v26.1.13-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -136,6 +136,13 @@ Patch1032: 0032-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
 
 # In v26.1.16 upstream
 Patch1033: 0033-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
+
+# https://github.com/xapi-project/xen-api/pull/7185
+Patch1034: 0034-vlan_tag_invalid-change-the-documentation-string.patch
+Patch1035: 0035-VLAN-filtering-on-VIF.patch
+Patch1036: 0036-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
+Patch1037: 0037-xenopsd-update-xenstore-while-updating-xapi-db.patch
+Patch1038: 0038-test_vif_trunks-cover-more-coherence-checks.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1539,6 +1546,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jul 22 2026 Sebastien Rodot <sebastien.rodot@vates.tech> - 26.1.13-1.2
+- XCPNG-3259: Implement VLAN Filtering
+
 * Fri Jul 17 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.13-1.1
 - Update to upstream 26.1.13-1
 - *** Upstream changelog ***
