@@ -1,0 +1,57 @@
+From 4da3a23f10c36f0e41084eabf7a3224375ced0a4 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Fri, 24 Jul 2026 15:35:14 +0200
+Subject: [PATCH] xenopsd/xc: sync domain.ml with Xen 4.21's Xenctrl ABI
+
+Xen 4.21 added two fields/constructors to the OCaml Xenctrl bindings
+that domain.ml mirrors verbatim via [@@deriving rpcty]:
+
+- domain_create_flag gained CDF_TRAP_UNMAPPED_ACCESSES
+  (xen.git 980aff4e8f, "xen/arm: Add way to disable traps on accesses
+  to unmapped addresses" - Arm-only for now, part of the public ABI
+  since before 4.21.0-rc1).
+- domctl_create_config gained altp2m_count: int32, right after
+  altp2m_opts.
+
+Neither change is exercised here: the new CDF flag is left out of the
+`flags` list built in `make` (so behaviour is unchanged), and
+altp2m_count is set to 0l to match the existing altp2m_opts default.
+This is purely a compile-time sync so domain.ml's mirrored types keep
+matching Xenctrl's actual definitions when building against Xen 4.21.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+ ocaml/xenopsd/xc/domain.ml | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 8eb36f2d0..a09a47d1b 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -80,6 +80,7 @@ type domain_create_flag = Xenctrl.domain_create_flag =
+   | CDF_IOMMU
+   | CDF_NESTED_VIRT
+   | CDF_VPMU
++  | CDF_TRAP_UNMAPPED_ACCESSES
+ [@@deriving rpcty]
+ 
+ type domain_create_iommu_opts = Xenctrl.domain_create_iommu_opts =
+@@ -113,6 +114,7 @@ type domctl_create_config = Xenctrl.domctl_create_config = {
+   ; max_maptrack_frames: int
+   ; max_grant_version: int
+   ; altp2m_opts: int32
++  ; altp2m_count: int32
+   ; vmtrace_buf_kb: int32
+   ; cpupool_id: int32
+   ; arch: arch_domainconfig
+@@ -531,6 +533,7 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
+             1
+         )
+     ; altp2m_opts= 0l
++    ; altp2m_count= 0l
+     ; vmtrace_buf_kb= 0l
+     ; cpupool_id= 0l
+     ; arch= domain_config
+-- 
+2.53.0
+
