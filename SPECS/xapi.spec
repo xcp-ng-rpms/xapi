@@ -109,6 +109,7 @@ Patch2005: 0005-minimal-xenguest-handling-for-arm.patch
 Patch2006: 0001-xenopsd-Force-higher-setmaxmem-value.patch
 Patch2007: xenopsd-xc-pass-the-guest-ramdisk-through-as-an-ARM-.patch
 Patch2008: xenopsd-xc-don-t-probe-shadow_allocation_get-for-ARM.patch
+Patch2009: xenopsd-xc-sync-domain.ml-with-Xen-4.21-Xenctrl-ABI.patch
 
 
 %{?_cov_buildrequires}
