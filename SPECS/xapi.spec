@@ -137,6 +137,9 @@ Patch1032: 0032-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
 # In v26.1.16 upstream
 Patch1033: 0033-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
 
+# romfile PoC
+Patch1034: 0019-xenopsd-device-Hardcode-romfile-for-all-PCI-passthro.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

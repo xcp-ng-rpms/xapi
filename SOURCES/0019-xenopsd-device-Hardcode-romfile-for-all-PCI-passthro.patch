@@ -1,0 +1,24 @@
+From abc3fc5dff67ce7276a3fa79b58642650ff6e872 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 22 Apr 2026 13:20:24 +0000
+Subject: [PATCH] xenopsd/device: Hardcode romfile for all PCI passthrough
+ devices
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xenopsd/xc/device.ml | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/device.ml b/ocaml/xenopsd/xc/device.ml
+index adedf798d..3437f3980 100644
+--- a/ocaml/xenopsd/xc/device.ml
++++ b/ocaml/xenopsd/xc/device.ml
+@@ -1362,6 +1362,8 @@ module PCI = struct
+                      ; devfn
+                      ; hostaddr= string_of_address host
+                      ; permissive= false
++                     ; rombar=1
++                     ; romfile=Some "/root/vbios.bin"
+                      }
+                }
+             )
