@@ -110,6 +110,7 @@ Patch2006: 0001-xenopsd-Force-higher-setmaxmem-value.patch
 Patch2007: xenopsd-xc-pass-the-guest-ramdisk-through-as-an-ARM-.patch
 Patch2008: xenopsd-xc-don-t-probe-shadow_allocation_get-for-ARM.patch
 Patch2009: xenopsd-xc-sync-domain.ml-with-Xen-4.21-Xenctrl-ABI.patch
+Patch2010: xenopsd-xc-set-CDF_TRAP_UNMAPPED_ACCESSES-for-ARM-dom.patch
 
 
 %{?_cov_buildrequires}

@@ -1,0 +1,62 @@
+From d7d94bdad43e323ca1cce4a89b8bbb3a95515a1e Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Mon, 27 Jul 2026 17:06:50 +0200
+Subject: [PATCH] xenopsd/xc: set CDF_TRAP_UNMAPPED_ACCESSES for ARM domains
+
+Xenctrl.domain_create's flags list never included
+CDF_TRAP_UNMAPPED_ACCESSES for ARM domains, even though the type
+mirror already listed the constructor (see the earlier "mirror
+CDF_TRAP_UNMAPPED_ACCESSES from Xenctrl" sync). That was a
+compile-time-only fix, the flag itself was never actually set.
+
+Without it, Xen traps guest accesses to unmapped addresses instead of
+letting the guest handle them directly. During testing that trap fired
+very early in the ARM64 kernel's own head.S (before VBAR_EL1 is
+installed), and the resulting injected exception lands at vector offset
+0x200, which is itself unmapped -> guest double-faults into an infinite
+loop with zero console output.
+
+libxl already sets this flag unconditionally for ARM
+(libxl__arch_domain_prepare_config() always includes it in
+config->flags), which is why `xl create` with the exact same
+kernel/ramdisk/memory boots fine while the identical domain built via
+xenopsd never got past its own early boot code. Confirmed by comparing
+the actual xen_domctl_createdomain contents both toolstacks send to
+xc_domain_create() for the same VM config: xenopsd sent flags=0x3
+(CDF_HVM|CDF_HAP), libxl sent flags=0x103 (adding
+CDF_TRAP_UNMAPPED_ACCESSES, bit 8).
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+ ocaml/xenopsd/xc/domain.ml | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index a09a47d1b..48cafbc37 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -421,6 +421,13 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
+         ""
+     ) ;
+ 
++  let is_arm =
++    match (domain_config : arch_domainconfig) with
++    | ARM _ ->
++        true
++    | X86 _ ->
++        false
++  in
+   let config =
+     {
+       ssidref= vm_info.ssidref
+@@ -432,6 +439,7 @@ let make ~xc ~xs vm_info vcpus domain_config uuid final_uuid no_sharept
+         ; (iommu, CDF_IOMMU)
+         ; (nested_virt, CDF_NESTED_VIRT)
+         ; (vpmu, CDF_VPMU)
++        ; (is_arm, CDF_TRAP_UNMAPPED_ACCESSES)
+         ]
+         |> List.filter_map (fun (cond, flag) ->
+             if cond then
+-- 
+2.53.0
+
