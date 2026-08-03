@@ -1,0 +1,33 @@
+From b3f1029ca11f1b2b9d0957039730b8f7fbb0ed1d Mon Sep 17 00:00:00 2001
+From: Sebastien Rodot <sebastien.rodot@vates.tech>
+Date: Mon, 6 Jul 2026 18:44:47 +0200
+Subject: [PATCH] xenopsd: update xenstore while updating xapi db
+
+Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
+(cherry picked from commit 887d6ac7095b2d7c04040ee49756bb2957e21e62)
+---
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 171ad8a18..b1a5925fe 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -5408,12 +5408,16 @@ module VIF = struct
+         | Network.Sriov _ ->
+             raise (Xenopsd_error (Unimplemented "network SR-IOV"))
+         | Network.Local _ | Network.Remote _ ->
+-            let open Device_common in
+             (* If the device is gone then this is ok *)
+             let device = device_by_id xc xs vm Vif (id_of vif) in
++            let path = Device_common.get_private_data_path_of_device device in
++            let trunks_path = path ^ "/trunks" in
+             let trunks_str =
+               String.concat "," (List.map Int64.to_string trunks)
+             in
++            (* Update xenstore key *)
++            xs.Xs.write trunks_path trunks_str ;
++            (* Apply the configuration *)
+             let setup port_name =
+               debug "set_trunks: setup: %s trunks=[%s]" port_name trunks_str ;
+               try

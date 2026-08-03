@@ -1,0 +1,1216 @@
+From 6d76018c8804036732fda75e6cf094f3d141abac Mon Sep 17 00:00:00 2001
+From: Sebastien Rodot <sebastien.rodot@vates.tech>
+Date: Wed, 25 Mar 2026 10:16:26 +0100
+Subject: [PATCH] VLAN filtering on VIF
+
+- update idl/datamodel to add trunks property on VIF
+- add validation constraints (trunks filtering on access port isn't valid)
+- add support inside `vif-real` for initial configuration
+- add support inside xenopsd for dynamic changes
+- add test coverage to new attributes
+
+References:
+
+- Design document: https://github.com/xapi-project/xen-api/blob/788869e5a92e10332ba2428eb91e5a2caf4c7131/doc/content/design/vlan-filtering.md
+
+Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
+(cherry picked from commit 68c50c38a87d0addc743f2ab93b3b1d032033a6b + conflicts resolution)
+---
+ ocaml/idl/datamodel.ml                       |  49 +++++
+ ocaml/idl/datamodel_common.ml                |   2 +-
+ ocaml/idl/datamodel_errors.ml                |   2 +
+ ocaml/idl/datamodel_lifecycle.ml             |   8 +
+ ocaml/idl/schematest.ml                      |   2 +-
+ ocaml/tests/common/test_common.ml            |   4 +-
+ ocaml/tests/suite_alcotest.ml                |   1 +
+ ocaml/tests/test_vif_helpers.ml              |   4 +-
+ ocaml/tests/test_vif_trunks.ml               | 180 +++++++++++++++++++
+ ocaml/xapi-cli-server/cli_operations.ml      |   2 +-
+ ocaml/xapi-cli-server/records.ml             |  17 ++
+ ocaml/xapi-consts/api_errors.ml              |   3 +
+ ocaml/xapi-idl/xen/xenops_interface.ml       |   8 +
+ ocaml/xapi/debug_populate.ml                 |   2 +-
+ ocaml/xapi/message_forwarding.ml             |  22 +++
+ ocaml/xapi/xapi_pif.ml                       |   8 +
+ ocaml/xapi/xapi_pif_helpers.ml               |  24 +++
+ ocaml/xapi/xapi_vif.ml                       |  40 ++++-
+ ocaml/xapi/xapi_vif.mli                      |  12 ++
+ ocaml/xapi/xapi_vif_helpers.ml               |  12 +-
+ ocaml/xapi/xapi_vif_helpers.mli              |   1 +
+ ocaml/xapi/xapi_vlan.ml                      |  17 +-
+ ocaml/xapi/xapi_vlan.mli                     |   4 +
+ ocaml/xapi/xapi_xenops.ml                    |  17 ++
+ ocaml/xenopsd/cli/xn.ml                      |   1 +
+ ocaml/xenopsd/lib/xenops_server.ml           |  20 ++-
+ ocaml/xenopsd/lib/xenops_server_plugin.ml    |   3 +
+ ocaml/xenopsd/lib/xenops_server_simulator.ml |  22 +++
+ ocaml/xenopsd/lib/xenops_server_skeleton.ml  |   2 +
+ ocaml/xenopsd/scripts/vif-real               |  26 +++
+ ocaml/xenopsd/xc/device.ml                   |   3 +-
+ ocaml/xenopsd/xc/device.mli                  |   1 +
+ ocaml/xenopsd/xc/xc_resources.ml             |   3 +
+ ocaml/xenopsd/xc/xenops_server_xen.ml        |  53 ++++++
+ ocaml/xenopsd/xenopsd.conf                   |   1 +
+ 35 files changed, 554 insertions(+), 22 deletions(-)
+ create mode 100644 ocaml/tests/test_vif_trunks.ml
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 033d65d26..654986bc3 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -3829,6 +3829,48 @@ module VIF = struct
+         ]
+       ~allowed_roles:_R_VM_OP ()
+ 
++  let add_trunks =
++    call ~name:"add_trunks" ~lifecycle:[]
++      ~doc:"Associates a 802.1Q VLAN with this VIF"
++      ~params:
++        [
++          ( Ref _vif
++          , "self"
++          , "The VIF which the 802.1Q VLAN will be associated with"
++          )
++        ; (Int, "value", "The 802.1Q VLAN which will be associated with the VIF")
++        ]
++      ~allowed_roles:_R_VM_ADMIN ()
++
++  let remove_trunks =
++    call ~name:"remove_trunks" ~lifecycle:[]
++      ~doc:"Removes a 802.1Q VLAN from this VIF"
++      ~params:
++        [
++          ( Ref _vif
++          , "self"
++          , "The VIF from which the 802.1Q VLAN will be removed"
++          )
++        ; (Int, "value", "The 802.1Q VLAN which will be removed from the VIF")
++        ]
++      ~allowed_roles:_R_VM_ADMIN ()
++
++  let set_trunks =
++    call ~name:"set_trunks" ~lifecycle:[]
++      ~doc:"Set the 802.1Q VLANs to which traffic on this VIF can be restricted"
++      ~params:
++        [
++          ( Ref _vif
++          , "self"
++          , "The VIF which the 802.1Q VLANs will be associated with"
++          )
++        ; ( Set Int
++          , "value"
++          , "The 802.1Q VLANs which will be associated with the VIF"
++          )
++        ]
++      ~allowed_roles:_R_VM_ADMIN ()
++
+   (** A virtual network interface *)
+   let t =
+     create_obj ~in_db:true
+@@ -3852,6 +3894,9 @@ module VIF = struct
+         ; remove_ipv6_allowed
+         ; configure_ipv4
+         ; configure_ipv6
++        ; add_trunks
++        ; remove_trunks
++        ; set_trunks
+         ]
+       ~contents:
+         ([
+@@ -4042,6 +4087,10 @@ module VIF = struct
+               ~internal_only:true ~qualifier:DynamicRO "reserved_pci"
+               "pci of network SR-IOV VF which is reserved for this vif"
+               ~default_value:(Some (VRef null_ref))
++          ; field ~qualifier:StaticRO ~lifecycle:[] ~ty:(Set Int)
++              ~default_value:(Some (VSet [])) "trunks"
++              "the 802.1Q VLANs that this port trunks (if available) ; if it \
++               is empty, then the port trunks all VLANs."
+           ]
+         )
+       ()
+diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
+index e6df2d239..f5c8993ce 100644
+--- a/ocaml/idl/datamodel_common.ml
++++ b/ocaml/idl/datamodel_common.ml
+@@ -10,7 +10,7 @@ open Datamodel_roles
+               to leave a gap for potential hotfixes needing to increment the schema version.*)
+ let schema_major_vsn = 5
+ 
+-let schema_minor_vsn = 797
++let schema_minor_vsn = 798
+ 
+ (* Historical schema versions just in case this is useful later *)
+ let rio_schema_major_vsn = 5
+diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
+index 252b9ec42..6e067af6a 100644
+--- a/ocaml/idl/datamodel_errors.ml
++++ b/ocaml/idl/datamodel_errors.ml
+@@ -230,6 +230,8 @@ let _ =
+     ~doc:"The network is incompatible with bond" () ;
+   error Api_errors.network_incompatible_with_tunnel ["network"]
+     ~doc:"The network is incompatible with tunnel" () ;
++  error Api_errors.network_incompatible_with_trunks ["network"]
++    ~doc:"The network is incompatible with VIF using trunks." () ;
+   error Api_errors.pool_joining_host_has_network_sriovs []
+     ~doc:"The host joining the pool must not have any network SR-IOVs." () ;
+ 
+diff --git a/ocaml/idl/datamodel_lifecycle.ml b/ocaml/idl/datamodel_lifecycle.ml
+index 0a0faeb7e..ecabaa13f 100644
+--- a/ocaml/idl/datamodel_lifecycle.ml
++++ b/ocaml/idl/datamodel_lifecycle.ml
+@@ -99,6 +99,8 @@ let prototyped_of_field = function
+       Some "22.26.0"
+   | "SM", "host_pending_features" ->
+       Some "24.37.0"
++  | "VIF", "trunks" ->
++      Some "26.1.13-next"
+   | "host", "timezone" ->
+       Some "26.0.0"
+   | "host", "ntp_custom_servers" ->
+@@ -243,6 +245,12 @@ let prototyped_of_message = function
+       Some "22.26.0"
+   | "VDI", "revert" ->
+       Some "26.1.4-next"
++  | "VIF", "set_trunks" ->
++      Some "26.1.13-next"
++  | "VIF", "remove_trunks" ->
++      Some "26.1.13-next"
++  | "VIF", "add_trunks" ->
++      Some "26.1.13-next"
+   | "host", "set_servertime" ->
+       Some "26.0.0"
+   | "host", "get_ntp_synchronized" ->
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index 582a9df0b..ba93df2c6 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "247a7b080219583e50e3e1a3c3c85b08"
++let last_known_schema_hash = "81831bebe5ed40abf30cbeaf1953224e"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+diff --git a/ocaml/tests/common/test_common.ml b/ocaml/tests/common/test_common.ml
+index 6735b6405..3a8e3648d 100644
+--- a/ocaml/tests/common/test_common.ml
++++ b/ocaml/tests/common/test_common.ml
+@@ -278,7 +278,7 @@ let make_vif ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+     ?(ipv4_allowed = []) ?(ipv6_allowed = []) ?(ipv4_configuration_mode = `None)
+     ?(ipv4_addresses = []) ?(ipv4_gateway = "")
+     ?(ipv6_configuration_mode = `None) ?(ipv6_addresses = [])
+-    ?(ipv6_gateway = "") () =
++    ?(ipv6_gateway = "") ?(trunks = []) () =
+   Db.VIF.create ~__context ~ref ~uuid ~current_operations ~allowed_operations
+     ~reserved ~device ~network ~vM ~mAC ~mAC_autogenerated ~mTU
+     ~qos_algorithm_type ~qos_algorithm_params ~qos_supported_algorithms
+@@ -286,7 +286,7 @@ let make_vif ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+     ~other_config ~metrics ~locking_mode ~ipv4_allowed ~ipv6_allowed
+     ~ipv4_configuration_mode ~ipv4_addresses ~ipv4_gateway
+     ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway
+-    ~reserved_pci:Ref.null ;
++    ~reserved_pci:Ref.null ~trunks ;
+   ref
+ 
+ let make_pool ~__context ~master ?(name_label = "") ?(name_description = "")
+diff --git a/ocaml/tests/suite_alcotest.ml b/ocaml/tests/suite_alcotest.ml
+index a444d37b1..a2e71dcb0 100644
+--- a/ocaml/tests/suite_alcotest.ml
++++ b/ocaml/tests/suite_alcotest.ml
+@@ -37,6 +37,7 @@ let () =
+      ; ("Test_pvs_proxy", Test_pvs_proxy.test)
+      ; ("Test_pvs_server", Test_pvs_server.test)
+      ; ("Test_vif_helpers", Test_vif_helpers.test)
++     ; ("Test_vif_trunks", Test_vif_trunks.test)
+      ; ("Test_vm_memory_constraints", Test_vm_memory_constraints.test)
+      ; ("Test_xapi_xenops", Test_xapi_xenops.test)
+      ; ("Test_network_event_loop", Test_network_event_loop.test)
+diff --git a/ocaml/tests/test_vif_helpers.ml b/ocaml/tests/test_vif_helpers.ml
+index 2e92a3d7f..7262a6691 100644
+--- a/ocaml/tests/test_vif_helpers.ml
++++ b/ocaml/tests/test_vif_helpers.ml
+@@ -21,12 +21,12 @@ let create ~__context ~device ~network ~vM ?(mAC = "00:00:00:00:00:00")
+     ?(locking_mode = `unlocked) ?(ipv4_allowed = []) ?(ipv6_allowed = [])
+     ?(ipv4_configuration_mode = `None) ?(ipv4_addresses = [])
+     ?(ipv4_gateway = "") ?(ipv6_configuration_mode = `None)
+-    ?(ipv6_addresses = []) ?(ipv6_gateway = "") () =
++    ?(ipv6_addresses = []) ?(ipv6_gateway = "") ?(trunks = []) () =
+   Xapi_vif_helpers.create ~__context ~device ~network ~vM ~mAC ~mTU
+     ~other_config ~qos_algorithm_type ~qos_algorithm_params ~currently_attached
+     ~locking_mode ~ipv4_allowed ~ipv6_allowed ~ipv4_configuration_mode
+     ~ipv4_addresses ~ipv4_gateway ~ipv6_configuration_mode ~ipv6_addresses
+-    ~ipv6_gateway
++    ~ipv6_gateway ~trunks
+ 
+ let test_create_ok () =
+   let __context = T.make_test_database () in
+diff --git a/ocaml/tests/test_vif_trunks.ml b/ocaml/tests/test_vif_trunks.ml
+new file mode 100644
+index 000000000..7d8cf7d68
+--- /dev/null
++++ b/ocaml/tests/test_vif_trunks.ml
+@@ -0,0 +1,180 @@
++(*
++ * Copyright (C) 2026 Vates
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++module T = Test_common
++
++let test_trunks_parameter () =
++  let __context = T.make_test_database () in
++  let vM = T.make_vm ~__context () in
++  let network = T.make_network ~__context () in
++  let vif = T.make_vif ~__context ~device:"1" ~vM ~network ~trunks:[2201L] () in
++  Alcotest.(check (list int64))
++    "test_trunks_parameter testing add_trunks" [3201L; 2201L]
++    ( Xapi_vif.add_trunks ~__context ~self:vif ~value:3201L ;
++      Db.VIF.get_trunks ~__context ~self:vif
++    ) ;
++  Alcotest.(check (list int64))
++    "test_trunks_parameter testing remove_trunks" [2201L]
++    ( Xapi_vif.remove_trunks ~__context ~self:vif ~value:3201L ;
++      Db.VIF.get_trunks ~__context ~self:vif
++    ) ;
++  Alcotest.(check (list int64))
++    "test_trunks_parameter testing set_trunks" [3201L]
++    ( Xapi_vif.set_trunks ~__context ~self:vif ~value:[3201L] ;
++      Db.VIF.get_trunks ~__context ~self:vif
++    ) ;
++  Alcotest.(check (list int64))
++    "test_trunks_parameter testing set_trunks empty" []
++    ( Xapi_vif.set_trunks ~__context ~self:vif ~value:[] ;
++      Db.VIF.get_trunks ~__context ~self:vif
++    ) ;
++  Alcotest.(check_raises)
++    "test_trunks_parameter testing invalid VLAN tag"
++    Api_errors.(Server_error (Api_errors.vlan_tag_invalid, ["9999"]))
++    (fun () -> Xapi_vif.add_trunks ~__context ~self:vif ~value:9999L)
++
++(** try to set trunks on VIF on incompatible network *)
++let test_trunks_coherence_vif_set () =
++  let __context = T.make_test_database () in
++  (* create a VLAN *)
++  let host = T.make_host ~__context () in
++  let network = T.make_network ~__context () in
++  let tagged_PIF = T.make_pif ~__context ~network ~host () in
++  let tag = 3201L in
++  let vlan_network = T.make_network ~__context ~bridge:"xapi0" () in
++  let untagged_PIF =
++    T.make_pif ~__context ~network:vlan_network ~host ~vLAN:tag ()
++  in
++  let _vlan = T.make_vlan ~__context ~tagged_PIF ~untagged_PIF ~tag () in
++  (* create VM + VIF using this network *)
++  let vM = T.make_vm ~__context () in
++  let vif = T.make_vif ~__context ~device:"1" ~vM ~network:vlan_network () in
++  Alcotest.(check_raises)
++    "test_trunks_coherence_vif_set testing"
++    Api_errors.(
++      Server_error
++        ( Api_errors.network_incompatible_with_trunks
++        , [Ref.string_of vlan_network]
++        )
++    )
++    (fun () -> Xapi_vif.add_trunks ~__context ~self:vif ~value:2201L)
++
++(** try to add VIF (with trunks) on incompatible network *)
++let test_trunks_coherence_vif_add () =
++  let __context = T.make_test_database () in
++  (* create a VLAN *)
++  let host = T.make_host ~__context () in
++  let network = T.make_network ~__context () in
++  let tagged_PIF = T.make_pif ~__context ~network ~host () in
++  let tag = 3201L in
++  let vlan_network = T.make_network ~__context ~bridge:"xapi0" () in
++  let untagged_PIF =
++    T.make_pif ~__context ~network:vlan_network ~host ~vLAN:tag ()
++  in
++  let _vlan = T.make_vlan ~__context ~tagged_PIF ~untagged_PIF ~tag () in
++  (* create VM + VIF using this network *)
++  let vM = T.make_vm ~__context () in
++  Alcotest.(check_raises)
++    "test_trunks_coherence_vif_add testing"
++    Api_errors.(
++      Server_error
++        ( Api_errors.network_incompatible_with_trunks
++        , [Ref.string_of vlan_network]
++        )
++    )
++    (fun () ->
++      let _ : API.ref_VIF =
++        Xapi_vif.create ~__context ~device:"1" ~network:vlan_network ~vM
++          ~mAC:"00:00:00:00:00:00" ~mTU:1500L ~other_config:[]
++          ~currently_attached:true ~qos_algorithm_type:""
++          ~qos_algorithm_params:[] ~locking_mode:`unlocked ~ipv4_allowed:[]
++          ~ipv6_allowed:[] ~trunks:[2201L]
++      in
++      ()
++    )
++
++(** try to associate PIF (with VLAN) on Network with trunked-VIF *)
++let test_trunks_coherence_pif_vlan () =
++  let __context = T.make_test_database () in
++  (* create VM + VIF on plain network *)
++  let network = T.make_network ~__context () in
++  let vM = T.make_vm ~__context () in
++  let _vif =
++    T.make_vif ~__context ~device:"1" ~vM ~network ~trunks:[3201L] ()
++  in
++  Alcotest.(check_raises)
++    "test_trunks_coherence_pif_vlan testing"
++    Api_errors.(
++      Server_error
++        (Api_errors.network_incompatible_with_trunks, [Ref.string_of network])
++    )
++    (fun () ->
++      (* create a VLAN *)
++      let host = T.make_host ~__context () in
++      let network2 = T.make_network ~__context () in
++      let tagged_PIF = T.make_pif ~__context ~network:network2 ~host () in
++      let tag = 2201L in
++      let untagged_PIF = T.make_pif ~__context ~network ~host ~vLAN:tag () in
++      let _vlan = T.make_vlan ~__context ~tagged_PIF ~untagged_PIF ~tag () in
++      ()
++    )
++
++let test_trunks_move () =
++  let __context = T.make_test_database () in
++  (* create VM + VIF using this network *)
++  let network1 = T.make_network ~__context () in
++  let vM = T.make_vm ~__context () in
++  let vif = T.make_vif ~__context ~network:network1 ~vM () in
++  let network2 = T.make_network ~__context () in
++  Alcotest.(check unit)
++    "test_trunks_move testing" ()
++    (Xapi_vif.move ~__context ~self:vif ~network:network2)
++
++let test_trunks_move_to_vlan () =
++  let __context = T.make_test_database () in
++  (* create VM + VIF (with trunks) *)
++  let network1 = T.make_network ~__context () in
++  let vM = T.make_vm ~__context () in
++  let vif = T.make_vif ~__context ~network:network1 ~vM ~trunks:[3201L] () in
++  (* create a VLAN *)
++  let host = T.make_host ~__context () in
++  let network2 = T.make_network ~__context () in
++  let tagged_PIF = T.make_pif ~__context ~network:network2 ~host () in
++  let tag = 3201L in
++  let vlan_network2 = T.make_network ~__context ~bridge:"xapi0" () in
++  let untagged_PIF =
++    T.make_pif ~__context ~network:vlan_network2 ~host ~vLAN:tag ()
++  in
++  let _vlan = T.make_vlan ~__context ~tagged_PIF ~untagged_PIF ~tag () in
++  (* move the VIF to the vlan_network *)
++  Alcotest.(check_raises)
++    "test_trunks_move_to_vlan testing"
++    Api_errors.(
++      Server_error
++        ( Api_errors.network_incompatible_with_trunks
++        , [Ref.string_of vlan_network2]
++        )
++    )
++    (fun () -> Xapi_vif.move ~__context ~self:vif ~network:vlan_network2)
++
++let test =
++  [
++    ("test_trunks_parameter", `Quick, test_trunks_parameter)
++  ; ("test_trunks_coherence_vif_set", `Quick, test_trunks_coherence_vif_set)
++  ; ("test_trunks_coherence_vif_add", `Quick, test_trunks_coherence_vif_add)
++  ; ("test_trunks_coherence_pif_vlan", `Quick, test_trunks_coherence_pif_vlan)
++  ; ("test_trunks_move", `Quick, test_trunks_move)
++  ; ("test_trunks_move_to_vlan", `Quick, test_trunks_move_to_vlan)
++  ]
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 52e5ce970..749fa97f1 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -2823,7 +2823,7 @@ let vif_create printer rpc session_id params =
+     Client.VIF.create ~rpc ~session_id ~device ~network ~vM ~mAC ~mTU
+       ~other_config:[] ~currently_attached:false ~qos_algorithm_type:""
+       ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[]
+-      ~ipv6_allowed:[]
++      ~ipv6_allowed:[] ~trunks:[]
+   in
+   let uuid = Client.VIF.get_uuid ~rpc ~session_id ~self:vif in
+   printer (Cli_printer.PList [uuid])
+diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
+index 5c0ffe4b4..34d721fdc 100644
+--- a/ocaml/xapi-cli-server/records.ml
++++ b/ocaml/xapi-cli-server/records.ml
+@@ -1014,6 +1014,23 @@ let vif_record rpc session_id vif =
+       ; make_field ~name:"ipv6-gateway"
+           ~get:(fun () -> (x ()).API.vIF_ipv6_gateway)
+           ()
++      ; make_field ~name:"trunks"
++          ~get:(fun () -> map_and_concat Int64.to_string (x ()).API.vIF_trunks)
++          ~get_set:(fun () -> List.map Int64.to_string (x ()).API.vIF_trunks)
++          ~add_to_set:(fun value ->
++            let value = safe_i64_of_string "value" value in
++            Client.VIF.add_trunks ~rpc ~session_id ~self:vif ~value
++          )
++          ~remove_from_set:(fun value ->
++            let value = safe_i64_of_string "value" value in
++            Client.VIF.remove_trunks ~rpc ~session_id ~self:vif ~value
++          )
++          ~set:(fun value ->
++            Client.VIF.set_trunks ~rpc ~session_id ~self:vif
++              ~value:
++                (List.map (safe_i64_of_string "value") (get_words ',' value))
++          )
++          ()
+       ]
+   }
+ 
+diff --git a/ocaml/xapi-consts/api_errors.ml b/ocaml/xapi-consts/api_errors.ml
+index 026faadbb..d7d024f16 100644
+--- a/ocaml/xapi-consts/api_errors.ml
++++ b/ocaml/xapi-consts/api_errors.ml
+@@ -214,6 +214,9 @@ let network_has_incompatible_sriov_pifs =
+ let network_has_incompatible_vlan_on_sriov_pifs =
+   add_error "NETWORK_HAS_INCOMPATIBLE_VLAN_ON_SRIOV_PIFS"
+ 
++let network_incompatible_with_trunks =
++  add_error "NETWORK_INCOMPATIBLE_WITH_TRUNKS"
++
+ let operation_not_allowed = add_error "OPERATION_NOT_ALLOWED"
+ 
+ let operation_blocked = add_error "OPERATION_BLOCKED"
+diff --git a/ocaml/xapi-idl/xen/xenops_interface.ml b/ocaml/xapi-idl/xen/xenops_interface.ml
+index 2e93d2c2a..64c057428 100644
+--- a/ocaml/xapi-idl/xen/xenops_interface.ml
++++ b/ocaml/xapi-idl/xen/xenops_interface.ml
+@@ -363,6 +363,8 @@ module Vif = struct
+     type t = site * server list * interface [@@deriving rpcty]
+   end
+ 
++  type trunks = int64 list [@@deriving rpcty]
++
+   type t = {
+       id: id [@default "", ""]
+     ; position: int [@default 0]
+@@ -380,6 +382,7 @@ module Vif = struct
+           [@default default_ipv6_configuration]
+     ; pvs_proxy: PVS_proxy.t option [@default None]
+     ; vlan: int64 option [@default None]
++    ; trunks: trunks [@default []]
+   }
+   [@@deriving rpcty]
+ 
+@@ -1078,6 +1081,11 @@ module XenopsAPI (R : RPC) = struct
+       let proxy_p = Param.mk ~name:"proxy" (option Vif.PVS_proxy.t) in
+       declare "VIF.set_pvs_proxy" []
+         (debug_info_p @-> vif_id_p @-> proxy_p @-> returning task_id_p err)
++
++    let set_trunks =
++      let trunks_p = Param.mk ~name:"trunks" Vif.trunks in
++      declare "VIF.set_trunks" []
++        (debug_info_p @-> vif_id_p @-> trunks_p @-> returning task_id_p err)
+   end
+ 
+   module VGPU = struct
+diff --git a/ocaml/xapi/debug_populate.ml b/ocaml/xapi/debug_populate.ml
+index 793076f26..1401547b8 100644
+--- a/ocaml/xapi/debug_populate.ml
++++ b/ocaml/xapi/debug_populate.ml
+@@ -100,7 +100,7 @@ let rec make_vifs __context vmref i =
+          ~network:(get_random nws) ~vM:vmref ~mAC:"de:ad:be:ef:99:88"
+          ~mTU:Int64.zero ~other_config:[] ~qos_algorithm_type:""
+          ~qos_algorithm_params:[] ~locking_mode:`network_default
+-         ~ipv4_allowed:[] ~ipv6_allowed:[] ~currently_attached:false
++         ~ipv4_allowed:[] ~ipv6_allowed:[] ~currently_attached:false ~trunks:[]
+       ) ;
+     make_vifs __context vmref (i - 1)
+   )
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index d2b9e2846..858c0fc0d 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -4688,6 +4688,28 @@ functor
+           Client.VIF.configure_ipv6 ~self ~mode ~address ~gateway
+         in
+         forward_vif_op ~local_fn ~__context ~self ~remote_fn
++
++      let add_trunks ~__context ~self ~value =
++        info "VIF.add_trunks: VIF = '%s'; vlan = '%s'"
++          (vif_uuid ~__context self) (Int64.to_string value) ;
++        let local_fn = Local.VIF.add_trunks ~self ~value in
++        let remote_fn = Client.VIF.add_trunks ~self ~value in
++        forward_vif_op ~local_fn ~__context ~self ~remote_fn
++
++      let remove_trunks ~__context ~self ~value =
++        info "VIF.remove_trunks: VIF = '%s'; vlan = '%s'"
++          (vif_uuid ~__context self) (Int64.to_string value) ;
++        let local_fn = Local.VIF.remove_trunks ~self ~value in
++        let remote_fn = Client.VIF.remove_trunks ~self ~value in
++        forward_vif_op ~local_fn ~__context ~self ~remote_fn
++
++      let set_trunks ~__context ~self ~value =
++        info "VIF.set_trunks: VIF = '%s'; vlans = '%s'"
++          (vif_uuid ~__context self)
++          (String.concat "," (List.map Int64.to_string value)) ;
++        let local_fn = Local.VIF.set_trunks ~self ~value in
++        let remote_fn = Client.VIF.set_trunks ~self ~value in
++        forward_vif_op ~local_fn ~__context ~self ~remote_fn
+     end
+ 
+     module VIF_metrics = struct end
+diff --git a/ocaml/xapi/xapi_pif.ml b/ocaml/xapi/xapi_pif.ml
+index b4c48b2f9..b418d08e2 100644
+--- a/ocaml/xapi/xapi_pif.ml
++++ b/ocaml/xapi/xapi_pif.ml
+@@ -501,6 +501,10 @@ let pool_introduce ~__context ~device ~network ~host ~mAC ~mTU ~vLAN ~physical
+     ~vLAN_master_of ~management ~other_config ~disallow_unplug
+     ~ipv6_configuration_mode ~iPv6 ~ipv6_gateway ~primary_address_type ~managed
+     ~properties =
++  (* Check we introduce PIF on compatible network (no VIF using trunks) *)
++  if vLAN <> -1L then
++    Xapi_pif_helpers.assert_network_compatible_with_trunks_on_vif ~__context
++      ~network ;
+   let pif_ref = Ref.make () in
+   let metrics = make_pif_metrics ~__context in
+   let () =
+@@ -539,6 +543,10 @@ let introduce_internal ?network ?(physical = true) ~t ~__context ~host ~mAC ~mTU
+     | Some x ->
+         x
+   in
++  (* Check we introduce PIF on compatible network (no VIF using trunks) *)
++  if vLAN <> -1L then
++    Xapi_pif_helpers.assert_network_compatible_with_trunks_on_vif ~__context
++      ~network:net_ref ;
+   let metrics =
+     match metrics with None -> make_pif_metrics ~__context | Some m -> m
+   in
+diff --git a/ocaml/xapi/xapi_pif_helpers.ml b/ocaml/xapi/xapi_pif_helpers.ml
+index 00f1688bb..27bcd99e7 100644
+--- a/ocaml/xapi/xapi_pif_helpers.ml
++++ b/ocaml/xapi/xapi_pif_helpers.ml
+@@ -121,6 +121,30 @@ let get_pif_topo ~__context ~pif_rec =
+   let pif_t_list = List.rev pif_t_list in
+   pif_t_list
+ 
++(** Checks the Network is compatible with trunks attribute on VIF (no PIF with VLAN configured). *)
++let assert_network_compatible_with_trunks_on_pif ~__context ~network =
++  let pif_has_vlan =
++    Db.Network.get_PIFs ~__context ~self:network
++    |> List.exists (fun self -> Db.PIF.get_VLAN ~__context ~self <> -1L)
++  in
++  if pif_has_vlan then
++    raise
++      (Api_errors.Server_error
++         (Api_errors.network_incompatible_with_trunks, [Ref.string_of network])
++      )
++
++(** Checks the Network is compatible with trunks attribute on VIF (no VIF with trunks attribute). *)
++let assert_network_compatible_with_trunks_on_vif ~__context ~network =
++  let vif_has_trunks =
++    Db.Network.get_VIFs ~__context ~self:network
++    |> List.exists (fun self -> Db.VIF.get_trunks ~__context ~self <> [])
++  in
++  if vif_has_trunks then
++    raise
++      (Api_errors.Server_error
++         (Api_errors.network_incompatible_with_trunks, [Ref.string_of network])
++      )
++
+ let vlan_is_allowed_on_pif ~__context ~tagged_PIF ~pif_rec:_ ~pif_topo ~tag:_ =
+   match pif_topo with
+   | Physical pif_rec :: _ when pif_rec.API.pIF_bond_slave_of <> Ref.null ->
+diff --git a/ocaml/xapi/xapi_vif.ml b/ocaml/xapi/xapi_vif.ml
+index 17dccdfa0..de4f73cc3 100644
+--- a/ocaml/xapi/xapi_vif.ml
++++ b/ocaml/xapi/xapi_vif.ml
+@@ -33,7 +33,7 @@ let unplug_force ~__context ~self = Xapi_xenops.vif_unplug ~__context ~self true
+ 
+ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+     ~currently_attached ~qos_algorithm_type ~qos_algorithm_params ~locking_mode
+-    ~ipv4_allowed ~ipv6_allowed : API.ref_VIF =
++    ~ipv4_allowed ~ipv6_allowed ~trunks : API.ref_VIF =
+   (* TODO: Raise bad power state error (once all API clients make sure to onlu call the needed params in the create method) when:
+      - power_state = `Halted and currently_attached = true
+   *)
+@@ -49,7 +49,7 @@ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+     ~mAC ~mTU ~other_config ~qos_algorithm_type ~qos_algorithm_params
+     ~locking_mode ~ipv4_allowed ~ipv6_allowed ~ipv4_configuration_mode:`None
+     ~ipv4_addresses:[] ~ipv4_gateway:"" ~ipv6_configuration_mode:`None
+-    ~ipv6_addresses:[] ~ipv6_gateway:""
++    ~ipv6_addresses:[] ~ipv6_gateway:"" ~trunks
+ 
+ let destroy ~__context ~self = destroy ~__context ~self
+ 
+@@ -95,6 +95,9 @@ let move ~__context ~self ~network =
+              )
+           )
+   ) ;
++  if Db.VIF.get_trunks ~__context ~self <> [] then
++    Xapi_pif_helpers.assert_network_compatible_with_trunks_on_pif ~__context
++      ~network ;
+   move_internal ~__context ~network ~active self
+ 
+ let change_locking_config ~__context ~self ~licence_check f =
+@@ -217,3 +220,36 @@ let configure_ipv6 ~__context ~self ~mode ~address ~gateway =
+   Db.VIF.set_ipv6_gateway ~__context ~self ~value:gateway ;
+   if device_active ~__context ~self then
+     Xapi_xenops.vif_set_ipv6_configuration ~__context ~self
++
++(** Checks that Network associated to VIF is not backed on PIF with VLAN. *)
++let assert_vif_compatible_with_trunks ~__context ~self =
++  let network = Db.VIF.get_network ~__context ~self in
++  Xapi_pif_helpers.assert_network_compatible_with_trunks_on_pif ~__context
++    ~network
++
++let add_trunks ~__context ~self ~value =
++  Xapi_vlan.assert_valid_VLAN_tag value ;
++  assert_vif_compatible_with_trunks ~__context ~self ;
++  let current = Db.VIF.get_trunks ~__context ~self in
++  if not (List.mem value current) then (
++    Db.VIF.set_trunks ~__context ~self ~value:(value :: current) ;
++    if device_active ~__context ~self then
++      Xapi_xenops.vif_set_trunks ~__context ~self
++  )
++
++let remove_trunks ~__context ~self ~value =
++  let current = Db.VIF.get_trunks ~__context ~self in
++  if List.mem value current then (
++    let value = List.filter (( <> ) value) current in
++    Db.VIF.set_trunks ~__context ~self ~value ;
++    if device_active ~__context ~self then
++      Xapi_xenops.vif_set_trunks ~__context ~self
++  )
++
++let set_trunks ~__context ~self ~value =
++  if value <> [] then assert_vif_compatible_with_trunks ~__context ~self ;
++  let value = Listext.setify value in
++  List.iter Xapi_vlan.assert_valid_VLAN_tag value ;
++  Db.VIF.set_trunks ~__context ~self ~value ;
++  if device_active ~__context ~self then
++    Xapi_xenops.vif_set_trunks ~__context ~self
+diff --git a/ocaml/xapi/xapi_vif.mli b/ocaml/xapi/xapi_vif.mli
+index 2d98a7dc3..b78cd36c7 100644
+--- a/ocaml/xapi/xapi_vif.mli
++++ b/ocaml/xapi/xapi_vif.mli
+@@ -54,6 +54,7 @@ val create :
+   -> locking_mode:API.vif_locking_mode
+   -> ipv4_allowed:string list
+   -> ipv6_allowed:string list
++  -> trunks:int64 list
+   -> API.ref_VIF
+ (** Create a new VIF instance *)
+ 
+@@ -129,3 +130,14 @@ val configure_ipv6 :
+   -> gateway:string
+   -> unit
+ (** Change the IP configuration of a VIF *)
++
++val add_trunks : __context:Context.t -> self:[`VIF] Ref.t -> value:int64 -> unit
++(** Associate a 802.1Q VLAN with this VIF. *)
++
++val remove_trunks :
++  __context:Context.t -> self:[`VIF] Ref.t -> value:int64 -> unit
++(** Remove a 802.1Q VLAN from this VIF. *)
++
++val set_trunks :
++  __context:Context.t -> self:[`VIF] Ref.t -> value:int64 list -> unit
++(** Set the list of 802.1Q VLANs allowed to use this VIF. *)
+diff --git a/ocaml/xapi/xapi_vif_helpers.ml b/ocaml/xapi/xapi_vif_helpers.ml
+index 4f6f4310a..fc17d7c86 100644
+--- a/ocaml/xapi/xapi_vif_helpers.ml
++++ b/ocaml/xapi/xapi_vif_helpers.ml
+@@ -239,8 +239,8 @@ let m = Mutex.create () (* prevents duplicate VIFs being created by accident *)
+ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+     ~qos_algorithm_type ~qos_algorithm_params ~currently_attached ~locking_mode
+     ~ipv4_allowed ~ipv6_allowed ~ipv4_configuration_mode ~ipv4_addresses
+-    ~ipv4_gateway ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway :
+-    API.ref_VIF =
++    ~ipv4_gateway ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway ~trunks
++    : API.ref_VIF =
+   let () = debug "VIF.create running" in
+   if Xapi_network_sriov_helpers.is_sriov_network ~__context ~self:network then
+     Pool_features.assert_enabled ~__context ~f:Features.Network_sriov ;
+@@ -272,6 +272,10 @@ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+   in
+   if not (Helpers.is_valid_MAC mAC) then
+     raise (Api_errors.Server_error (Api_errors.mac_invalid, [mAC])) ;
++  (* Check we can use trunks on the network. *)
++  if trunks <> [] then
++    Xapi_pif_helpers.assert_network_compatible_with_trunks_on_pif ~__context
++      ~network ;
+   (* Make people aware that non-shared networks being added to VMs makes them not agile *)
+   let pool = Helpers.get_pool ~__context in
+   ( if
+@@ -343,7 +347,7 @@ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+           ~metrics ~locking_mode ~ipv4_allowed ~ipv6_allowed
+           ~ipv4_configuration_mode ~ipv4_addresses ~ipv4_gateway
+           ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway
+-          ~reserved_pci:Ref.null
++          ~reserved_pci:Ref.null ~trunks
+       in
+       ()
+   ) ;
+@@ -399,7 +403,7 @@ let copy ~__context ~vm ~preserve_mac_address vif =
+       ~ipv4_gateway:all.API.vIF_ipv4_gateway
+       ~ipv6_configuration_mode:all.API.vIF_ipv6_configuration_mode
+       ~ipv6_addresses:all.API.vIF_ipv6_addresses
+-      ~ipv6_gateway:all.API.vIF_ipv6_gateway
++      ~ipv6_gateway:all.API.vIF_ipv6_gateway ~trunks:all.API.vIF_trunks
+   in
+   let expr =
+     Xapi_database.Db_filter_types.(Eq (Field "VIF", Literal (Ref.string_of vif)))
+diff --git a/ocaml/xapi/xapi_vif_helpers.mli b/ocaml/xapi/xapi_vif_helpers.mli
+index 6451ba02d..7b062a8df 100644
+--- a/ocaml/xapi/xapi_vif_helpers.mli
++++ b/ocaml/xapi/xapi_vif_helpers.mli
+@@ -55,6 +55,7 @@ val create :
+   -> ipv6_configuration_mode:[< `None | `Static]
+   -> ipv6_addresses:string list
+   -> ipv6_gateway:string
++  -> trunks:int64 list
+   -> API.ref_VIF
+ (** Create a VIF object in the database. *)
+ 
+diff --git a/ocaml/xapi/xapi_vlan.ml b/ocaml/xapi/xapi_vlan.ml
+index 2e2b13191..ab3f849c4 100644
+--- a/ocaml/xapi/xapi_vlan.ml
++++ b/ocaml/xapi/xapi_vlan.ml
+@@ -15,6 +15,14 @@ module D = Debug.Make (struct let name = "xapi_vlan" end)
+ 
+ open D
+ 
++let assert_valid_VLAN_tag tag =
++  if tag < 0L || tag > 4094L then
++    raise
++      (Api_errors.Server_error
++         (Api_errors.vlan_tag_invalid, [Int64.to_string tag])
++      ) ;
++  ()
++
+ (* Dummy MAC used by the VLAN *)
+ let vlan_mac = "fe:ff:ff:ff:ff:ff"
+ 
+@@ -48,6 +56,8 @@ let pool_introduce ~__context ~tagged_PIF ~untagged_PIF ~tag ~other_config =
+   vlan
+ 
+ let create_internal ~__context ~host ~tagged_PIF ~tag ~network ~device =
++  Xapi_pif_helpers.assert_network_compatible_with_trunks_on_vif ~__context
++    ~network ;
+   let vlan = Ref.make () and vlan_uuid = Uuidx.to_string (Uuidx.make ()) in
+   let untagged_PIF = Ref.make () in
+   (* Copy the MTU and metrics from the base PIF *)
+@@ -83,12 +93,7 @@ let create ~__context ~tagged_PIF ~tag ~network =
+     ~pif_topo ~tag ;
+   Xapi_network_helpers.assert_vlan_network_compatible_with_pif ~__context
+     ~network ~tagged_PIF ~pif_topo ;
+-  (* Check the VLAN tag is sensible;  4095 is reserved for implementation use (802.1Q) *)
+-  if tag < 0L || tag > 4094L then
+-    raise
+-      (Api_errors.Server_error
+-         (Api_errors.vlan_tag_invalid, [Int64.to_string tag])
+-      ) ;
++  assert_valid_VLAN_tag tag ;
+   let device = pif_rec.API.pIF_device in
+   let vlans =
+     let open Xapi_database.Db_filter_types in
+diff --git a/ocaml/xapi/xapi_vlan.mli b/ocaml/xapi/xapi_vlan.mli
+index 10fbf1523..d4dac7618 100644
+--- a/ocaml/xapi/xapi_vlan.mli
++++ b/ocaml/xapi/xapi_vlan.mli
+@@ -60,3 +60,7 @@ val destroy : __context:Context.t -> self:[`VLAN] Ref.t -> unit
+ (** Destroy a VLAN. Removes the VLAN object as well as the VLAN master PIF. *)
+ 
+ val vlan_mac : string
++
++val assert_valid_VLAN_tag : int64 -> unit
++(** Checks the parameter is sensible value for VLAN tag (0 - 4094 inclusive);
++ * 4095 is reserved for implementation use (802.1Q) *)
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index aedc369c9..3feab40e4 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -889,6 +889,7 @@ module MD = struct
+           else
+             Some vlan
+     in
++    let trunks = Db.VIF.get_trunks ~__context ~self:vif_ref in
+     {
+       Vif.id= (vm.API.vM_uuid, vif.API.vIF_device)
+     ; position= int_of_string vif.API.vIF_device
+@@ -904,6 +905,7 @@ module MD = struct
+     ; ipv6_configuration
+     ; pvs_proxy
+     ; vlan
++    ; trunks
+     }
+ 
+   let pcis_of_vm ~__context (vmref, vm) =
+@@ -4437,6 +4439,21 @@ let vif_set_ipv6_configuration ~__context ~self =
+       Events_from_xenopsd.wait queue_name dbg (fst vif.Vif.id) ()
+   )
+ 
++let vif_set_trunks ~__context ~self =
++  let@ __context = Context.with_tracing ~__context __FUNCTION__ in
++  let vm = Db.VIF.get_VM ~__context ~self in
++  let queue_name = queue_of_vm ~__context ~self:vm in
++  transform_xenops_exn ~__context ~vm queue_name (fun () ->
++      assert_resident_on ~__context ~self:vm ;
++      let vif = md_of_vif ~__context ~self in
++      info "xenops: VIF.vif_set_trunks %s.%s" (fst vif.Vif.id) (snd vif.Vif.id) ;
++      let dbg = Context.string_of_task_and_tracing __context in
++      let module Client = (val make_client queue_name : XENOPS) in
++      Client.VIF.set_trunks dbg vif.Vif.id vif.Vif.trunks
++      |> sync_with_task __context queue_name ;
++      Events_from_xenopsd.wait queue_name dbg (fst vif.Vif.id) ()
++  )
++
+ let task_cancel ~__context ~self =
+   let@ __context = Context.with_tracing ~__context __FUNCTION__ in
+   try
+diff --git a/ocaml/xenopsd/cli/xn.ml b/ocaml/xenopsd/cli/xn.ml
+index ca67548dc..252a4e80c 100644
+--- a/ocaml/xenopsd/cli/xn.ml
++++ b/ocaml/xenopsd/cli/xn.ml
+@@ -367,6 +367,7 @@ let parse_vif vm_id (x, idx) =
+   ; ipv6_configuration= Unspecified6
+   ; pvs_proxy= None
+   ; vlan= None
++  ; trunks= []
+   }
+ 
+ let print_vm id =
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 1b47d532b..98c26b65c 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -118,6 +118,7 @@ type atomic =
+   | VIF_set_ipv4_configuration of Vif.id * Vif.ipv4_configuration
+   | VIF_set_ipv6_configuration of Vif.id * Vif.ipv6_configuration
+   | VIF_set_active of Vif.id * bool
++  | VIF_set_trunks of Vif.id * int64 list
+   (* During migration the domid of a uuid is not stable. To hide this from hooks
+      that depend on domids, this allows the caller to provide an additonal uuid
+      that can maintain the initial domid *)
+@@ -198,6 +199,8 @@ let rec name_of_atomic = function
+       "VIF_set_ipv6_configuration"
+   | VIF_set_active _ ->
+       "VIF_set_active"
++  | VIF_set_trunks _ ->
++      "VIF_set_trunks"
+   | VM_hook_script_stable _ ->
+       "VM_hook_script_stable"
+   | VM_hook_script _ ->
+@@ -2092,6 +2095,16 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
+       debug "VIF.set_active %s %b" (VIF_DB.string_of_id id) b ;
+       B.VIF.set_active t (VIF_DB.vm_of id) (VIF_DB.read_exn id) b ;
+       VIF_DB.signal id
++  | VIF_set_trunks (id, trunks) ->
++      debug "VIF.set_trunks %s %s" (VIF_DB.string_of_id id)
++        (String.concat "," (List.map Int64.to_string trunks)) ;
++      finally
++        (fun () ->
++          let vif = VIF_DB.read_exn id in
++          B.VIF.set_trunks t (VIF_DB.vm_of id) vif trunks ;
++          VIF_DB.write id {vif with Vif.trunks}
++        )
++        (fun () -> VIF_DB.signal id)
+   | VM_hook_script_stable (id, script, reason, backend_vm_id) ->
+       let extra_args = B.VM.get_hook_args backend_vm_id in
+       Xenops_hooks.vm ~script ~reason ~id ~extra_args
+@@ -2663,7 +2676,8 @@ and trigger_cleanup_after_failure_atom op t =
+   | VIF_set_locking_mode (id, _)
+   | VIF_set_pvs_proxy (id, _)
+   | VIF_set_ipv4_configuration (id, _)
+-  | VIF_set_ipv6_configuration (id, _) ->
++  | VIF_set_ipv6_configuration (id, _)
++  | VIF_set_trunks (id, _) ->
+       immediate_operation dbg (fst id) (VIF_check_state id)
+   | PCI_plug (id, _) | PCI_unplug id ->
+       immediate_operation dbg (fst id) (PCI_check_state id)
+@@ -3625,6 +3639,9 @@ module VIF = struct
+     queue_operation dbg (DB.vm_of id)
+       (Atomic (VIF_set_ipv6_configuration (id, ipv6_configuration)))
+ 
++  let set_trunks _ dbg id trunks =
++    queue_operation dbg (DB.vm_of id) (Atomic (VIF_set_trunks (id, trunks)))
++
+   let remove _ dbg id =
+     Debug.with_thread_associated dbg (fun () -> DB.remove' id) ()
+ 
+@@ -4491,6 +4508,7 @@ let _ =
+   Server.VIF.set_ipv4_configuration (VIF.set_ipv4_configuration ()) ;
+   Server.VIF.set_ipv6_configuration (VIF.set_ipv6_configuration ()) ;
+   Server.VIF.set_pvs_proxy (VIF.set_pvs_proxy ()) ;
++  Server.VIF.set_trunks (VIF.set_trunks ()) ;
+   Server.VGPU.add (VGPU.add ()) ;
+   Server.VGPU.remove (VGPU.remove ()) ;
+   Server.VGPU.stat (VGPU.stat ()) ;
+diff --git a/ocaml/xenopsd/lib/xenops_server_plugin.ml b/ocaml/xenopsd/lib/xenops_server_plugin.ml
+index 9c7417866..f5145b9b2 100644
+--- a/ocaml/xenopsd/lib/xenops_server_plugin.ml
++++ b/ocaml/xenopsd/lib/xenops_server_plugin.ml
+@@ -272,6 +272,9 @@ module type S = sig
+ 
+     val get_device_action_request :
+       Vm.id -> Vif.t -> device_action_request option
++
++    val set_trunks :
++      Xenops_task.task_handle -> Vm.id -> Vif.t -> Vif.trunks -> unit
+   end
+ 
+   module VGPU : sig
+diff --git a/ocaml/xenopsd/lib/xenops_server_simulator.ml b/ocaml/xenopsd/lib/xenops_server_simulator.ml
+index 8b7450f03..7185b13fa 100644
+--- a/ocaml/xenopsd/lib/xenops_server_simulator.ml
++++ b/ocaml/xenopsd/lib/xenops_server_simulator.ml
+@@ -502,6 +502,26 @@ let set_pvs_proxy vm vif proxy () =
+   in
+   DB.write vm {d with Domain.vifs}
+ 
++let set_trunks vm vif trunks () =
++  let d = DB.read_exn vm in
++  let this_one x = x.Vif.id = vif.Vif.id in
++  let vifs =
++    List.map
++      (fun vif ->
++        {
++          vif with
++          Vif.trunks=
++            ( if this_one vif then
++                trunks
++              else
++                vif.Vif.trunks
++            )
++        }
++      )
++      d.Domain.vifs
++  in
++  DB.write vm {d with Domain.vifs}
++
+ let remove_pci vm pci () =
+   let d = DB.read_exn vm in
+   let this_one x = x.Pci.id = pci.Pci.id in
+@@ -738,6 +758,8 @@ module VIF = struct
+   let get_state vm vif = with_lock m (vif_state vm vif)
+ 
+   let get_device_action_request _vm _vif = None
++
++  let set_trunks _ vm vif trunks = with_lock m (set_trunks vm vif trunks)
+ end
+ 
+ module UPDATES = struct
+diff --git a/ocaml/xenopsd/lib/xenops_server_skeleton.ml b/ocaml/xenopsd/lib/xenops_server_skeleton.ml
+index d812910fd..20c66c95a 100644
+--- a/ocaml/xenopsd/lib/xenops_server_skeleton.ml
++++ b/ocaml/xenopsd/lib/xenops_server_skeleton.ml
+@@ -190,6 +190,8 @@ module VIF = struct
+   let get_state _ _ = unplugged_vif
+ 
+   let get_device_action_request _ _ = None
++
++  let set_trunks _ _ = unimplemented __FUNCTION__
+ end
+ 
+ module VGPU = struct
+diff --git a/ocaml/xenopsd/scripts/vif-real b/ocaml/xenopsd/scripts/vif-real
+index 25662c9bf..eefb78e68 100755
+--- a/ocaml/xenopsd/scripts/vif-real
++++ b/ocaml/xenopsd/scripts/vif-real
+@@ -107,6 +107,29 @@ handle_mtu()
+     fi
+ }
+ 
++handle_trunks()
++{
++    local trunks
++
++    if trunks=$(xenstore-read "${PRIVATE}/trunks" 2>/dev/null); then
++        case $NETWORK_MODE in
++            bridge)
++                logger -t scripts-vif "${dev}: trunks is not supported via bridge mode."
++                ;;
++            openvswitch)
++                logger -t scripts-vif "Setting ${dev} trunks ${trunks}"
++                if [ -z "${trunks}" ]; then
++                    ${vsctl} clear Port "${dev}" trunks || logger -t scripts-vif "Failed to ovs-vsctl clear Port ${dev} trunks. Error code $?"
++                else
++                    ${vsctl} set Port "${dev}" "trunks=${trunks}" || logger -t scripts-vif "Failed to ovs-vsctl set Port ${dev} trunks=${trunks}. Error code $?"
++                fi
++                ;;
++        esac
++    else
++        handle_error "Failed to read ${PRIVATE}/trunks"
++    fi
++}
++
+ add_to_bridge()
+ {
+     local address=$(xenstore-read "${PRIVATE}/bridge-MAC")
+@@ -234,6 +257,7 @@ online)
+ 
+         handle_mtu
+         add_to_bridge
++        handle_trunks
+         handle_promiscuous
+ 
+         # only for the benefit of xenrt test case, see CA-61528
+@@ -250,6 +274,7 @@ add)
+     if [ "${TYPE}" = "tap" ] ; then
+         handle_mtu
+         add_to_bridge
++        handle_trunks
+     fi
+     ;;
+ 
+@@ -270,5 +295,6 @@ remove)
+ move)
+     if [ "${TYPE}" = "vif" ] ;then
+         add_to_bridge
++        handle_trunks
+     fi
+ esac
+diff --git a/ocaml/xenopsd/xc/device.ml b/ocaml/xenopsd/xc/device.ml
+index adedf798d..9335c2d5f 100644
+--- a/ocaml/xenopsd/xc/device.ml
++++ b/ocaml/xenopsd/xc/device.ml
+@@ -822,7 +822,7 @@ end
+ 
+ module Vif = struct
+   let add ~xs ~devid ~mac ?mtu ?(rate = None) ?(backend_domid = 0)
+-      ?(other_config = []) ~netty ~carrier ?(protocol = Protocol_Native)
++      ?(other_config = []) ~netty ~carrier ~trunks ?(protocol = Protocol_Native)
+       ?(extra_private_keys = []) ?(extra_xenserver_keys = [])
+       (task : Xenops_task.task_handle) domid =
+     debug
+@@ -917,6 +917,7 @@ module Vif = struct
+     let extra_private_keys =
+       extra_private_keys
+       @ ("mac", mac)
++        :: ("trunks", String.concat "," (List.map Int64.to_string trunks))
+         ::
+         ( match mtu with
+         | Some mtu when mtu > 0 ->
+diff --git a/ocaml/xenopsd/xc/device.mli b/ocaml/xenopsd/xc/device.mli
+index 0bf45bf4e..8bfad2d86 100644
+--- a/ocaml/xenopsd/xc/device.mli
++++ b/ocaml/xenopsd/xc/device.mli
+@@ -167,6 +167,7 @@ module Vif : sig
+     -> ?other_config:(string * string) list
+     -> netty:Netman.netty
+     -> carrier:bool
++    -> trunks:int64 list
+     -> ?protocol:protocol
+     -> ?extra_private_keys:(string * string) list
+     -> ?extra_xenserver_keys:(string * string) list
+diff --git a/ocaml/xenopsd/xc/xc_resources.ml b/ocaml/xenopsd/xc/xc_resources.ml
+index 2199fb04a..31658af91 100644
+--- a/ocaml/xenopsd/xc/xc_resources.ml
++++ b/ocaml/xenopsd/xc/xc_resources.ml
+@@ -49,6 +49,8 @@ let alternatives = ref "/usr/lib/xapi/alternatives"
+ 
+ let usb_reset_script = ref "/opt/xensource/libexec/usb_reset.py"
+ 
++let ovs_vsctl = ref "/usr/bin/ovs-vsctl"
++
+ open Unix
+ 
+ let essentials =
+@@ -71,6 +73,7 @@ let essentials =
+     , setup_pvs_proxy_rules
+     , "path to the setup-pvs-proxy-rules script"
+     )
++  ; (X_OK, "ovs-vsctl", ovs_vsctl, "path to the ovs-vsctl binary")
+   ]
+   @ Resources.network_configuration
+ 
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 91ef328e5..171ad8a18 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -4958,6 +4958,7 @@ module VIF = struct
+                         (vif.carrier
+                         && vif.locking_mode <> Xenops_interface.Vif.Disabled
+                         )
++                      ~trunks:vif.trunks
+                       ~extra_private_keys:
+                         ((id :: vif.extra_private_keys)
+                         @ locking_mode
+@@ -5399,6 +5400,58 @@ module VIF = struct
+           with Xenopsd_error Device_not_connected -> None
+         )
+     )
++
++  let set_trunks _task vm vif trunks =
++    debug "set_trunks: enter" ;
++    with_xc_and_xs (fun xc xs ->
++        match vif.backend with
++        | Network.Sriov _ ->
++            raise (Xenopsd_error (Unimplemented "network SR-IOV"))
++        | Network.Local _ | Network.Remote _ ->
++            let open Device_common in
++            (* If the device is gone then this is ok *)
++            let device = device_by_id xc xs vm Vif (id_of vif) in
++            let trunks_str =
++              String.concat "," (List.map Int64.to_string trunks)
++            in
++            let setup port_name =
++              debug "set_trunks: setup: %s trunks=[%s]" port_name trunks_str ;
++              try
++                if trunks = [] then
++                  ignore
++                    (run !Xc_resources.ovs_vsctl
++                       ["clear"; "Port"; port_name; "trunks"]
++                    )
++                else
++                  ignore
++                    (run !Xc_resources.ovs_vsctl
++                       [
++                         "set"
++                       ; "Port"
++                       ; port_name
++                       ; Printf.sprintf "trunks=%s" trunks_str
++                       ]
++                    )
++              with exc ->
++                if String.starts_with ~prefix:"tap" port_name then
++                  (* Might not exists if the VM has PV drivers loaded. *)
++                  ()
++                else
++                  raise exc
++            in
++            let devid = string_of_int device.frontend.devid in
++            let di = Xenctrl.domain_getinfo xc device.frontend.domid in
++            let port_list =
++              Printf.sprintf "vif%d.%s" device.frontend.domid devid
++              ::
++              ( if VM.get_domain_type ~xs di = Vm.Domain_HVM then
++                  [Printf.sprintf "tap%d.%s" device.frontend.domid devid]
++                else
++                  []
++              )
++            in
++            List.iter setup port_list
++    )
+ end
+ 
+ module UPDATES = struct
+diff --git a/ocaml/xenopsd/xenopsd.conf b/ocaml/xenopsd/xenopsd.conf
+index f8a81ba06..6ea20e75b 100644
+--- a/ocaml/xenopsd/xenopsd.conf
++++ b/ocaml/xenopsd/xenopsd.conf
+@@ -86,6 +86,7 @@ disable-logging-for=http tracing tracing_export
+ # umount=/bin/umount
+ # ionice=/usr/bin/ionice
+ # chgrp=/bin/chgrp
++# ovs-vsctl=/usr/bin/ovs-vsctl
+ 
+ # Default backend for VBDs (used in XenStore)
+ # default-vbd-backend-kind=vbd
