@@ -1,5 +1,5 @@
-%global package_speccommit bdbd504162cd2bd228e9ddc27fcfd3f77973cc44
-%global package_srccommit v26.1.13
+%global package_speccommit 0db8942e2f31c6f513458288c4d576f34b7f85f2
+%global package_srccommit v26.1.16
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.13
+Version: 26.1.16
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.13.tar.gz
+Source0: xen-api-26.1.16.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -188,6 +188,7 @@ Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
 Provides: XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE) = 1.0.0
+Provides: XS_FEATURE(AUTO_UPDATE_SECUREBOOT_CERTIFICATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.3.4-2
 BuildRequires: systemd
@@ -1457,6 +1458,27 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jul 15 2026 Changlei Li <changlei.li@citrix.com> - 26.1.16-1
+- quicktest: Verify non-snapshotted VBDs are not leaked on VM.revert
+- auto-mark new VMs for Secure Boot certificate update on boot
+- always record VM secureboot_certificates_state at creation
+- Drop redundant secureboot_certificates_state recompute
+
+* Thu Jul 02 2026 Changlei Li <changlei.li@citrix.com> - 26.1.15-1
+- CA-429144: Do not leak new vbds after snapshot
+
+* Tue Jun 30 2026 Changlei Li <changlei.li@citrix.com> - 26.1.14-1
+- Prepare for VDI.revert: add tests and robustify error paths
+- xapi: Improve error reporting when pool join fails on TLS
+- xapi_pci: Disallow passthrough for boot devices
+- Add DHCP setting for VIF IP configuration
+- Implement Better VM revert using VDI revert (26.1-lcm)
+- Backport supported image format to 26.1-lcm
+- xapi_vm_snapshot: do not leak CD VBDs
+- [Backport] CA-417915: stunnel proxy process is not reaped during stop
+- xe: Fix bash completion for 'xe vlan-create pif-uuid='
+- Remove image format from deprecated receive start
+
 * Tue Jun 02 2026 Changlei Li <changlei.li@citrix.com> - 26.1.13-1
 - [Backport] CA-426857: Should not apply live patches when RebootHost is mandatory
 - [LCM] Update lifecycle of APIs for trusted certificates
