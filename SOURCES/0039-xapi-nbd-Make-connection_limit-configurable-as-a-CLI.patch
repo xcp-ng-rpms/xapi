@@ -1,0 +1,90 @@
+From 763fc36628b60a8d19a66c972aca9fcc65df6d24 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 4 Aug 2026 08:13:06 +0000
+Subject: [PATCH] xapi-nbd: Make connection_limit configurable as a CLI
+ parameter
+
+Tracking-reference: XCPNG-3594
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/nbd/lib/consts.ml  |  3 ---
+ ocaml/nbd/src/main.ml    | 17 +++++++++++------
+ scripts/xapi-nbd.service |  2 +-
+ 3 files changed, 12 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/nbd/lib/consts.ml b/ocaml/nbd/lib/consts.ml
+index a16703f57..df0b24346 100644
+--- a/ocaml/nbd/lib/consts.ml
++++ b/ocaml/nbd/lib/consts.ml
+@@ -21,6 +21,3 @@ let wait_for_xapi_timeout_seconds = 300.0
+ 
+ (** We sleep for this many seconds before the next login attempt. *)
+ let wait_for_xapi_retry_delay_seconds = 4.0
+-
+-(** Allow no more than this many client connections. *)
+-let connection_limit = 16
+diff --git a/ocaml/nbd/src/main.ml b/ocaml/nbd/src/main.ml
+index eccfc0042..b24fee51a 100644
+--- a/ocaml/nbd/src/main.ml
++++ b/ocaml/nbd/src/main.ml
+@@ -121,10 +121,11 @@ let xapi_says_use_tls () =
+   in
+   Local_xapi_session.with_session ask_xapi
+ 
+-let main port certfile _ =
++let main port certfile connection_limit _ =
+   let t () =
+-    Lwt_log.notice_f "Starting xapi-nbd: port = '%d'; certfile = '%s'" port
+-      certfile
++    Lwt_log.notice_f
++      "Starting xapi-nbd: port = '%d'; certfile = '%s'; connection-limit: %d"
++      port certfile connection_limit
+     >>= fun () ->
+     (* We keep a persistent record of the VBDs that we've created but haven't
+        yet cleaned up. At startup we go through this list in case some VBDs
+@@ -146,10 +147,10 @@ let main port certfile _ =
+         let inc_conn ?(i = 1) () =
+           Lwt_mutex.with_lock conn_m (fun () ->
+               conn_count := !conn_count + i ;
+-              if !conn_count > Consts.connection_limit && i > 0 then
++              if !conn_count > connection_limit && i > 0 then
+                 Lwt.fail_with
+                   ("Server busy: already at maximum "
+-                  ^ string_of_int Consts.connection_limit
++                  ^ string_of_int connection_limit
+                   ^ " connections."
+                   )
+               else
+@@ -221,6 +222,10 @@ let certfile =
+   let doc = "Path to file containing TLS certificate." in
+   Arg.(value & opt string "" & info ["certfile"] ~doc)
+ 
++let connection_limit =
++  let doc = "Simultaneous connections limit." in
++  Arg.(value & opt int 16 & info ["connection-limit"] ~doc)
++
+ let ciphersuites =
+   let doc =
+     "REMOVED (this parameter will be ignored) Set of ciphersuites for TLS \
+@@ -253,7 +258,7 @@ let cmd =
+   in
+   Cmd.v
+     (Cmd.info "xapi-nbd" ~version:"1.0.0" ~doc ~man ~sdocs:_common_options)
+-    Term.(ret (const main $ port $ certfile $ ciphersuites))
++    Term.(ret (const main $ port $ certfile $ connection_limit $ ciphersuites))
+ 
+ let setup_logging () =
+   Lwt_log.default := Lwt_log.syslog ~facility:`Daemon () ;
+diff --git a/scripts/xapi-nbd.service b/scripts/xapi-nbd.service
+index 20c83d633..5a11980af 100644
+--- a/scripts/xapi-nbd.service
++++ b/scripts/xapi-nbd.service
+@@ -9,7 +9,7 @@ Environment="MALLOC_CONF=background_thread:true,dirty_decay_ms:100,narenas:1,tca
+ Environment=OCAMLRUNPARAM=b
+ # The --certfile option must match the server-cert-path in xapi.conf
+ # and the PathExists in xapi-nbd.path: any change must be made in all three files.
+-ExecStart=/usr/sbin/xapi-nbd --certfile=/etc/xensource/xapi-ssl.pem
++ExecStart=/usr/sbin/xapi-nbd --certfile=/etc/xensource/xapi-ssl.pem --connection-limit=32
+ StandardOutput=null
+ # restart but fail if more than 5 failures in 2s
+ Restart=on-failure
