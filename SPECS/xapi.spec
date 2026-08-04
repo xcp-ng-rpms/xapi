@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.13
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1546,6 +1546,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Aug 04 2026 Samuel Verschelde <stormi-xcp@ylix.fr> - 26.1.13-1.3
+- Rebuild against OpenSSL 3.0
+
 * Wed Jul 22 2026 Sebastien Rodot <sebastien.rodot@vates.tech> - 26.1.13-1.2
 - XCPNG-3259: Implement VLAN Filtering
 
