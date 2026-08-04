@@ -1,0 +1,45 @@
+From 67961dfe03b552cab3070acba48623ca4e53a9e5 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 4 Aug 2026 08:47:47 +0000
+Subject: [PATCH] xapi-nbd: Add a timer to xapi_says_use_tls to determine if
+ its costly
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/nbd/src/dune    | 1 +
+ ocaml/nbd/src/main.ml | 4 ++++
+ 2 files changed, 5 insertions(+)
+
+diff --git a/ocaml/nbd/src/dune b/ocaml/nbd/src/dune
+index 61bb892e2..033f572b1 100644
+--- a/ocaml/nbd/src/dune
++++ b/ocaml/nbd/src/dune
+@@ -9,6 +9,7 @@
+   lwt
+   lwt.unix
+   lwt_log
++  mtime.clock.os
+   mirage-block
+   mirage-block-unix
+   nbd
+diff --git a/ocaml/nbd/src/main.ml b/ocaml/nbd/src/main.ml
+index b24fee51a..944b4d4cb 100644
+--- a/ocaml/nbd/src/main.ml
++++ b/ocaml/nbd/src/main.ml
+@@ -100,12 +100,16 @@ let init_tls_get_server_ctx ~certfile =
+ let xapi_says_use_tls () =
+   let refuse log msg = log msg >>= fun () -> Lwt.fail_with msg in
+   let ask_xapi rpc session_id =
++    let timer = Mtime_clock.counter () in
+     Xen_api.Network.get_all_records ~rpc ~session_id >>= fun all_nets ->
+     let all_porpoises =
+       List.concat_map (fun (_str, net) -> net.API.network_purpose) all_nets
+     in
+     let tls = List.mem `nbd all_porpoises in
+     let no_tls = List.mem `insecure_nbd all_porpoises in
++    Lwt_log.notice_f "xapi_says_use_tls took %f seconds"
++      (Mtime_clock.count timer |> Mtime.Span.to_float_ns |> fun ns -> ns *. 1e-9)
++    >>= fun () ->
+     match (tls, no_tls) with
+     | true, true ->
+         refuse Lwt_log.error

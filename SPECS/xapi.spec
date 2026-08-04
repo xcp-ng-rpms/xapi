@@ -145,6 +145,7 @@ Patch1037: 0037-xenopsd-update-xenstore-while-updating-xapi-db.patch
 Patch1038: 0038-test_vif_trunks-cover-more-coherence-checks.patch
 
 Patch1039: 0039-xapi-nbd-Make-connection_limit-configurable-as-a-CLI.patch
+Patch1040: 0040-xapi-nbd-Add-a-timer-to-xapi_says_use_tls-to-determi.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
