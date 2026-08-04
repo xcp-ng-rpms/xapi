@@ -1,0 +1,216 @@
+From 481fd4d5bd98aef4017d4b142f3d07d16b99685e Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 4 Aug 2026 10:46:55 +0000
+Subject: [PATCH] xapi-nbd: Reuse sessions and cache network for purpose query
+
+This avoids creating a new session for every connection and querying every
+single network just to find out the first one with
+
+    purpose = `nbd | `insecure_nbd
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/nbd/lib/dune                  |  2 +
+ ocaml/nbd/lib/local_xapi_session.ml | 50 +++++++++++++++++--
+ ocaml/nbd/src/dune                  |  2 +
+ ocaml/nbd/src/main.ml               | 74 ++++++++++++++++++++++-------
+ 4 files changed, 106 insertions(+), 22 deletions(-)
+
+diff --git a/ocaml/nbd/lib/dune b/ocaml/nbd/lib/dune
+index 8feb56e1e..a635eb8d3 100644
+--- a/ocaml/nbd/lib/dune
++++ b/ocaml/nbd/lib/dune
+@@ -18,6 +18,8 @@
+   unix
+   xapi-types
+   xen-api-client-lwt
++  xapi-stdext-threads
++  threads.posix
+  )
+ )
+ 
+diff --git a/ocaml/nbd/lib/local_xapi_session.ml b/ocaml/nbd/lib/local_xapi_session.ml
+index 08167ad6e..c0e22a1dd 100644
+--- a/ocaml/nbd/lib/local_xapi_session.ml
++++ b/ocaml/nbd/lib/local_xapi_session.ml
+@@ -15,8 +15,29 @@
+ open Lwt.Infix
+ module Xen_api = Xen_api_client_lwt.Xen_api_lwt_unix
+ 
++let cached_session : API.ref_session option ref = ref None
++
++let session_lock = Mutex.create ()
++
++let with_session_lock f =
++  Xapi_stdext_threads.Threadext.Mutex.execute session_lock f
++
++let rpc = Xen_api.make Consts.xapi_unix_domain_socket_uri
++
++let is_valid_session session_id =
++  Lwt.catch
++    (fun () ->
++      (* Call an API function to check the session is still valid *)
++      ignore (Xen_api.Pool.get_all ~rpc ~session_id) ;
++      Lwt.return true
++    )
++    (fun e ->
++      Lwt_log.notice_f "%s: Invalid session: %s" __FUNCTION__
++        (Printexc.to_string e)
++      >>= fun () -> Lwt.return false
++    )
++
+ let wait_for_xapi_and_login () =
+-  let rpc = Xen_api.make Consts.xapi_unix_domain_socket_uri in
+   let rec loop () =
+     Lwt.catch
+       (fun () ->
+@@ -45,11 +66,32 @@ let wait_for_xapi_and_login () =
+   Lwt_log.notice_f
+     "Will try to log in via xapi's Unix domain socket for %f seconds"
+     Consts.wait_for_xapi_timeout_seconds
+-  >>= fun () ->
+-  Lwt.pick [loop (); timeout ()] >|= fun session_id -> (rpc, session_id)
++  >>= fun () -> Lwt.pick [loop (); timeout ()]
+ 
+ let with_session f =
+-  wait_for_xapi_and_login () >>= fun (rpc, session_id) ->
++  let rec get_session () =
++    match !cached_session with
++    | Some session ->
++        is_valid_session session >>= fun valid ->
++        if valid then
++          Lwt.return session
++        else (
++          with_session_lock (fun () -> cached_session := None) ;
++          (get_session [@tailcall]) ()
++        )
++    | None ->
++        wait_for_xapi_and_login () >>= fun new_session ->
++        with_session_lock (fun () ->
++            match !cached_session with
++            | None ->
++                cached_session := Some new_session ;
++                Lwt.return new_session
++            | Some session ->
++                Xen_api.Session.logout ~rpc ~session_id:new_session
++                >>= fun () -> Lwt.return session
++        )
++  in
++  get_session () >>= fun session_id ->
+   Lwt.finalize
+     (fun () -> f rpc session_id)
+     (fun () -> Xen_api.Session.logout ~rpc ~session_id)
+diff --git a/ocaml/nbd/src/dune b/ocaml/nbd/src/dune
+index 033f572b1..38ce2832d 100644
+--- a/ocaml/nbd/src/dune
++++ b/ocaml/nbd/src/dune
+@@ -15,6 +15,7 @@
+   nbd
+   nbd-unix
+   rpclib.core
++  threads.posix
+   uri
+   unix
+   uuid
+@@ -22,6 +23,7 @@
+   xapi-consts
+   xapi-inventory
+   xapi-types
++  xapi-stdext-threads
+   xen-api-client-lwt
+   )
+ )
+diff --git a/ocaml/nbd/src/main.ml b/ocaml/nbd/src/main.ml
+index 944b4d4cb..0be9855fa 100644
+--- a/ocaml/nbd/src/main.ml
++++ b/ocaml/nbd/src/main.ml
+@@ -97,33 +97,71 @@ let init_tls_get_server_ctx ~certfile =
+        )
+     )
+ 
+-let xapi_says_use_tls () =
+-  let refuse log msg = log msg >>= fun () -> Lwt.fail_with msg in
+-  let ask_xapi rpc session_id =
+-    let timer = Mtime_clock.counter () in
++(* TODO: would be great if the security of NBD connections was a pool setting
++   and not per-network (since that's what's already de facto enforced *)
++(* Reuses the session and caches the network that had `nbd | `insecure_nbd
++   purpose to avoid querying all network records on every connection *)
++let xapi_says_use_tls =
++  let xapi_says_use_tls_inner rpc session_id =
++    let refuse log msg = log msg >>= fun () -> Lwt.fail_with msg in
+     Xen_api.Network.get_all_records ~rpc ~session_id >>= fun all_nets ->
+-    let all_porpoises =
+-      List.concat_map (fun (_str, net) -> net.API.network_purpose) all_nets
++    let all_purposes =
++      List.map (fun (str, net) -> (net.API.network_purpose, str)) all_nets
++    in
++    let tls =
++      List.find_opt (fun (purpose, _) -> List.mem `nbd purpose) all_purposes
++    in
++    let no_tls =
++      List.find_opt
++        (fun (purpose, _) -> List.mem `insecure_nbd purpose)
++        all_purposes
+     in
+-    let tls = List.mem `nbd all_porpoises in
+-    let no_tls = List.mem `insecure_nbd all_porpoises in
+-    Lwt_log.notice_f "xapi_says_use_tls took %f seconds"
+-      (Mtime_clock.count timer |> Mtime.Span.to_float_ns |> fun ns -> ns *. 1e-9)
+-    >>= fun () ->
+     match (tls, no_tls) with
+-    | true, true ->
++    | Some (_, _), Some (_, _) ->
+         refuse Lwt_log.error
+           "Contradictory XenServer configuration: nbd and insecure_nbd network \
+            purposes! Refusing connection."
+-    | true, false ->
+-        Lwt.return true
+-    | false, true ->
+-        Lwt.return false
+-    | false, false ->
++    | Some (_, network), None ->
++        Lwt.return (true, network)
++    | None, Some (_, network) ->
++        Lwt.return (false, network)
++    | None, None ->
+         refuse Lwt_log.warning
+           "Refusing connection: no network has purpose nbd or insecure_nbd:"
+   in
+-  Local_xapi_session.with_session ask_xapi
++  let cached_network = ref None in
++  let cached_network_m = Mutex.create () in
++  let with_network_lock f =
++    Xapi_stdext_threads.Threadext.Mutex.execute cached_network_m f
++  in
++  fun () ->
++    let timer = Mtime_clock.counter () in
++    let check_cache rpc session_id =
++      match !cached_network with
++      | Some network -> (
++          Xen_api.Network.get_purpose ~rpc ~session_id ~self:network
++          >>= fun purpose ->
++          let tls = List.mem `nbd purpose in
++          let no_tls = List.mem `insecure_nbd purpose in
++          match (tls, no_tls) with
++          | true, false ->
++              Lwt.return true
++          | false, true ->
++              Lwt.return false
++          | _ ->
++              xapi_says_use_tls_inner rpc session_id >>= fun (tls, network) ->
++              with_network_lock (fun () -> cached_network := Some network) ;
++              Lwt.return tls
++        )
++      | None ->
++          xapi_says_use_tls_inner rpc session_id >>= fun (tls, network) ->
++          with_network_lock (fun () -> cached_network := Some network) ;
++          Lwt.return tls
++    in
++    Local_xapi_session.with_session check_cache >>= fun res ->
++    Lwt_log.notice_f "xapi_says_use_tls took %f seconds"
++      (Mtime_clock.count timer |> Mtime.Span.to_float_ns |> fun ns -> ns *. 1e-9)
++    >>= fun () -> Lwt.return res
+ 
+ let main port certfile connection_limit _ =
+   let t () =
