@@ -1,4 +1,4 @@
-From 3b2261ca3689d31bb3f71acd3c53d5c68189b157 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sebastien Rodot <sebastien.rodot@vates.tech>
 Date: Tue, 7 Jul 2026 15:35:45 +0200
 Subject: [PATCH] test_vif_trunks: cover more coherence checks

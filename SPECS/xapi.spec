@@ -87,7 +87,7 @@ Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature --histogram v26.1.13..v26.1.13-8.3
+#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.1.16..v26.1.16-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -103,46 +103,13 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # still uses the legacy default for safety
 Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# In v26.1.14 upstream
-Patch1008: 0008-gitignore-ignore-_mock-directory.patch
-Patch1009: 0009-record_util-move-to-a-new-private-library.patch
-Patch1010: 0010-ocaml-tests-separate-test_sr_allowed_operations.patch
-Patch1011: 0011-xapi_sr_operations-use-results-for-asserting-valid-o.patch
-Patch1012: 0012-xapi_sr_operations-ensure-the-properties-on-ops-list.patch
-Patch1013: 0013-xapi-storage-add-interface-to-common.patch
-Patch1014: 0014-xapi_vdi-removed-code-commented-in-the-prehistoric-t.patch
-Patch1015: 0015-quicktest-reduce-amount-of-repetition-in-snapshot-te.patch
-Patch1016: 0016-quicktest-switch-asserts-with-alcotest-s-check-in-sn.patch
-Patch1017: 0017-quicktest-test-reverting-snapshots.patch
-Patch1018: 0018-quicktest-test-snapshot-revert-with-CDs.patch
-Patch1019: 0019-xapi_vm_snapshot-Plug-out-destroying-and-cloning-dis.patch
-Patch1020: 0020-xapi_vm_snapshot-move-VDI-related-DB-operations-insi.patch
-Patch1021: 0021-xapi_vm_snapshot-cover-more-code-to-destroy-newly-cl.patch
-Patch1022: 0022-xapi_vm_snapshot-shorten-length-of-comments.patch
-Patch1023: 0023-xapi_vdi-Introduce-VDI-operations-needed-for-revert.patch
-Patch1024: 0024-storage-add-VDI.revert.patch
-Patch1025: 0025-CA-143836-Add-VDI.revert-API-call.patch
-Patch1026: 0026-xapi_vm_snapshot-change-VM.revert-to-use-VDI.revert.patch
-Patch1027: 0027-xapi_vm_snapshot-Fail-VM.revert-when-a-VDI.revert-ac.patch
-Patch1028: 0028-quicktest-test-for-number-of-CD-VBDs.patch
-Patch1029: 0029-xapi_vm_snapshot-do-not-leak-CD-VBDs.patch
-Patch1030: 0030-datamodel_lifecycle-bump.patch
+# In v26.1.20 upstream
+Patch1008: 0008-vlan_tag_invalid-change-the-documentation-string.patch
+Patch1009: 0009-VLAN-filtering-on-VIF.patch
+Patch1010: 0010-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
+Patch1011: 0011-xenopsd-update-xenstore-while-updating-xapi-db.patch
+Patch1012: 0012-test_vif_trunks-cover-more-coherence-checks.patch
 
-# In v26.1.14 upstream
-Patch1031: 0031-Add-DHCP-setting-for-VIF-IP-configuration.patch
-
-# In v26.1.15 upstream
-Patch1032: 0032-CA-429144-Do-not-leak-new-vbds-after-snapshot.patch
-
-# In v26.1.16 upstream
-Patch1033: 0033-quicktest-Verify-non-snapshotted-VBDs-are-not-leaked.patch
-
-# https://github.com/xapi-project/xen-api/pull/7185
-Patch1034: 0034-vlan_tag_invalid-change-the-documentation-string.patch
-Patch1035: 0035-VLAN-filtering-on-VIF.patch
-Patch1036: 0036-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
-Patch1037: 0037-xenopsd-update-xenstore-while-updating-xapi-db.patch
-Patch1038: 0038-test_vif_trunks-cover-more-coherence-checks.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
