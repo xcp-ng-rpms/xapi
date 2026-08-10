@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.13
-Release: 1%{?xsrel}.3%{?dist}
+Release: 1%{?xsrel}.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -143,6 +143,9 @@ Patch1035: 0035-VLAN-filtering-on-VIF.patch
 Patch1036: 0036-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
 Patch1037: 0037-xenopsd-update-xenstore-while-updating-xapi-db.patch
 Patch1038: 0038-test_vif_trunks-cover-more-coherence-checks.patch
+
+# Excludes linstor SRs from QCOW2 quicktests
+Patch1039: 0039-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1546,6 +1549,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Aug 10 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.13-1.4
+- Exclude linstor SRs from QCOW2 quicktests
+
 * Tue Aug 04 2026 Samuel Verschelde <stormi-xcp@ylix.fr> - 26.1.13-1.3
 - Rebuild against OpenSSL 3.0
 
