@@ -110,6 +110,13 @@ Patch1010: 0010-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
 Patch1011: 0011-xenopsd-update-xenstore-while-updating-xapi-db.patch
 Patch1012: 0012-test_vif_trunks-cover-more-coherence-checks.patch
 
+# In v26.1.20 upstream
+Patch1013: 0013-CA-428532-Ensure-db-flush-is-executed-in-shutdown_ag.patch
+
+# Exclude linstor SRs from QCOW2 quicktests
+Patch1014: 0014-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
+
+
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1515,6 +1522,8 @@ Coverage files from unit tests
 
 %changelog
 * Fri Aug 07 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.16-1.1
+- Exclude linstor SRs from QCOW2 quicktests
+- Ensure the xapi database is flushed when shutting down
 - Update to upstream 26.1.16-1
 - *** Upstream changelog ***
   * Wed Jul 15 2026 Changlei Li <changlei.li@citrix.com> - 26.1.16-1
