@@ -1,4 +1,4 @@
-From 6d76018c8804036732fda75e6cf094f3d141abac Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sebastien Rodot <sebastien.rodot@vates.tech>
 Date: Wed, 25 Mar 2026 10:16:26 +0100
 Subject: [PATCH] VLAN filtering on VIF
@@ -19,7 +19,7 @@ Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
  ocaml/idl/datamodel.ml                       |  49 +++++
  ocaml/idl/datamodel_common.ml                |   2 +-
  ocaml/idl/datamodel_errors.ml                |   2 +
- ocaml/idl/datamodel_lifecycle.ml             |   8 +
+ ocaml/idl/datamodel_lifecycle.ml             |  14 +-
  ocaml/idl/schematest.ml                      |   2 +-
  ocaml/tests/common/test_common.ml            |   4 +-
  ocaml/tests/suite_alcotest.ml                |   1 +
@@ -51,11 +51,11 @@ Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
  ocaml/xenopsd/xc/xc_resources.ml             |   3 +
  ocaml/xenopsd/xc/xenops_server_xen.ml        |  53 ++++++
  ocaml/xenopsd/xenopsd.conf                   |   1 +
- 35 files changed, 554 insertions(+), 22 deletions(-)
+ 35 files changed, 557 insertions(+), 25 deletions(-)
  create mode 100644 ocaml/tests/test_vif_trunks.ml
 
 diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
-index 033d65d26..654986bc3 100644
+index 4affe5748..0ed9e361f 100644
 --- a/ocaml/idl/datamodel.ml
 +++ b/ocaml/idl/datamodel.ml
 @@ -3829,6 +3829,48 @@ module VIF = struct
@@ -142,7 +142,7 @@ index e6df2d239..f5c8993ce 100644
  (* Historical schema versions just in case this is useful later *)
  let rio_schema_major_vsn = 5
 diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
-index 252b9ec42..6e067af6a 100644
+index 2c696b7b0..e47f1dda9 100644
 --- a/ocaml/idl/datamodel_errors.ml
 +++ b/ocaml/idl/datamodel_errors.ml
 @@ -230,6 +230,8 @@ let _ =
@@ -155,46 +155,61 @@ index 252b9ec42..6e067af6a 100644
      ~doc:"The host joining the pool must not have any network SR-IOVs." () ;
  
 diff --git a/ocaml/idl/datamodel_lifecycle.ml b/ocaml/idl/datamodel_lifecycle.ml
-index 0a0faeb7e..ecabaa13f 100644
+index 844782afb..bd977697e 100644
 --- a/ocaml/idl/datamodel_lifecycle.ml
 +++ b/ocaml/idl/datamodel_lifecycle.ml
-@@ -99,6 +99,8 @@ let prototyped_of_field = function
+@@ -98,9 +98,11 @@ let prototyped_of_field = function
+   | "VTPM", "persistence_backend" ->
        Some "22.26.0"
+   | "SM", "supported_image_formats" ->
+-      Some "26.1.13-next"
++      Some "26.1.16"
    | "SM", "host_pending_features" ->
        Some "24.37.0"
 +  | "VIF", "trunks" ->
-+      Some "26.1.13-next"
++      Some "26.1.16"
    | "host", "timezone" ->
        Some "26.0.0"
    | "host", "ntp_custom_servers" ->
-@@ -243,6 +245,12 @@ let prototyped_of_message = function
+@@ -154,7 +156,7 @@ let prototyped_of_field = function
+   | "VM", "actions__after_softreboot" ->
+       Some "23.1.0"
+   | "pool", "auto_update_vm_secureboot_certificates" ->
+-      Some "26.1.15-next"
++      Some "26.1.16"
+   | "pool", "vm_console_idle_timeout" ->
+       Some "26.1.0"
+   | "pool", "limit_console_sessions" ->
+@@ -246,7 +248,13 @@ let prototyped_of_message = function
+   | "VTPM", "create" ->
        Some "22.26.0"
    | "VDI", "revert" ->
-       Some "26.1.4-next"
+-      Some "26.1.13-next"
++      Some "26.1.16"
 +  | "VIF", "set_trunks" ->
-+      Some "26.1.13-next"
++      Some "26.1.16"
 +  | "VIF", "remove_trunks" ->
-+      Some "26.1.13-next"
++      Some "26.1.16"
 +  | "VIF", "add_trunks" ->
-+      Some "26.1.13-next"
++      Some "26.1.16"
    | "host", "set_servertime" ->
        Some "26.0.0"
    | "host", "get_ntp_synchronized" ->
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index 582a9df0b..ba93df2c6 100644
+index 8dda0f15a..a0252a834 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
  (* BEWARE: if this changes, check that schema has been bumped accordingly in
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
  
--let last_known_schema_hash = "247a7b080219583e50e3e1a3c3c85b08"
-+let last_known_schema_hash = "81831bebe5ed40abf30cbeaf1953224e"
+-let last_known_schema_hash = "8b1ea1bbae0f25d88c83a94be019951a"
++let last_known_schema_hash = "cdab429678b7c4ceb3cd62f80391929c"
  
  let current_schema_hash : string =
    let open Datamodel_types in
 diff --git a/ocaml/tests/common/test_common.ml b/ocaml/tests/common/test_common.ml
-index 6735b6405..3a8e3648d 100644
+index 41423c55c..47859d067 100644
 --- a/ocaml/tests/common/test_common.ml
 +++ b/ocaml/tests/common/test_common.ml
 @@ -278,7 +278,7 @@ let make_vif ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
@@ -433,10 +448,10 @@ index 000000000..7d8cf7d68
 +  ; ("test_trunks_move_to_vlan", `Quick, test_trunks_move_to_vlan)
 +  ]
 diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
-index 52e5ce970..749fa97f1 100644
+index 34280b70a..0291c389c 100644
 --- a/ocaml/xapi-cli-server/cli_operations.ml
 +++ b/ocaml/xapi-cli-server/cli_operations.ml
-@@ -2823,7 +2823,7 @@ let vif_create printer rpc session_id params =
+@@ -2826,7 +2826,7 @@ let vif_create printer rpc session_id params =
      Client.VIF.create ~rpc ~session_id ~device ~network ~vM ~mAC ~mTU
        ~other_config:[] ~currently_attached:false ~qos_algorithm_type:""
        ~qos_algorithm_params:[] ~locking_mode:`network_default ~ipv4_allowed:[]
@@ -446,7 +461,7 @@ index 52e5ce970..749fa97f1 100644
    let uuid = Client.VIF.get_uuid ~rpc ~session_id ~self:vif in
    printer (Cli_printer.PList [uuid])
 diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
-index 5c0ffe4b4..34d721fdc 100644
+index e55b261ef..c5258895f 100644
 --- a/ocaml/xapi-cli-server/records.ml
 +++ b/ocaml/xapi-cli-server/records.ml
 @@ -1014,6 +1014,23 @@ let vif_record rpc session_id vif =
@@ -474,7 +489,7 @@ index 5c0ffe4b4..34d721fdc 100644
    }
  
 diff --git a/ocaml/xapi-consts/api_errors.ml b/ocaml/xapi-consts/api_errors.ml
-index 026faadbb..d7d024f16 100644
+index b0dd9a523..5d2512bf2 100644
 --- a/ocaml/xapi-consts/api_errors.ml
 +++ b/ocaml/xapi-consts/api_errors.ml
 @@ -214,6 +214,9 @@ let network_has_incompatible_sriov_pifs =
@@ -534,10 +549,10 @@ index 793076f26..1401547b8 100644
      make_vifs __context vmref (i - 1)
    )
 diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
-index d2b9e2846..858c0fc0d 100644
+index a72e3fd9f..322bc9061 100644
 --- a/ocaml/xapi/message_forwarding.ml
 +++ b/ocaml/xapi/message_forwarding.ml
-@@ -4688,6 +4688,28 @@ functor
+@@ -4689,6 +4689,28 @@ functor
            Client.VIF.configure_ipv6 ~self ~mode ~address ~gateway
          in
          forward_vif_op ~local_fn ~__context ~self ~remote_fn

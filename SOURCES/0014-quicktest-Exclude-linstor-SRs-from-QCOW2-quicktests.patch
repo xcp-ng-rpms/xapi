@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 10 Aug 2026 13:51:59 +0000
+Subject: [PATCH] quicktest: Exclude linstor SRs from QCOW2 quicktests
+
+These quicktests force QCOW2 VDIs through sm-config:image-format, and error out
+on Linstor SRs, which do support the setting but don't support QCOW2.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+index 7adb16731..b9d254868 100644
+--- a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
++++ b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+@@ -295,11 +295,11 @@ let tests () =
+     )
+   @ (data_integrity_tests export_import_qcow
+        "VDI export/import to/from QCOW file" "qcow2"
+-    |> supported_srs
++    |> supported_srs ~f:(Qt_filter.SR.not_type "linstor")
+     )
+   @ (delta_data_integrity_tests delta_export_import_qcow
+        "VDI delta export/import to/from QCOW file" "qcow2"
+-    |> supported_srs
++    |> supported_srs ~f:(Qt_filter.SR.not_type "linstor")
+     )
+   @ (large_data_integrity_tests export_import_tar
+        "VDI export/import to/from TAR file" "vhd"

@@ -1,4 +1,4 @@
-From e1ea847a43374b9bfca03f3655302ccc7d76d037 Mon Sep 17 00:00:00 2001
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Sebastien Marie <semarie@kapouay.eu.org>
 Date: Wed, 25 Mar 2026 10:16:26 +0100
 Subject: [PATCH] vlan_tag_invalid: change the documentation string
@@ -12,7 +12,7 @@ Signed-off-by: Sebastien Marie <semarie@kapouay.eu.org>
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
-index 69ec2e51c..252b9ec42 100644
+index f2ecdd980..2c696b7b0 100644
 --- a/ocaml/idl/datamodel_errors.ml
 +++ b/ocaml/idl/datamodel_errors.ml
 @@ -392,8 +392,8 @@ let _ =
