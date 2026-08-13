@@ -1,0 +1,236 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Tue, 18 Aug 2026 14:28:52 +0000
+Subject: [PATCH] quicktest: Add VDI.pool_migrate tests to
+ vdi_ops_data_integrity
+
+This verifies that pool migration preserves the contents of the VDIs, not just
+that it succeeds.
+
+The new test uses the local_vdi_migration function from Quicktest_vm_migration,
+so it's parametrized for both callers.
+
+Also migrate from qcow2, not just vhd.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/quicktest/qt_filter.ml                  |  6 ++
+ ocaml/quicktest/qt_filter.mli                 |  6 ++
+ .../quicktest_vdi_ops_data_integrity.ml       | 65 +++++++++++++++++++
+ ocaml/quicktest/quicktest_vm_migration.ml     | 52 ++++++++-------
+ 4 files changed, 105 insertions(+), 24 deletions(-)
+
+diff --git a/ocaml/quicktest/qt_filter.ml b/ocaml/quicktest/qt_filter.ml
+index 7ff42ba9f..2dbf4676a 100644
+--- a/ocaml/quicktest/qt_filter.ml
++++ b/ocaml/quicktest/qt_filter.ml
+@@ -312,6 +312,12 @@ module SR = struct
+ 
+   let smapiv3 = sr_filter (fun i -> not (is_smapiv1 i))
+ 
++  let smapiv1_mig =
++    all |> not_iso |> smapiv1 |> allowed_operations [`vdi_mirror; `vdi_snapshot]
++
++  let smapiv3_mig =
++    all |> not_iso |> smapiv3 |> allowed_operations [`vdi_mirror]
++
+   let thin_pro =
+     sr_filter (has_one_of_types ["gfs2"; "nfs"; "smb"; "ext"; "file"])
+ 
+diff --git a/ocaml/quicktest/qt_filter.mli b/ocaml/quicktest/qt_filter.mli
+index 92f7bc366..8d2aec5f5 100644
+--- a/ocaml/quicktest/qt_filter.mli
++++ b/ocaml/quicktest/qt_filter.mli
+@@ -79,6 +79,12 @@ module SR : sig
+   val smapiv3 : srs -> srs
+   (** Selects SMAPIv3 SRs *)
+ 
++  val smapiv1_mig : srs
++  (** Selects SMAPIv1 SRs that support migration *)
++
++  val smapiv3_mig : srs
++  (** Selects SMAPIv3 SRs that support migration *)
++
+   val thin_pro : srs -> srs
+   (** Selects thinly-provisioned SRs *)
+ 
+diff --git a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+index b9d254868..6a205e253 100644
+--- a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
++++ b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
+@@ -77,6 +77,27 @@ let check_vdi_unchanged rpc session_id ~vdi_size ~prepare_vdi ~vdi_op
+       )
+   )
+ 
++let check_vdi_unchanged_migration rpc session_id ~vdi_size ~prepare_vdi
++    ~backing_format vm sr_infos () =
++  let checksum_original = ref "" in
++  let prepare_vdi vdi =
++    prepare_vdi rpc session_id vdi ;
++    checksum_original := checksum rpc session_id vdi
++  in
++  let post_migration vdi =
++    let checksum_copy = checksum rpc session_id vdi in
++    if checksum_copy <> !checksum_original then
++      failwith
++        (Printf.sprintf
++           "New VDI (checksum: %s) has different data than original (checksum: \
++            %s)."
++           checksum_copy !checksum_original
++        )
++  in
++  Quicktest_vm_migration.local_vdi_migration ~backing_format
++    ~virtual_size:vdi_size ~prepare_vdi ~post_migration rpc session_id vm
++    sr_infos ()
++
+ let check_vdi_delta rpc session_id ~vdi_size ~prepare_vdi ~prepare_vdi_base
+     ~vdi_op ~backing_format sr_info () =
+   let sR = sr_info.Qt.sr in
+@@ -204,6 +225,41 @@ let data_integrity_tests vdi_op op_name backing_format =
+     )
+   ]
+ 
++let migration_data_integrity_tests backing_format =
++  let op_name = Printf.sprintf "VDI.pool_migrate from %s" backing_format in
++  [
++    ( op_name ^ ": small empty VDI"
++    , `Slow
++    , check_vdi_unchanged_migration
++        ~vdi_size:Sizes.(4L ** mib)
++        ~prepare_vdi:noop ~backing_format
++    )
++  ; ( op_name ^ ": small random VDI"
++    , `Slow
++    , check_vdi_unchanged_migration
++        ~vdi_size:Sizes.(4L ** mib)
++        ~prepare_vdi:write_random_data ~backing_format
++    )
++  ; ( op_name ^ ": small full VDI"
++    , `Slow
++    , check_vdi_unchanged_migration
++        ~vdi_size:Sizes.(4L ** mib)
++        ~prepare_vdi:fill ~backing_format
++    )
++  ; ( op_name ^ ": ~2GiB empty VDI"
++    , `Slow
++    , check_vdi_unchanged_migration
++        ~vdi_size:Sizes.(2L ** gib)
++        ~prepare_vdi:noop ~backing_format
++    )
++  ; ( op_name ^ ": ~2GiB random VDI"
++    , `Slow
++    , check_vdi_unchanged_migration
++        ~vdi_size:Sizes.(2L ** gib)
++        ~prepare_vdi:write_random_data ~backing_format
++    )
++  ]
++
+ let delta_data_integrity_tests vdi_op op_name backing_format =
+   [
+     ( op_name ^ ": delta between empty & empty VDI"
+@@ -274,6 +330,13 @@ let supported_gfs2_srs test_case =
+   let open Qt_filter in
+   test_case |> conn |> sr (sr_with_vdi_create_destroy |> SR.has_type "gfs2")
+ 
++let supported_migration_srs test_case =
++  let open Qt_filter in
++  test_case
++  |> conn
++  |> vm_template Qt.VM.Template.other
++  |> migration_path SR.smapiv1_mig
++
+ let tests () =
+   (data_integrity_tests copy_vdi "VDI.copy" "vhd" |> supported_srs)
+   @ (large_data_integrity_tests copy_vdi "VDI.copy" "vhd" |> supported_srs)
+@@ -305,3 +368,5 @@ let tests () =
+        "VDI export/import to/from TAR file" "vhd"
+     |> supported_gfs2_srs
+     )
++  @ (migration_data_integrity_tests "vhd" |> supported_migration_srs)
++  @ (migration_data_integrity_tests "qcow2" |> supported_migration_srs)
+diff --git a/ocaml/quicktest/quicktest_vm_migration.ml b/ocaml/quicktest/quicktest_vm_migration.ml
+index 6738cf724..96b036979 100644
+--- a/ocaml/quicktest/quicktest_vm_migration.ml
++++ b/ocaml/quicktest/quicktest_vm_migration.ml
+@@ -1,4 +1,5 @@
+-let local_vdi_migration rpc session_id vm_template
++let local_vdi_migration ?backing_format ~virtual_size ~prepare_vdi
++    ~post_migration rpc session_id vm_template
+     ((src_sr_info, dst_sr_info) : Qt.sr_info * Qt.sr_info) () =
+   let open Client in
+   Printf.printf "Testing migration from %s to %s\n"
+@@ -6,12 +7,11 @@ let local_vdi_migration rpc session_id vm_template
+     (Client.SR.get_name_label ~rpc ~session_id ~self:dst_sr_info.sr) ;
+ 
+   (* Create a VDI on src *)
+-  let vdi =
+-    Client.VDI.create ~rpc ~session_id ~name_label:"[QT] testing migration"
+-      ~name_description:__FILE__ ~sR:src_sr_info.sr ~virtual_size:2097152L
+-      ~_type:`user ~sharable:false ~read_only:false ~other_config:[]
+-      ~xenstore_data:[] ~sm_config:[] ~tags:[]
+-  in
++  Qt.VDI.with_new ~name_label:"[QT] testing migration"
++    ~name_description:__FILE__ ~virtual_size ?backing_format rpc session_id
++    src_sr_info.sr
++  @@ fun vdi ->
++  prepare_vdi vdi ;
+ 
+   (* Track which VDI must be destroyed at cleanup time. After migration, ownership
+      moves from the original VDI to the migrated one. *)
+@@ -43,7 +43,9 @@ let local_vdi_migration rpc session_id vm_template
+           in
+ 
+           Alcotest.(check string)
+-            "VDI migrated to destination SR" expected actual
++            "VDI migrated to destination SR" expected actual ;
++
++          post_migration migrated_vdi
+       )
+     )
+     (fun () ->
+@@ -51,27 +53,29 @@ let local_vdi_migration rpc session_id vm_template
+     )
+ 
+ let tests () =
+-  let smapiv1_mig =
+-    Qt_filter.SR.(
+-      all
+-      |> not_iso
+-      |> smapiv1
+-      |> allowed_operations [`vdi_mirror; `vdi_snapshot]
+-    )
+-  in
+-  let smapiv3_mig =
+-    Qt_filter.SR.(all |> not_iso |> smapiv3 |> allowed_operations [`vdi_mirror])
+-  in
+-
++  let prepare_vdi = fun _ -> () in
++  let post_migration = fun _ -> () in
+   let open Qt_filter in
+   [
+-    [("SMAPIv1 migration test", `Slow, local_vdi_migration)]
++    [
++      ( "SMAPIv1 migration test"
++      , `Slow
++      , local_vdi_migration ~backing_format:"vhd" ~virtual_size:2097152L
++          ~prepare_vdi ~post_migration
++      )
++    ]
+     |> conn
+     |> vm_template Qt.VM.Template.other
+-    |> migration_path smapiv1_mig
+-  ; [("SMAPIv3 migration test", `Slow, local_vdi_migration)]
++    |> migration_path SR.smapiv1_mig
++  ; [
++      ( "SMAPIv3 migration test"
++      , `Slow
++      , local_vdi_migration ~backing_format:"vhd" ~virtual_size:2097152L
++          ~prepare_vdi ~post_migration
++      )
++    ]
+     |> conn
+     |> vm_template Qt.VM.Template.other
+-    |> migration_path smapiv3_mig
++    |> migration_path SR.smapiv3_mig
+   ]
+   |> List.concat

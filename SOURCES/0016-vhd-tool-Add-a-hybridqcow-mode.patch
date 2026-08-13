@@ -1,0 +1,227 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 12 Aug 2026 10:58:28 +0000
+Subject: [PATCH] vhd-tool: Add a hybridqcow mode
+
+This will be used if the disk has a backing qcow2 image, in which case the
+table of allocated clusters will be consulted (Vhd_qcow_parsing is used as the
+library handling this, which calls qemu-img under the hood).
+
+This means that QCOW2-backed VDIs are no longer treated as raw during migration.
+This greatly speeds up migration for sparse QCOW2-backed VDIs, since only the
+allocated clusters will now be transferred.
+
+The 'relative_to' parameter is not currently implemented for QCOW2, with the
+whole VDI transferred, not only the difference.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/libs/vhd/vhd_format/f.ml  | 43 +++++++++++++++++++++++++++++++++
+ ocaml/libs/vhd/vhd_format/f.mli |  2 ++
+ ocaml/vhd-tool/cli/sparse_dd.ml | 14 +++++++++++
+ ocaml/vhd-tool/src/dune         |  1 +
+ ocaml/vhd-tool/src/image.ml     |  9 ++++++-
+ ocaml/vhd-tool/src/image.mli    |  3 ++-
+ ocaml/vhd-tool/src/impl.ml      | 20 +++++++++++++++
+ 7 files changed, 90 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
+index c3bf4dce4..99a2239a9 100644
+--- a/ocaml/libs/vhd/vhd_format/f.ml
++++ b/ocaml/libs/vhd/vhd_format/f.ml
+@@ -2822,6 +2822,47 @@ functor
+                 )
+                 to_include false
+ 
++      let qcow_common raw cluster_size cluster_list =
++        let cluster_to_sector x =
++          Int64.of_int (x * cluster_size / sector_size)
++        in
++        let cluster_to_byte x = Int64.of_int (x * cluster_size) in
++        let empty_clusters x = `Empty (cluster_to_sector x) in
++        let copy_clusters offset len =
++          `Copy (raw, cluster_to_sector offset, cluster_to_sector len)
++        in
++        let rec cluster i = function
++          | (start_cluster, _) :: _ as lst when i < start_cluster ->
++              let len = start_cluster - i in
++              let next_cluster () = cluster start_cluster lst in
++              return (Cons (empty_clusters len, next_cluster))
++          | (start_cluster, end_cluster) :: tail ->
++              let len = end_cluster - start_cluster + 1 in
++              let next_cluster () = cluster (end_cluster + 1) tail in
++              return (Cons (copy_clusters start_cluster len, next_cluster))
++          | [] ->
++              return End
++        in
++        let rec count i size = function
++          | (start_cluster, _) :: _ as lst when i < start_cluster ->
++              let len = start_cluster - i in
++              let size =
++                {size with empty= Int64.(add size.empty (cluster_to_byte len))}
++              in
++              count start_cluster size lst
++          | (start_cluster, end_cluster) :: tail ->
++              let len = end_cluster - start_cluster + 1 in
++              let size =
++                {size with copy= Int64.(add size.copy (cluster_to_byte len))}
++              in
++              count (end_cluster + 1) size tail
++          | [] ->
++              size
++        in
++        let elements = cluster 0 cluster_list in
++        let size = count 0 empty cluster_list in
++        elements >>= fun elements -> return {elements; size}
++
+       let raw_common ?from ?(raw : 'a) (vhd : fd Vhd.t) =
+         let block_size_sectors_shift =
+           vhd.Vhd.header.Header.block_size_sectors_shift
+@@ -3204,6 +3245,8 @@ functor
+       let vhd ?from (raw : 'a) (vhd : fd Vhd.t) =
+         Vhd_input.vhd_common ?from ~raw vhd
+ 
++      let qcow raw qcow_info = Vhd_input.qcow_common raw qcow_info
++
+       let blocks_json = Vhd_input.vhd_blocks_to_json
+ 
+       let blocks_json_interval = Vhd_input.vhd_blocks_to_json_interval
+diff --git a/ocaml/libs/vhd/vhd_format/f.mli b/ocaml/libs/vhd/vhd_format/f.mli
+index fdeca3ad1..77c8c6d99 100644
+--- a/ocaml/libs/vhd/vhd_format/f.mli
++++ b/ocaml/libs/vhd/vhd_format/f.mli
+@@ -469,6 +469,8 @@ module From_file : functor (F : S.FILE) -> sig
+         stream will contain only the virtual updates required to transform
+         [from] into [t] *)
+ 
++    val qcow : fd -> int -> (int * int) list -> fd stream t
++
+     val blocks_json : fd Vhd.t -> unit t
+ 
+     val blocks_json_interval : fd Vhd.t -> unit t
+diff --git a/ocaml/vhd-tool/cli/sparse_dd.ml b/ocaml/vhd-tool/cli/sparse_dd.ml
+index ab8d87969..b958594a2 100644
+--- a/ocaml/vhd-tool/cli/sparse_dd.ml
++++ b/ocaml/vhd-tool/cli/sparse_dd.ml
+@@ -413,6 +413,8 @@ let _ =
+         Some x
+     | Some (`Raw _) ->
+         None
++    | Some (`Qcow _) ->
++        None (* TODO: make delta copies work with QCOW *)
+     | Some (`Nbd _) ->
+         None (* TODO: make delta copies work with NBD, CA-289660 *)
+     | None ->
+@@ -475,6 +477,18 @@ let _ =
+           Impl.make_stream common (src ^ ":" ^ vhd) relative_to "hybrid" "raw"
+         in
+         (t, dest, "raw")
++    | _, Some (`Qcow qcow), _, _ ->
++        (* experimental tapdisk bypass mode is not supported for QCOW2, assume false *)
++        let dest = rewrite_url dest in
++        info
++          "streaming from raw %s using BAT from %s (relative to %s) to raw %s"
++          src qcow (string_opt relative_to) dest ;
++        let t =
++          Impl.make_stream common
++            (src ^ ":" ^ qcow)
++            relative_to "hybridqcow" "raw"
++        in
++        (t, dest, "raw")
+     | _, Some (`Nbd (server, export_name)), _, _ ->
+         let dest = rewrite_url dest in
+         let t =
+diff --git a/ocaml/vhd-tool/src/dune b/ocaml/vhd-tool/src/dune
+index 9092e4e03..c4724901b 100644
+--- a/ocaml/vhd-tool/src/dune
++++ b/ocaml/vhd-tool/src/dune
+@@ -28,6 +28,7 @@
+     unix
+     uri
+     uuidm
++    vhd_qcow_parsing
+     vhd-format
+     vhd-format-lwt
+     tapctl
+diff --git a/ocaml/vhd-tool/src/image.ml b/ocaml/vhd-tool/src/image.ml
+index c28e50f16..2583d6e31 100644
+--- a/ocaml/vhd-tool/src/image.ml
++++ b/ocaml/vhd-tool/src/image.ml
+@@ -8,11 +8,14 @@ let is_nbd_device path =
+   let Stat.{major; _} = get_device_numbers path in
+   major = nbd_device_num
+ 
+-type t = [`Vhd of string | `Raw of string | `Nbd of string * string]
++type t =
++  [`Vhd of string | `Qcow of string | `Raw of string | `Nbd of string * string]
+ 
+ let to_string = function
+   | `Vhd x ->
+       "vhd:" ^ x
++  | `Qcow x ->
++      "qcow:" ^ x
+   | `Raw x ->
+       "raw:" ^ x
+   | `Nbd (x, y) ->
+@@ -56,6 +59,8 @@ let image_behind_nbd_device image =
+           match Tapctl.find (Tapctl.create ()) ~pid ~minor with
+           | _, _, Some ("vhd", vhd) ->
+               Some (`Vhd vhd)
++          | _, _, Some ("qcow2", qcow) ->
++              Some (`Qcow qcow)
+           | _, _, Some ("aio", vhd) ->
+               Some (`Raw vhd)
+           | _, _, _ | (exception _) ->
+@@ -68,6 +73,8 @@ let of_device path =
+   match Tapctl.of_device (Tapctl.create ()) path with
+   | Some (_, _, Some ("vhd", vhd)) ->
+       Some (`Vhd vhd)
++  | Some (_, _, Some ("qcow2", qcow)) ->
++      Some (`Qcow qcow)
+   | Some (_, _, Some ("aio", vhd)) ->
+       Some (`Raw vhd)
+   | _ ->
+diff --git a/ocaml/vhd-tool/src/image.mli b/ocaml/vhd-tool/src/image.mli
+index 439042d65..14b053283 100644
+--- a/ocaml/vhd-tool/src/image.mli
++++ b/ocaml/vhd-tool/src/image.mli
+@@ -1,6 +1,7 @@
+ (** An image may either be backed by a vhd-format file or a
+     raw-format file. *)
+-type t = [`Vhd of string | `Raw of string | `Nbd of string * string]
++type t =
++  [`Vhd of string | `Qcow of string | `Raw of string | `Nbd of string * string]
+ 
+ val to_string : t -> string
+ (** Pretty-print the image *)
+diff --git a/ocaml/vhd-tool/src/impl.ml b/ocaml/vhd-tool/src/impl.ml
+index 6c7595351..ac93b1a5c 100644
+--- a/ocaml/vhd-tool/src/impl.ml
++++ b/ocaml/vhd-tool/src/impl.ml
+@@ -878,6 +878,26 @@ let make_stream common source relative_to source_format destination_format =
+              )
+           )
+   )
++  | "hybridqcow", "raw" -> (
++    (* expect source to be block_device:qcow *)
++    match split ~limit:2 ~sep:':' source with
++    | [raw; qcow] ->
++        let cluster_size, cluster_list =
++          Vhd_qcow_parsing.Qcow.parse_header_interval qcow
++        in
++        (* TODO: respect relative_to *)
++        Vhd_format_lwt.IO.openfile raw false >>= fun raw ->
++        Hybrid_input.qcow raw cluster_size cluster_list
++    | _ ->
++        fail
++          (Failure
++             (Printf.sprintf
++                "Failed to parse hybrid source: %s (expected \
++                 raw_disk|qcow_image)"
++                source
++             )
++          )
++  )
+   | "hybrid", "vhd" -> (
+     (* expect source to be block_device:vhd *)
+     match split ~limit:2 ~sep:':' source with

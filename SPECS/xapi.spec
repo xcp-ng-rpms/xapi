@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.16
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -116,7 +116,9 @@ Patch1013: 0013-CA-428532-Ensure-db-flush-is-executed-in-shutdown_ag.patch
 # Exclude linstor SRs from QCOW2 quicktests
 Patch1014: 0014-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 
-
+Patch1015: 0015-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
+Patch1016: 0016-vhd-tool-Add-a-hybridqcow-mode.patch
+Patch1017: 0017-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1521,6 +1523,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Aug 19 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.16-1.2
+- Optimize migration from QCOW2-backed VDIs
+
 * Fri Aug 07 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.16-1.1
 - Exclude linstor SRs from QCOW2 quicktests
 - Ensure the xapi database is flushed when shutting down
