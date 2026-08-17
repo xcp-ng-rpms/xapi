@@ -125,6 +125,8 @@ Patch1018: 0018-storage-Add-tags-to-vdi_info-struct.patch
 Patch1019: 0019-storage-Add-VDI.-add_tags-remove_tags-methods.patch
 Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
 
+Patch1021: 0001-Add-hvm-pirq-platform-key.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
