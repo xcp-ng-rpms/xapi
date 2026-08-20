@@ -1,5 +1,5 @@
-%global package_speccommit 975eeff49e5be3ef6614bd5fc87c5945fdb559bf
-%global package_srccommit v26.1.3
+%global package_speccommit 9b06d1a01d5d82a4885021a88cee7d07be5e0514
+%global package_srccommit v26.4.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -12,7 +12,11 @@
 %bcond_without dnf_plugin
 %bcond_without own_yum_dir
 # XS9 requires extra configration
+%if 0%{?xcpng}
+%bcond_with extra_config
+%else
 %bcond_without extra_config
+%endif
 # XS9 reset all epoch to 0
 %define qemu_epoch 0
 %else
@@ -27,12 +31,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.3
-Release: 1%{?xsrel}.4%{?dist}
+Version: 26.4.0
+Release: 1%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.3.tar.gz
+Source0: xen-api-26.4.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -60,29 +64,25 @@ Source23: inventory.py
 # For xs9, move these config files from xenserver-release
 Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
+%if %{with extra_config}
 # Extra configuration
-#Source26: xenserver9.conf
+Source26: xenserver9.conf
+%endif
 # replace NTP configuration
 Source27: xcpng-ntp.conf
 
-# Xapi compiles to a baseline of Xen 4.17
-
-# Xen 4.20
-%if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
-Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
-Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
-Patch3: 0004-rrd3.patch
-Patch5: 0003-CP-53658-adapt-claim_pages-to-version-in-xen-4.21-wi.patch
-Patch6: 0005-xenopsd-xc-do-not-try-keep-track-of-free-memory-when.patch
-Patch7: CP-54065-xenopsd-log-xenguest-mem_pnode-for-debuggin.patch
-%endif
+# Xapi compiles to a baseline of Xen 4.20
 
 # Xen 4.21
+%if "%{dist}" == ".xsx"
+Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
+Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
+%endif
+
+# Xen upstream
 %if "%{dist}" == ".xsu"
-Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
-Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
-Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
-Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
+Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
+Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
 
 # XCP-ng patches
@@ -99,18 +99,10 @@ Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 
-# Upstream PR: https://github.com/xapi-project/xen-api/pull/6895
-# Temporarily dropped unit test commits to avoid qemu-img build dependency,
-# flipped the xapi.conf switch
-Patch1007: 0007-qcow-stream-tool-Switch-read_headers-to-the-interval.patch
-Patch1008: 0008-xapi_globs-Add-vhd_legacy_blocks_format-feature-flag.patch
-Patch1009: 0009-vhd-tool-Add-read_headers_interval-command.patch
-Patch1010: 0010-vhd_qcow_parsing-Add-parse_header_interval-for-inter.patch
-Patch1011: 0011-python3-qcow2-to-stdout-Implement-Interval-for-check.patch
-Patch1012: 0012-python3-qcow2-to-stdout-Switch-to-sparse-interval-fo.patch
-Patch1013: 0013-xapi-qcow_tool_wrapper-Add-note-on-using-header-info.patch
-Patch1014: 0014-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
-
+# XS patches (present in v26.9.0)
+Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
+Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
+Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -151,6 +143,11 @@ Group: System/Hypervisor
 %if 0%{?coverage:1}
 Requires:       %{name}-cov = %{version}-%{release}
 %endif
+Requires: xenopsd-xc
+Requires: xapi-xe
+Requires: squeezed
+Requires: xcp-featured
+Requires: initscripts
 Requires: hwdata
 Requires: /usr/sbin/ssmtp
 Requires: stunnel >= 5.55
@@ -163,6 +160,8 @@ Requires: vmss
 Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
+# Requires c_rehash from openssl-perl
+Requires: openssl-perl
 # XCP-ng: hcp_nss was renamed to nss-override-id. We don't use it at the moment.
 #Requires: nss-override-id >= 2.0.0
 %if 0%{?xenserver} < 9
@@ -175,16 +174,21 @@ Requires: yum-utils >= 1.1.31
 Requires: net-tools
 %else
 Requires: dnf
+# XCP-ng BEGIN: remove Requires for xs-specific plugins
+%if ! 0%{?xcpng}
 # This is for the following dnf5 plugin which are used by xapi
 Requires: libdnf5-plugin-ptoken
 Requires: libdnf5-plugin-accesstoken
 Requires: libdnf5-plugin-xapitoken
 # For dnf plugins like config-manager
 Requires: dnf5-plugins
+%endif
 Requires: dmv-utils
 %endif
 Requires: python3-xcp-libs
+%if %{with python2_compat}
 Requires: python2-pyudev
+%endif
 Requires: python3-pyudev
 Requires: gmp
 # XCP-ng: remove Requires for proprietary components
@@ -204,7 +208,12 @@ Requires: sm
 Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
 %if 0%{?xenserver} >= 9
+%if 0%{?xcpng}
+# missing files prevent enabling firewalld
+Requires: iptables-legacy
+%else
 Requires: firewalld
+%endif
 %else
 # firewall-port needs iptables-service to perform
 # `service iptables save`
@@ -331,7 +340,9 @@ Simple VM manager for the xapi toolstack.
 %package -n xenopsd-xc
 Summary:        Xenopsd using xc
 Requires:       xenopsd = %{version}-%{release}
+Requires:       xen-hypervisor
 Requires:       forkexecd
+Requires:       xcp-networkd
 Requires:       xen-libs
 Requires:       emu-manager
 # NVME support requires newer qemu
@@ -342,8 +353,10 @@ Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
 %if 0%{?xenserver} >= 9
 # NUMA memory claims v2
-Requires:       xen-hypervisor >= 4.20.1-5
-Requires:       xen-dom0-libs >= 4.20.1-5
+Requires:       xen-hypervisor >= 4.20.2-5
+Requires:       xen-dom0-libs >= 4.20.2-5
+Requires:       xen-dom0-tools >= 4.20.2-5
+Requires:       kernel >= 6.6.98-18
 %endif
 
 %description -n xenopsd-xc
@@ -398,6 +411,7 @@ developing applications that use xcp-rrdd.
 %package -n rrdd-plugins
 Summary:   RRDD metrics plugin
 Requires:  jemalloc
+Requires:  sysstat
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
 # Requires Xen support for querying domain VCPU runnable and nonaffine running time
@@ -429,7 +443,12 @@ Requires: libnl3
 # XCP-ng: remove Requires to proprietary component
 # Requires: pvsproxy
 Requires: bridge-utils
+%if 0%{?xcpng}
+Requires: dhcp-client
+%else
 Requires: dhclient
+%endif
+Requires: openvswitch
 
 %description -n xcp-networkd
 Simple host networking management service for the xapi toolstack.
@@ -466,6 +485,8 @@ Summary:        A subprocess management service
 BuildRequires:  xs-opam-repo
 BuildRequires:  systemd-devel
 Requires:       jemalloc
+Requires:       dmidecode
+Requires:       kpatch
 %{?systemd_requires}
 Obsoletes:      xapi-forkexecd <= 1.31.0-2
 
@@ -584,6 +605,43 @@ rm -rf %{buildroot}
 export OCAMLPATH=%{_ocamlpath}
 DESTDIR=$RPM_BUILD_ROOT %{__make} install
 
+mkdir -p \
+    $RPM_BUILD_ROOT/usr/libexec/xapi/cluster-stack \
+    $RPM_BUILD_ROOT/opt/xensource/www \
+    $RPM_BUILD_ROOT/var/lib/xcp
+echo /usr/libexec/xapi/cluster-stack >> core-files
+echo /opt/xensource/www >> core-files
+echo /var/lib/xcp >> core-files
+
+# HACK: fix dune-build-info's job: replace $sha-dirty strings with version
+# 3 cases to be handled:
+# - no .git inside any directory in $PWD, which happens inside Koji buildroot
+# - [ -r ./.git ], i.e. launching rpmbuild from inside a xcp-ng-rpms/xapi git worktree
+# - one directory above $PWD has a .git (which we ought to be able to protect from using
+#   GIT_CEILING_DIRECTORIES), which typically happens inside meta-xcpng
+# Note: when building from a SRPM there is no git history
+if git rev-parse --git-dir; then
+    dirtystr=$(git describe --always --dirty --abbrev=7)
+    dirtylen=${#dirtystr}
+    version=%{version}
+    verlen=${#version}
+    # since we use sed we have to write as many bytes, so pad with spaces
+    fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+    replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+    grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+        xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+    sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+fi
+
+# make sure we don't have any "-dirty" string in the build
+if grep -r -e "-dirty" $RPM_BUILD_ROOT >/dev/null; then
+    # ignore legit symbol "xen-set-global-dirty-log"
+    if grep -rl -e "-dirty" $RPM_BUILD_ROOT | xargs strings | grep -e "-dirty" | grep -v xen-set-global-dirty-log; then
+        echo >&2 "Found '-dirty' string in above files"
+        exit 1
+    fi
+fi
+
 (cd %{xapi_storage_path} && (%{py3_build}) && (%{py3_install}))
 for f in XenAPI XenAPIPlugin inventory observer; do
     echo %{python3_sitelib}/$f.py
@@ -606,12 +664,10 @@ done
 
 %if %{with dnf_plugin}
 # For xs9, use dnf instead of yum, clean yum stuff
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
-rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/xapitoken.py
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
-rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/xapitoken.conf
+## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
+rm -r %{buildroot}/etc/yum/pluginconf.d/
+rm -r %{buildroot}/%{_usr}/lib/yum-plugins/
+## XCP-ng END
 %else
 ## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
 ## # For xs8, use yum
@@ -698,7 +754,9 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 %if 0%{?xenserver} < 9
 echo "ssh-auto-mode=false" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
 %else
+%if ! 0%{?xcpng}
 echo "firewall-backend=firewalld" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/firewall-backend.conf
+%endif
 %endif
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
@@ -965,7 +1023,7 @@ systemctl start wsproxy.socket >/dev/null 2>&1 || :
 ## upgrades. This is because there is no way to distinguish upgrades from other kinds of transactions
 ## in RPM < 4.12, see https://pagure.io/packaging-committee/issue/1051.
 ## This (and likely the daemon-reload above) should really be fixed with XS9, though it isn't a huge issue
-plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/cut -d' ' -f1)
+plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /usr/bin/cut -d' ' -f1)
 # XCP-ng: remove pvsproxy.service as it's a proprietary component
 /usr/bin/systemctl restart $plugins 'qemu-stats@*' 2>&1 || :
 #systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service 2>&1 || :
@@ -1131,7 +1189,9 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 %if 0%{?xenserver} < 9
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
 %else
+%if ! 0%{?xcpng}
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/firewall-backend.conf
+%endif
 %endif
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
@@ -1509,6 +1569,118 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Jul 07 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
+- Sync packaging with XS9
+- Do not require python2-udev on v9+
+- Add some missing Requires
+- Fix xcp-rrdd posttans parsing of systemctl output
+- Add in core directories whose lack blocks startup:
+  /usr/libexec/xapi/cluster-stack /opt/xensource/www /var/lib/xcp
+- Fix extra_file logic used for xenserver9.conf
+- Backport upstream patches for QEMU 10 compatibility (CP-312095)
+- Add a safety net to abort build when binaries embed a version then cannot grok
+- Hacks and temporary measures:
+  - On XCP-ng 9, require dhcp-client not dhclient
+  - Revert the 26.1.3-1.4 changes relying on qcow support in xs-opam
+  - Stay away from firewalld for now, use iptables-legacy
+  - Replace $sha-dirty strings with $version
+- *** Upstream changelog ***
+  * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
+  - xapi_sm: remove nested call to serialize function
+  - xapi_sm: add interface
+  - listext: add better description to set_difference
+  - storage_access: split the code off that queries message switch for SMAPIv2 plugins
+  - storage_access: share code for unregistering plugins
+  - storage_access: avoid the addition of multiple SM with the same type
+  - xapi_sm: Don't allow host_pending_features that are empty
+  - storage_access: log when there are SM duplicates on startup
+  - Don't block switching to a different edition when HA is enabled
+  - CP-423204: add new xenctrl field claimed to xenctrlext
+  - CP-423204: use new xenctrlext field node_meminfo.claimed
+  - CP-423204: use new xenctrlext function HostNuma.numa_get_meminfo
+  - CP-311020: ldaps design: declare error codes
+  - CA-423369: fix suspend-SR space check
+  - CP-309998: ignore small amount of pages in other nodes
+  
+  * Fri Jan 30 2026 Rob Hoes <rob.hoes@citrix.com> - 26.3.0-1
+  - CP-311020: Design for enabling ldaps for external auth
+  - Check that suspend SR has enough space to save VM state
+  - CP-309060: Domain CPU RRD3 metric - numa_node_nonaffine_vcpus
+  - xenopsd/xc: adapt claim_pages to new single numa node version (CP-53658)
+  - xenopsd-xc: do not try keep track of free memory when planning NUMA nodes (CA-411684)
+  - CP-54238: RRD4: rebase over rrdp_squeezed.ml
+  - CA-412929: work around a small amount of internal pages in unclaimed node
+  - CP-310822: RRD4 :link Xenctrlext in rrdp-squeezed
+  - Update datamodel lifecycle
+  - CP-53658: only use xc_domain_claim_pages_node if defined
+  - reformat code using latest ocamlformat 0.28.1
+  - CP-310822: use only xenctrlext
+  - CA-422713: XSI-2105: Pool.join failed due to AD status corrupt
+  - CA-419840 mark CD VBD as empty when its VDI is removed
+  - CP-311102: Make migration timeouts configurable
+  - CA-423064: Trigger group upgrades in addition to package upgrades
+  - datamodel_errors: generalize error for sr_suspend_space_insufficient
+  - CA-423064: Also check group upgrade when determining updates available
+  - qcow-stream-tool: Use tail-recursive functions in read_headers
+  - Don't depend on LANG for running tests
+  - Fix -Wreturn-type warning in xenctrlext_stubs.c
+  - CA-423213: Fix bundle URL construct
+  - CP-311020: Add force option to external_auth_set_ldaps for debug
+  - Don't use CRLs for pool internal host-host TLS communications
+  - stunnel: add doccoments to the configuration functions
+  - CA-423173: XAPI underestimates low memory emergency pool size
+  - [maintenance]: fix formatting
+  - CA-423172: Xen uses ~294 pages/vCPU, not 256
+  - CA-422187: only ENOMEM is retrieable when a single-node NUMA claim fails
+  - CA-422187,CA-422188: either always use claims or never use claims
+  - CA-422187: more accurate debug messages
+  - CA-422187: plumb migration pages through
+  - CP-311165 XSI-1958 rely on Linux guest to announce control features
+  - CP-311215: Remove legacy PBIS code
+  - CA-414586 add message-limit to xapi.conf
+  - CP-311169: samba: include /etc/samba/smb.extra.conf
+  
+  * Mon Jan 19 2026 Rob Hoes <rob.hoes@citrix.com> - 26.2.0-1
+  - Numa: add to xenopsd/xapi events
+  - CP-309998: Add NUMA fields to VM_metrics
+  - CP-309998: Set NUMA VM metrics from xapi_xenops
+  - CP-309998: Add NUMA VM metrics to CLI
+  - CLI: add get_map to numa-node-memory
+  - Prepare NUMA/Xen bindings
+  - Use #ifdef XEN_DOMCTL_NUMA_OP_GET_NODE_PAGES
+  - Update VM's numa state
+  - docs: add documentation about setting up alarms
+  - [perfmon] Fix typo in variable name
+  - xapi-stdext: remove unused functions from listext
+  - xapi-stdext: consolidate listext's chop tests
+  - xapi-stdext: introduce split_at to listext
+  - xapi-stdext: replace List's chop with split_at
+  - stunnel_cache: remove ad-hoc chop implementation
+  - stunnel_cache: use timestamps for cache evictions instead of IDs
+  - xapi: remove some usages of common, exception-raising functions
+  - xapi-consts: use a variant to reify valid values of cluster stack
+  - xapi: open firewall for XHAd only if xHAd is actually selected
+  - localdb: expose option-based get functions
+  - xapi_ha: avoid raising Not_found when joining a liveset
+  - quality-gate: capture more unnecessary List.length cases
+  - xapi_ha: add more information to not found errors
+  - quicktest: reduce indentation in vdi module
+  - quicktest: test tags being copied on vdi clone and snapshot
+  - xapi_vdi: copy tags on VDI clone and snapshot
+  - CA-419238: Remove /etc/dnf/repos.override.d/99-config_manager.repo after using
+  - CP-309791: Update samba to 4.21
+  - CP-310555: Rotate machine password through winbind
+  - Adjust new test code for numa changes
+  - CP-310822: use stub_xc_domain_numa_get_node_pages from Xen
+  - CP-310956: Remove legacy winbind configuration
+  - Update API lifecycle information
+  - Update lifecycle meta data for NUMA API calls
+  - Xen-4.19+ domctl_create_config.vmtrace_buf_kb
+  - Xen-4.20+ domctl_create_config.altp2m_ops
+  - CA-422448: Write proxy credentials to repo file instead of command line
+  - Make proxy_config non-optional
+  - CA-419840 improve logging for VDI.forget
+
 * Fri Mar 6 2026 Andrii Sultanov <andriy-sultanov@vates.tech> - 26.1.3-1.4
 - Switch to optimized data cluster format for VHD and QCOW,
   reducing memory consumption on QCOW import
