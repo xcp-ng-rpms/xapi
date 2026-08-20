@@ -120,6 +120,11 @@ Patch1015: 0015-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
 Patch1016: 0016-vhd-tool-Add-a-hybridqcow-mode.patch
 Patch1017: 0017-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
 
+# In v26.1.20 upstream
+Patch1018: 0018-storage-Add-tags-to-vdi_info-struct.patch
+Patch1019: 0019-storage-Add-VDI.-add_tags-remove_tags-methods.patch
+Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1525,6 +1530,7 @@ Coverage files from unit tests
 %changelog
 * Wed Aug 19 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.16-1.2
 - Optimize migration from QCOW2-backed VDIs
+- Preserve VDI tags on migration
 
 * Fri Aug 07 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.16-1.1
 - Exclude linstor SRs from QCOW2 quicktests
