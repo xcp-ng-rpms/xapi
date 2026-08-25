@@ -1,0 +1,182 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 18 May 2026 13:04:20 +0000
+Subject: [PATCH] storage: Add tags to vdi_info struct
+
+This is the first step towards allowing SMAPIv1/v3 code to preserve tags
+on VDI migrations.
+
+Also modifies the tests by adding the new 'tags' field.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+(cherry picked from commit 51b30303a041ce969e874d15d0e1569f524ee207)
+---
+ ocaml/xapi-idl/storage/storage_interface.ml               | 1 +
+ ocaml/xapi-storage-script/main.ml                         | 2 ++
+ ocaml/xapi-storage-script/python-self-test.t              | 8 ++++----
+ .../test/volume/org.xen.xapi.storage.dummyv5/sr.py        | 1 +
+ .../test/volume/org.xen.xapi.storage.dummyv5/volume.py    | 2 ++
+ ocaml/xapi-storage/rpc-light/SR.ls/response               | 1 +
+ ocaml/xapi-storage/rpc-light/Volume.clone/response        | 1 +
+ ocaml/xapi-storage/rpc-light/Volume.create/response       | 1 +
+ ocaml/xapi-storage/rpc-light/Volume.snapshot/response     | 1 +
+ ocaml/xapi/storage_smapiv1.ml                             | 1 +
+ 10 files changed, 15 insertions(+), 4 deletions(-)
+
+diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
+index ebcf64276..f2a88379a 100644
+--- a/ocaml/xapi-idl/storage/storage_interface.ml
++++ b/ocaml/xapi-idl/storage/storage_interface.ml
+@@ -231,6 +231,7 @@ type vdi_info = {
+     persistent: bool [@default true]
+   ; sharable: bool [@default false]
+   ; sm_config: (string * string) list [@default []]
++  ; tags: string list [@default []]
+ }
+ [@@deriving rpcty]
+ 
+diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
+index 97e020be6..b24d6ba6a 100644
+--- a/ocaml/xapi-storage-script/main.ml
++++ b/ocaml/xapi-storage-script/main.ml
+@@ -777,6 +777,7 @@ let vdi_of_volume x =
+         x.Xapi_storage.Control.keys
+   ; sharable= x.Xapi_storage.Control.sharable
+   ; persistent= true
++  ; tags= []
+   }
+ 
+ let choose_datapath ?(persistent = true) response =
+@@ -2173,6 +2174,7 @@ let self_test_plugin ~root_dir plugin =
+         ; persistent= false
+         ; sm_config= []
+         ; sharable= false
++        ; tags= []
+         }
+       in
+       Test.VDI.create rpc dbg sr vdi_info >>= fun vdi_info ->
+diff --git a/ocaml/xapi-storage-script/python-self-test.t b/ocaml/xapi-storage-script/python-self-test.t
+index 7be4876c6..4741e4f58 100644
+--- a/ocaml/xapi-storage-script/python-self-test.t
++++ b/ocaml/xapi-storage-script/python-self-test.t
+@@ -21,16 +21,16 @@ pids and uuids
+   [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/SR.stat[PID] succeeded: {"sr": "file:///tmp/dummy", "name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "total_space": 0, "free_space": 0, "datasources": [], "clustered": false, "health": ["Healthy", ""]}
+   
+   [INFO] {"method":"Volume.create","params":[{"sharable":false,"size":0,"description":"vdi description","name":"vdi name","sr":"file:///tmp/dummy","dbg":"debug"}],"id":12}
+-  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.create[PID] succeeded: {"name": "vdi name", "description": "vdi description", "key": "UUID", "uuid": "UUID", "read_write": true, "sharable": false, "virtual_size": 0, "physical_utilisation": 0, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}}
++  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.create[PID] succeeded: {"name": "vdi name", "description": "vdi description", "key": "UUID", "uuid": "UUID", "read_write": true, "sharable": false, "virtual_size": 0, "physical_utilisation": 0, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}, "tags": ["tag1"]}
+   
+   [INFO] {"method":"Volume.set","params":[{"v":"redolog","k":"vdi-type","key":"UUID","sr":"file:///tmp/dummy","dbg":"debug"}],"id":13}
+   [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.set[PID] succeeded: null
+   
+   [INFO] {"method":"Volume.stat","params":[{"key":"UUID","sr":"file:///tmp/dummy","dbg":"debug"}],"id":15}
+-  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.stat[PID] succeeded: {"name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "key": "UUID", "uuid": "UUID", "read_write": true, "virtual_size": 0, "physical_utilisation": 0, "sharable": false, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}}
++  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.stat[PID] succeeded: {"name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "key": "UUID", "uuid": "UUID", "read_write": true, "virtual_size": 0, "physical_utilisation": 0, "sharable": false, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}, "tags": ["tag1"]}
+   
+   [INFO] {"method":"Volume.stat","params":[{"key":"UUID","sr":"file:///tmp/dummy","dbg":"debug"}],"id":17}
+-  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.stat[PID] succeeded: {"name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "key": "UUID", "uuid": "UUID", "read_write": true, "virtual_size": 0, "physical_utilisation": 0, "sharable": false, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}}
++  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.stat[PID] succeeded: {"name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "key": "UUID", "uuid": "UUID", "read_write": true, "virtual_size": 0, "physical_utilisation": 0, "sharable": false, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}, "tags": ["tag1"]}
+   
+   [INFO] {"method":"Volume.destroy","params":[{"key":"UUID","sr":"file:///tmp/dummy","dbg":"debug"}],"id":18}
+   [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/Volume.destroy[PID] succeeded: null
+@@ -39,7 +39,7 @@ pids and uuids
+   [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/SR.stat[PID] succeeded: {"sr": "file:///tmp/dummy", "name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "total_space": 0, "free_space": 0, "datasources": [], "clustered": false, "health": ["Healthy", ""]}
+   
+   [INFO] {"method":"SR.ls","params":[{"sr":"file:///tmp/dummy","dbg":"debug"}],"id":22}
+-  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/SR.ls[PID] succeeded: [{"name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "key": "file1", "uuid": "file1", "read_write": true, "virtual_size": 0, "physical_utilisation": 0, "sharable": false, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}}]
++  [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/SR.ls[PID] succeeded: [{"name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "key": "file1", "uuid": "file1", "read_write": true, "virtual_size": 0, "physical_utilisation": 0, "sharable": false, "uri": ["raw+file:///tmp/disk.raw"], "keys": {}, "tags": ["tag1"]}]
+   
+   [INFO] {"method":"SR.probe","params":[{"configuration":{"uri":"file:///tmp/dummy"},"dbg":"debug"}],"id":24}
+   [INFO] $TESTCASE_ROOT/test/volume/org.xen.xapi.storage.dummyv5/SR.probe[PID] succeeded: [{"configuration": {"uri": "file:///tmp/dummy"}, "complete": true, "extra_info": {}}, {"configuration": {"uri": "file:///tmp/dummy", "sr_uuid": "myuuid"}, "sr": {"sr": "file:///tmp/dummy", "name": "dummy SR plugin", "description": "Dummy v5 SR for unit tests.", "total_space": 0, "free_space": 0, "datasources": [], "clustered": false, "health": ["Healthy", ""]}, "complete": true, "extra_info": {}}]
+diff --git a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/sr.py b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/sr.py
+index 3c649423d..9667a7886 100755
+--- a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/sr.py
++++ b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/sr.py
+@@ -39,6 +39,7 @@ class Implementation(xapi.storage.api.v5.volume.SR_skeleton):
+             "sharable": False,
+             "uri": ["raw+file:///tmp/disk.raw"],
+             "keys": {},
++            "tags": ["tag1"],
+             }]
+ 
+     def stat(self, dbg, sr):
+diff --git a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/volume.py b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/volume.py
+index fcf52ce38..13f22794a 100755
+--- a/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/volume.py
++++ b/ocaml/xapi-storage-script/test/volume/org.xen.xapi.storage.dummyv5/volume.py
+@@ -30,6 +30,7 @@ class Implementation(xapi.storage.api.v5.volume.Volume_skeleton):
+             "physical_utilisation": 0,
+             "uri": ["raw+file:///tmp/disk.raw"],
+             "keys": {},
++            "tags": ["tag1"],
+         }
+ 
+     def destroy(self, dbg, sr, key):
+@@ -50,6 +51,7 @@ class Implementation(xapi.storage.api.v5.volume.Volume_skeleton):
+                 "sharable": False,
+                 "uri": ["raw+file:///tmp/disk.raw"],
+                 "keys": {},
++                "tags": ["tag1"],
+         }
+ 
+     def set(self, dbg, sr, key, k, v):
+diff --git a/ocaml/xapi-storage/rpc-light/SR.ls/response b/ocaml/xapi-storage/rpc-light/SR.ls/response
+index 7f989e330..b3ca5475f 100644
+--- a/ocaml/xapi-storage/rpc-light/SR.ls/response
++++ b/ocaml/xapi-storage/rpc-light/SR.ls/response
+@@ -14,6 +14,7 @@
+                                                             <member><name>keys</name><value><struct></struct></value></member>
+                                                             <member><name>volume_type</name><value>Data</value></member>
+                                                             <member><name>cbt_enabled</name><value>false</value></member>
++                                                            <member><name>tags</name><value><array><data><value>tag1</value></data></array></value></member>
+                                        </struct></value></data>
+                                   </array></value></member>
+     </struct></value></param></params>
+diff --git a/ocaml/xapi-storage/rpc-light/Volume.clone/response b/ocaml/xapi-storage/rpc-light/Volume.clone/response
+index dc4036f59..f6b23b83f 100644
+--- a/ocaml/xapi-storage/rpc-light/Volume.clone/response
++++ b/ocaml/xapi-storage/rpc-light/Volume.clone/response
+@@ -13,6 +13,7 @@
+                                                          <member><name>keys</name><value><struct></struct></value></member>
+                                                          <member><name>volume_type</name><value>Data</value></member>
+                                                          <member><name>cbt_enabled</name><value>false</value></member>
++                                                         <member><name>tags</name><value><array><data><value>tag1</value></data></array></value></member>
+                                          </struct>
+                                  </value></member>
+    </struct></value></param>
+diff --git a/ocaml/xapi-storage/rpc-light/Volume.create/response b/ocaml/xapi-storage/rpc-light/Volume.create/response
+index dc4036f59..f6b23b83f 100644
+--- a/ocaml/xapi-storage/rpc-light/Volume.create/response
++++ b/ocaml/xapi-storage/rpc-light/Volume.create/response
+@@ -13,6 +13,7 @@
+                                                          <member><name>keys</name><value><struct></struct></value></member>
+                                                          <member><name>volume_type</name><value>Data</value></member>
+                                                          <member><name>cbt_enabled</name><value>false</value></member>
++                                                         <member><name>tags</name><value><array><data><value>tag1</value></data></array></value></member>
+                                          </struct>
+                                  </value></member>
+    </struct></value></param>
+diff --git a/ocaml/xapi-storage/rpc-light/Volume.snapshot/response b/ocaml/xapi-storage/rpc-light/Volume.snapshot/response
+index dc4036f59..f6b23b83f 100644
+--- a/ocaml/xapi-storage/rpc-light/Volume.snapshot/response
++++ b/ocaml/xapi-storage/rpc-light/Volume.snapshot/response
+@@ -13,6 +13,7 @@
+                                                          <member><name>keys</name><value><struct></struct></value></member>
+                                                          <member><name>volume_type</name><value>Data</value></member>
+                                                          <member><name>cbt_enabled</name><value>false</value></member>
++                                                         <member><name>tags</name><value><array><data><value>tag1</value></data></array></value></member>
+                                          </struct>
+                                  </value></member>
+    </struct></value></param>
+diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
+index 6d4169169..c5cde919f 100644
+--- a/ocaml/xapi/storage_smapiv1.ml
++++ b/ocaml/xapi/storage_smapiv1.ml
+@@ -80,6 +80,7 @@ let vdi_info_of_vdi_rec __context vdi_rec =
+   ; persistent= vdi_rec.API.vDI_on_boot = `persist
+   ; sharable= vdi_rec.API.vDI_sharable
+   ; sm_config= vdi_rec.API.vDI_sm_config
++  ; tags= vdi_rec.API.vDI_tags
+   }
+ 
+ let redirect _sr =

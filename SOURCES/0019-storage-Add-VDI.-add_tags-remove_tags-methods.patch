@@ -1,0 +1,244 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 18 May 2026 13:13:05 +0000
+Subject: [PATCH] storage: Add VDI.{add_tags,remove_tags} methods
+
+This allows for the storage backend to preserve tags after creating a
+destination VDI during migration.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+(cherry picked from commit 42cb9bd2e06cc579eeb02af0e2c6ad455586b2ad)
+---
+ ocaml/xapi-idl/storage/storage_interface.ml | 22 +++++++++++++
+ ocaml/xapi-idl/storage/storage_skeleton.ml  |  6 ++++
+ ocaml/xapi-storage-script/main.ml           | 35 ++++++++++++++++++++-
+ ocaml/xapi/storage_mux.ml                   | 18 +++++++++++
+ ocaml/xapi/storage_smapiv1.ml               | 22 +++++++++++++
+ ocaml/xapi/storage_smapiv1_wrapper.ml       | 14 +++++++++
+ 6 files changed, 116 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi-idl/storage/storage_interface.ml b/ocaml/xapi-idl/storage/storage_interface.ml
+index f2a88379a..94c2bec77 100644
+--- a/ocaml/xapi-idl/storage/storage_interface.ml
++++ b/ocaml/xapi-idl/storage/storage_interface.ml
+@@ -1002,6 +1002,16 @@ module StorageAPI (R : RPC) = struct
+       declare "VDI.remove_from_sm_config" []
+         (dbg_p @-> sr_p @-> vdi_p @-> key_p @-> returning unit_p err)
+ 
++    (** [add_tags] task sr vdi key value] adds [key] to [vdi] tags *)
++    let add_tags =
++      declare "VDI.add_tags" []
++        (dbg_p @-> sr_p @-> vdi_p @-> key_p @-> returning unit_p err)
++
++    (** [remove_tags dbg sr vdi key] removes [key] from [vdi] tags *)
++    let remove_tags =
++      declare "VDI.remove_tags" []
++        (dbg_p @-> sr_p @-> vdi_p @-> key_p @-> returning unit_p err)
++
+     (** [enable_cbt dbg sr vdi] enables changed block tracking for [vdi] *)
+     let enable_cbt =
+       declare "VDI.enable_cbt" []
+@@ -1649,6 +1659,12 @@ module type Server_impl = sig
+     val remove_from_sm_config :
+       context -> dbg:debug_info -> sr:sr -> vdi:vdi -> key:string -> unit
+ 
++    val add_tags :
++      context -> dbg:debug_info -> sr:sr -> vdi:vdi -> key:string -> unit
++
++    val remove_tags :
++      context -> dbg:debug_info -> sr:sr -> vdi:vdi -> key:string -> unit
++
+     val enable_cbt : context -> dbg:debug_info -> sr:sr -> vdi:vdi -> unit
+ 
+     val disable_cbt : context -> dbg:debug_info -> sr:sr -> vdi:vdi -> unit
+@@ -1857,6 +1873,12 @@ module Server (Impl : Server_impl) () = struct
+     S.VDI.remove_from_sm_config (fun dbg sr vdi key ->
+         Impl.VDI.remove_from_sm_config () ~dbg ~sr ~vdi ~key
+     ) ;
++    S.VDI.add_tags (fun dbg sr vdi key ->
++        Impl.VDI.add_tags () ~dbg ~sr ~vdi ~key
++    ) ;
++    S.VDI.remove_tags (fun dbg sr vdi key ->
++        Impl.VDI.remove_tags () ~dbg ~sr ~vdi ~key
++    ) ;
+     S.VDI.enable_cbt (fun dbg sr vdi -> Impl.VDI.enable_cbt () ~dbg ~sr ~vdi) ;
+     S.VDI.disable_cbt (fun dbg sr vdi -> Impl.VDI.disable_cbt () ~dbg ~sr ~vdi) ;
+     S.VDI.data_destroy (fun dbg sr vdi -> Impl.VDI.data_destroy () ~dbg ~sr ~vdi) ;
+diff --git a/ocaml/xapi-idl/storage/storage_skeleton.ml b/ocaml/xapi-idl/storage/storage_skeleton.ml
+index dbe155272..e92e30024 100644
+--- a/ocaml/xapi-idl/storage/storage_skeleton.ml
++++ b/ocaml/xapi-idl/storage/storage_skeleton.ml
+@@ -164,6 +164,12 @@ module VDI = struct
+   let remove_from_sm_config ctx ~dbg ~sr ~vdi ~key =
+     Storage_interface.unimplemented __FUNCTION__
+ 
++  let add_tags ctx ~dbg ~sr ~vdi ~key =
++    Storage_interface.unimplemented __FUNCTION__
++
++  let remove_tags ctx ~dbg ~sr ~vdi ~key =
++    Storage_interface.unimplemented __FUNCTION__
++
+   let enable_cbt ctx ~dbg ~sr ~vdi =
+     Storage_interface.unimplemented __FUNCTION__
+ 
+diff --git a/ocaml/xapi-storage-script/main.ml b/ocaml/xapi-storage-script/main.ml
+index b24d6ba6a..10ca7689f 100644
+--- a/ocaml/xapi-storage-script/main.ml
++++ b/ocaml/xapi-storage-script/main.ml
+@@ -367,6 +367,8 @@ let _is_a_snapshot_key = "is_a_snapshot"
+ 
+ let _snapshot_of_key = "snapshot_of"
+ 
++let _vdi_tags_key = "tags"
++
+ module Script = struct
+   (** We cache (lowercase script name -> original script name) mapping for the
+       scripts in the root directory of every registered plugin. *)
+@@ -740,6 +742,19 @@ let vdi_of_volume x =
+         v |> of_string
+   in
+   let find_string = find ~of_string:Fun.id in
++  let extract_prefixed_list prefix =
++    List.filter_map
++      (fun (k, _) ->
++        if String.starts_with ~prefix k then
++          Some
++            (String.sub k (String.length prefix)
++               (String.length k - String.length prefix)
++            )
++        else
++          None
++      )
++      x.Xapi_storage.Control.keys
++  in
+   let open Storage_interface in
+   {
+     vdi= Vdi.of_string x.Xapi_storage.Control.key
+@@ -777,7 +792,7 @@ let vdi_of_volume x =
+         x.Xapi_storage.Control.keys
+   ; sharable= x.Xapi_storage.Control.sharable
+   ; persistent= true
+-  ; tags= []
++  ; tags= extract_prefixed_list _vdi_tags_key
+   }
+ 
+ let choose_datapath ?(persistent = true) response =
+@@ -1758,6 +1773,22 @@ module VDIImpl (M : META) = struct
+     let* () = unset ~dbg ~sr ~vdi ~key:(_sm_config_prefix_key ^ key) in
+     return ()
+ 
++  let vdi_add_tags_impl dbg sr vdi key =
++    wrap
++    @@
++    let* sr = Attached_SRs.find sr in
++    let vdi = Storage_interface.Vdi.string_of vdi in
++    let* () = set ~dbg ~sr ~vdi ~key:(_vdi_tags_key ^ key) ~value:key in
++    return ()
++
++  let vdi_remove_tags_impl dbg sr vdi key =
++    wrap
++    @@
++    let* sr = Attached_SRs.find sr in
++    let vdi = Storage_interface.Vdi.string_of vdi in
++    let* () = unset ~dbg ~sr ~vdi ~key:(_vdi_tags_key ^ key) in
++    return ()
++
+   let similar_content_impl _dbg _sr _vdi = wrap @@ return []
+ end
+ 
+@@ -1966,6 +1997,8 @@ let bind ~volume_script_dir =
+   S.VDI.set_content_id VDI.vdi_set_content_id_impl ;
+   S.VDI.add_to_sm_config VDI.vdi_add_to_sm_config_impl ;
+   S.VDI.remove_from_sm_config VDI.vdi_remove_from_sm_config_impl ;
++  S.VDI.add_tags VDI.vdi_add_tags_impl ;
++  S.VDI.remove_tags VDI.vdi_remove_tags_impl ;
+   S.VDI.similar_content VDI.similar_content_impl ;
+   S.VDI.revert VDI.revert_impl ;
+ 
+diff --git a/ocaml/xapi/storage_mux.ml b/ocaml/xapi/storage_mux.ml
+index 7c16b56b4..e007d279c 100644
+--- a/ocaml/xapi/storage_mux.ml
++++ b/ocaml/xapi/storage_mux.ml
+@@ -741,6 +741,24 @@ module Mux = struct
+       end)) in
+       C.VDI.remove_from_sm_config (Debug_info.to_string di) sr vdi key
+ 
++    let add_tags () ~dbg ~sr ~vdi ~key =
++      with_dbg ~name:"VDI.add_tags" ~dbg @@ fun di ->
++      info "VDI.add_tags dbg:%s sr:%s vdi:%s key:%s" dbg (s_of_sr sr)
++        (s_of_vdi vdi) key ;
++      let module C = StorageAPI (Idl.Exn.GenClient (struct
++        let rpc = of_sr sr
++      end)) in
++      C.VDI.add_tags (Debug_info.to_string di) sr vdi key
++
++    let remove_tags () ~dbg ~sr ~vdi ~key =
++      with_dbg ~name:"VDI.remove_tags" ~dbg @@ fun di ->
++      info "VDI.remove_tags dbg:%s sr:%s vdi:%s key:%s" dbg (s_of_sr sr)
++        (s_of_vdi vdi) key ;
++      let module C = StorageAPI (Idl.Exn.GenClient (struct
++        let rpc = of_sr sr
++      end)) in
++      C.VDI.remove_tags (Debug_info.to_string di) sr vdi key
++
+     let get_url () ~dbg ~sr ~vdi =
+       with_dbg ~name:"VDI.get_url" ~dbg @@ fun di ->
+       info "VDI.get_url dbg:%s sr:%s vdi:%s" dbg (s_of_sr sr) (s_of_vdi vdi) ;
+diff --git a/ocaml/xapi/storage_smapiv1.ml b/ocaml/xapi/storage_smapiv1.ml
+index c5cde919f..9a859e88d 100644
+--- a/ocaml/xapi/storage_smapiv1.ml
++++ b/ocaml/xapi/storage_smapiv1.ml
+@@ -1052,6 +1052,28 @@ module SMAPIv1 : Server_impl = struct
+           Db.VDI.remove_from_sm_config ~__context ~self ~key
+       )
+ 
++    let add_tags _context ~dbg ~sr ~vdi ~key =
++      with_dbg ~name:"VDI.add_to_tags" ~dbg @@ fun di ->
++      info "VDI.add_tags dbg:%s sr:%s vdi:%s key:[%s]" di.log (s_of_sr sr)
++        (s_of_vdi vdi) key ;
++      let dbg = Debug_info.to_string di in
++      Server_helpers.exec_with_new_task "VDI.add_tags"
++        ~subtask_of:(Ref.of_string dbg) (fun __context ->
++          let vdi, _ = find_vdi ~__context sr vdi in
++          Db.VDI.add_tags ~__context ~self:vdi ~value:key
++      )
++
++    let remove_tags _context ~dbg ~sr ~vdi ~key =
++      with_dbg ~name:"VDI.remove_tags" ~dbg @@ fun di ->
++      info "VDI.remove_tags dbg:%s sr:%s vdi:%s key:%s" di.log (s_of_sr sr)
++        (s_of_vdi vdi) key ;
++      let dbg = Debug_info.to_string di in
++      Server_helpers.exec_with_new_task "VDI.remove_tags"
++        ~subtask_of:(Ref.of_string dbg) (fun __context ->
++          let self = find_vdi ~__context sr vdi |> fst in
++          Db.VDI.remove_tags ~__context ~self ~value:key
++      )
++
+     let get_url _context ~dbg ~sr ~vdi =
+       with_dbg ~name:"VDI.get_url" ~dbg @@ fun di ->
+       info "VDI.get_url dbg:%s sr:%s vdi:%s" di.log (s_of_sr sr) (s_of_vdi vdi) ;
+diff --git a/ocaml/xapi/storage_smapiv1_wrapper.ml b/ocaml/xapi/storage_smapiv1_wrapper.ml
+index ff9611099..c344f1d25 100644
+--- a/ocaml/xapi/storage_smapiv1_wrapper.ml
++++ b/ocaml/xapi/storage_smapiv1_wrapper.ml
+@@ -915,6 +915,20 @@ functor
+         let dbg = Debug_info.to_string di in
+         Impl.VDI.remove_from_sm_config context ~dbg ~sr ~vdi ~key
+ 
++      let add_tags context ~dbg ~sr ~vdi ~key =
++        with_dbg ~name:"VDI.add_tags" ~dbg @@ fun di ->
++        info "VDI.add_tags dbg:%s sr:%s vdi:%s key:%s" di.log (s_of_sr sr)
++          (s_of_vdi vdi) key ;
++        let dbg = Debug_info.to_string di in
++        Impl.VDI.add_tags context ~dbg ~sr ~vdi ~key
++
++      let remove_tags context ~dbg ~sr ~vdi ~key =
++        with_dbg ~name:"VDI.remove_tags" ~dbg @@ fun di ->
++        info "VDI.remove_tags dbg:%s sr:%s vdi:%s key:%s" di.log (s_of_sr sr)
++          (s_of_vdi vdi) key ;
++        let dbg = Debug_info.to_string di in
++        Impl.VDI.remove_tags context ~dbg ~sr ~vdi ~key
++
+       let get_url context ~dbg ~sr ~vdi =
+         with_dbg ~name:"VDI.get_url" ~dbg @@ fun di ->
+         info "VDI.get_url dbg:%s sr:%s vdi:%s" di.log (s_of_sr sr) (s_of_vdi vdi) ;
