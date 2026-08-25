@@ -1,5 +1,5 @@
-%global package_speccommit 0db8942e2f31c6f513458288c4d576f34b7f85f2
-%global package_srccommit v26.1.16
+%global package_speccommit 5cc5ae0e1cc23f1f23b47b6b0751b1dd9849360b
+%global package_srccommit v26.1.19
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.16
+Version: 26.1.19
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.16.tar.gz
+Source0: xen-api-26.1.19.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -189,6 +189,7 @@ Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
 Provides: XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE) = 1.0.0
 Provides: XS_FEATURE(AUTO_UPDATE_SECUREBOOT_CERTIFICATE) = 1.0.0
+Provides: XS_FEATURE(EXTAUTH_LDAPS) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.3.4-2
 BuildRequires: systemd
@@ -1458,6 +1459,15 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Jul 28 2026 Ming Lu <ming.lu@cloud.com> - 26.1.19-1
+- CA-422619: Skip xapi-clusterd start when already active
+- CA-422619: Add a timeout to the xapi-clusterd start
+- CA-430005: Should not check non-trusted certificates for duplication
+
+* Tue Jul 21 2026 Changlei Li <changlei.li@citrix.com> - 26.1.17-1
+- XCPNG-3545: Clear tunnels with corrupted PIFs
+- Backport ldaps feature
+
 * Wed Jul 15 2026 Changlei Li <changlei.li@citrix.com> - 26.1.16-1
 - quicktest: Verify non-snapshotted VBDs are not leaked on VM.revert
 - auto-mark new VMs for Secure Boot certificate update on boot
