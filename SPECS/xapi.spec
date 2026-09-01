@@ -103,27 +103,32 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # still uses the legacy default for safety
 Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# In v26.1.20 upstream
+# In v26.1.21 upstream
 Patch1008: 0008-vlan_tag_invalid-change-the-documentation-string.patch
 Patch1009: 0009-VLAN-filtering-on-VIF.patch
 Patch1010: 0010-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
 Patch1011: 0011-xenopsd-update-xenstore-while-updating-xapi-db.patch
 Patch1012: 0012-test_vif_trunks-cover-more-coherence-checks.patch
 
-# In v26.1.20 upstream
+# In v26.1.21 upstream
 Patch1013: 0013-CA-428532-Ensure-db-flush-is-executed-in-shutdown_ag.patch
 
 # Exclude linstor SRs from QCOW2 quicktests
 Patch1014: 0014-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 
+# Optimize migration for sparse QCOW2 VDIs - to be upstreamed
 Patch1015: 0015-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
 Patch1016: 0016-vhd-tool-Add-a-hybridqcow-mode.patch
 Patch1017: 0017-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
 
-# In v26.1.20 upstream
+# In v26.1.21 upstream
 Patch1018: 0018-storage-Add-tags-to-vdi_info-struct.patch
 Patch1019: 0019-storage-Add-VDI.-add_tags-remove_tags-methods.patch
 Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
+
+# In v26.1.22 upstream
+Patch1021: 0021-Add-hvm-pirq-platform-key.patch
+Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1531,6 +1536,8 @@ Coverage files from unit tests
 %changelog
 * Tue Sep 01 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.1
 - XCPNG-3545: Clear tunnels with corrupted PIFs
+- XCPNG-3546: Disable HVM PIRQs for new VMs by default
+- XCPNG-3293: Allow filtering quicktests for SR-specific or generic tests
 - Update to upstream 26.1.19-1
 - *** Upstream changelog ***
   * Tue Jul 28 2026 Ming Lu <ming.lu@cloud.com> - 26.1.19-1

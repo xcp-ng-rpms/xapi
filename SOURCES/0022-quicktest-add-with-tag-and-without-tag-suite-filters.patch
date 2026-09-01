@@ -1,0 +1,231 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Guillaume Thouvenin <guillaume.thouvenin@vates.tech>
+Date: Thu, 13 Aug 2026 20:03:08 +0200
+Subject: [PATCH] quicktest: add -with-tag and -without-tag suite filters
+
+Storage CI runs quicktest once per SR under test, but not every suite acutally
+depends on the SR passed via -sr. Suites like message, xenstore, event etc.
+exercise xapi behavior that has nothing to do with storage and produce the same
+result no matter which SR is passed. Today they still re-run in full for every
+SR.
+
+This patch tags every suite in quicktest.ml with a `tag list` (currently only
+`Sr` exists) and adds two new flags, -with-tag and -without-tag, to select
+suites by tag. A suite with no tags is common to every SR. Both flags are
+repeatable and can be freely combined with each other and with -run-only for
+finer grained selection. -list-tests also respects them. -list-tests also
+respect them, so `quicktest -list-tests -with-tag sr` shows exactly what a real
+-with-tag sr run would execute.
+
+Using a tag list rather than a closed variant keeps the door open for other
+axes to filter later (e.g. slow-running suites).
+
+Signed-off-by: Guillaume Thouvenin <guillaume.thouvenin@vates.tech>
+Backport of PR #7227
+(cherry picked from commit 4eeee4286248a5fed254189acbc19778049934fb)
+---
+ ocaml/quicktest/quicktest.ml      | 94 +++++++++++++++++++++----------
+ ocaml/quicktest/quicktest_args.ml | 48 ++++++++++++++++
+ 2 files changed, 111 insertions(+), 31 deletions(-)
+
+diff --git a/ocaml/quicktest/quicktest.ml b/ocaml/quicktest/quicktest.ml
+index d80a347cb..48939af68 100644
+--- a/ocaml/quicktest/quicktest.ml
++++ b/ocaml/quicktest/quicktest.ml
+@@ -14,6 +14,30 @@
+ 
+ (** The main entry point of the quicktest executable *)
+ 
++module Suite = struct
++  type t = {
++      name: string
++    ; tags: Quicktest_args.tag list
++    ; tests: (unit -> unit) Qt_filter.test_case list
++  }
++
++  let make ?(tags = []) name tests = {name; tags; tests}
++end
++
++let matches_tags (s : Suite.t) =
++  List.for_all (fun t -> List.mem t s.tags) !Quicktest_args.with_tags
++  && List.for_all
++       (fun t -> not (List.mem t s.tags))
++       !Quicktest_args.without_tags
++
++let filter_by_tags =
++  List.filter_map (fun (s : Suite.t) ->
++      if matches_tags s then
++        Some (s.name, s.tests)
++      else
++        None
++  )
++
+ let qchecks =
+   [("unixext", Unixext_test.tests); ("Timer", Test_timer.tests)]
+   |> List.map @@ fun (name, test) ->
+@@ -22,60 +46,68 @@ let qchecks =
+ let () =
+   Quicktest_args.parse () ;
+   Qt_filter.wrap (fun () ->
+-      let suite =
++      let suites =
++        let open Quicktest_args in
+         [
+-          ("Quicktest_example", Quicktest_example.tests ())
+-        ; ("Quicktest_message", Quicktest_message.tests ())
+-        ; ("xenstore", Quicktest_xenstore.tests ())
+-        ; ("cbt", Quicktest_cbt.tests ())
+-        ; ("event", Quicktest_event.tests ())
+-        ; ("import_raw_vdi", Quicktest_import_raw_vdi.tests ())
+-        ; ("copy", Quicktest_vdi_copy.tests ())
+-        ; ("SR tests", Quicktest_sr.tests ())
+-        ; ("Quicktest_vdi", Quicktest_vdi.tests ())
+-        ; ("Quicktest_async_calls", Quicktest_async_calls.tests ())
+-        ; ("Quicktest_vm_import_export", Quicktest_vm_import_export.tests ())
+-        ; ("Quicktest_vm_lifecycle", Quicktest_vm_lifecycle.tests ())
+-        ; ("Quicktest_vm_snapshot", Quicktest_vm_snapshot.tests ())
+-        ; ("Quicktest_vm_migration", Quicktest_vm_migration.tests ())
+-        ; ( "Quicktest_vdi_ops_data_integrity"
+-          , Quicktest_vdi_ops_data_integrity.tests ()
+-          )
+-        ; ("Quicktest_max_vdi_size", Quicktest_max_vdi_size.tests ())
+-        ; ("Quicktest_static_vdis", Quicktest_static_vdis.tests ())
+-        ; ("Quicktest_date", Quicktest_date.tests ())
+-        ; ("Quicktest_crypt_r", Quicktest_crypt_r.tests ())
++          Suite.make "Quicktest_example" (Quicktest_example.tests ())
++        ; Suite.make "Quicktest_message" (Quicktest_message.tests ())
++        ; Suite.make "xenstore" (Quicktest_xenstore.tests ())
++        ; Suite.make "cbt" ~tags:[Sr] (Quicktest_cbt.tests ())
++        ; Suite.make "event" (Quicktest_event.tests ())
++        ; Suite.make "import_raw_vdi" (Quicktest_import_raw_vdi.tests ())
++        ; Suite.make "copy" ~tags:[Sr] (Quicktest_vdi_copy.tests ())
++        ; Suite.make "SR tests" ~tags:[Sr] (Quicktest_sr.tests ())
++        ; Suite.make "Quicktest_vdi" ~tags:[Sr] (Quicktest_vdi.tests ())
++        ; Suite.make "Quicktest_async_calls" ~tags:[Sr]
++            (Quicktest_async_calls.tests ())
++        ; Suite.make "Quicktest_vm_import_export" ~tags:[Sr]
++            (Quicktest_vm_import_export.tests ())
++        ; Suite.make "Quicktest_vm_lifecycle" ~tags:[Sr]
++            (Quicktest_vm_lifecycle.tests ())
++        ; Suite.make "Quicktest_vm_snapshot" ~tags:[Sr]
++            (Quicktest_vm_snapshot.tests ())
++        ; Suite.make "Quicktest_vm_migration" ~tags:[Sr]
++            (Quicktest_vm_migration.tests ())
++        ; Suite.make "Quicktest_vdi_ops_data_integrity" ~tags:[Sr]
++            (Quicktest_vdi_ops_data_integrity.tests ())
++        ; Suite.make "Quicktest_max_vdi_size" ~tags:[Sr]
++            (Quicktest_max_vdi_size.tests ())
++        ; Suite.make "Quicktest_static_vdis" ~tags:[Sr]
++            (Quicktest_static_vdis.tests ())
++        ; Suite.make "Quicktest_date" (Quicktest_date.tests ())
++        ; Suite.make "Quicktest_crypt_r" (Quicktest_crypt_r.tests ())
+         ]
+-        @ ( if not !Quicktest_args.using_unix_domain_socket then
+-              [("http", Quicktest_http.tests)]
++        @ ( if not !using_unix_domain_socket then
++              [Suite.make "http" Quicktest_http.tests]
+             else
+               []
+           )
+         @
+-        if not !Quicktest_args.skip_stress then
+-          qchecks
++        if not !skip_stress then
++          List.map (fun (name, tests) -> Suite.make name tests) qchecks
+         else
+           []
+       in
++      let suites = suites |> filter_by_tags in
+       (* Only list tests if asked, without running them *)
+       if !Quicktest_args.list_tests then
+         Printf.printf "%s\n"
+-          (Astring.String.concat ~sep:"," (List.map fst suite))
++          (Astring.String.concat ~sep:"," (List.map fst suites))
+       else
+         (* If -run-only parameter supplied, run specific suites from the list *)
+-        let suite =
++        let suites =
+           match !Quicktest_args.run_only with
+           | Some tests ->
+               List.filter_map
+                 (fun test_name ->
+                   Option.map
+                     (fun v -> (test_name, v))
+-                    (List.assoc_opt test_name suite)
++                    (List.assoc_opt test_name suites)
+                 )
+                 (Astring.String.cuts ~sep:"," tests)
+           | None ->
+-              suite
++              suites
+         in
+         let argv = Quicktest_args.get_alcotest_args () in
+-        Alcotest.run ~and_exit:false ~argv "Quicktests" suite
++        Alcotest.run ~and_exit:false ~argv "Quicktests" suites
+   )
+diff --git a/ocaml/quicktest/quicktest_args.ml b/ocaml/quicktest/quicktest_args.ml
+index e8ed34429..609f265d4 100644
+--- a/ocaml/quicktest/quicktest_args.ml
++++ b/ocaml/quicktest/quicktest_args.ml
+@@ -47,6 +47,32 @@ let skip_xapi = ref false
+ 
+ let skip_stress = ref false
+ 
++(** Whether a test suite depends on the SR, or runs identically regardless
++    of it. Used by [-with-tag]/[-without-tag] to select suites. A suite
++    that only ever exercises the pool's default SR (rather than the SR
++    passed via [-sr]) should not carry [Sr]: its result cannot change when
++    [-sr] is varied, even though it still touches storage. *)
++type tag = Sr
++
++let tag_to_str = function Sr -> "sr"
++
++let tag_of_str = function
++  | "sr" ->
++      Sr
++  | s ->
++      raise (Arg.Bad (Printf.sprintf "unknown tag %S" s))
++
++let with_tags = ref []
++
++let without_tags = ref []
++
++(** All tags, listed by -list-tags *)
++let all_tags = [Sr]
++
++let tag_to_description = function
++  | Sr ->
++      "Suite's result depends on the SR passed via -sr"
++
+ (** Parse the legacy quicktest command line args. This is used instead of
+     invoking Alcotest directly, for backwards-compatibility with clients who
+     run the quicktest binary. *)
+@@ -76,6 +102,28 @@ let parse () =
+       , "Only run specified tests, skip all others. Several tests can be \
+          specified, separated by commas"
+       )
++    ; ( "-with-tag"
++      , Arg.String (fun s -> with_tags := tag_of_str s :: !with_tags)
++      , "Only run test suites carrying this tag. May be repeated. Can be \
++         combined with -run-only. Recognised tags: sr"
++      )
++    ; ( "-without-tag"
++      , Arg.String (fun s -> without_tags := tag_of_str s :: !without_tags)
++      , "Exclude test suites carrying this tag. May be repeated. Can be \
++         combined with -run-only. Recognised tags: sr"
++      )
++    ; ( "-list-tags"
++      , Arg.Unit
++          (fun () ->
++            List.iter
++              (fun t ->
++                Printf.printf "%s: %s\n" (tag_to_str t) (tag_to_description t)
++              )
++              all_tags ;
++            exit 0
++          )
++      , "List all recognised tags"
++      )
+     ; ( "-list-tests"
+       , Arg.Set list_tests
+       , "Lists test names as they are consumed by -run-only"
