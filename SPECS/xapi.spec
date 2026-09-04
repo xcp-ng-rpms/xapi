@@ -1,5 +1,5 @@
-%global package_speccommit 0db8942e2f31c6f513458288c4d576f34b7f85f2
-%global package_srccommit v26.1.16
+%global package_speccommit 5cc5ae0e1cc23f1f23b47b6b0751b1dd9849360b
+%global package_srccommit v26.1.19
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.16
-Release: 1%{?xsrel}.2%{?dist}
+Version: 26.1.19
+Release: 1%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.16.tar.gz
+Source0: xen-api-26.1.19.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -103,27 +103,32 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # still uses the legacy default for safety
 Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# In v26.1.20 upstream
+# In v26.1.21 upstream
 Patch1008: 0008-vlan_tag_invalid-change-the-documentation-string.patch
 Patch1009: 0009-VLAN-filtering-on-VIF.patch
 Patch1010: 0010-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
 Patch1011: 0011-xenopsd-update-xenstore-while-updating-xapi-db.patch
 Patch1012: 0012-test_vif_trunks-cover-more-coherence-checks.patch
 
-# In v26.1.20 upstream
+# In v26.1.21 upstream
 Patch1013: 0013-CA-428532-Ensure-db-flush-is-executed-in-shutdown_ag.patch
 
 # Exclude linstor SRs from QCOW2 quicktests
 Patch1014: 0014-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 
+# Optimize migration for sparse QCOW2 VDIs - to be upstreamed
 Patch1015: 0015-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
 Patch1016: 0016-vhd-tool-Add-a-hybridqcow-mode.patch
 Patch1017: 0017-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
 
-# In v26.1.20 upstream
+# In v26.1.21 upstream
 Patch1018: 0018-storage-Add-tags-to-vdi_info-struct.patch
 Patch1019: 0019-storage-Add-VDI.-add_tags-remove_tags-methods.patch
 Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
+
+# In v26.1.22 upstream
+Patch1021: 0021-Add-hvm-pirq-platform-key.patch
+Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -234,6 +239,7 @@ Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
 Provides: XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE) = 1.0.0
 Provides: XS_FEATURE(AUTO_UPDATE_SECUREBOOT_CERTIFICATE) = 1.0.0
+Provides: XS_FEATURE(EXTAUTH_LDAPS) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.3.4-2
 BuildRequires: systemd
@@ -1528,6 +1534,21 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Sep 01 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.1
+- XCPNG-3545: Clear tunnels with corrupted PIFs
+- XCPNG-3546: Disable HVM PIRQs for new VMs by default
+- XCPNG-3293: Allow filtering quicktests for SR-specific or generic tests
+- Update to upstream 26.1.19-1
+- *** Upstream changelog ***
+  * Tue Jul 28 2026 Ming Lu <ming.lu@cloud.com> - 26.1.19-1
+  - CA-422619: Skip xapi-clusterd start when already active
+  - CA-422619: Add a timeout to the xapi-clusterd start
+  - CA-430005: Should not check non-trusted certificates for duplication
+
+  * Tue Jul 21 2026 Changlei Li <changlei.li@citrix.com> - 26.1.17-1
+  - XCPNG-3545: Clear tunnels with corrupted PIFs
+  - Backport ldaps feature
+
 * Wed Aug 19 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.16-1.2
 - Optimize migration from QCOW2-backed VDIs
 - Preserve VDI tags on migration

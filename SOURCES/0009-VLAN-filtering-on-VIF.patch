@@ -17,9 +17,8 @@ Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
 (cherry picked from commit 68c50c38a87d0addc743f2ab93b3b1d032033a6b + conflicts resolution)
 ---
  ocaml/idl/datamodel.ml                       |  49 +++++
- ocaml/idl/datamodel_common.ml                |   2 +-
  ocaml/idl/datamodel_errors.ml                |   2 +
- ocaml/idl/datamodel_lifecycle.ml             |  14 +-
+ ocaml/idl/datamodel_lifecycle.ml             |  10 +-
  ocaml/idl/schematest.ml                      |   2 +-
  ocaml/tests/common/test_common.ml            |   4 +-
  ocaml/tests/suite_alcotest.ml                |   1 +
@@ -51,7 +50,7 @@ Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
  ocaml/xenopsd/xc/xc_resources.ml             |   3 +
  ocaml/xenopsd/xc/xenops_server_xen.ml        |  53 ++++++
  ocaml/xenopsd/xenopsd.conf                   |   1 +
- 35 files changed, 557 insertions(+), 25 deletions(-)
+ 34 files changed, 554 insertions(+), 22 deletions(-)
  create mode 100644 ocaml/tests/test_vif_trunks.ml
 
 diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
@@ -128,21 +127,8 @@ index 4affe5748..0ed9e361f 100644
            ]
          )
        ()
-diff --git a/ocaml/idl/datamodel_common.ml b/ocaml/idl/datamodel_common.ml
-index e6df2d239..f5c8993ce 100644
---- a/ocaml/idl/datamodel_common.ml
-+++ b/ocaml/idl/datamodel_common.ml
-@@ -10,7 +10,7 @@ open Datamodel_roles
-               to leave a gap for potential hotfixes needing to increment the schema version.*)
- let schema_major_vsn = 5
- 
--let schema_minor_vsn = 797
-+let schema_minor_vsn = 798
- 
- (* Historical schema versions just in case this is useful later *)
- let rio_schema_major_vsn = 5
 diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
-index 2c696b7b0..e47f1dda9 100644
+index 7572a5cd9..795c20941 100644
 --- a/ocaml/idl/datamodel_errors.ml
 +++ b/ocaml/idl/datamodel_errors.ml
 @@ -230,6 +230,8 @@ let _ =
@@ -155,15 +141,11 @@ index 2c696b7b0..e47f1dda9 100644
      ~doc:"The host joining the pool must not have any network SR-IOVs." () ;
  
 diff --git a/ocaml/idl/datamodel_lifecycle.ml b/ocaml/idl/datamodel_lifecycle.ml
-index 844782afb..bd977697e 100644
+index f115d5eca..ae39734c0 100644
 --- a/ocaml/idl/datamodel_lifecycle.ml
 +++ b/ocaml/idl/datamodel_lifecycle.ml
-@@ -98,9 +98,11 @@ let prototyped_of_field = function
-   | "VTPM", "persistence_backend" ->
-       Some "22.26.0"
-   | "SM", "supported_image_formats" ->
--      Some "26.1.13-next"
-+      Some "26.1.16"
+@@ -101,6 +101,8 @@ let prototyped_of_field = function
+       Some "26.1.14"
    | "SM", "host_pending_features" ->
        Some "24.37.0"
 +  | "VIF", "trunks" ->
@@ -180,12 +162,10 @@ index 844782afb..bd977697e 100644
    | "pool", "vm_console_idle_timeout" ->
        Some "26.1.0"
    | "pool", "limit_console_sessions" ->
-@@ -246,7 +248,13 @@ let prototyped_of_message = function
-   | "VTPM", "create" ->
+@@ -247,6 +249,12 @@ let prototyped_of_message = function
        Some "22.26.0"
    | "VDI", "revert" ->
--      Some "26.1.13-next"
-+      Some "26.1.16"
+       Some "26.1.14"
 +  | "VIF", "set_trunks" ->
 +      Some "26.1.16"
 +  | "VIF", "remove_trunks" ->
@@ -196,15 +176,15 @@ index 844782afb..bd977697e 100644
        Some "26.0.0"
    | "host", "get_ntp_synchronized" ->
 diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
-index 8dda0f15a..a0252a834 100644
+index 65835c761..d363bd3f5 100644
 --- a/ocaml/idl/schematest.ml
 +++ b/ocaml/idl/schematest.ml
 @@ -3,7 +3,7 @@ let hash x = Digest.string x |> Digest.to_hex
  (* BEWARE: if this changes, check that schema has been bumped accordingly in
     ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
  
--let last_known_schema_hash = "8b1ea1bbae0f25d88c83a94be019951a"
-+let last_known_schema_hash = "cdab429678b7c4ceb3cd62f80391929c"
+-let last_known_schema_hash = "b9ebb01a8a3ad485acf945aab6d0046b"
++let last_known_schema_hash = "43063065aa912e71dab968cb9ca1e9f4"
  
  let current_schema_hash : string =
    let open Datamodel_types in
@@ -231,7 +211,7 @@ index 41423c55c..47859d067 100644
  
  let make_pool ~__context ~master ?(name_label = "") ?(name_description = "")
 diff --git a/ocaml/tests/suite_alcotest.ml b/ocaml/tests/suite_alcotest.ml
-index a444d37b1..a2e71dcb0 100644
+index 74cc129b6..9c528e46a 100644
 --- a/ocaml/tests/suite_alcotest.ml
 +++ b/ocaml/tests/suite_alcotest.ml
 @@ -37,6 +37,7 @@ let () =
@@ -448,7 +428,7 @@ index 000000000..7d8cf7d68
 +  ; ("test_trunks_move_to_vlan", `Quick, test_trunks_move_to_vlan)
 +  ]
 diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
-index 34280b70a..0291c389c 100644
+index eeef2d771..f718a370e 100644
 --- a/ocaml/xapi-cli-server/cli_operations.ml
 +++ b/ocaml/xapi-cli-server/cli_operations.ml
 @@ -2826,7 +2826,7 @@ let vif_create printer rpc session_id params =
@@ -489,7 +469,7 @@ index e55b261ef..c5258895f 100644
    }
  
 diff --git a/ocaml/xapi-consts/api_errors.ml b/ocaml/xapi-consts/api_errors.ml
-index b0dd9a523..5d2512bf2 100644
+index 3c9151144..75bc927ad 100644
 --- a/ocaml/xapi-consts/api_errors.ml
 +++ b/ocaml/xapi-consts/api_errors.ml
 @@ -214,6 +214,9 @@ let network_has_incompatible_sriov_pifs =
@@ -549,10 +529,10 @@ index 793076f26..1401547b8 100644
      make_vifs __context vmref (i - 1)
    )
 diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
-index a72e3fd9f..322bc9061 100644
+index a15f3cd72..aa17cee65 100644
 --- a/ocaml/xapi/message_forwarding.ml
 +++ b/ocaml/xapi/message_forwarding.ml
-@@ -4689,6 +4689,28 @@ functor
+@@ -4720,6 +4720,28 @@ functor
            Client.VIF.configure_ipv6 ~self ~mode ~address ~gateway
          in
          forward_vif_op ~local_fn ~__context ~self ~remote_fn
