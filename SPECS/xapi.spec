@@ -663,6 +663,8 @@ ln -s /var/lib/xcp $RPM_BUILD_ROOT/var/xapi
 mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 # XCP-ng: add /etc/xenopsd.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xenopsd.conf.d
+# XCP-ng: add /etc/xensource/usb-policy.conf.d
+mkdir $RPM_BUILD_ROOT/etc/xensource/usb-policy.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
@@ -1119,6 +1121,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
+%dir /etc/xensource/usb-policy.conf.d
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
