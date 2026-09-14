@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.16
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1528,6 +1528,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Sep 14 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.16-1.3
+- Use vendorzone's NTP sources
+
 * Wed Aug 19 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.16-1.2
 - Optimize migration from QCOW2-backed VDIs
 - Preserve VDI tags on migration
