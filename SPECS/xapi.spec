@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.21
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1545,6 +1545,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Oct 20 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.21-1.2
+- XCPNG-2942: Use ntp.xcp-ng.org as ntpservers
+
 * Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.1
 - XCPNG-3854: Fix race leading to VDI.snapshot_of corruption
 - XCPNG-3515: Prevent SR issues from blocking XAPI startup
