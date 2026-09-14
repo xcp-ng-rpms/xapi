@@ -32,7 +32,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.4.0
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -71,20 +71,6 @@ Source26: xenserver9.conf
 # replace NTP configuration
 Source27: xcpng-ntp.conf
 
-# Xapi compiles to a baseline of Xen 4.20
-
-# Xen 4.21
-%if "%{dist}" == ".xsx"
-Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
-Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
-%endif
-
-# Xen upstream
-%if "%{dist}" == ".xsu"
-Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
-Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
-%endif
-
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
 #   - git format-patch --no-numbered --no-signature v26.1.0..v26.1.0-8.3
@@ -103,6 +89,10 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
 Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
 Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
+
+# Xen 4.21
+Patch1010: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
+Patch1011: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1569,6 +1559,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Sep 10 2026 Thierry Escande <thierry.escande@vates.tech> - 26.4.0-1.2
+- Add missing xenopsd/xc patches for Xen 4.21 compatibility:
+  - Mirror CDF_TRAP_UNMAPPED_ACCESSES from Xenctrl
+  - Mirror altp2m_count from Xenctrl.domctl_create_config
+
 * Tue Jul 07 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.1
 - Sync packaging with XS9
 - Do not require python2-udev on v9+
