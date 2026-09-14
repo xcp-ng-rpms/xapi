@@ -1542,6 +1542,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Oct 26 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.21-1.3
+- XCPNG-2942: Use ntp.xcp-ng.org as ntpservers
+
 * Mon Oct 26 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.2
 - Revert "XCPNG-3888: Improve performance of xapi-nbd"
 
