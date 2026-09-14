@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.19
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1543,6 +1543,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Sep 23 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.19-1.2
+- Use vendorzone's NTP sources
+
 * Tue Sep 01 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.1
 - XCPNG-3545: Clear tunnels with corrupted PIFs
 - XCPNG-3546: Disable HVM PIRQs for new VMs by default
