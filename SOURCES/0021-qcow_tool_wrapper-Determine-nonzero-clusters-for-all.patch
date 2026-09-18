@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 18 Sep 2026 09:50:17 +0000
+Subject: [PATCH] qcow_tool_wrapper: Determine nonzero clusters for all formats
+
+Since we are using 'qemu-img {map,info}' now, it doesn't matter if the backing
+file is QCOW2 or VHD, qemu-img handles that and provides identical information
+for use by qcow2-to-stdout
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/qcow_tool_wrapper.ml | 31 ++++++++++++++-----------------
+ 1 file changed, 14 insertions(+), 17 deletions(-)
+
+diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
+index d6f05aa2a..002882f56 100644
+--- a/ocaml/xapi/qcow_tool_wrapper.ml
++++ b/ocaml/xapi/qcow_tool_wrapper.ml
+@@ -23,16 +23,19 @@ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+ 
+ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+     (path : string) (_size : Int64.t) =
+-  let qcow_of_device =
+-    Xapi_vdi_helpers.backing_file_of_device_with_driver ~driver:"qcow2"
++  let path_of_backing_device p =
++    match Xapi_vdi_helpers.backing_info_of_device p with
++    | Ok (Some (_, backing_file)) ->
++        (* qemu can process all formats of files in a homogenous way, so
++           we ignore the type of driver *)
++        Some backing_file
++    | _ ->
++        None
+   in
+-  let qcow_path = qcow_of_device path in
++  let qcow_path = path_of_backing_device path in
+ 
+-  (* If VDI is backed by QCOW, parse the header to determine nonzero clusters
+-     to avoid reading all of the raw disk *)
+-  let input_fds =
+-    Result.map Vhd_qcow_parsing.Qcow.read_header qcow_path |> Result.to_option
+-  in
++  (* Parse the header to determine nonzero clusters to avoid reading all of the raw disk *)
++  let input_fds = Option.map Vhd_qcow_parsing.Qcow.read_header qcow_path in
+ 
+   (* TODO: If VHD headers are to be consulted as well, qcow2-to-stdout
+      needs to properly account for cluster_bits. Currently QCOW2 export
+@@ -40,13 +43,7 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+      allocation accounting. *)
+ 
+   (* Parse the header of the VDI we are diffing against as well *)
+-  let relative_to_qcow_path =
+-    match relative_to with
+-    | Some x ->
+-        Result.to_option (qcow_of_device x)
+-    | None ->
+-        None
+-  in
++  let relative_to_qcow_path = Option.bind relative_to path_of_backing_device in
+   let diff_fds =
+     Option.map Vhd_qcow_parsing.Qcow.read_header relative_to_qcow_path
+   in
+@@ -72,9 +69,9 @@ let send ?relative_to (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
+       )
+     @
+     match qcow_path with
+-    | Error _ ->
++    | None ->
+         []
+-    | Ok _ ->
++    | Some _ ->
+         [
+           "--json-header-map"
+         ; map_fd_string
