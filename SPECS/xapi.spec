@@ -126,9 +126,10 @@ Patch1018: 0018-storage-Add-tags-to-vdi_info-struct.patch
 Patch1019: 0019-storage-Add-VDI.-add_tags-remove_tags-methods.patch
 Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
 
-# In v26.1.22 upstream
+# In v26.1.23 upstream
 Patch1021: 0021-Add-hvm-pirq-platform-key.patch
 Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
+Patch1023: 0023-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1538,6 +1539,7 @@ Coverage files from unit tests
 - XCPNG-3545: Clear tunnels with corrupted PIFs
 - XCPNG-3546: Disable HVM PIRQs for new VMs by default
 - XCPNG-3293: Allow filtering quicktests for SR-specific or generic tests
+- Only migrate VMs to updated hosts during an RPU
 - Update to upstream 26.1.19-1
 - *** Upstream changelog ***
   * Tue Jul 28 2026 Ming Lu <ming.lu@cloud.com> - 26.1.19-1
