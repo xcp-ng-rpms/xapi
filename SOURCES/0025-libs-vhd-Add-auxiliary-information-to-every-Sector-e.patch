@@ -1,0 +1,269 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 17 Sep 2026 07:53:27 +0000
+Subject: [PATCH] libs/vhd: Add auxiliary information to every `Sector element
+
+Since expand_copy only forwards a chunk of the originally allocated buffer (it
+cuts off the original with Cstruct.cut), when the caller function completes, it
+can't recover the originally allocated buffer to re-use it.
+
+To allow the buffers to be served from a pool of pre-allocated Cstruct.t, carry
+an additional integer option with every `Sector as metadata helping to
+identify the original buffer.
+
+No users currently care about this additional metadata, so set it to None and
+ignore in all the current users - no functional change.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/libs/vhd/vhd_format/element.ml      |  8 +++---
+ ocaml/libs/vhd/vhd_format/element.mli     |  3 ++-
+ ocaml/libs/vhd/vhd_format/f.ml            | 33 ++++++++++++++---------
+ ocaml/libs/vhd/vhd_format/f.mli           |  2 +-
+ ocaml/libs/vhd/vhd_format_lwt_test/lib.ml |  4 +--
+ ocaml/vhd-tool/src/impl.ml                |  8 +++---
+ 6 files changed, 34 insertions(+), 24 deletions(-)
+
+diff --git a/ocaml/libs/vhd/vhd_format/element.ml b/ocaml/libs/vhd/vhd_format/element.ml
+index 23d085956..8296f0665 100644
+--- a/ocaml/libs/vhd/vhd_format/element.ml
++++ b/ocaml/libs/vhd/vhd_format/element.ml
+@@ -13,7 +13,9 @@
+  *)
+ 
+ type 'a t =
+-  [`Copy of 'a * int64 * int64 | `Sectors of Cstruct.t | `Empty of int64]
++  [ `Copy of 'a * int64 * int64
++  | `Sectors of Cstruct.t * int option
++  | `Empty of int64 ]
+ 
+ let sector_size = 512
+ 
+@@ -22,7 +24,7 @@ let to_string = function
+       Printf.sprintf "1 sector copied starting at offset %Ld" offset
+   | `Copy (_, offset, len) ->
+       Printf.sprintf "%Ld sectors copied starting at offset %Ld" len offset
+-  | `Sectors x ->
++  | `Sectors (x, _) ->
+       let text = String.escaped (Cstruct.to_string (Cstruct.sub x 0 16)) in
+       if Cstruct.length x = sector_size then
+         Printf.sprintf "1 sector \"%s...\"" text
+@@ -38,7 +40,7 @@ let to_string = function
+ let len = function
+   | `Copy (_, _, len) ->
+       len
+-  | `Sectors x ->
++  | `Sectors (x, _) ->
+       Int64.of_int (Cstruct.length x / sector_size)
+   | `Empty x ->
+       x
+diff --git a/ocaml/libs/vhd/vhd_format/element.mli b/ocaml/libs/vhd/vhd_format/element.mli
+index 660687c5b..f8b789b1a 100644
+--- a/ocaml/libs/vhd/vhd_format/element.mli
++++ b/ocaml/libs/vhd/vhd_format/element.mli
+@@ -17,7 +17,8 @@ type 'a t =
+   [ `Copy of 'a * int64 * int64
+     (** [Copy (t, offset, len)] copies [len] sectors from sector [offset]
+       from the file [t] *)
+-  | `Sectors of Cstruct.t  (** a new sector (e.g. for metadata) *)
++  | `Sectors of Cstruct.t * int option
++    (** a new sector (e.g. for metadata) and auxiliary information *)
+   | `Empty of int64  (** empty space in sectors *) ]
+ 
+ val to_string : 'a t -> string
+diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
+index 920f30cba..c69e00e5d 100644
+--- a/ocaml/libs/vhd/vhd_format/f.ml
++++ b/ocaml/libs/vhd/vhd_format/f.ml
+@@ -2713,7 +2713,7 @@ functor
+               else
+                 expand_empty_elements twomib_empty (next ())
+             in
+-            return (Cons (`Sectors block, next))
++            return (Cons (`Sectors (block, None), next))
+           in
+           copy n
+       | Cons (x, next) ->
+@@ -2743,7 +2743,7 @@ functor
+       | Cons (`Copy (h, sector_start, sector_len), next) ->
+           let rec copy sector_start sector_len =
+             let this = to_int (min sector_len (of_int twomib_sectors)) in
+-            get_buffer () >>= fun buffer ->
++            get_buffer () >>= fun (buffer, i) ->
+             let data = Cstruct.sub buffer 0 (this * 512) in
+             really_read h (sector_start ** 512L) data >>= fun () ->
+             let sector_start = sector_start ++ of_int this in
+@@ -2754,7 +2754,7 @@ functor
+               else
+                 expand_copy_elements get_buffer (next ())
+             in
+-            return (Cons (`Sectors data, next))
++            return (Cons (`Sectors (data, i), next))
+           in
+           copy sector_start sector_len
+       | Cons (x, next) ->
+@@ -2763,7 +2763,7 @@ functor
+     let expand_copy
+         ?(get_buffer =
+           let buffer = Memory.alloc twomib_bytes in
+-          fun () -> return buffer) s =
++          fun () -> return (buffer, None)) s =
+       let open Int64 in
+       let size =
+         {s.size with copy= 0L; metadata= s.size.metadata ++ s.size.copy}
+@@ -3119,7 +3119,9 @@ functor
+           ; checksum= Checksum.of_cstruct batmap
+           ; marker= 0
+           } ;
+-        let write_sectors buf andthen = return (Cons (`Sectors buf, andthen)) in
++        let write_sectors buf andthen =
++          return (Cons (`Sectors (buf, None), andthen))
++        in
+ 
+         let rec block i andthen =
+           let rec sector j =
+@@ -3148,7 +3150,7 @@ functor
+           if i >= max_table_entries then
+             andthen ()
+           else if include_block i then
+-            return (Cons (`Sectors bitmap, fun () -> sector 0))
++            return (Cons (`Sectors (bitmap, None), fun () -> sector 0))
+           else
+             block (i + 1) andthen
+         in
+@@ -3170,7 +3172,7 @@ functor
+         coalesce_request None
+           (return
+              (Cons
+-                ( `Sectors (Cstruct.sub buf 0 Footer.sizeof)
++                ( `Sectors (Cstruct.sub buf 0 Footer.sizeof, None)
+                 , fun () ->
+                     let (_ : Header.t) = Header.marshal buf header in
+                     write_sectors (Cstruct.sub buf 0 Header.sizeof) (fun () ->
+@@ -3189,8 +3191,9 @@ functor
+                                              return
+                                                (Cons
+                                                   ( `Sectors
+-                                                      (Cstruct.sub buf 0
+-                                                         Footer.sizeof
++                                                      ( Cstruct.sub buf 0
++                                                          Footer.sizeof
++                                                      , None
+                                                       )
+                                                   , fun () -> return End
+                                                   )
+@@ -3319,7 +3322,9 @@ functor
+       set_next_bat_entry first_block data_block_indices ;
+ 
+       (* Fill up the data blocks *)
+-      let write_sectors buf andthen = return (Cons (`Sectors buf, andthen)) in
++      let write_sectors buf andthen =
++        return (Cons (`Sectors (buf, None), andthen))
++      in
+ 
+       let rec block andthen = function
+         | [] ->
+@@ -3335,7 +3340,7 @@ functor
+             in
+             return
+               (Cons
+-                 ( `Sectors bitmap
++                 ( `Sectors (bitmap, None)
+                  , fun () ->
+                      return
+                        (Cons
+@@ -3357,7 +3362,7 @@ functor
+       coalesce_request None
+         (return
+            (Cons
+-              ( `Sectors (Cstruct.sub buf 0 Footer.sizeof)
++              ( `Sectors (Cstruct.sub buf 0 Footer.sizeof, None)
+               , fun () ->
+                   let (_ : Header.t) = Header.marshal buf header in
+                   write_sectors (Cstruct.sub buf 0 Header.sizeof) (fun () ->
+@@ -3376,7 +3381,9 @@ functor
+                                        return
+                                          (Cons
+                                             ( `Sectors
+-                                                (Cstruct.sub buf 0 Footer.sizeof)
++                                                ( Cstruct.sub buf 0 Footer.sizeof
++                                                , None
++                                                )
+                                             , fun () -> return End
+                                             )
+                                          )
+diff --git a/ocaml/libs/vhd/vhd_format/f.mli b/ocaml/libs/vhd/vhd_format/f.mli
+index a7ddc30e6..309ece4e9 100644
+--- a/ocaml/libs/vhd/vhd_format/f.mli
++++ b/ocaml/libs/vhd/vhd_format/f.mli
+@@ -437,7 +437,7 @@ module From_file : functor (F : S.FILE) -> sig
+   (** replaces 'Empty' elements with explicit writes of zeroes *)
+ 
+   val expand_copy :
+-    ?get_buffer:(unit -> Cstruct.t t) -> fd stream -> fd stream t
++    ?get_buffer:(unit -> (Cstruct.t * int option) t) -> fd stream -> fd stream t
+   (** replaces 'Copy' elements with explicit writes of data *)
+ 
+   module Vhd_input : sig
+diff --git a/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml b/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml
+index 4e0f6cff3..babfa44c1 100644
+--- a/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml
++++ b/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml
+@@ -148,7 +148,7 @@ let check_raw_stream_contents t expected =
+           in
+           check 0 ;
+           return Int64.(add offset len)
+-      | `Sectors data ->
++      | `Sectors (data, _) ->
+           let rec loop offset remaining =
+             if Cstruct.length remaining = 0 then
+               return offset
+@@ -206,7 +206,7 @@ let verify t contents =
+         match x with
+         | `Empty y ->
+             return Int64.(add offset (mul y 512L))
+-        | `Sectors data ->
++        | `Sectors (data, _) ->
+             IO.really_write fd offset data >>= fun () ->
+             return Int64.(add offset (of_int (Cstruct.length data)))
+         | `Copy (fd', offset', len') ->
+diff --git a/ocaml/vhd-tool/src/impl.ml b/ocaml/vhd-tool/src/impl.ml
+index ac93b1a5c..5b74ec474 100644
+--- a/ocaml/vhd-tool/src/impl.ml
++++ b/ocaml/vhd-tool/src/impl.ml
+@@ -250,7 +250,7 @@ let stream_nbd _common c s prezeroed ~export ?(progress = no_progress_bar) () =
+   fold_left
+     (fun (sector, work_done) x ->
+       ( match x with
+-        | `Sectors data -> (
++        | `Sectors (data, _) -> (
+             Client.write server (Int64.mul sector 512L) [data] >>= function
+             | Ok () ->
+                 return Int64.(of_int (Cstruct.length data))
+@@ -300,7 +300,7 @@ let stream_chunked _common c s prezeroed _ ?(progress = no_progress_bar) () =
+   fold_left
+     (fun (sector, work_done) x ->
+       ( match x with
+-        | `Sectors data ->
++        | `Sectors (data, _) ->
+             let t = Chunked.make ~sector ~size:512L data in
+             Chunked.marshal header t ;
+             c.Channels.really_write header >>= fun () ->
+@@ -356,7 +356,7 @@ let stream_raw _common c s prezeroed _ ?(progress = no_progress_bar) () =
+               Unix.SEEK_SET
+             >>= fun (_ : int64) ->
+             c.Channels.copy_from fd (Int64.mul 512L sector_len)
+-        | `Sectors data ->
++        | `Sectors (data, _) ->
+             c.Channels.really_write data >>= fun () ->
+             return Int64.(of_int (Cstruct.length data))
+         | `Empty n ->
+@@ -527,7 +527,7 @@ let stream_tar _common c s _ prefix ?(progress = no_progress_bar) () =
+   fold_left
+     (fun state x ->
+       ( match x with
+-        | `Sectors data ->
++        | `Sectors (data, _) ->
+             input state data
+         | `Empty n ->
+             empty state Int64.(mul n 512L)

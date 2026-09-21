@@ -119,6 +119,8 @@ Patch1014: 0014-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 # Optimize migration for sparse QCOW2 VDIs - to be upstreamed
 Patch1015: 0015-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
 Patch1016: 0016-vhd-tool-Add-a-hybridqcow-mode.patch
+
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7271
 Patch1017: 0017-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
 
 # In v26.1.21 upstream
@@ -130,6 +132,12 @@ Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
 Patch1021: 0021-Add-hvm-pirq-platform-key.patch
 Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 Patch1023: 0023-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
+
+# Optimize VDI migration by pipelining NBD writes
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7272
+Patch1024: 0024-libs-vhd_format-Allow-alternatively-provided-buffers.patch
+Patch1025: 0025-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
+Patch1026: 0026-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1540,6 +1548,7 @@ Coverage files from unit tests
 - XCPNG-3546: Disable HVM PIRQs for new VMs by default
 - XCPNG-3293: Allow filtering quicktests for SR-specific or generic tests
 - Only migrate VMs to updated hosts during an RPU
+- Improve VDI migration performance by pipelining NBD writes
 - Update to upstream 26.1.19-1
 - *** Upstream changelog ***
   * Tue Jul 28 2026 Ming Lu <ming.lu@cloud.com> - 26.1.19-1
