@@ -1,0 +1,85 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 17 Sep 2026 07:44:04 +0000
+Subject: [PATCH] libs/vhd_format: Allow alternatively provided buffers in
+ expand_copy
+
+Instead of always allocating a single two-megabyte buffer that's used on every
+single request, get a buffer from a provided function.
+
+This function might grab a free buffer from some allocated pool, for example,
+as will be done in the next commits.
+
+No functional change, the current behaviour is kept, and no alternative
+?get_buffer functions are currently provided by the users.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/libs/vhd/vhd_format/f.ml  | 15 +++++++++------
+ ocaml/libs/vhd/vhd_format/f.mli |  3 ++-
+ 2 files changed, 11 insertions(+), 7 deletions(-)
+
+diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
+index 99a2239a9..920f30cba 100644
+--- a/ocaml/libs/vhd/vhd_format/f.ml
++++ b/ocaml/libs/vhd/vhd_format/f.ml
+@@ -2735,7 +2735,7 @@ functor
+       expand_empty_elements twomib_empty (return s.elements) >>= fun elements ->
+       return {elements; size}
+ 
+-    let rec expand_copy_elements buffer s =
++    let rec expand_copy_elements get_buffer s =
+       let open Int64 in
+       s >>= function
+       | End ->
+@@ -2743,6 +2743,7 @@ functor
+       | Cons (`Copy (h, sector_start, sector_len), next) ->
+           let rec copy sector_start sector_len =
+             let this = to_int (min sector_len (of_int twomib_sectors)) in
++            get_buffer () >>= fun buffer ->
+             let data = Cstruct.sub buffer 0 (this * 512) in
+             really_read h (sector_start ** 512L) data >>= fun () ->
+             let sector_start = sector_start ++ of_int this in
+@@ -2751,21 +2752,23 @@ functor
+               if sector_len > 0L then
+                 copy sector_start sector_len
+               else
+-                expand_copy_elements buffer (next ())
++                expand_copy_elements get_buffer (next ())
+             in
+             return (Cons (`Sectors data, next))
+           in
+           copy sector_start sector_len
+       | Cons (x, next) ->
+-          return (Cons (x, fun () -> expand_copy_elements buffer (next ())))
++          return (Cons (x, fun () -> expand_copy_elements get_buffer (next ())))
+ 
+-    let expand_copy s =
++    let expand_copy
++        ?(get_buffer =
++          let buffer = Memory.alloc twomib_bytes in
++          fun () -> return buffer) s =
+       let open Int64 in
+       let size =
+         {s.size with copy= 0L; metadata= s.size.metadata ++ s.size.copy}
+       in
+-      let buffer = Memory.alloc twomib_bytes in
+-      expand_copy_elements buffer (return s.elements) >>= fun elements ->
++      expand_copy_elements get_buffer (return s.elements) >>= fun elements ->
+       return {elements; size}
+ 
+     module Vhd_input = struct
+diff --git a/ocaml/libs/vhd/vhd_format/f.mli b/ocaml/libs/vhd/vhd_format/f.mli
+index 77c8c6d99..a7ddc30e6 100644
+--- a/ocaml/libs/vhd/vhd_format/f.mli
++++ b/ocaml/libs/vhd/vhd_format/f.mli
+@@ -436,7 +436,8 @@ module From_file : functor (F : S.FILE) -> sig
+   val expand_empty : 'a stream -> 'a stream t
+   (** replaces 'Empty' elements with explicit writes of zeroes *)
+ 
+-  val expand_copy : fd stream -> fd stream t
++  val expand_copy :
++    ?get_buffer:(unit -> Cstruct.t t) -> fd stream -> fd stream t
+   (** replaces 'Copy' elements with explicit writes of data *)
+ 
+   module Vhd_input : sig

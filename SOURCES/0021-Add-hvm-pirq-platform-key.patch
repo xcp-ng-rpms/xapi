@@ -1,0 +1,119 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tu Dinh <ngoc-tu.dinh@vates.tech>
+Date: Sun, 16 Aug 2026 16:29:19 +0000
+Subject: [PATCH] Add "hvm-pirq" platform key
+
+The HVM PIRQ feature is known to have compatibility issues with some AMD
+GPUs. It has been disabled by default in Xenlight version 024e7131be5c.
+
+Add a platform control for hvm-pirq to allow it to be disabled. The
+control defaults to true (enabled), which keeps the current default, since
+it's required for vGPU to function correctly.
+
+The platform setting allows disabling HVM PIRQ for some testing use cases.
+
+Tested-by: Teddy Astie <teddy.astie@vates.tech>
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+---
+ ocaml/xapi/vm_platform.ml             |  3 +++
+ ocaml/xenopsd/xc/domain.ml            |  3 +--
+ ocaml/xenopsd/xc/domain.mli           |  2 +-
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 23 ++++++++++++++++-------
+ 4 files changed, 21 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/xapi/vm_platform.ml b/ocaml/xapi/vm_platform.ml
+index ae43c0336..ceeef60f0 100644
+--- a/ocaml/xapi/vm_platform.ml
++++ b/ocaml/xapi/vm_platform.ml
+@@ -63,6 +63,8 @@ let nested_virt = "nested-virt"
+ 
+ let vcpu_unrestricted = "vcpu-unrestricted"
+ 
++let hvm_pirq = "hvm-pirq"
++
+ let tpm_version = "tpm_version"
+ 
+ (* The default value of device model should be set as
+@@ -106,6 +108,7 @@ let filtered_flags =
+   ; featureset
+   ; nested_virt
+   ; vcpu_unrestricted
++  ; hvm_pirq
+   ]
+ 
+ (* Other keys we might want to write to the platform map. *)
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 1192ec9bd..d07307e82 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -80,7 +80,7 @@ type domain_create_iommu_opts = Xenctrl.domain_create_iommu_opts =
+   | IOMMU_NO_SHAREPT
+ [@@deriving rpcty]
+ 
+-let emulation_flags_all =
++let emulation_flags_hvm =
+   [
+     X86_EMU_LAPIC
+   ; X86_EMU_HPET
+@@ -91,7 +91,6 @@ let emulation_flags_all =
+   ; X86_EMU_VGA
+   ; X86_EMU_IOMMU
+   ; X86_EMU_PIT
+-  ; X86_EMU_USE_PIRQ
+   ]
+ 
+ let emulation_flags_pvh = [X86_EMU_LAPIC]
+diff --git a/ocaml/xenopsd/xc/domain.mli b/ocaml/xenopsd/xc/domain.mli
+index 574782fdc..4c5fdf021 100644
+--- a/ocaml/xenopsd/xc/domain.mli
++++ b/ocaml/xenopsd/xc/domain.mli
+@@ -57,7 +57,7 @@ type x86_arch_emulation_flags =
+ 
+ val emulation_flags_pvh : x86_arch_emulation_flags list
+ 
+-val emulation_flags_all : x86_arch_emulation_flags list
++val emulation_flags_hvm : x86_arch_emulation_flags list
+ 
+ type x86_arch_misc_flags = X86_MSR_RELAXED
+ 
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index b1a5925fe..708db34f3 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -137,6 +137,21 @@ module VmExtra = struct
+   let domain_config_of_vm vm =
+     let open Vm in
+     let open Domain in
++    let emulation_flags =
++      match vm.ty with
++      | PV _ ->
++          []
++      | PVinPVH _ | PVH _ ->
++          emulation_flags_pvh
++      | HVM _ ->
++          if
++            Platform.is_true ~key:"hvm-pirq"
++              ~platformdata:vm.Xenops_interface.Vm.platformdata ~default:true
++          then
++            X86_EMU_USE_PIRQ :: emulation_flags_hvm
++          else
++            emulation_flags_hvm
++    in
+     let misc_flags =
+       if
+         Platform.is_true ~key:"msr-relaxed"
+@@ -146,13 +161,7 @@ module VmExtra = struct
+       else
+         []
+     in
+-    match vm.ty with
+-    | PV _ ->
+-        X86 {emulation_flags= []; misc_flags}
+-    | PVinPVH _ | PVH _ ->
+-        X86 {emulation_flags= emulation_flags_pvh; misc_flags}
+-    | HVM _ ->
+-        X86 {emulation_flags= emulation_flags_all; misc_flags}
++    X86 {emulation_flags; misc_flags}
+ 
+   (* Known versions of the VM persistent metadata created by xenopsd *)
+   let persistent_version_pre_lima = 0

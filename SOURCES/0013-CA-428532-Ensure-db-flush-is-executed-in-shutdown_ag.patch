@@ -14,7 +14,7 @@ Signed-off-by: Changlei Li <changlei.li@citrix.com>
  1 file changed, 7 insertions(+), 2 deletions(-)
 
 diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
-index e9e4de16b..0464e47e0 100644
+index f78521b35..f957e6fc8 100644
 --- a/ocaml/xapi/xapi_host.ml
 +++ b/ocaml/xapi/xapi_host.ml
 @@ -811,8 +811,13 @@ let restart_agent ~__context ~host:_ =

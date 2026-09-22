@@ -12,7 +12,7 @@ Signed-off-by: Sebastien Marie <semarie@kapouay.eu.org>
  1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
-index f2ecdd980..2c696b7b0 100644
+index 333bf7b95..7572a5cd9 100644
 --- a/ocaml/idl/datamodel_errors.ml
 +++ b/ocaml/idl/datamodel_errors.ml
 @@ -392,8 +392,8 @@ let _ =
