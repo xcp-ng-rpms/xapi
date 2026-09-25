@@ -606,10 +606,15 @@ echo /var/lib/xcp >> core-files
 # HACK: fix dune-build-info's job: replace $sha-dirty strings with version
 # 3 cases to be handled:
 # - no .git inside any directory in $PWD, which happens inside Koji buildroot
-# - [ -r ./.git ], i.e. launching rpmbuild from inside a xcp-ng-rpms/xapi git worktree
+# - [ -r ./.git ], i.e. launching rpmbuild from inside a xcp-ng-rpms/xapi git worktree,
+#   or from the old https://github.com/xcp-ng/xcpng-bitbake-proto
 # - one directory above $PWD has a .git (which we ought to be able to protect from using
 #   GIT_CEILING_DIRECTORIES), which typically happens inside meta-xcpng
+# The dune logic does not care about GIT_CEILING_DIRECTORIES, and will include a buggy
+# string in there despite `(version ...)` in `dune-project`.  We thus have to make sure
+# `git` ignores it as well to be able to revert the breakage.
 # Note: when building from a SRPM there is no git history
+unset GIT_CEILING_DIRECTORIES
 if git rev-parse --git-dir; then
     dirtystr=$(git describe --always --dirty --abbrev=7)
     dirtylen=${#dirtystr}
@@ -1559,6 +1564,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+# * next
+# - Unset GIT_CEILING_DIRECTORIES while proceeding with the $sha or $sha-dirty
+#   replacement
+
 * Thu Sep 10 2026 Thierry Escande <thierry.escande@vates.tech> - 26.4.0-1.2
 - Add missing xenopsd/xc patches for Xen 4.21 compatibility:
   - Mirror CDF_TRAP_UNMAPPED_ACCESSES from Xenctrl
