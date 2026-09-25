@@ -611,6 +611,8 @@ echo /var/lib/xcp >> core-files
 # - one directory above $PWD has a .git (which we ought to be able to protect from using
 #   GIT_CEILING_DIRECTORIES), which typically happens inside meta-xcpng
 # Note: when building from a SRPM there is no git history
+pwd
+ls -al
 if git rev-parse --git-dir; then
     dirtystr=$(git describe --always --dirty --abbrev=7)
     dirtylen=${#dirtystr}
