@@ -109,7 +109,7 @@ Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
 Patch2001: 0001-domainconfig-Add-new-parameters-for-SVE-vector-lengt.patch
 Patch2002: 0002-introduce-arm-as-the-domain-type.patch
 Patch2003: 0003-Adjust-schematest-hash-and-other-tests.patch
-Patch2004: 0004-debug-prints.patch
+Patch2004: 0004-cpuid_helpers-skip-CPU-featureset-levelling-for-ARM-.patch
 Patch2005: 0005-minimal-xenguest-handling-for-arm.patch
 
 %{?_cov_buildrequires}
