@@ -117,6 +117,7 @@ Patch2008: xenopsd-xc-don-t-probe-shadow_allocation_get-for-ARM.patch
 Patch2009: xenopsd-xc-sync-domain.ml-with-Xen-4.21-Xenctrl-ABI.patch
 Patch2010: xenopsd-xc-set-CDF_TRAP_UNMAPPED_ACCESSES-for-ARM-dom.patch
 Patch2011: xe-make-vif-create-mac-random-actually-random.patch
+Patch2012: xenopsd-xc-offer-a-xenfb-graphical-console-for-ARM-guests.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc

@@ -1,0 +1,222 @@
+From 54e2cf3d9e009657d8af24ad54c3325d9cc803a4 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Fri, 25 Sep 2026 16:19:13 +0200
+Subject: [PATCH] xenopsd/xc: offer a xenfb graphical console for ARM guests
+
+Copy exactly what vncterm is doing. Just start a QEMU as a userspace PV
+backend (-machine xenpv -vga xenfb), which provides a xenfb framebuffer
+and a vkbd keyboard/mouse to the guest and exports them via VNC on a
+unix socket. Device.get_vnc_port prefers it over vncterm, so XO shows
+the guest's graphical output. vncterm keeps serving the text console.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+ ocaml/xenopsd/xc/device.ml            |  2 +
+ ocaml/xenopsd/xc/domain.ml            |  3 ++
+ ocaml/xenopsd/xc/service.ml           | 77 +++++++++++++++++++++++++++
+ ocaml/xenopsd/xc/service.mli          | 17 ++++++
+ ocaml/xenopsd/xc/xc_resources.ml      |  7 +++
+ ocaml/xenopsd/xc/xenops_server_xen.ml | 14 ++++-
+ 6 files changed, 118 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xenopsd/xc/device.ml b/ocaml/xenopsd/xc/device.ml
+index 4f4cf4c9f..68a259ebe 100644
+--- a/ocaml/xenopsd/xc/device.ml
++++ b/ocaml/xenopsd/xc/device.ml
+@@ -4048,6 +4048,8 @@ let get_vnc_port ~xs ~dm domid =
+   let qemu_exists = Service.Qemu.is_running ~xs domid in
+   if qemu_exists then
+     Dm.get_vnc_port ~xs ~dm domid
++  else if Service.PV_Qemu.is_running ~xs domid then
++    Service.PV_Qemu.get_vnc_port ~xs domid
+   else
+     Service.PV_Vnc.get_vnc_port ~xs domid
+ 
+diff --git a/ocaml/xenopsd/xc/domain.ml b/ocaml/xenopsd/xc/domain.ml
+index 096834922..909a8e257 100644
+--- a/ocaml/xenopsd/xc/domain.ml
++++ b/ocaml/xenopsd/xc/domain.ml
+@@ -895,6 +895,9 @@ let destroy (task : Xenops_task.task_handle) ~xc ~xs ~qemu_domid ~vtpm ~dm domid
+   log_exn_continue "Error stoping vncterm, already dead ?"
+     (fun () -> Service.PV_Vnc.stop ~xs domid)
+     () ;
++  log_exn_continue "Error stoping PV qemu, already dead ?"
++    (fun () -> Service.PV_Qemu.stop ~xs domid)
++    () ;
+   (* Forcibly shutdown every backend *)
+   List.iter
+     (fun device ->
+diff --git a/ocaml/xenopsd/xc/service.ml b/ocaml/xenopsd/xc/service.ml
+index c19a5c420..7a1983b25 100644
+--- a/ocaml/xenopsd/xc/service.ml
++++ b/ocaml/xenopsd/xc/service.ml
+@@ -973,3 +973,80 @@ module PV_Vnc = struct
+ 
+   let stop ~xs domid = D.stop ~xs domid
+ end
++
++module PV_Qemu = struct
++  let name = "pv-qemu"
++
++  let pidxenstore_path domid =
++    Printf.sprintf "/local/domain/%d/pv-qemu-pid" domid
++
++  let vnc_socket_path domid =
++    Printf.sprintf "%s/pv-vnc-%d" Device_common.var_run_xen_path domid
++
++  module D = DaemonMgmt (struct
++    let name = name
++
++    let pid_location = Pid.Xenstore pidxenstore_path
++
++    let expected_cmdline_items ~domid = [Printf.sprintf "pv-qemu-%d" domid]
++  end)
++
++  let is_running = D.is_running
++
++  let get_vnc_port ~xs domid =
++    if D.is_running ~xs domid then
++      Some (Socket.Unix (vnc_socket_path domid))
++    else
++      None
++
++  let wait_for_backends ~xs ~backend_domid domid =
++    let initialised kind =
++      let path =
++        Printf.sprintf "/local/domain/%d/backend/%s/%d/0/state" backend_domid
++          kind domid
++      in
++      try int_of_string (xs.Xs.read path) >= 2 with _ -> false
++    in
++    let rec loop n =
++      List.for_all initialised ["vfb"; "vkbd"]
++      || n > 0
++         && (Thread.delay 0.1 ;
++             loop (n - 1)
++            )
++    in
++    if not (loop 100) then
++      warn "%s: vfb/vkbd backends of domid %d not ready after 10s" name domid
++
++  let start ~xs ~backend_domid domid =
++    debug "In PV_Qemu.start" ;
++    let args =
++      [
++        "-xen-domid"
++      ; string_of_int domid
++      ; "-xen-attach"
++      ; "-name"
++      ; Printf.sprintf "pv-qemu-%d" domid
++      ; "-machine"
++      ; "xenpv"
++      ; "-vga"
++      ; "xenfb"
++      ; "-display"
++      ; "none"
++      ; "-vnc"
++      ; "unix:" ^ vnc_socket_path domid
++      ; "-nodefaults"
++      ; "-no-user-config"
++      ]
++    in
++    let pid = D.start_daemon ~path:!Xc_resources.pv_qemu ~args ~domid () in
++    xs.Xs.write (pidxenstore_path domid)
++      (string_of_int (Forkhelpers.getpid pid)) ;
++    Forkhelpers.dontwaitpid pid ;
++    wait_for_backends ~xs ~backend_domid domid
++
++  let stop ~xs domid =
++    D.stop ~xs domid ;
++    Xenops_utils.best_effort "removing PV qemu VNC socket" (fun () ->
++        Unixext.unlink_safe (vnc_socket_path domid)
++    )
++end
+diff --git a/ocaml/xenopsd/xc/service.mli b/ocaml/xenopsd/xc/service.mli
+index b0cd9178b..528eb8509 100644
+--- a/ocaml/xenopsd/xc/service.mli
++++ b/ocaml/xenopsd/xc/service.mli
+@@ -105,6 +105,23 @@ module PV_Vnc : sig
+     xs:Ezxenstore_core.Xenstore.Xs.xsh -> Xenctrl.domid -> int option
+ end
+ 
++module PV_Qemu : sig
++  val is_running : xs:Ezxenstore_core.Xenstore.Xs.xsh -> Xenctrl.domid -> bool
++
++  val get_vnc_port :
++       xs:Ezxenstore_core.Xenstore.Xs.xsh
++    -> Xenctrl.domid
++    -> Xenops_utils.Socket.t option
++
++  val start :
++       xs:Ezxenstore_core.Xenstore.Xs.xsh
++    -> backend_domid:Xenctrl.domid
++    -> Xenctrl.domid
++    -> unit
++
++  val stop : xs:Ezxenstore_core.Xenstore.Xs.xsh -> Xenctrl.domid -> unit
++end
++
+ module Varstored : sig
+   val efivars_save_path : Xenops_sandbox.Chroot.Path.t
+ 
+diff --git a/ocaml/xenopsd/xc/xc_resources.ml b/ocaml/xenopsd/xc/xc_resources.ml
+index 2199fb04a..f777cc2eb 100644
+--- a/ocaml/xenopsd/xc/xc_resources.ml
++++ b/ocaml/xenopsd/xc/xc_resources.ml
+@@ -23,6 +23,8 @@ let igmp_query_injector_script =
+ 
+ let vncterm = ref "vncterm"
+ 
++let pv_qemu = ref "/usr/lib64/xen/bin/qemu-system-i386"
++
+ let xenguest = ref "xenguest"
+ 
+ let emu_manager = ref "emu-manager"
+@@ -85,6 +87,11 @@ let nonessentials =
+   ; (X_OK, "vgpu", vgpu, "path to the vgpu binary")
+   ; (X_OK, "varstored", varstored, "path to the varstored binary")
+   ; (X_OK, "vncterm", vncterm, "path to the vncterm binary")
++  ; ( X_OK
++    , "pv-qemu"
++    , pv_qemu
++    , "path to the qemu binary providing PV (xenfb/vkbd) backends"
++    )
+   ; (X_OK, "gimtool", gimtool, "path to the gimtool binary")
+   ; ( X_OK
+     , "igmp-query-injector-script"
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index af4229857..22b8fa888 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -2072,6 +2072,9 @@ module VM = struct
+           () ;
+         log_exn_continue "Error stoping vncterm, already dead ?"
+           (fun () -> Service.PV_Vnc.stop ~xs domid)
++          () ;
++        log_exn_continue "Error stoping PV qemu, already dead ?"
++          (fun () -> Service.PV_Qemu.stop ~xs domid)
+           ()
+         (* If qemu is in a different domain to storage, detach disks *)
+     )
+@@ -2714,9 +2717,16 @@ module VM = struct
+       match vm.Vm.ty with
+       | PV {vncterm; vncterm_ip= ip; _}
+       | PVH {vncterm; vncterm_ip= ip; _}
+-      | PVinPVH {vncterm; vncterm_ip= ip; _}
+-      | ARM {vncterm; vncterm_ip= ip; _} ->
++      | PVinPVH {vncterm; vncterm_ip= ip; _} ->
+           if vncterm then Service.PV_Vnc.start ~xs ?ip di.Xenctrl.domid
++      | ARM {vncterm; vncterm_ip= ip; _} ->
++          if vncterm then Service.PV_Vnc.start ~xs ?ip di.Xenctrl.domid ;
++          if
++            Platform.is_true ~key:"vfb" ~platformdata:vm.Vm.platformdata
++              ~default:false
++          then
++            Service.PV_Qemu.start ~xs ~backend_domid:(this_domid ~xs)
++              di.Xenctrl.domid
+       | HVM _ ->
+           ()
+     with Device.Ioemu_failed (name, msg) ->
+-- 
+2.53.0
+
