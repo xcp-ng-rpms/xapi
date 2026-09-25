@@ -1,0 +1,38 @@
+From 01b0bdb116cd13b9552ae5bbd8624808c9f9f9a9 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Fri, 25 Sep 2026 15:51:30 +0200
+Subject: [PATCH] xe: make vif-create mac=random generate a random MAC again
+
+The function random_mac_local builds the MAC with 'Array.make 6
+(Random.int 0x100)', which evaluates Random.int only once and repeats
+that byte six times, e.g. 5a:58:58:58:58:58. But moreover, the global
+Random state is never initialised in the CLI server, so the sequence
+restarts after every toolstack restart. So, the first 'xe vif-create
+mac=random' after a restart always gives the same MAC.
+
+Tested on an XCP-ng host via 'xe vif-create ... mac=random' returned
+5a:58:58:58:58:58.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+---
+ ocaml/xapi-cli-server/record_util.ml | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi-cli-server/record_util.ml b/ocaml/xapi-cli-server/record_util.ml
+index 94f0cc643..89d956eb0 100644
+--- a/ocaml/xapi-cli-server/record_util.ml
++++ b/ocaml/xapi-cli-server/record_util.ml
+@@ -552,7 +552,9 @@ let mac_from_int_array macs =
+     macs.(3) macs.(4) macs.(5)
+ 
+ (* generate a random mac that is locally administered *)
+-let random_mac_local () = mac_from_int_array (Array.make 6 (Random.int 0x100))
++let random_mac_local () =
++  let rng = Random.State.make_self_init () in
++  mac_from_int_array (Array.init 6 (fun _ -> Random.State.int rng 0x100))
+ 
+ (* Intentional shadowing - inconsistent underscore/dash *)
+ let vm_placement_policy_to_string = function
+-- 
+2.53.0
+
