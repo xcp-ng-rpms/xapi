@@ -621,11 +621,12 @@ echo /var/lib/xcp >> core-files
 # 3 cases to be handled:
 # - no .git inside any directory in $PWD, which happens inside Koji buildroot
 # - [ -r ./.git ], i.e. launching rpmbuild from inside a xcp-ng-rpms/xapi git worktree
-# - one directory above $PWD has a .git (which we ought to be able to protect from using
-#   GIT_CEILING_DIRECTORIES), which typically happens inside meta-xcpng
+# - one directory above $PWD has a .git, which typically happens inside meta-xcpng.
+#   dune-build-info finds it even with GIT_CEILING_DIRECTORIES set, so we must
+#   ignore the ceiling here too, or the sha is left in the binaries.
 # Note: when building from a SRPM there is no git history
-if git rev-parse --git-dir; then
-    dirtystr=$(git describe --always --dirty --abbrev=7)
+if env -u GIT_CEILING_DIRECTORIES git rev-parse --git-dir; then
+    dirtystr=$(env -u GIT_CEILING_DIRECTORIES git describe --always --dirty --abbrev=7)
     dirtylen=${#dirtystr}
     version=%{version}
     verlen=${#version}
