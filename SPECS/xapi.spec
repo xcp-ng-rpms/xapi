@@ -618,17 +618,24 @@ unset GIT_CEILING_DIRECTORIES
 if git rev-parse --git-dir; then
     dirtystr=$(git describe --always --dirty --abbrev=7)
     dirtylen=${#dirtystr}
-    version=%{version}
-    verlen=${#version}
-    # since we use sed we have to write as many bytes, so pad with spaces
-    fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
-    replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
-    grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
-        xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
-    sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+    if grep -rl "${dirtystr}" $RPM_BUILD_ROOT; then
+        echo >&2 "Replacing '${dirtystr}' in binaries"
+        version=%{version}
+        verlen=${#version}
+        # since we use sed we have to write as many bytes, so pad with spaces
+        fulldirtylen=$(($dirtylen + ${#dirtylen} + 2)) # the "=len:" prefix
+        replacement=$(printf "%%-${fulldirtylen}s" "=${verlen}:$version")
+        grep -rl "${dirtystr}" $RPM_BUILD_ROOT |
+            xargs sed -i "s/=${dirtylen}:${dirtystr}/${replacement}/"
+        sed -i "s/${dirtystr}/${version}/" $RPM_BUILD_ROOT/usr/lib64/opamroot/ocaml-system/lib/xapi-idl/META
+    else
+        echo >&2 "No '${dirtystr}' in binaries, skipping replacement step"
+    fi
 fi
 
 # make sure we don't have any "-dirty" string in the build
+# Note: this is not a 100% check, as it happens that a worktree is not seen
+# as dirty and the binaries get installed with a short sha1 without that suffix
 if grep -r -e "-dirty" $RPM_BUILD_ROOT >/dev/null; then
     # ignore legit symbol "xen-set-global-dirty-log"
     if grep -rl -e "-dirty" $RPM_BUILD_ROOT | xargs strings | grep -e "-dirty" | grep -v xen-set-global-dirty-log; then
@@ -1567,6 +1574,8 @@ Coverage files from unit tests
 # * next
 # - Unset GIT_CEILING_DIRECTORIES while proceeding with the $sha or $sha-dirty
 #   replacement
+# - Clarify the description of the $sha replacement hack, and add logs to see
+#   when it gets triggered and when it does not
 
 * Thu Sep 10 2026 Thierry Escande <thierry.escande@vates.tech> - 26.4.0-1.2
 - Add missing xenopsd/xc patches for Xen 4.21 compatibility:
