@@ -1,5 +1,5 @@
 %global package_speccommit 5cc5ae0e1cc23f1f23b47b6b0751b1dd9849360b
-%global package_srccommit v26.1.19
+%global package_srccommit v26.1.23
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.19
+Version: 26.1.23
 Release: 1%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.19.tar.gz
+Source0: xen-api-26.1.23.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -103,41 +103,24 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # still uses the legacy default for safety
 Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# In v26.1.21 upstream
-Patch1008: 0008-vlan_tag_invalid-change-the-documentation-string.patch
-Patch1009: 0009-VLAN-filtering-on-VIF.patch
-Patch1010: 0010-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
-Patch1011: 0011-xenopsd-update-xenstore-while-updating-xapi-db.patch
-Patch1012: 0012-test_vif_trunks-cover-more-coherence-checks.patch
-
-# In v26.1.21 upstream
-Patch1013: 0013-CA-428532-Ensure-db-flush-is-executed-in-shutdown_ag.patch
-
 # Exclude linstor SRs from QCOW2 quicktests
-Patch1014: 0014-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
+Patch1008: 0008-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 
 # Optimize migration for sparse QCOW2 VDIs - to be upstreamed
-Patch1015: 0015-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
-Patch1016: 0016-vhd-tool-Add-a-hybridqcow-mode.patch
+Patch1009: 0009-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
+Patch1010: 0010-vhd-tool-Add-a-hybridqcow-mode.patch
 
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7271
-Patch1017: 0017-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
-
-# In v26.1.21 upstream
-Patch1018: 0018-storage-Add-tags-to-vdi_info-struct.patch
-Patch1019: 0019-storage-Add-VDI.-add_tags-remove_tags-methods.patch
-Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
+Patch1011: 0011-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
 
 # In v26.1.23 upstream
-Patch1021: 0021-Add-hvm-pirq-platform-key.patch
-Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
-Patch1023: 0023-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
+Patch1012: 0012-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
 # Optimize VDI migration by pipelining NBD writes
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7272
-Patch1024: 0024-libs-vhd_format-Allow-alternatively-provided-buffers.patch
-Patch1025: 0025-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
-Patch1026: 0026-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
+Patch1013: 0013-libs-vhd_format-Allow-alternatively-provided-buffers.patch
+Patch1014: 0014-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
+Patch1015: 0015-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1047,6 +1030,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 /etc/xapi.d/mail-languages/zh-CN.json
 /etc/xapi.d/mail-languages/ja-JP.json
 /etc/logrotate.d/xapi
+%config(noreplace) /etc/xensource/call-costs.conf
 %config(noreplace) /etc/xensource/db.conf
 %config(noreplace) /etc/xensource/db.conf.rio
 /etc/xensource/master.d/01-example
@@ -1282,25 +1266,13 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 %exclude %{ocaml_libdir}/xapi-log/*.cmt
 %exclude %{ocaml_libdir}/xapi-log/*.cmti
 
-%{ocaml_libdir}/xapi-open-uri/*
-%exclude %{ocaml_libdir}/xapi-open-uri/*.cmt
-%exclude %{ocaml_libdir}/xapi-open-uri/*.cmti
-
 %{ocaml_libdir}/safe-resources/*
 %exclude %{ocaml_libdir}/safe-resources/*.cmt
 %exclude %{ocaml_libdir}/safe-resources/*.cmti
 
-%{ocaml_libdir}/cohttp-posix/*
-%exclude %{ocaml_libdir}/cohttp-posix/*.cmt
-%exclude %{ocaml_libdir}/cohttp-posix/*.cmti
-
 %{ocaml_libdir}/xapi-expiry-alerts/*
 %exclude %{ocaml_libdir}/xapi-expiry-alerts/*.cmt
 %exclude %{ocaml_libdir}/xapi-expiry-alerts/*.cmti
-
-%{ocaml_libdir}/xapi-inventory/*
-%exclude %{ocaml_libdir}/xapi-inventory/*.cmt
-%exclude %{ocaml_libdir}/xapi-inventory/*.cmti
 
 %{ocaml_libdir}/xapi-stdext-encodings/*
 %exclude %{ocaml_libdir}/xapi-stdext-encodings/*.cmt
@@ -1499,7 +1471,6 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 %exclude %{ocaml_libdir}/xapi-storage/*.cma
 %exclude %{ocaml_libdir}/xapi-storage/*.cmi
 %exclude %{ocaml_libdir}/xapi-storage/*.cmt
-%exclude %{ocaml_libdir}/xapi-storage/*.cmxs
 %exclude %{ocaml_libdir}/xapi-storage/*.ml
 
 %files storage-script
