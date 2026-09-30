@@ -139,6 +139,12 @@ Patch1024: 0024-libs-vhd_format-Allow-alternatively-provided-buffers.patch
 Patch1025: 0025-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
 Patch1026: 0026-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
+Patch1027: 0001-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
+Patch1028: 0002-Add-the-xenfb-VGA-type.patch
+Patch1029: 0003-Add-IPv4-DNS-setting-for-VIF-configuration.patch
+Patch1030: 0004-Add-IPv6-DNS-setting-for-VIF-configuration.patch
+Patch1031: 0005-Add-tests-for-the-VIF-DNS-setting-feature.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1864,7 +1870,7 @@ Coverage files from unit tests
   - libs: add Stat module in Unixext to handle special device IDs
   - ocaml: Unify handling of major and minor device IDs
   - vhd_tool_wrapper: generate detailed errors when getting tapctl devices
-    
+
   * Fri Dec 05 2025 Steven Woods <steven.woods@citrix.com> - 25.39.0-1
   - CA-420968: compute the amount of physical cores available on a NUMA node set
   - CA-420968: ensure compatibility between NUMARequest.fits and plan
@@ -1885,7 +1891,7 @@ Coverage files from unit tests
   - CP-31566 define xenopsd fast resume operation
   - fixup! CP-31566 define xenopsd fast resume operation
   - increase max supported NVMe request size
-  
+
   * Thu Nov 27 2025 Steven Woods <steven.woods@citrix.com> - 25.38.0-1
   - Refactor: Rename Http.Request.uri -> path
   - RPC: Add "/RPC2" route for the RPC handler
@@ -1909,7 +1915,7 @@ Coverage files from unit tests
   - xstringext: Test escaped against reference implementation
   - xstringext: Add benchmark for escaped
   - quicktest: Add qcow to VDI integrity tests
-  
+
   * Wed Nov 12 2025 Steven Woods <steven.woods@citrix.com> - 25.37.0-1
   - xapi-stdext: remove unused functions from listext
   - xapi-stdext: consolidate listext's chop tests
@@ -1933,7 +1939,7 @@ Coverage files from unit tests
   - CP-310555: Rotate machine password through winbind
   - Rename encode_bdf function
   - XSI-2025: Only abort HA host reenable for unpluggable PIFs
-  
+
   * Fri Oct 31 2025 Steven Woods <steven.woods@citrix.com> - 25.36.0-1
   - Move xenopsd's xenctrl_ext to ocaml/libs/
   - Add Makefile for with "format" target
@@ -1941,7 +1947,7 @@ Coverage files from unit tests
   - CA-419227 Add logs for debug
     - CA-419227 Move force_state_reset after refresh_vm
   - docs: add documentation about setting up alarms
-  
+
   * Wed Oct 29 2025 Steven Woods <steven.woods@citrix.com> - 25.35.0-1
   - [doc] Host network device ordering
   - CP-44103: Ordering network devices - IDL changes
@@ -1989,7 +1995,7 @@ Coverage files from unit tests
   - forkexecd: memcpy() and strcpy() comes from string.h
   - forkexecd: explicitly cast `struct sockaddr_un` to `struct sockaddr`
   - Add numa.md design sketch; new fields to to VM_metrics.
-  
+
   * Wed Oct 22 2025 Steven Woods <steven.woods@citrix.com> - 25.34.0-1
   - CP-308927 Add nr_nodes in host.cpu_info to expose numa nodes count
   - CP-308873 Update software_version to reflect the newly applied livepatch after apply_livepatch
@@ -2023,7 +2029,7 @@ Coverage files from unit tests
   - doc: change outdated information in storage
   - doc: update better VM revert proposal
   - CA-418960: VM with vTPM Delete doesn't remove the snapshot
- 
+
 * Tue Jan 13 2026 Pau Ruiz Safont <pau.safont@vates.tech> - 25.33.1-2.3
 - Print what capabilities are missing when migration fails
 
@@ -2035,13 +2041,13 @@ Coverage files from unit tests
 - *** Upstream changelog ***
   * Thu Oct 30 2025 Rob Hoes <rob.hoes@citrix.com> - 25.33.1-2
   - Bump release and rebuild
-  
+
   * Thu Oct 30 2025 Rob Hoes <rob.hoes@citrix.com> - 25.33.1-1
   - CA-419227 Move force_state_reset after refresh_vm
-  
+
   * Thu Oct 16 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.33.0-2
   - CP-53573: Enable NUMA placement in XS9
-  
+
   * Tue Oct 14 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.33.0-1
   - Update dune lang to 3.20
   - Avoid no-cmx-warning when building xapi_version
@@ -2054,7 +2060,7 @@ Coverage files from unit tests
   - xapi_vm_clone: Remove impossible, confusing case when dealing with suspend VDIs
   - CA-417020: DNS not cleared after reconfiguring to static IP without DNS
   - fix: Xen Version checks
-  
+
   * Tue Sep 30 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.32.0-1
   - XSI-1969 more thorough resource cleanup
   - CP-54163: xapi: Add secure boot field to host
@@ -2071,7 +2077,7 @@ Coverage files from unit tests
   - Remove unused Xenctrlext function
   - idl: Remove apparently unused gen_test.ml
   - idl/gen_client: Don't specify argument values when they're equal to defaults
-  
+
   * Wed Sep 24 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.31.0-1
   - CP-308811: Add an option to limit the span depth in tracing
   - CP-309305: Split Spans.since into chunks for exporting
@@ -2104,7 +2110,7 @@ Coverage files from unit tests
   - git-blame-ignore-revs: ignore previous, formatting commit
   - networkd: Remove usage of ovs-vlan-bug-workaround
   - networkd: Remove has_vlan_accel from network_utils
-  
+
   * Tue Sep 02 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.30.0-1
   - CA-411297: XAPI UTF8
   - CA-412983: HA doesn't keep trying to start best-effort VM
@@ -2126,10 +2132,10 @@ Coverage files from unit tests
   - CP-308455 VM.sysprep declare XML content as SecretString
   - CP-308539: Updated certificate validation to support .NET 8.0 in PowerShell.
   - Revert "xapi/nm: Send non-empty dns to networkd when using IPv6 autoconf (#6586)"
-  
+
   * Wed Aug 27 2025 Andrew Cooper <andrew.cooper3@citrix.com> - 25.29.0-2
   - Rebuild against Xen 4.20
-  
+
   * Thu Aug 21 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.29.0-1
   - CP-40265 - xenopsd: Drop max_maptrack_frames to 0 by default on domain creation
   - CP-40265 - xenopsd: Calculate max_grant_frames dynamically
@@ -2150,7 +2156,7 @@ Coverage files from unit tests
   - message_forwarding: Log which operation is added/removed from blocked_ops
   - xe-cli: Allow floppy to be autocompleted
   - CA-415952: HA can not be enabled
-  
+
   * Wed Aug 06 2025 Gabriel Buica <danutgabriel.buica@cloud.com> - 25.28.0-1
   - CA-413424: Enhance xe help output
   - CP-308455 VM.sysprep CA-414158 wait for "action" key to disappear
