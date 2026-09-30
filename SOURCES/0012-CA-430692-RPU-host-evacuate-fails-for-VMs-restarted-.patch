@@ -28,12 +28,9 @@ And HA is required to be disabled during upgrade and update. So it's no
 impact on that work flow.
 
 Signed-off-by: Ming Lu <ming.lu@cloud.com>
----
- ocaml/xapi/xapi_host.ml | 12 ++++++++++++
- 1 file changed, 12 insertions(+)
 
 diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
-index f957e6fc8..a7fdd6e41 100644
+index 394c049b815d..a71dc5e46413 100644
 --- a/ocaml/xapi/xapi_host.ml
 +++ b/ocaml/xapi/xapi_host.ml
 @@ -313,6 +313,18 @@ let compute_evacuation_plan_no_wlb ~__context ~host ?(ignore_ha = false) () =

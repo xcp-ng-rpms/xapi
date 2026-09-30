@@ -1,7 +1,7 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Pau Ruiz Safont <pau.safont@vates.tech>
 Date: Sat, 18 Oct 2025 09:21:18 +0100
-Subject: [PATCH] [xcp-ng] do not change rsyslog configuration
+Subject: [PATCH] do not change rsyslog configuration
 
 Xenserver's changes around rsyslog configuration have downsides and the
 packaging prefers the previous behaviour because there's no time to
@@ -16,28 +16,20 @@ https://github.com/xcp-ng-rpms/xcp-ng-release/pull/33
 Reverts commit 468eb75dddfea6db512a8bfb4860ff2042efab66.
 
 Signed-off-by: Pau Ruiz Safont <pau.safont@vates.tech>
----
- scripts/xe-syslog-reconfigure | 32 +++++++++++++++++++++++++++-----
- 1 file changed, 27 insertions(+), 5 deletions(-)
 
 diff --git a/scripts/xe-syslog-reconfigure b/scripts/xe-syslog-reconfigure
-index fa5ad0b79..cc64a3030 100644
+index fa5ad0b79691..cc64a303044f 100644
 --- a/scripts/xe-syslog-reconfigure
 +++ b/scripts/xe-syslog-reconfigure
 @@ -14,10 +14,32 @@ do
    shift
  done
  
--
--echo "# /etc/rsyslog.d/remote.conf is managed by xe-syslog-reconfigure (do not edit)" > /etc/rsyslog.d/remote.conf
--if [ $remote -eq 1 ]; then
--  echo "*.* @$host" >> /etc/rsyslog.d/remote.conf
 +if [ -r /etc/syslog.conf ]; then
 +  conf_file=/etc/syslog.conf
 +  service=syslog
- fi
- 
--systemctl restart rsyslog
++fi
++
 +if [ -r /etc/rsyslog.conf ]; then
 +  conf_file=/etc/rsyslog.conf
 +  service=rsyslog
@@ -52,13 +44,16 @@ index fa5ad0b79..cc64a3030 100644
 +  echo "Error: unable to determine syslog service" >&2
 +  exit 1
 +fi
-+
+ 
+-echo "# /etc/rsyslog.d/remote.conf is managed by xe-syslog-reconfigure (do not edit)" > /etc/rsyslog.d/remote.conf
 +sed -e '/^\*\.\*.*[@~]/ d' $conf_file >/etc/syslog.$$
-+if [ $remote -eq 1 ]; then
+ if [ $remote -eq 1 ]; then
+-  echo "*.* @$host" >> /etc/rsyslog.d/remote.conf
 +  echo -e "*.* @$host\n*.* ~" >>/etc/syslog.$$
 +else
 +  echo "*.* ~" >>/etc/syslog.$$
-+fi
-+
+ fi
+ 
+-systemctl restart rsyslog
 +[ -s /etc/syslog.$$ ] && mv -f /etc/syslog.$$ $conf_file
 +systemctl restart $service

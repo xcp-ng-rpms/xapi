@@ -15,18 +15,9 @@ The 'relative_to' parameter is not currently implemented for QCOW2, with the
 whole VDI transferred, not only the difference.
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
----
- ocaml/libs/vhd/vhd_format/f.ml  | 43 +++++++++++++++++++++++++++++++++
- ocaml/libs/vhd/vhd_format/f.mli |  2 ++
- ocaml/vhd-tool/cli/sparse_dd.ml | 14 +++++++++++
- ocaml/vhd-tool/src/dune         |  1 +
- ocaml/vhd-tool/src/image.ml     |  9 ++++++-
- ocaml/vhd-tool/src/image.mli    |  3 ++-
- ocaml/vhd-tool/src/impl.ml      | 20 +++++++++++++++
- 7 files changed, 90 insertions(+), 2 deletions(-)
 
 diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
-index c3bf4dce4..99a2239a9 100644
+index c3bf4dce4b63..99a2239a97a4 100644
 --- a/ocaml/libs/vhd/vhd_format/f.ml
 +++ b/ocaml/libs/vhd/vhd_format/f.ml
 @@ -2822,6 +2822,47 @@ functor
@@ -87,7 +78,7 @@ index c3bf4dce4..99a2239a9 100644
  
        let blocks_json_interval = Vhd_input.vhd_blocks_to_json_interval
 diff --git a/ocaml/libs/vhd/vhd_format/f.mli b/ocaml/libs/vhd/vhd_format/f.mli
-index fdeca3ad1..77c8c6d99 100644
+index fdeca3ad15e7..77c8c6d99333 100644
 --- a/ocaml/libs/vhd/vhd_format/f.mli
 +++ b/ocaml/libs/vhd/vhd_format/f.mli
 @@ -469,6 +469,8 @@ module From_file : functor (F : S.FILE) -> sig
@@ -100,7 +91,7 @@ index fdeca3ad1..77c8c6d99 100644
  
      val blocks_json_interval : fd Vhd.t -> unit t
 diff --git a/ocaml/vhd-tool/cli/sparse_dd.ml b/ocaml/vhd-tool/cli/sparse_dd.ml
-index ab8d87969..b958594a2 100644
+index ab8d87969f9f..b958594a2d68 100644
 --- a/ocaml/vhd-tool/cli/sparse_dd.ml
 +++ b/ocaml/vhd-tool/cli/sparse_dd.ml
 @@ -413,6 +413,8 @@ let _ =
@@ -132,7 +123,7 @@ index ab8d87969..b958594a2 100644
          let dest = rewrite_url dest in
          let t =
 diff --git a/ocaml/vhd-tool/src/dune b/ocaml/vhd-tool/src/dune
-index 9092e4e03..c4724901b 100644
+index 9092e4e03e2b..c4724901b2d0 100644
 --- a/ocaml/vhd-tool/src/dune
 +++ b/ocaml/vhd-tool/src/dune
 @@ -28,6 +28,7 @@
@@ -144,7 +135,7 @@ index 9092e4e03..c4724901b 100644
      vhd-format-lwt
      tapctl
 diff --git a/ocaml/vhd-tool/src/image.ml b/ocaml/vhd-tool/src/image.ml
-index c28e50f16..2583d6e31 100644
+index c28e50f16ced..2583d6e31a16 100644
 --- a/ocaml/vhd-tool/src/image.ml
 +++ b/ocaml/vhd-tool/src/image.ml
 @@ -8,11 +8,14 @@ let is_nbd_device path =
@@ -182,7 +173,7 @@ index c28e50f16..2583d6e31 100644
        Some (`Raw vhd)
    | _ ->
 diff --git a/ocaml/vhd-tool/src/image.mli b/ocaml/vhd-tool/src/image.mli
-index 439042d65..14b053283 100644
+index 439042d659f9..14b053283339 100644
 --- a/ocaml/vhd-tool/src/image.mli
 +++ b/ocaml/vhd-tool/src/image.mli
 @@ -1,6 +1,7 @@
@@ -195,7 +186,7 @@ index 439042d65..14b053283 100644
  val to_string : t -> string
  (** Pretty-print the image *)
 diff --git a/ocaml/vhd-tool/src/impl.ml b/ocaml/vhd-tool/src/impl.ml
-index 6c7595351..ac93b1a5c 100644
+index 6c759535176c..ac93b1a5ca30 100644
 --- a/ocaml/vhd-tool/src/impl.ml
 +++ b/ocaml/vhd-tool/src/impl.ml
 @@ -878,6 +878,26 @@ let make_stream common source relative_to source_format destination_format =

@@ -15,17 +15,9 @@ No users currently care about this additional metadata, so set it to None and
 ignore in all the current users - no functional change.
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
----
- ocaml/libs/vhd/vhd_format/element.ml      |  8 +++---
- ocaml/libs/vhd/vhd_format/element.mli     |  3 ++-
- ocaml/libs/vhd/vhd_format/f.ml            | 33 ++++++++++++++---------
- ocaml/libs/vhd/vhd_format/f.mli           |  2 +-
- ocaml/libs/vhd/vhd_format_lwt_test/lib.ml |  4 +--
- ocaml/vhd-tool/src/impl.ml                |  8 +++---
- 6 files changed, 34 insertions(+), 24 deletions(-)
 
 diff --git a/ocaml/libs/vhd/vhd_format/element.ml b/ocaml/libs/vhd/vhd_format/element.ml
-index 23d085956..8296f0665 100644
+index 23d085956bd4..8296f0665e0f 100644
 --- a/ocaml/libs/vhd/vhd_format/element.ml
 +++ b/ocaml/libs/vhd/vhd_format/element.ml
 @@ -13,7 +13,9 @@
@@ -58,7 +50,7 @@ index 23d085956..8296f0665 100644
    | `Empty x ->
        x
 diff --git a/ocaml/libs/vhd/vhd_format/element.mli b/ocaml/libs/vhd/vhd_format/element.mli
-index 660687c5b..f8b789b1a 100644
+index 660687c5bf8a..f8b789b1a2ad 100644
 --- a/ocaml/libs/vhd/vhd_format/element.mli
 +++ b/ocaml/libs/vhd/vhd_format/element.mli
 @@ -17,7 +17,8 @@ type 'a t =
@@ -72,7 +64,7 @@ index 660687c5b..f8b789b1a 100644
  
  val to_string : 'a t -> string
 diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
-index 920f30cba..c69e00e5d 100644
+index 920f30cba97b..c69e00e5d030 100644
 --- a/ocaml/libs/vhd/vhd_format/f.ml
 +++ b/ocaml/libs/vhd/vhd_format/f.ml
 @@ -2713,7 +2713,7 @@ functor
@@ -193,7 +185,7 @@ index 920f30cba..c69e00e5d 100644
                                              )
                                           )
 diff --git a/ocaml/libs/vhd/vhd_format/f.mli b/ocaml/libs/vhd/vhd_format/f.mli
-index a7ddc30e6..309ece4e9 100644
+index a7ddc30e6b89..309ece4e9fbb 100644
 --- a/ocaml/libs/vhd/vhd_format/f.mli
 +++ b/ocaml/libs/vhd/vhd_format/f.mli
 @@ -437,7 +437,7 @@ module From_file : functor (F : S.FILE) -> sig
@@ -206,7 +198,7 @@ index a7ddc30e6..309ece4e9 100644
  
    module Vhd_input : sig
 diff --git a/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml b/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml
-index 4e0f6cff3..babfa44c1 100644
+index 4e0f6cff3eb7..babfa44c10bf 100644
 --- a/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml
 +++ b/ocaml/libs/vhd/vhd_format_lwt_test/lib.ml
 @@ -148,7 +148,7 @@ let check_raw_stream_contents t expected =
@@ -228,7 +220,7 @@ index 4e0f6cff3..babfa44c1 100644
              return Int64.(add offset (of_int (Cstruct.length data)))
          | `Copy (fd', offset', len') ->
 diff --git a/ocaml/vhd-tool/src/impl.ml b/ocaml/vhd-tool/src/impl.ml
-index ac93b1a5c..5b74ec474 100644
+index ac93b1a5ca30..5b74ec4749d0 100644
 --- a/ocaml/vhd-tool/src/impl.ml
 +++ b/ocaml/vhd-tool/src/impl.ml
 @@ -250,7 +250,7 @@ let stream_nbd _common c s prezeroed ~export ?(progress = no_progress_bar) () =

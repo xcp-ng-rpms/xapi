@@ -1,18 +1,15 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 14:59:05 +0200
-Subject: [PATCH] [xcp-ng] fix IPv6 import
+Subject: [PATCH] fix IPv6 import
 
 Add brackets in `Host` header of http request when relevant.
 See: https://github.com/mirage/ocaml-cohttp/issues/997
 
 Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
----
- ocaml/xapi/xapi_vm.ml | 28 +++++++++++++++++++++++++++-
- 1 file changed, 27 insertions(+), 1 deletion(-)
 
 diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
-index f32b651ca..70c8bcf5e 100644
+index f32b651ca67c..70c8bcf5e520 100644
 --- a/ocaml/xapi/xapi_vm.ml
 +++ b/ocaml/xapi/xapi_vm.ml
 @@ -1592,7 +1592,33 @@ let rec import_inner n ~__context ~url ~sr ~full_restore ~force =

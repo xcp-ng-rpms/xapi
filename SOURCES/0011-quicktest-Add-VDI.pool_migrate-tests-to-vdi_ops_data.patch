@@ -13,15 +13,9 @@ so it's parametrized for both callers.
 Also migrate from qcow2, not just vhd.
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
----
- ocaml/quicktest/qt_filter.ml                  |  6 ++
- ocaml/quicktest/qt_filter.mli                 |  6 ++
- .../quicktest_vdi_ops_data_integrity.ml       | 65 +++++++++++++++++++
- ocaml/quicktest/quicktest_vm_migration.ml     | 52 ++++++++-------
- 4 files changed, 105 insertions(+), 24 deletions(-)
 
 diff --git a/ocaml/quicktest/qt_filter.ml b/ocaml/quicktest/qt_filter.ml
-index 7ff42ba9f..2dbf4676a 100644
+index 7ff42ba9fc5b..2dbf4676aba6 100644
 --- a/ocaml/quicktest/qt_filter.ml
 +++ b/ocaml/quicktest/qt_filter.ml
 @@ -312,6 +312,12 @@ module SR = struct
@@ -38,7 +32,7 @@ index 7ff42ba9f..2dbf4676a 100644
      sr_filter (has_one_of_types ["gfs2"; "nfs"; "smb"; "ext"; "file"])
  
 diff --git a/ocaml/quicktest/qt_filter.mli b/ocaml/quicktest/qt_filter.mli
-index 92f7bc366..8d2aec5f5 100644
+index 92f7bc366190..8d2aec5f5569 100644
 --- a/ocaml/quicktest/qt_filter.mli
 +++ b/ocaml/quicktest/qt_filter.mli
 @@ -79,6 +79,12 @@ module SR : sig
@@ -55,7 +49,7 @@ index 92f7bc366..8d2aec5f5 100644
    (** Selects thinly-provisioned SRs *)
  
 diff --git a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
-index b9d254868..6a205e253 100644
+index b9d254868387..6a205e253304 100644
 --- a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
 +++ b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
 @@ -77,6 +77,27 @@ let check_vdi_unchanged rpc session_id ~vdi_size ~prepare_vdi ~vdi_op
@@ -149,7 +143,7 @@ index b9d254868..6a205e253 100644
 +  @ (migration_data_integrity_tests "vhd" |> supported_migration_srs)
 +  @ (migration_data_integrity_tests "qcow2" |> supported_migration_srs)
 diff --git a/ocaml/quicktest/quicktest_vm_migration.ml b/ocaml/quicktest/quicktest_vm_migration.ml
-index 6738cf724..96b036979 100644
+index 6738cf724228..96b036979505 100644
 --- a/ocaml/quicktest/quicktest_vm_migration.ml
 +++ b/ocaml/quicktest/quicktest_vm_migration.ml
 @@ -1,4 +1,5 @@

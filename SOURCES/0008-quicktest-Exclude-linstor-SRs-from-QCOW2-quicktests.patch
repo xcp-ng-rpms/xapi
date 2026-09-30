@@ -7,12 +7,9 @@ These quicktests force QCOW2 VDIs through sm-config:image-format, and error out
 on Linstor SRs, which do support the setting but don't support QCOW2.
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
----
- ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml | 4 ++--
- 1 file changed, 2 insertions(+), 2 deletions(-)
 
 diff --git a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
-index 7adb16731..b9d254868 100644
+index 7adb16731a7d..b9d254868387 100644
 --- a/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
 +++ b/ocaml/quicktest/quicktest_vdi_ops_data_integrity.ml
 @@ -295,11 +295,11 @@ let tests () =

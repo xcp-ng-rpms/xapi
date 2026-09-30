@@ -16,13 +16,9 @@ from inside functions.
 
 Tracking-reference: XCPNG-3820
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
----
- ocaml/vhd-tool/src/impl.ml | 74 +++++++++++++++++++++++++++++++-------
- quality-gate.sh            |  2 +-
- 2 files changed, 63 insertions(+), 13 deletions(-)
 
 diff --git a/ocaml/vhd-tool/src/impl.ml b/ocaml/vhd-tool/src/impl.ml
-index 5b74ec474..a8127944f 100644
+index 5b74ec4749d0..a8127944fc71 100644
 --- a/ocaml/vhd-tool/src/impl.ml
 +++ b/ocaml/vhd-tool/src/impl.ml
 @@ -44,6 +44,8 @@ end)
@@ -159,16 +155,3 @@ index 5b74ec474..a8127944f 100644
    let buffer = IO.alloc twomib in
    let p = progress size in
    let rec loop offset remaining =
-diff --git a/quality-gate.sh b/quality-gate.sh
-index 7143abe02..0ff70a541 100755
---- a/quality-gate.sh
-+++ b/quality-gate.sh
-@@ -3,7 +3,7 @@
- set -e
- 
- list-hd () {
--  N=239
-+  N=240
-   LIST_HD=$(git grep -r --count 'List.hd' -- **/*.ml | cut -d ':' -f 2 | paste -sd+ - | bc)
-   if [ "$LIST_HD" -eq "$N" ]; then
-     echo "OK counted $LIST_HD List.hd usages"

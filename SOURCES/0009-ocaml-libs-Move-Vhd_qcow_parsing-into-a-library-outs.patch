@@ -7,29 +7,12 @@ Subject: [PATCH] ocaml/libs: Move Vhd_qcow_parsing into a library outside of
 It will be used in sparse_dd, so move it to libs/vhd
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
----
- dune-project                                  | 23 +++++++++
- ocaml/libs/vhd/vhd_qcow_parsing/dune          | 13 +++++
- .../vhd/vhd_qcow_parsing}/vhd_qcow_parsing.ml | 42 +++++++++++++++++
- .../vhd_qcow_parsing}/vhd_qcow_parsing.mli    |  9 +++-
- ocaml/xapi/dune                               |  1 +
- ocaml/xapi/qcow_tool_wrapper.ml               | 47 +++----------------
- ocaml/xapi/qcow_tool_wrapper.mli              |  4 --
- ocaml/xapi/stream_vdi.ml                      |  4 +-
- opam/vhd-tool.opam                            |  1 +
- opam/vhd_qcow_parsing.opam                    | 36 ++++++++++++++
- opam/xapi.opam                                |  1 +
- 11 files changed, 132 insertions(+), 49 deletions(-)
- create mode 100644 ocaml/libs/vhd/vhd_qcow_parsing/dune
- rename ocaml/{xapi => libs/vhd/vhd_qcow_parsing}/vhd_qcow_parsing.ml (75%)
- rename ocaml/{xapi => libs/vhd/vhd_qcow_parsing}/vhd_qcow_parsing.mli (81%)
- create mode 100644 opam/vhd_qcow_parsing.opam
 
 diff --git a/dune-project b/dune-project
-index 09fa04faa..9d14bc44b 100644
+index 5062e2bbea54..01de2ef3e6ec 100644
 --- a/dune-project
 +++ b/dune-project
-@@ -371,6 +371,25 @@
+@@ -391,6 +391,25 @@
    (xapi-test-utils :with-test)
    (xenstore_transport :with-test)))
  
@@ -55,7 +38,7 @@ index 09fa04faa..9d14bc44b 100644
  (package
   (name xapi)
   (synopsis "The toolstack daemon which implements the XenAPI")
-@@ -490,6 +509,8 @@
+@@ -512,6 +531,8 @@
    xmlm
    (xml-light2
     (= :version))
@@ -64,7 +47,7 @@ index 09fa04faa..9d14bc44b 100644
    yojson
    (zstd
     (= :version))))
-@@ -531,6 +552,8 @@
+@@ -553,6 +574,8 @@
     (= :version))
    (vhd-format-lwt
     (= :version))
@@ -75,7 +58,7 @@ index 09fa04faa..9d14bc44b 100644
    (xapi-log
 diff --git a/ocaml/libs/vhd/vhd_qcow_parsing/dune b/ocaml/libs/vhd/vhd_qcow_parsing/dune
 new file mode 100644
-index 000000000..c8410ec8a
+index 000000000000..c8410ec8a166
 --- /dev/null
 +++ b/ocaml/libs/vhd/vhd_qcow_parsing/dune
 @@ -0,0 +1,13 @@
@@ -96,7 +79,7 @@ diff --git a/ocaml/xapi/vhd_qcow_parsing.ml b/ocaml/libs/vhd/vhd_qcow_parsing/vh
 similarity index 75%
 rename from ocaml/xapi/vhd_qcow_parsing.ml
 rename to ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.ml
-index 90ed8a7b2..86540cc1b 100644
+index 90ed8a7b2883..86540cc1bc34 100644
 --- a/ocaml/xapi/vhd_qcow_parsing.ml
 +++ b/ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.ml
 @@ -105,3 +105,45 @@ let parse_header_interval pipe_reader =
@@ -149,7 +132,7 @@ diff --git a/ocaml/xapi/vhd_qcow_parsing.mli b/ocaml/libs/vhd/vhd_qcow_parsing/v
 similarity index 81%
 rename from ocaml/xapi/vhd_qcow_parsing.mli
 rename to ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.mli
-index f43b56dab..b990ea855 100644
+index f43b56dab511..b990ea855dc2 100644
 --- a/ocaml/xapi/vhd_qcow_parsing.mli
 +++ b/ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.mli
 @@ -25,5 +25,10 @@ val parse_header : Unix.file_descr -> int * int list
@@ -166,10 +149,10 @@ index f43b56dab..b990ea855 100644
 +  val parse_header_interval : string -> int * (int * int) list
 +end
 diff --git a/ocaml/xapi/dune b/ocaml/xapi/dune
-index b2c78a30c..961d8eed1 100644
+index 125a38971b21..ffaa819cea64 100644
 --- a/ocaml/xapi/dune
 +++ b/ocaml/xapi/dune
-@@ -195,6 +195,7 @@
+@@ -204,6 +204,7 @@
    uri
    uuid
    uuidm
@@ -178,7 +161,7 @@ index b2c78a30c..961d8eed1 100644
    xapi_aux
    xapi-backtrace
 diff --git a/ocaml/xapi/qcow_tool_wrapper.ml b/ocaml/xapi/qcow_tool_wrapper.ml
-index 652db754a..d6f05aa2a 100644
+index 652db754ac73..d6f05aa2a1d9 100644
 --- a/ocaml/xapi/qcow_tool_wrapper.ml
 +++ b/ocaml/xapi/qcow_tool_wrapper.ml
 @@ -21,45 +21,6 @@ let receive (progress_cb : int -> unit) (unix_fd : Unix.file_descr)
@@ -250,7 +233,7 @@ index 652db754a..d6f05aa2a 100644
    let map_fd_string = Uuidx.(to_string (make ())) in
    let info_fd_string = Uuidx.(to_string (make ())) in
 diff --git a/ocaml/xapi/qcow_tool_wrapper.mli b/ocaml/xapi/qcow_tool_wrapper.mli
-index 16cede3bb..51c3c6265 100644
+index 16cede3bbcdf..51c3c6265677 100644
 --- a/ocaml/xapi/qcow_tool_wrapper.mli
 +++ b/ocaml/xapi/qcow_tool_wrapper.mli
 @@ -23,7 +23,3 @@ val send :
@@ -262,7 +245,7 @@ index 16cede3bb..51c3c6265 100644
 -
 -val parse_header_interval : string -> int * (int * int) list
 diff --git a/ocaml/xapi/stream_vdi.ml b/ocaml/xapi/stream_vdi.ml
-index 4481cb767..641aeecf7 100644
+index 4481cb767de2..641aeecf793a 100644
 --- a/ocaml/xapi/stream_vdi.ml
 +++ b/ocaml/xapi/stream_vdi.ml
 @@ -315,7 +315,7 @@ let send_one ofd (__context : Context.t) rpc session_id progress refresh_session
@@ -284,7 +267,7 @@ index 4481cb767..641aeecf7 100644
                        failwith (Printf.sprintf "%s: unreachable" __FUNCTION__)
                  in
 diff --git a/opam/vhd-tool.opam b/opam/vhd-tool.opam
-index 0edc71774..d1f89de71 100644
+index 0edc71774b24..d1f89de71e9a 100644
 --- a/opam/vhd-tool.opam
 +++ b/opam/vhd-tool.opam
 @@ -35,6 +35,7 @@ depends: [
@@ -297,7 +280,7 @@ index 0edc71774..d1f89de71 100644
    "xen-api-client-lwt" {= version}
 diff --git a/opam/vhd_qcow_parsing.opam b/opam/vhd_qcow_parsing.opam
 new file mode 100644
-index 000000000..068192870
+index 000000000000..0681928707b5
 --- /dev/null
 +++ b/opam/vhd_qcow_parsing.opam
 @@ -0,0 +1,36 @@
@@ -338,10 +321,10 @@ index 000000000..068192870
 +dev-repo: "git+https://github.com/xapi-project/xen-api.git"
 +x-maintenance-intent: ["(latest)"]
 diff --git a/opam/xapi.opam b/opam/xapi.opam
-index 34dd9af3b..9af7ce8b4 100644
+index 81ea9b185b22..9b43a6db26fb 100644
 --- a/opam/xapi.opam
 +++ b/opam/xapi.opam
-@@ -93,6 +93,7 @@ depends: [
+@@ -94,6 +94,7 @@ depends: [
    "xenstore_transport"
    "xmlm"
    "xml-light2" {= version}

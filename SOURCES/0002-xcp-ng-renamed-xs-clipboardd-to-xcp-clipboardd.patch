@@ -1,15 +1,12 @@
 From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
 From: Guillaume <guillaume.thouvenin@vates.tech>
 Date: Mon, 31 Mar 2025 11:11:46 +0200
-Subject: [PATCH] [xcp-ng] renamed xs-clipboardd to xcp-clipboardd
+Subject: [PATCH] renamed xs-clipboardd to xcp-clipboardd
 
 Signed-off-by: Guillaume <guillaume.thouvenin@vates.tech>
----
- ocaml/xenopsd/scripts/qemu-wrapper | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/ocaml/xenopsd/scripts/qemu-wrapper b/ocaml/xenopsd/scripts/qemu-wrapper
-index 554590d07..e4a0c2846 100644
+index 554590d0713a..e4a0c28465e4 100644
 --- a/ocaml/xenopsd/scripts/qemu-wrapper
 +++ b/ocaml/xenopsd/scripts/qemu-wrapper
 @@ -293,7 +293,7 @@ def main(argv):

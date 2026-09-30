@@ -14,13 +14,9 @@ No functional change, the current behaviour is kept, and no alternative
 ?get_buffer functions are currently provided by the users.
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
----
- ocaml/libs/vhd/vhd_format/f.ml  | 15 +++++++++------
- ocaml/libs/vhd/vhd_format/f.mli |  3 ++-
- 2 files changed, 11 insertions(+), 7 deletions(-)
 
 diff --git a/ocaml/libs/vhd/vhd_format/f.ml b/ocaml/libs/vhd/vhd_format/f.ml
-index 99a2239a9..920f30cba 100644
+index 99a2239a97a4..920f30cba97b 100644
 --- a/ocaml/libs/vhd/vhd_format/f.ml
 +++ b/ocaml/libs/vhd/vhd_format/f.ml
 @@ -2735,7 +2735,7 @@ functor
@@ -70,7 +66,7 @@ index 99a2239a9..920f30cba 100644
  
      module Vhd_input = struct
 diff --git a/ocaml/libs/vhd/vhd_format/f.mli b/ocaml/libs/vhd/vhd_format/f.mli
-index 77c8c6d99..a7ddc30e6 100644
+index 77c8c6d99333..a7ddc30e6b89 100644
 --- a/ocaml/libs/vhd/vhd_format/f.mli
 +++ b/ocaml/libs/vhd/vhd_format/f.mli
 @@ -436,7 +436,8 @@ module From_file : functor (F : S.FILE) -> sig
