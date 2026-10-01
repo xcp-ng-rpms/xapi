@@ -1,0 +1,49 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 23 Sep 2026 14:55:42 +0000
+Subject: [PATCH] xapi_vm_snapshot: Don't corrupt non-snapshot VDIs
+
+If some snapshot VDIs had their snapshot_of field reset to OpaqueRef:NULL (like
+in the SR.scan race described in the previous commit), then the next VM.revert
+will corrupt VDI.snapshot_of for all non-snapshot VDIs, since it will get a
+list of VDIs with 'get_refs_where VDI.snapshot_of = OpaqueRef:NULL'
+
+If the corruption already happened, don't spread it further, keep fields as-is.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_vm_snapshot.ml | 21 ++++++++++++---------
+ 1 file changed, 12 insertions(+), 9 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_vm_snapshot.ml b/ocaml/xapi/xapi_vm_snapshot.ml
+index 24580c31e..3527eb945 100644
+--- a/ocaml/xapi/xapi_vm_snapshot.ml
++++ b/ocaml/xapi/xapi_vm_snapshot.ml
+@@ -396,15 +396,18 @@ let revert_vbds ~__context ~rpc ~session_id ~snapshot ~vm =
+          3) Update each of these snapshots so that their snapshot_of points
+             to the new cloned disk. *)
+       let open Xapi_database.Db_filter_types in
+-      let all_snaps_in_tree =
+-        Db.VDI.get_refs_where ~__context
+-          ~expr:(Eq (Field "snapshot_of", Literal (Ref.string_of snapshot_of)))
+-      in
+-      List.iter
+-        (fun snapshot ->
+-          Db.VDI.set_snapshot_of ~__context ~self:snapshot ~value:cloned_disk
+-        )
+-        all_snaps_in_tree
++      (* Past corruption could have led snapshot VDIs to have snapshot_of=Ref.null
++         Don't change all such fields en masse since it'd corrupt non-snapshots *)
++      if snapshot_of <> Ref.null then
++        let all_snaps_in_tree =
++          Db.VDI.get_refs_where ~__context
++            ~expr:(Eq (Field "snapshot_of", Literal (Ref.string_of snapshot_of)))
++        in
++        List.iter
++          (fun snapshot ->
++            Db.VDI.set_snapshot_of ~__context ~self:snapshot ~value:cloned_disk
++          )
++          all_snaps_in_tree
+     )
+     cloned_disks ;
+   debug "Cloning the suspend VDI if needed" ;
