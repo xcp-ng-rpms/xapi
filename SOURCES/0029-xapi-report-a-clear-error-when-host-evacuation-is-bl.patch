@@ -1,0 +1,90 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Olivier Lambert <olivier.lambert@vates.tech>
+Date: Sun, 28 Jun 2026 09:17:52 +0200
+Subject: [PATCH] xapi: report a clear error when host evacuation is blocked by
+ unprotected VMs
+
+When HA is enabled on the pool, host.evacuate refuses to plan the evacuation
+of any VM that is not HA-protected, that is, whose ha_restart_priority is not
+"restart". This is intentional: the HA planner only accounts for protected
+VMs, so unprotected ones are excluded from the evacuation plan.
+
+The problem is the error reported in that case. compute_evacuation_plan_no_wlb
+marked every unprotected VM with HOST_NOT_ENOUGH_FREE_MEMORY, and
+host.evacuate then raised it. That error is misleading in two ways:
+
+ * It blames free memory, so operators look at RAM on the destination hosts
+   (which is usually plentiful) instead of the real cause.
+ * It was raised with a single parameter (the VM reference) while
+   HOST_NOT_ENOUGH_FREE_MEMORY is documented as taking [needed; available],
+   so clients such as Xen Orchestra render the available memory as "<unknown>".
+
+This has confused users for years (see issue #4323 and the forum reports
+linked from it): evacuation fails with HOST_NOT_ENOUGH_FREE_MEMORY even when
+the destination has tens of GB free, purely because a VM is not HA-protected.
+
+Introduce a dedicated error, HOST_EVACUATE_VM_NOT_HA_PROTECTED, carrying the
+VM reference, and raise it instead for unprotected VMs. The message states
+the real cause and the ways to resolve it (protect the VM, shut it down or
+suspend it, or disable HA before evacuating). Behaviour is otherwise
+unchanged: the evacuation still fails for these VMs, it is just reported
+correctly.
+
+Closes #4323
+
+Signed-off-by: Olivier Lambert <olivier.lambert@vates.tech>
+(cherry picked from commit 3b63bc07a7ee8e5b021d30341590c29220139b2e)
+---
+ ocaml/idl/datamodel_errors.ml   | 8 ++++++++
+ ocaml/xapi-consts/api_errors.ml | 3 +++
+ ocaml/xapi/xapi_host.ml         | 4 +++-
+ 3 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
+index 795c20941..18dd886f0 100644
+--- a/ocaml/idl/datamodel_errors.ml
++++ b/ocaml/idl/datamodel_errors.ml
+@@ -789,6 +789,14 @@ let _ =
+     () ;
+   error Api_errors.host_evacuate_in_progress ["host"]
+     ~doc:"This host is being evacuated." () ;
++  error Api_errors.host_evacuate_vm_not_ha_protected ["vm"]
++    ~doc:
++      "The host cannot be evacuated because HA is enabled on the pool and a VM \
++       running on it is not HA-protected (its ha_restart_priority is not set \
++       to 'restart'). Set the VM's ha_restart_priority to 'restart', shut down \
++       or suspend the VM, or disable HA on the pool before evacuating the \
++       host."
++    () ;
+ 
+   (* Pool errors *)
+   error Api_errors.pool_joining_host_cannot_contain_shared_SRs []
+diff --git a/ocaml/xapi-consts/api_errors.ml b/ocaml/xapi-consts/api_errors.ml
+index 75bc927ad..7d5bdd23a 100644
+--- a/ocaml/xapi-consts/api_errors.ml
++++ b/ocaml/xapi-consts/api_errors.ml
+@@ -1010,6 +1010,9 @@ let cannot_evacuate_host = add_error "CANNOT_EVACUATE_HOST"
+ 
+ let host_evacuate_in_progress = add_error "HOST_EVACUATE_IN_PROGRESS"
+ 
++let host_evacuate_vm_not_ha_protected =
++  add_error "HOST_EVACUATE_VM_NOT_HA_PROTECTED"
++
+ let system_status_retrieval_failed = add_error "SYSTEM_STATUS_RETRIEVAL_FAILED"
+ 
+ let system_status_must_use_tar_on_oem =
+diff --git a/ocaml/xapi/xapi_host.ml b/ocaml/xapi/xapi_host.ml
+index f957e6fc8..394c049b8 100644
+--- a/ocaml/xapi/xapi_host.ml
++++ b/ocaml/xapi/xapi_host.ml
+@@ -352,7 +352,9 @@ let compute_evacuation_plan_no_wlb ~__context ~host ?(ignore_ha = false) () =
+     List.iter
+       (fun (vm, _) ->
+         Hashtbl.replace plans vm
+-          (Error (Api_errors.host_not_enough_free_memory, [Ref.string_of vm]))
++          (Error
++             (Api_errors.host_evacuate_vm_not_ha_protected, [Ref.string_of vm])
++          )
+       )
+       unprotected_vms ;
+     let migratable_vms, _ =

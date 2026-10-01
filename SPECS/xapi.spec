@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.19
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -137,6 +137,21 @@ Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 Patch1023: 0023-libs-vhd_format-Allow-alternatively-provided-buffers.patch
 Patch1024: 0024-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
 Patch1025: 0025-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
+
+# Use a newer version of qemu-img (only available in xcp-ng, not upstream)
+Patch1026: 0026-xapi_globs-Switch-to-the-newer-version-of-qemu-img.patch
+
+# Fix race leading to VDI.snapshot_of corruption
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7290
+Patch1027: 0027-xapi_sr-Don-t-reset-VDI.snapshot_of-during-SR.scan.patch
+Patch1028: 0028-xapi_vm_snapshot-Don-t-corrupt-non-snapshot-VDIs.patch
+
+# In v26.1.21 upstream
+Patch1029: 0029-xapi-report-a-clear-error-when-host-evacuation-is-bl.patch
+
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7308
+Patch1030: 0030-tests-test_vdi_cbt-Add-an-offline-host-test-for-VDI..patch
+Patch1031: 0031-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1542,6 +1557,12 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.3
+- XCPNG-3854: Fix race leading to VDI.snapshot_of corruption
+- XCPNG-3877: Fix VDI.get_nbd_info erroring out on offline hosts
+- Avoid errors during migration/export of QCOW2-backed VDIs by using a newer qemu-img
+- Report a clear error when host evacuation is blocked by unprotected VMs
+
 * Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.2
 - Revert the "Only migrate VMs to updated hosts during an RPU" commit
 
