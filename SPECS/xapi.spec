@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.19
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -131,13 +131,12 @@ Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
 # In v26.1.23 upstream
 Patch1021: 0021-Add-hvm-pirq-platform-key.patch
 Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
-Patch1023: 0023-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
 # Optimize VDI migration by pipelining NBD writes
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7272
-Patch1024: 0024-libs-vhd_format-Allow-alternatively-provided-buffers.patch
-Patch1025: 0025-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
-Patch1026: 0026-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
+Patch1023: 0023-libs-vhd_format-Allow-alternatively-provided-buffers.patch
+Patch1024: 0024-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
+Patch1025: 0025-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1543,6 +1542,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.2
+- Revert the "Only migrate VMs to updated hosts during an RPU" commit
+
 * Tue Sep 01 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.1
 - XCPNG-3545: Clear tunnels with corrupted PIFs
 - XCPNG-3546: Disable HVM PIRQs for new VMs by default
