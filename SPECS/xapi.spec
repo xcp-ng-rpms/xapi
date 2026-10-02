@@ -87,7 +87,7 @@ Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.1.16..v26.1.16-8.3
+#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.1.21..v26.1.21-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -103,40 +103,25 @@ Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
 # still uses the legacy default for safety
 Patch1007: 0007-xapi.conf-Switch-to-optimized-data-cluster-format-fo.patch
 
-# In v26.1.21 upstream
-Patch1008: 0008-vlan_tag_invalid-change-the-documentation-string.patch
-Patch1009: 0009-VLAN-filtering-on-VIF.patch
-Patch1010: 0010-xenopsd-Device.Vif.add-add-trunks-attribute-in-debug.patch
-Patch1011: 0011-xenopsd-update-xenstore-while-updating-xapi-db.patch
-Patch1012: 0012-test_vif_trunks-cover-more-coherence-checks.patch
-
-# In v26.1.21 upstream
-Patch1013: 0013-CA-428532-Ensure-db-flush-is-executed-in-shutdown_ag.patch
-
 # Exclude linstor SRs from QCOW2 quicktests
-Patch1014: 0014-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
+Patch1008: 0008-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 
 # Optimize migration for sparse QCOW2 VDIs - to be upstreamed
-Patch1015: 0015-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
-Patch1016: 0016-vhd-tool-Add-a-hybridqcow-mode.patch
+Patch1009: 0009-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
+Patch1010: 0010-vhd-tool-Add-a-hybridqcow-mode.patch
 
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7271
-Patch1017: 0017-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
-
-# In v26.1.21 upstream
-Patch1018: 0018-storage-Add-tags-to-vdi_info-struct.patch
-Patch1019: 0019-storage-Add-VDI.-add_tags-remove_tags-methods.patch
-Patch1020: 0020-storage-Preserve-VDI-tags-on-SMAPIv1-migrate.patch
+Patch1011: 0011-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
 
 # In v26.1.23 upstream
-Patch1021: 0021-Add-hvm-pirq-platform-key.patch
-Patch1022: 0022-quicktest-add-with-tag-and-without-tag-suite-filters.patch
+Patch1012: 0012-Add-hvm-pirq-platform-key.patch
+Patch1013: 0013-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 
 # Optimize VDI migration by pipelining NBD writes
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7272
-Patch1023: 0023-libs-vhd_format-Allow-alternatively-provided-buffers.patch
-Patch1024: 0024-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
-Patch1025: 0025-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
+Patch1014: 0014-libs-vhd_format-Allow-alternatively-provided-buffers.patch
+Patch1015: 0015-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
+Patch1016: 0016-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1543,6 +1528,8 @@ Coverage files from unit tests
 
 %changelog
 * Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.1
+- XCPNG-3515: Prevent SR issues from blocking XAPI startup
+- Report a clear error when host evacuation is blocked by unprotected VMs
 - Update to upstream 26.1.21-1
 - *** Upstream changelog ***
   * Tue Aug 25 2026 Ming Lu <ming.lu@cloud.com> - 26.1.21-1
