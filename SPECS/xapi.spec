@@ -123,6 +123,18 @@ Patch1014: 0014-libs-vhd_format-Allow-alternatively-provided-buffers.patch
 Patch1015: 0015-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
 Patch1016: 0016-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
+# Use a newer version of qemu-img (only available in xcp-ng, not upstream)
+Patch1017: 0017-xapi_globs-Switch-to-the-newer-version-of-qemu-img.patch
+
+# Fix race leading to VDI.snapshot_of corruption
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7290
+Patch1018: 0018-xapi_sr-Don-t-reset-VDI.snapshot_of-during-SR.scan.patch
+Patch1019: 0019-xapi_vm_snapshot-Don-t-corrupt-non-snapshot-VDIs.patch
+
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7308
+Patch1020: 0020-tests-test_vdi_cbt-Add-an-offline-host-test-for-VDI..patch
+Patch1021: 0021-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1528,7 +1540,10 @@ Coverage files from unit tests
 
 %changelog
 * Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.1
+- XCPNG-3854: Fix race leading to VDI.snapshot_of corruption
 - XCPNG-3515: Prevent SR issues from blocking XAPI startup
+- XCPNG-3877: Fix VDI.get_nbd_info erroring out on offline hosts
+- Avoid errors during migration/export of QCOW2-backed VDIs by using a newer qemu-img
 - Report a clear error when host evacuation is blocked by unprotected VMs
 - Update to upstream 26.1.21-1
 - *** Upstream changelog ***

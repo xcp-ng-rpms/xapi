@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 25 Sep 2026 07:48:09 +0000
+Subject: [PATCH] xapi_sr: Don't reset VDI.snapshot_of during SR.scan
+
+During VM.revert, there's a window where a racy SR.scan can lead to corruption:
+
+1. xapi destroys the VDI that snapshot.snapshot_of points to
+   (it wants to free some space for the clones)
+
+2. xapi clones the snapshots we are reverting to
+
+3. SR.scan happens, finds the snapshot_of reference in the snapshots to be
+   dangling (since the VDI was destroyed), resets snapshot_of to OpaqueRef:NULL
+
+4. xapi wants to re-point snapshot_of to be valid, but it can't find the
+   snapshots anymore
+
+Avoid this by refusing to reset .snapshot_of to NULL. This means that if the
+VDI has been destroyed, a dangling reference to it will stay.
+
+Tracking-reference: XCPNG-3854
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_sr.ml | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi/xapi_sr.ml b/ocaml/xapi/xapi_sr.ml
+index 4b020779e..75ee5e634 100644
+--- a/ocaml/xapi/xapi_sr.ml
++++ b/ocaml/xapi/xapi_sr.ml
+@@ -726,7 +726,11 @@ let update_vdis ~__context ~sr db_vdis vdi_infos =
+           ~value:(Date.of_iso8601 vi.snapshot_time)
+       ) ;
+       let snapshot_of = find_vdi db_vdi_map vi.snapshot_of in
+-      if v.API.vDI_snapshot_of <> snapshot_of then (
++      (* Never reset snapshot_of to NULL - this means dangling references will
++         be preserved if the VDI it points to has been destroyed.
++         This fixes a race condition where SR.scan in the middle of VM.revert
++         would corrupt snapshot_of fields of snapshots and non-snapshots *)
++      if snapshot_of <> Ref.null && v.API.vDI_snapshot_of <> snapshot_of then (
+         debug "%s snapshot_of <- %s" (Ref.string_of r)
+           (Ref.string_of snapshot_of) ;
+         Db.VDI.set_snapshot_of ~__context ~self:r ~value:snapshot_of
