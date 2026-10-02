@@ -32,7 +32,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.4.0
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -105,6 +105,8 @@ BuildRequires: gmp-devel
 BuildRequires: libuuid-devel
 BuildRequires: make
 BuildRequires: python3-devel
+BuildRequires: python3-rpm-macros
+BuildRequires: python3-setuptools
 BuildRequires: xs-opam-repo >= 6.97.0-1
 BuildRequires: libnl3-devel
 BuildRequires: systemd-devel
@@ -502,9 +504,6 @@ Provides:       xapi-storage = %{version}-%{release}
 Obsoletes:      xapi-storage < %{version}-%{release}
 
 Requires: python3-six
-BuildRequires: python3-devel
-BuildRequires: python3-rpm-macros
-BuildRequires: python3-setuptools
 
 %description -n python%{python3_pkgversion}-xapi-storage
 Xapi storage interface libraries for %{python3_pkgversion}
@@ -1572,12 +1571,13 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-# * next
-# - Unset GIT_CEILING_DIRECTORIES while proceeding with the $sha or $sha-dirty
-#   replacement
-# - Clarify the description of the $sha replacement hack, and add logs to see
-#   when it gets triggered and when it does not
-# - Let xapi-core pull wsproxy
+* Fri 02 Oct 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.3
+- Unset GIT_CEILING_DIRECTORIES while proceeding with the $sha or $sha-dirty
+  replacement
+- Clarify the description of the $sha replacement hack, and add logs to see
+  when it gets triggered and when it does not
+- Let xapi-core pull wsproxy
+- Move stray BuildRequires together with the rest
 
 * Thu Sep 10 2026 Thierry Escande <thierry.escande@vates.tech> - 26.4.0-1.2
 - Add missing xenopsd/xc patches for Xen 4.21 compatibility:
