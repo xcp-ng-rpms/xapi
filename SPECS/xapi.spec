@@ -135,6 +135,7 @@ Requires:       %{name}-cov = %{version}-%{release}
 %endif
 Requires: xenopsd-xc
 Requires: xapi-xe
+Requires: wsproxy
 Requires: squeezed
 Requires: xcp-featured
 Requires: initscripts
@@ -1576,6 +1577,7 @@ Coverage files from unit tests
 #   replacement
 # - Clarify the description of the $sha replacement hack, and add logs to see
 #   when it gets triggered and when it does not
+# - Let xapi-core pull wsproxy
 
 * Thu Sep 10 2026 Thierry Escande <thierry.escande@vates.tech> - 26.4.0-1.2
 - Add missing xenopsd/xc patches for Xen 4.21 compatibility:
