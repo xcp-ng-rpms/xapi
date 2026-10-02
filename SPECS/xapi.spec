@@ -1,5 +1,5 @@
-%global package_speccommit 5cc5ae0e1cc23f1f23b47b6b0751b1dd9849360b
-%global package_srccommit v26.1.19
+%global package_speccommit f0bd703e1e87c64586550a1e33e3a4b3587a9f33
+%global package_srccommit v26.1.21
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.19
+Version: 26.1.21
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.19.tar.gz
+Source0: xen-api-26.1.21.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1459,6 +1459,26 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Aug 25 2026 Ming Lu <ming.lu@cloud.com> - 26.1.21-1
+- update ocaml/idl/datamodel_lifecycle.ml
+- vlan_tag_invalid: change the documentation string
+- VLAN filtering on VIF
+- xenopsd: Device.Vif.add: add trunks attribute in debug string
+- xenopsd: update xenstore while updating xapi db
+- test_vif_trunks: cover more coherence checks
+- scripts/attach-static-vdis: Toggle nullglob to fix behavior on empty dir
+- CA-430085: Fix vncsnapshot 500 error
+- CA-430018: Fix mismatch between VGPU and PCI cards
+- CA-428532: Ensure db flush is executed in shutdown_agent
+- [backport] Start SM service after dbsync to avoid startup deadlock
+- xapi: report a clear error when host evacuation is blocked by unprotected VMs
+- Document which branch of xs-opam to use to build this branch
+- CA-426637: Drain the remaining bytes in metadata_handler
+- CA-429051: Sync original bond slave network MTU
+- storage: Add tags to vdi_info struct
+- storage: Add VDI.{add_tags,remove_tags} methods
+- storage: Preserve VDI tags on SMAPIv1 migrate
+
 * Tue Jul 28 2026 Ming Lu <ming.lu@cloud.com> - 26.1.19-1
 - CA-422619: Skip xapi-clusterd start when already active
 - CA-422619: Add a timeout to the xapi-clusterd start
