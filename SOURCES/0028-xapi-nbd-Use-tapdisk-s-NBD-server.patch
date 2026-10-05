@@ -1,0 +1,242 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 8 Oct 2026 14:18:50 +0000
+Subject: [PATCH] xapi-nbd: Use tapdisk's NBD server
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ dune-project                | 23 +++++++++++-
+ ocaml/nbd/src/dune          |  3 ++
+ ocaml/nbd/src/main.ml       | 70 +++++++++++++++++++++++++++++++++++--
+ opam/xapi-nbd.opam          | 35 ++++++++++---------
+ opam/xapi-nbd.opam.template | 16 ---------
+ 5 files changed, 112 insertions(+), 35 deletions(-)
+
+diff --git a/dune-project b/dune-project
+index 60f7c2b6e..22a5de8a3 100644
+--- a/dune-project
++++ b/dune-project
+@@ -221,7 +221,28 @@
+  (name xapi-open-uri))
+ 
+ (package
+- (name xapi-nbd))
++ (name xapi-nbd)
++ (depends
++  ocaml
++  (dune (>= "3.15"))
++  (alcotest :with-test)
++  (alcotest-lwt :with-test)
++  cmdliner
++  (ezxenstore
++   (= :version))
++  (lwt (and (>= "3.0.0") :with-test))
++  lwt_log
++  mirage-block-unix
++  nbd-unix
++  uri
++  uuid
++  xapi-inventory
++  xapi-tracing
++  xen-api-client-lwt
++  (xapi-stdext-unix
++   (= :version))
++  )
++ )
+ 
+ (package
+  (name nbd)
+diff --git a/ocaml/nbd/src/dune b/ocaml/nbd/src/dune
+index 61bb892e2..290440732 100644
+--- a/ocaml/nbd/src/dune
++++ b/ocaml/nbd/src/dune
+@@ -4,6 +4,7 @@
+  (libraries
+   cmdliner
+   consts
++  ezxenstore.core
+   fmt
+   local_xapi_session
+   lwt
+@@ -14,12 +15,14 @@
+   nbd
+   nbd-unix
+   rpclib.core
++  tapctl
+   uri
+   unix
+   uuid
+   vbd_store
+   xapi-consts
+   xapi-inventory
++  xapi-stdext-unix
+   xapi-types
+   xen-api-client-lwt
+   )
+diff --git a/ocaml/nbd/src/main.ml b/ocaml/nbd/src/main.ml
+index bfca59d32..76605daad 100644
+--- a/ocaml/nbd/src/main.ml
++++ b/ocaml/nbd/src/main.ml
+@@ -37,6 +37,68 @@ let require_str name arg =
+         Some arg
+     )
+ 
++(** [find_backend_device path] returns [Some path'] where [path'] is the backend
++    path in this domain corresponding to the frontend device [path].
++    Copied from ocaml/vhd-tool/cli/sparse_dd.ml *)
++let find_backend_device path =
++  try
++    let open Ezxenstore_core.Xenstore in
++    let module Stat = Xapi_stdext_unix.Unixext.Stat in
++    let rdev = (Unix.LargeFile.stat path).Unix.LargeFile.st_rdev in
++    let Stat.{major; minor} = Stat.decode_st_dev rdev in
++    let link =
++      Unix.readlink (Printf.sprintf "/sys/dev/block/%d:%d/device" major minor)
++    in
++    match List.rev (String.split_on_char '/' link) with
++    | id :: "xen" :: "devices" :: _ when String.starts_with ~prefix:"vbd-" id ->
++        let id = int_of_string (String.sub id 4 (String.length id - 4)) in
++        with_xs (fun xs ->
++            let self = xs.Xs.read "domid" in
++            let backend =
++              xs.Xs.read (Printf.sprintf "device/vbd/%d/backend" id)
++            in
++            let params = xs.Xs.read (Printf.sprintf "%s/params" backend) in
++            match String.split_on_char '/' backend with
++            | "local" :: "domain" :: bedomid :: _ when bedomid = self ->
++                Some params
++            | _ ->
++                None
++        )
++    | _ ->
++        None
++  with _ -> None
++
++(** [tapdisk_nbd_socket device] returns the path of the NBD server socket of
++    the tapdisk serving [device] *)
++let tapdisk_nbd_socket device =
++  let path = find_backend_device device |> Option.value ~default:device in
++  match Tapctl.of_device (Tapctl.create ()) path with
++  | Some (tapdev, _, _) ->
++      Printf.sprintf "/var/run/blktap-control/nbd%d.%d"
++        (Tapctl.get_tapdisk_pid tapdev)
++        (Tapctl.get_minor tapdev)
++  | None ->
++      failwith (Printf.sprintf "No tapdisk found for %s (%s)" device path)
++
++(** [with_tapdisk_nbd_client device f] connects to the NBD server of the
++    tapdisk serving [device] and applies [f] to the resulting NBD client *)
++let with_tapdisk_nbd_client device f =
++  Lwt_preemptive.detach tapdisk_nbd_socket device >>= fun socket_path ->
++  Lwt_log.notice_f "Connecting to tapdisk NBD server %s" socket_path
++  >>= fun () ->
++  let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in
++  Lwt.finalize
++    (fun () ->
++      Lwt_unix.connect fd (Lwt_unix.ADDR_UNIX socket_path) >>= fun () ->
++      let channel =
++        Nbd.Channel.generic_of_cleartext_channel
++          (Nbd_unix.cleartext_channel_of_fd fd None)
++      in
++      (* tapdisk serves a single export and ignores the name *)
++      Nbd_unix.Client.negotiate channel "" >>= fun (client, _, _) -> f client
++    )
++    (ignore_exn_delayed (fun () -> Lwt_unix.close fd))
++
+ let with_attached_vdi vDI rpc session_id f =
+   Lwt_log.notice "Looking up control domain UUID in xensource inventory"
+   >>= fun () ->
+@@ -75,8 +137,12 @@ let handle_connection fd tls_role =
+     in
+     Xen_api.VDI.get_by_uuid ~rpc ~session_id ~uuid:vdi_uuid >>= fun vdi_ref ->
+     with_attached_vdi vdi_ref rpc session_id (fun filename ->
+-        Cleanup.Block.with_block filename
+-          (Nbd_unix.Server.serve t ~read_only:true (module Block))
++        try
++          with_tapdisk_nbd_client filename
++            (Nbd_unix.Server.serve t ~read_only:true (module Nbd_unix.Client))
++        with _ ->
++          Cleanup.Block.with_block filename
++            (Nbd_unix.Server.serve t ~read_only:true (module Block))
+     )
+   in
+   Nbd_unix.with_channel fd tls_role (fun channel ->
+diff --git a/opam/xapi-nbd.opam b/opam/xapi-nbd.opam
+index b39c334a2..8388aaffa 100644
+--- a/opam/xapi-nbd.opam
++++ b/opam/xapi-nbd.opam
+@@ -1,5 +1,24 @@
+ # This file is generated by dune, edit dune-project instead
+ license: "LGPL-2.1-only WITH OCaml-LGPL-linking-exception"
++depends: [
++  "ocaml"
++  "dune" {>= "3.20" & >= "3.15"}
++  "alcotest" {with-test}
++  "alcotest-lwt" {with-test}
++  "cmdliner"
++  "ezxenstore" {= version}
++  "lwt" {>= "3.0.0" & with-test}
++  "lwt_log"
++  "mirage-block-unix"
++  "nbd-unix"
++  "uri"
++  "uuid"
++  "xapi-inventory"
++  "xapi-tracing"
++  "xen-api-client-lwt"
++  "xapi-stdext-unix" {= version}
++  "odoc" {with-doc}
++]
+ x-maintenance-intent: ["(latest)"]
+ opam-version: "2.0"
+ maintainer: "xen-api@lists.xen.org"
+@@ -11,22 +30,6 @@ build: [
+   ["dune" "build" "-p" name "-j" jobs]
+   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+ ]
+-depends: [
+-  "ocaml"
+-  "dune" {>= "3.15"}
+-  "alcotest" {with-test}
+-  "alcotest-lwt" {with-test}
+-  "cmdliner"
+-  "lwt" {>= "3.0.0" & with-test}
+-  "lwt_log"
+-  "mirage-block-unix"
+-  "nbd-unix"
+-  "uri"
+-  "uuid"
+-  "xapi-inventory"
+-  "xapi-tracing"
+-  "xen-api-client-lwt"
+-]
+ tags: [ "org:mirage" "org:xapi-project" ]
+ synopsis: "Expose XenServer disks conveniently over NBD"
+ url {
+diff --git a/opam/xapi-nbd.opam.template b/opam/xapi-nbd.opam.template
+index 8e3b5c0dd..a9dfb467c 100644
+--- a/opam/xapi-nbd.opam.template
++++ b/opam/xapi-nbd.opam.template
+@@ -8,22 +8,6 @@ build: [
+   ["dune" "build" "-p" name "-j" jobs]
+   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+ ]
+-depends: [
+-  "ocaml"
+-  "dune" {>= "3.15"}
+-  "alcotest" {with-test}
+-  "alcotest-lwt" {with-test}
+-  "cmdliner"
+-  "lwt" {>= "3.0.0" & with-test}
+-  "lwt_log"
+-  "mirage-block-unix"
+-  "nbd-unix"
+-  "uri"
+-  "uuid"
+-  "xapi-inventory"
+-  "xapi-tracing"
+-  "xen-api-client-lwt"
+-]
+ tags: [ "org:mirage" "org:xapi-project" ]
+ synopsis: "Expose XenServer disks conveniently over NBD"
+ url {
