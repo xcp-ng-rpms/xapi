@@ -1,0 +1,29 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 8 Oct 2026 07:23:32 +0000
+Subject: [PATCH] xapi_ha: Don't fail on pool_ha_disable when metadata VDIs are
+ not present
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_ha.ml | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_ha.ml b/ocaml/xapi/xapi_ha.ml
+index 738627d14..d494dea37 100644
+--- a/ocaml/xapi/xapi_ha.ml
++++ b/ocaml/xapi/xapi_ha.ml
+@@ -1585,8 +1585,11 @@ let disable_internal __context =
+     |> List.filter_map is_valid
+   in
+   let metadata_vdis =
+-    List.map
+-      (fun x -> Db.VDI.get_by_uuid ~__context ~uuid:x.Static_vdis.uuid)
++    List.filter_map
++      (fun x ->
++        try Some (Db.VDI.get_by_uuid ~__context ~uuid:x.Static_vdis.uuid)
++        with _ -> None
++      )
+       (Xha_metadata_vdi.list_existing ())
+   in
+   redo_log_ha_disabled_during_runtime __context ;
