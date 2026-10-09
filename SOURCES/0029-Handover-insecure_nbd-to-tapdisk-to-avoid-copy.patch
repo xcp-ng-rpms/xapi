@@ -5,11 +5,11 @@ Subject: [PATCH] Handover insecure_nbd to tapdisk to avoid copy
 
 Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
 ---
- ocaml/nbd/src/main.ml | 56 ++++++++++++++++++++++++++++++++++++-------
- 1 file changed, 47 insertions(+), 9 deletions(-)
+ ocaml/nbd/src/main.ml | 67 ++++++++++++++++++++++++++++++++++---------
+ 1 file changed, 54 insertions(+), 13 deletions(-)
 
 diff --git a/ocaml/nbd/src/main.ml b/ocaml/nbd/src/main.ml
-index 76605daad..9143ca2a5 100644
+index ce0cb707e..a4261c756 100644
 --- a/ocaml/nbd/src/main.ml
 +++ b/ocaml/nbd/src/main.ml
 @@ -68,22 +68,23 @@ let find_backend_device path =
@@ -35,8 +35,8 @@ index 76605daad..9143ca2a5 100644
  (** [with_tapdisk_nbd_client device f] connects to the NBD server of the
      tapdisk serving [device] and applies [f] to the resulting NBD client *)
  let with_tapdisk_nbd_client device f =
--  Lwt_preemptive.detach tapdisk_nbd_socket device >>= fun socket_path ->
-+  Lwt_preemptive.detach tapdisk_of_device device >>= fun (pid, minor) ->
+-  let socket_path = tapdisk_nbd_socket device in
++  let pid, minor = tapdisk_of_device device in
 +  let socket_path =
 +    Printf.sprintf "/var/run/blktap-control/nbd%d.%d" pid minor
 +  in
@@ -80,21 +80,32 @@ index 76605daad..9143ca2a5 100644
  let with_attached_vdi vDI rpc session_id f =
    Lwt_log.notice "Looking up control domain UUID in xensource inventory"
    >>= fun () ->
-@@ -138,8 +169,15 @@ let handle_connection fd tls_role =
+@@ -137,12 +168,22 @@ let handle_connection fd tls_role =
+     in
      Xen_api.VDI.get_by_uuid ~rpc ~session_id ~uuid:vdi_uuid >>= fun vdi_ref ->
      with_attached_vdi vdi_ref rpc session_id (fun filename ->
-         try
+-        try
 -          with_tapdisk_nbd_client filename
 -            (Nbd_unix.Server.serve t ~read_only:true (module Nbd_unix.Client))
-+          match tls_role with
-+          | None ->
-+              (* Without TLS, tapdisk can serve the client connection itself *)
-+              handoff_to_tapdisk fd filename
-+          | Some _ ->
-+              with_tapdisk_nbd_client filename
-+                (Nbd_unix.Server.serve t ~read_only:true
-+                   (module Nbd_unix.Client)
-+                )
-         with _ ->
-           Cleanup.Block.with_block filename
-             (Nbd_unix.Server.serve t ~read_only:true (module Block))
+-        with _ ->
+-          Cleanup.Block.with_block filename
+-            (Nbd_unix.Server.serve t ~read_only:true (module Block))
++        Lwt.catch
++          (fun () ->
++            match tls_role with
++            | None ->
++                (* Without TLS, tapdisk can serve the client connection itself *)
++                handoff_to_tapdisk fd filename
++            | Some _ ->
++                with_tapdisk_nbd_client filename
++                  (Nbd_unix.Server.serve t ~read_only:true
++                     (module Nbd_unix.Client)
++                  )
++          )
++          (fun _ ->
++            Cleanup.Block.with_block filename
++              (Nbd_unix.Server.serve t ~read_only:true (module Block))
++          )
+     )
+   in
+   Nbd_unix.with_channel fd tls_role (fun channel ->

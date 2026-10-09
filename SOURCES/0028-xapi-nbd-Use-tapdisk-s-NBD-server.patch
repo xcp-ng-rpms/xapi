@@ -74,7 +74,7 @@ index 61bb892e2..290440732 100644
    xen-api-client-lwt
    )
 diff --git a/ocaml/nbd/src/main.ml b/ocaml/nbd/src/main.ml
-index bfca59d32..76605daad 100644
+index bfca59d32..ce0cb707e 100644
 --- a/ocaml/nbd/src/main.ml
 +++ b/ocaml/nbd/src/main.ml
 @@ -37,6 +37,68 @@ let require_str name arg =
@@ -127,7 +127,7 @@ index bfca59d32..76605daad 100644
 +(** [with_tapdisk_nbd_client device f] connects to the NBD server of the
 +    tapdisk serving [device] and applies [f] to the resulting NBD client *)
 +let with_tapdisk_nbd_client device f =
-+  Lwt_preemptive.detach tapdisk_nbd_socket device >>= fun socket_path ->
++  let socket_path = tapdisk_nbd_socket device in
 +  Lwt_log.notice_f "Connecting to tapdisk NBD server %s" socket_path
 +  >>= fun () ->
 +  let fd = Lwt_unix.socket Lwt_unix.PF_UNIX Lwt_unix.SOCK_STREAM 0 in

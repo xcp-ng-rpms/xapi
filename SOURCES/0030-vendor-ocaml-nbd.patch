@@ -1,0 +1,4389 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 9 Oct 2026 11:53:39 +0000
+Subject: [PATCH] vendor ocaml-nbd
+
+---
+ ocaml-nbd/.docgen.sh               |  37 ++
+ ocaml-nbd/.gitignore               |   4 +
+ ocaml-nbd/.ocamlformat             |   9 +
+ ocaml-nbd/.travis-docker-docgen.sh |  20 +
+ ocaml-nbd/ChangeLog                | 127 ++++++
+ ocaml-nbd/INSTALL.md               |  14 +
+ ocaml-nbd/LICENSE                  | 521 ++++++++++++++++++++++++
+ ocaml-nbd/MAINTAINERS              |  12 +
+ ocaml-nbd/Makefile                 |  33 ++
+ ocaml-nbd/README.md                |  23 ++
+ ocaml-nbd/benchmark.sh             |  18 +
+ ocaml-nbd/cli/common.ml            |  17 +
+ ocaml-nbd/cli/dune                 |  17 +
+ ocaml-nbd/cli/main.ml              | 472 ++++++++++++++++++++++
+ ocaml-nbd/lib/channel.ml           |  46 +++
+ ocaml-nbd/lib/channel.mli          |  43 ++
+ ocaml-nbd/lib/client.ml            | 302 ++++++++++++++
+ ocaml-nbd/lib/client.mli           |  18 +
+ ocaml-nbd/lib/dune                 |  20 +
+ ocaml-nbd/lib/mirror.ml            | 378 ++++++++++++++++++
+ ocaml-nbd/lib/mirror.mli           |  40 ++
+ ocaml-nbd/lib/mux.ml               | 152 +++++++
+ ocaml-nbd/lib/protocol.ml          | 617 +++++++++++++++++++++++++++++
+ ocaml-nbd/lib/protocol.mli         | 308 ++++++++++++++
+ ocaml-nbd/lib/s.ml                 | 101 +++++
+ ocaml-nbd/lib/server.ml            | 432 ++++++++++++++++++++
+ ocaml-nbd/lib/server.mli           |  18 +
+ ocaml-nbd/nbd-tool.opam            |  35 ++
+ ocaml-nbd/nbd-unix.opam            |  34 ++
+ ocaml-nbd/nbd.opam                 |  39 ++
+ ocaml-nbd/unix/dune                |  16 +
+ ocaml-nbd/unix/nbd_unix.ml         | 143 +++++++
+ ocaml-nbd/unix/nbd_unix.mli        |  51 +++
+ 33 files changed, 4117 insertions(+)
+ create mode 100644 ocaml-nbd/.docgen.sh
+ create mode 100644 ocaml-nbd/.gitignore
+ create mode 100644 ocaml-nbd/.ocamlformat
+ create mode 100644 ocaml-nbd/.travis-docker-docgen.sh
+ create mode 100644 ocaml-nbd/ChangeLog
+ create mode 100644 ocaml-nbd/INSTALL.md
+ create mode 100644 ocaml-nbd/LICENSE
+ create mode 100644 ocaml-nbd/MAINTAINERS
+ create mode 100644 ocaml-nbd/Makefile
+ create mode 100644 ocaml-nbd/README.md
+ create mode 100755 ocaml-nbd/benchmark.sh
+ create mode 100644 ocaml-nbd/cli/common.ml
+ create mode 100644 ocaml-nbd/cli/dune
+ create mode 100644 ocaml-nbd/cli/main.ml
+ create mode 100644 ocaml-nbd/lib/channel.ml
+ create mode 100644 ocaml-nbd/lib/channel.mli
+ create mode 100644 ocaml-nbd/lib/client.ml
+ create mode 100644 ocaml-nbd/lib/client.mli
+ create mode 100644 ocaml-nbd/lib/dune
+ create mode 100644 ocaml-nbd/lib/mirror.ml
+ create mode 100644 ocaml-nbd/lib/mirror.mli
+ create mode 100644 ocaml-nbd/lib/mux.ml
+ create mode 100644 ocaml-nbd/lib/protocol.ml
+ create mode 100644 ocaml-nbd/lib/protocol.mli
+ create mode 100644 ocaml-nbd/lib/s.ml
+ create mode 100644 ocaml-nbd/lib/server.ml
+ create mode 100644 ocaml-nbd/lib/server.mli
+ create mode 100644 ocaml-nbd/nbd-tool.opam
+ create mode 100644 ocaml-nbd/nbd-unix.opam
+ create mode 100644 ocaml-nbd/nbd.opam
+ create mode 100644 ocaml-nbd/unix/dune
+ create mode 100644 ocaml-nbd/unix/nbd_unix.ml
+ create mode 100644 ocaml-nbd/unix/nbd_unix.mli
+
+diff --git a/ocaml-nbd/.docgen.sh b/ocaml-nbd/.docgen.sh
+new file mode 100644
+index 000000000..8a3dae3f0
+--- /dev/null
++++ b/ocaml-nbd/.docgen.sh
+@@ -0,0 +1,37 @@
++#!/bin/sh
++
++# Make sure we're not echoing any sensitive data
++set +x
++
++set -e
++
++opam install -y jbuilder odoc
++make doc
++
++if [ -z "$TRAVIS" -o "$TRAVIS_PULL_REQUEST" != "false" -o "$TRAVIS_BRANCH" != "master" ]; then
++  echo "This is not a push Travis-ci build on the master branch, doing nothing..."
++  exit 0
++else
++  echo "Updating docs on Github pages..."
++fi
++
++# Error out if $GH_TOKEN is empty or unset
++if [ -z "$GH_TOKEN" ]; then
++  echo "GH_TOKEN not found"
++  exit 1
++fi
++
++DOCDIR=.gh-pages
++if [ -n "$KEEP" ]; then trap "rm -rf $DOCDIR" EXIT; fi
++rm -rf $DOCDIR
++
++# Don't expose GH_TOKEN
++git clone --quiet --branch=gh-pages https://${GH_TOKEN}@github.com/xapi-project/nbd $DOCDIR > /dev/null 2>&1
++git -C $DOCDIR rm -rf .
++cp -r _build/default/_doc/_html/* $DOCDIR
++git -C $DOCDIR config user.email "travis@travis-ci.org"
++git -C $DOCDIR config user.name "Travis"
++(cd $DOCDIR; git add *)
++git -C $DOCDIR commit --allow-empty -am "Travis build $TRAVIS_BUILD_NUMBER pushed docs to gh-pages"
++# Don't expose GH_TOKEN
++git -C $DOCDIR push origin gh-pages > /dev/null 2>&1
+diff --git a/ocaml-nbd/.gitignore b/ocaml-nbd/.gitignore
+new file mode 100644
+index 000000000..6937a8ff5
+--- /dev/null
++++ b/ocaml-nbd/.gitignore
+@@ -0,0 +1,4 @@
++_build/
++.merlin
++*.install
++.*.swp
+diff --git a/ocaml-nbd/.ocamlformat b/ocaml-nbd/.ocamlformat
+new file mode 100644
+index 000000000..f86522707
+--- /dev/null
++++ b/ocaml-nbd/.ocamlformat
+@@ -0,0 +1,9 @@
++profile=ocamlformat
++indicate-multiline-delimiters=closing-on-separate-line
++if-then-else=fit-or-vertical
++dock-collection-brackets=true
++break-struct=natural
++break-separators=before
++break-infix=fit-or-vertical
++break-infix-before-func=false
++sequence-blank-line=preserve-one
+diff --git a/ocaml-nbd/.travis-docker-docgen.sh b/ocaml-nbd/.travis-docker-docgen.sh
+new file mode 100644
+index 000000000..f2087c9a2
+--- /dev/null
++++ b/ocaml-nbd/.travis-docker-docgen.sh
+@@ -0,0 +1,20 @@
++#!/bin/bash +x
++
++# SUMMARY:
++# Runs .docgen.sh in the Docker container started by .travis-docker.sh in
++# addition to the usual tests run by that script, to upload documentation to
++# GitHub pages, taking care to avoid exposing $GH_TOKEN and to pass the
++# necessary environment variables into the container.
++
++# Make sure we're not echoing any sensitive data
++set +x
++
++set -e
++set -o pipefail
++
++# Make sure .travis-docker.sh is not echoing any sensitive data
++if [ -z "$GH_TOKEN" ]; then
++  bash +x -e ./.travis-docker.sh
++else
++  POST_INSTALL_HOOK="env TRAVIS=$TRAVIS TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST TRAVIS_BRANCH=$TRAVIS_BRANCH TRAVIS_BUILD_NUMBER=$TRAVIS_BUILD_NUMBER GH_TOKEN=$GH_TOKEN make gh-pages" bash +x -e ./.travis-docker.sh |& sed -e "s/$GH_TOKEN/!REDACTED!/g"
++fi
+diff --git a/ocaml-nbd/ChangeLog b/ocaml-nbd/ChangeLog
+new file mode 100644
+index 000000000..f3d983e08
+--- /dev/null
++++ b/ocaml-nbd/ChangeLog
+@@ -0,0 +1,127 @@
++# 6.0.1 (2022-09-16):
++* Require mirage-block 3.0.0, drop io-page-unix.
++
++# 6.0.0 (2022-08-19):
++* Use Stdlib's Result type
++* BREAKING: Avoid unerasable optional arguments in init_tls_get_ctx
++* Update for cmdliner 1.1.0 compatibility
++* Update for cstruct 6.1.0 compatibility
++* ci: fix doc upload and coverage reporting
++
++# 5.0.0 (2021-05-19):
++* lib_test: make sure mux tests are run
++* nbd-unix: rename package nbd-lwt-unix
++* Update to mirage-block 2.0.0
++* maintenance: format code using ocamlformat
++* ci: remove travis ci and use github actions
++* ci: deploy docs for commits in master branch
++* CP-27269: enable code coverage
++
++# 4.0.3 (2020-12-11):
++* Fix opam files
++* Add support for cstruct 3.4.0
++
++# 4.0.2 (2020-07-10):
++* maintenance: update travis.yml
++* maintenance: upgrade alcotest to 1.1.0
++
++# 4.0.1 (2020-04-02):
++* CP-33058 force cipherstring parameter
++
++# 4.0.0+beta3 (2019-01-15):
++* CA-307773: initialize EC curves
++* Update urls in opam files to point to new version
++
++# 4.0.0+beta2 (2018-12-04):
++## Added
++* CLI: Add exportname option to serve command
++* Server: Add benchmark.sh script for benchmarking
++* Enable coverage & coveralls
++* Add client<->server interop. unit tests
++* Add interop. test with qemu-img and nbd-client
++* Add stress test to test that misbehaving clients do not crash the server
++
++## Changed
++* Make it compatible with Lwt 4
++* Convert tests to Alcotest
++* Update opam files for Opam 2
++* CP-29049: Move from jbuilder to dune
++
++## Fixed
++* Client: CA-289145: close socket if error occurs when using lwt connect
++* Client & server: CP-29049: Fix list and abort behaviour
++
++# 4.0.0+beta1 (2017-12-08):
++## Added
++* Server: CP-22631: TLS support
++* Server: support for read-only exports
++* Server: use dedicated exception for NBD_OPT_ABORT
++* Added `Server.with_connection`, `Nbd_lwt_unix.with_channel`,
++	`Nbd_lwt_unix.with_block` functions
++
++## Changed
++* Rename nbd-lwt to nbd-lwt-unix (opam package & ocamlfind library)
++* Rename lib/s.mli to lib/s.ml
++* Server: Use Lwt_log for and enhance logging
++* Port to jbuilder
++* Reorganize tests
++
++## Removed
++* Mux: hide internal values and types behind signature
++* Delete obsolete nbd_test.ml
++* Remove unix/ folder, not compiled since a couple of years
++* Fix marshalling & unmarshalling of client flags
++
++## Fixed
++* Server: handle NBD_CMD_DISC correctly instead of returning EINVAL
++* Server: set SO_REUSEADDR on the server socket
++* Server: don't stop when handling one client fails
++* Server: don't stop after write command
++* CLI: close the open file descriptors
++
++# 3.0.0 (2017-02-15):
++* Update to Mirage 3 APIs
++* Requires OCaml 4.03+
++
++# 2.1.3 (2017-02-14):
++* Fix a memory leak in the dispatcher
++
++# 2.1.2 (2017-01-25):
++* Expose page_aligned_buffer as a Cstruct.t
++
++# 2.1.1 (2016-11-24):
++* opam: add dependency on ppx_sexp_conv
++* rename module Result to Nbd_result to avoid clashing with lwt 2.6.0
++
++# 2.1.0 (2016-05-12):
++* Uses cstruct.ppx rather than cstruct.syntax
++
++# 2.0.1 (2016-01-14):
++* fix an inexhaustive match exception if the server sends an unexpected
++  response
++
++# 2.0.0 (13-Jan-2016):
++* New Mirage-style (i.e. Cstruct/Io_page-based) API
++* Support for v2 of the NBD protocol (i.e. multiple disks over the same port)
++* Preliminary support for disk mirroring
++* CLI tool to query the size of remote disks
++* travis: add lots of v1/v2 unit tests
++* travis: add code coverage testing via coveralls.io
++* travis: generate and upload API documentation
++
++# 1.0.1 (30-Jan-2014):
++* Switch to a polymorphic variant type for results
++* Include modules missing from 1.0.0
++
++# 1.0.0 (30-Jan-2014):
++* Switch build to OASIS.
++
++# 0.9.1 (23-Sep-2013):
++* switch to using out-of-heap bigarrays for data payloads
++* removed the plain-old-unix support
++* added support for writing NBD servers
++* removed plain-old-unix in favour of Lwt
++
++# 0.9.0 (29-May-2013):
++* first public release
++
+diff --git a/ocaml-nbd/INSTALL.md b/ocaml-nbd/INSTALL.md
+new file mode 100644
+index 000000000..77a3ecd1b
+--- /dev/null
++++ b/ocaml-nbd/INSTALL.md
+@@ -0,0 +1,14 @@
++The easiest way to fetch the dependencies and build is to use
++[opam](https://opam.ocaml.org/).
++
++To install the latest stable version:
++```
++opam install nbd
++```
++
++To install the latest unstable development version:
++```
++git clone git://github.com/xapi-project/nbd
++cd nbd
++opam pin add nbd .
++```
+diff --git a/ocaml-nbd/LICENSE b/ocaml-nbd/LICENSE
+new file mode 100644
+index 000000000..1b1ce97cb
+--- /dev/null
++++ b/ocaml-nbd/LICENSE
+@@ -0,0 +1,521 @@
++This repository is distributed under the terms of the GNU Lesser General
++Public License version 2.1 (included below).
++
++As a special exception to the GNU Lesser General Public License, you
++may link, statically or dynamically, a "work that uses the Library"
++with a publicly distributed version of the Library to produce an
++executable file containing portions of the Library, and distribute
++that executable file under terms of your choice, without any of the
++additional requirements listed in clause 6 of the GNU Lesser General
++Public License.  By "a publicly distributed version of the Library",
++we mean either the unmodified Library as distributed, or a
++modified version of the Library that is distributed under the
++conditions defined in clause 3 of the GNU Library General Public
++License.  This exception does not however invalidate any other reasons
++why the executable file might be covered by the GNU Lesser General
++Public License.
++
++------------
++
++		  GNU LESSER GENERAL PUBLIC LICENSE
++		       Version 2.1, February 1999
++
++ Copyright (C) 1991, 1999 Free Software Foundation, Inc.
++ 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
++ Everyone is permitted to copy and distribute verbatim copies
++ of this license document, but changing it is not allowed.
++
++[This is the first released version of the Lesser GPL.  It also counts
++ as the successor of the GNU Library Public License, version 2, hence
++ the version number 2.1.]
++
++			    Preamble
++
++  The licenses for most software are designed to take away your
++freedom to share and change it.  By contrast, the GNU General Public
++Licenses are intended to guarantee your freedom to share and change
++free software--to make sure the software is free for all its users.
++
++  This license, the Lesser General Public License, applies to some
++specially designated software packages--typically libraries--of the
++Free Software Foundation and other authors who decide to use it.  You
++can use it too, but we suggest you first think carefully about whether
++this license or the ordinary General Public License is the better
++strategy to use in any particular case, based on the explanations below.
++
++  When we speak of free software, we are referring to freedom of use,
++not price.  Our General Public Licenses are designed to make sure that
++you have the freedom to distribute copies of free software (and charge
++for this service if you wish); that you receive source code or can get
++it if you want it; that you can change the software and use pieces of
++it in new free programs; and that you are informed that you can do
++these things.
++
++  To protect your rights, we need to make restrictions that forbid
++distributors to deny you these rights or to ask you to surrender these
++rights.  These restrictions translate to certain responsibilities for
++you if you distribute copies of the library or if you modify it.
++
++  For example, if you distribute copies of the library, whether gratis
++or for a fee, you must give the recipients all the rights that we gave
++you.  You must make sure that they, too, receive or can get the source
++code.  If you link other code with the library, you must provide
++complete object files to the recipients, so that they can relink them
++with the library after making changes to the library and recompiling
++it.  And you must show them these terms so they know their rights.
++
++  We protect your rights with a two-step method: (1) we copyright the
++library, and (2) we offer you this license, which gives you legal
++permission to copy, distribute and/or modify the library.
++
++  To protect each distributor, we want to make it very clear that
++there is no warranty for the free library.  Also, if the library is
++modified by someone else and passed on, the recipients should know
++that what they have is not the original version, so that the original
++author's reputation will not be affected by problems that might be
++introduced by others.
++
++  Finally, software patents pose a constant threat to the existence of
++any free program.  We wish to make sure that a company cannot
++effectively restrict the users of a free program by obtaining a
++restrictive license from a patent holder.  Therefore, we insist that
++any patent license obtained for a version of the library must be
++consistent with the full freedom of use specified in this license.
++
++  Most GNU software, including some libraries, is covered by the
++ordinary GNU General Public License.  This license, the GNU Lesser
++General Public License, applies to certain designated libraries, and
++is quite different from the ordinary General Public License.  We use
++this license for certain libraries in order to permit linking those
++libraries into non-free programs.
++
++  When a program is linked with a library, whether statically or using
++a shared library, the combination of the two is legally speaking a
++combined work, a derivative of the original library.  The ordinary
++General Public License therefore permits such linking only if the
++entire combination fits its criteria of freedom.  The Lesser General
++Public License permits more lax criteria for linking other code with
++the library.
++
++  We call this license the "Lesser" General Public License because it
++does Less to protect the user's freedom than the ordinary General
++Public License.  It also provides other free software developers Less
++of an advantage over competing non-free programs.  These disadvantages
++are the reason we use the ordinary General Public License for many
++libraries.  However, the Lesser license provides advantages in certain
++special circumstances.
++
++  For example, on rare occasions, there may be a special need to
++encourage the widest possible use of a certain library, so that it becomes
++a de-facto standard.  To achieve this, non-free programs must be
++allowed to use the library.  A more frequent case is that a free
++library does the same job as widely used non-free libraries.  In this
++case, there is little to gain by limiting the free library to free
++software only, so we use the Lesser General Public License.
++
++  In other cases, permission to use a particular library in non-free
++programs enables a greater number of people to use a large body of
++free software.  For example, permission to use the GNU C Library in
++non-free programs enables many more people to use the whole GNU
++operating system, as well as its variant, the GNU/Linux operating
++system.
++
++  Although the Lesser General Public License is Less protective of the
++users' freedom, it does ensure that the user of a program that is
++linked with the Library has the freedom and the wherewithal to run
++that program using a modified version of the Library.
++
++  The precise terms and conditions for copying, distribution and
++modification follow.  Pay close attention to the difference between a
++"work based on the library" and a "work that uses the library".  The
++former contains code derived from the library, whereas the latter must
++be combined with the library in order to run.
++
++		  GNU LESSER GENERAL PUBLIC LICENSE
++   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION
++
++  0. This License Agreement applies to any software library or other
++program which contains a notice placed by the copyright holder or
++other authorized party saying it may be distributed under the terms of
++this Lesser General Public License (also called "this License").
++Each licensee is addressed as "you".
++
++  A "library" means a collection of software functions and/or data
++prepared so as to be conveniently linked with application programs
++(which use some of those functions and data) to form executables.
++
++  The "Library", below, refers to any such software library or work
++which has been distributed under these terms.  A "work based on the
++Library" means either the Library or any derivative work under
++copyright law: that is to say, a work containing the Library or a
++portion of it, either verbatim or with modifications and/or translated
++straightforwardly into another language.  (Hereinafter, translation is
++included without limitation in the term "modification".)
++
++  "Source code" for a work means the preferred form of the work for
++making modifications to it.  For a library, complete source code means
++all the source code for all modules it contains, plus any associated
++interface definition files, plus the scripts used to control compilation
++and installation of the library.
++
++  Activities other than copying, distribution and modification are not
++covered by this License; they are outside its scope.  The act of
++running a program using the Library is not restricted, and output from
++such a program is covered only if its contents constitute a work based
++on the Library (independent of the use of the Library in a tool for
++writing it).  Whether that is true depends on what the Library does
++and what the program that uses the Library does.
++
++  1. You may copy and distribute verbatim copies of the Library's
++complete source code as you receive it, in any medium, provided that
++you conspicuously and appropriately publish on each copy an
++appropriate copyright notice and disclaimer of warranty; keep intact
++all the notices that refer to this License and to the absence of any
++warranty; and distribute a copy of this License along with the
++Library.
++
++  You may charge a fee for the physical act of transferring a copy,
++and you may at your option offer warranty protection in exchange for a
++fee.
++
++  2. You may modify your copy or copies of the Library or any portion
++of it, thus forming a work based on the Library, and copy and
++distribute such modifications or work under the terms of Section 1
++above, provided that you also meet all of these conditions:
++
++    a) The modified work must itself be a software library.
++
++    b) You must cause the files modified to carry prominent notices
++    stating that you changed the files and the date of any change.
++
++    c) You must cause the whole of the work to be licensed at no
++    charge to all third parties under the terms of this License.
++
++    d) If a facility in the modified Library refers to a function or a
++    table of data to be supplied by an application program that uses
++    the facility, other than as an argument passed when the facility
++    is invoked, then you must make a good faith effort to ensure that,
++    in the event an application does not supply such function or
++    table, the facility still operates, and performs whatever part of
++    its purpose remains meaningful.
++
++    (For example, a function in a library to compute square roots has
++    a purpose that is entirely well-defined independent of the
++    application.  Therefore, Subsection 2d requires that any
++    application-supplied function or table used by this function must
++    be optional: if the application does not supply it, the square
++    root function must still compute square roots.)
++
++These requirements apply to the modified work as a whole.  If
++identifiable sections of that work are not derived from the Library,
++and can be reasonably considered independent and separate works in
++themselves, then this License, and its terms, do not apply to those
++sections when you distribute them as separate works.  But when you
++distribute the same sections as part of a whole which is a work based
++on the Library, the distribution of the whole must be on the terms of
++this License, whose permissions for other licensees extend to the
++entire whole, and thus to each and every part regardless of who wrote
++it.
++
++Thus, it is not the intent of this section to claim rights or contest
++your rights to work written entirely by you; rather, the intent is to
++exercise the right to control the distribution of derivative or
++collective works based on the Library.
++
++In addition, mere aggregation of another work not based on the Library
++with the Library (or with a work based on the Library) on a volume of
++a storage or distribution medium does not bring the other work under
++the scope of this License.
++
++  3. You may opt to apply the terms of the ordinary GNU General Public
++License instead of this License to a given copy of the Library.  To do
++this, you must alter all the notices that refer to this License, so
++that they refer to the ordinary GNU General Public License, version 2,
++instead of to this License.  (If a newer version than version 2 of the
++ordinary GNU General Public License has appeared, then you can specify
++that version instead if you wish.)  Do not make any other change in
++these notices.
++
++  Once this change is made in a given copy, it is irreversible for
++that copy, so the ordinary GNU General Public License applies to all
++subsequent copies and derivative works made from that copy.
++
++  This option is useful when you wish to copy part of the code of
++the Library into a program that is not a library.
++
++  4. You may copy and distribute the Library (or a portion or
++derivative of it, under Section 2) in object code or executable form
++under the terms of Sections 1 and 2 above provided that you accompany
++it with the complete corresponding machine-readable source code, which
++must be distributed under the terms of Sections 1 and 2 above on a
++medium customarily used for software interchange.
++
++  If distribution of object code is made by offering access to copy
++from a designated place, then offering equivalent access to copy the
++source code from the same place satisfies the requirement to
++distribute the source code, even though third parties are not
++compelled to copy the source along with the object code.
++
++  5. A program that contains no derivative of any portion of the
++Library, but is designed to work with the Library by being compiled or
++linked with it, is called a "work that uses the Library".  Such a
++work, in isolation, is not a derivative work of the Library, and
++therefore falls outside the scope of this License.
++
++  However, linking a "work that uses the Library" with the Library
++creates an executable that is a derivative of the Library (because it
++contains portions of the Library), rather than a "work that uses the
++library".  The executable is therefore covered by this License.
++Section 6 states terms for distribution of such executables.
++
++  When a "work that uses the Library" uses material from a header file
++that is part of the Library, the object code for the work may be a
++derivative work of the Library even though the source code is not.
++Whether this is true is especially significant if the work can be
++linked without the Library, or if the work is itself a library.  The
++threshold for this to be true is not precisely defined by law.
++
++  If such an object file uses only numerical parameters, data
++structure layouts and accessors, and small macros and small inline
++functions (ten lines or less in length), then the use of the object
++file is unrestricted, regardless of whether it is legally a derivative
++work.  (Executables containing this object code plus portions of the
++Library will still fall under Section 6.)
++
++  Otherwise, if the work is a derivative of the Library, you may
++distribute the object code for the work under the terms of Section 6.
++Any executables containing that work also fall under Section 6,
++whether or not they are linked directly with the Library itself.
++
++  6. As an exception to the Sections above, you may also combine or
++link a "work that uses the Library" with the Library to produce a
++work containing portions of the Library, and distribute that work
++under terms of your choice, provided that the terms permit
++modification of the work for the customer's own use and reverse
++engineering for debugging such modifications.
++
++  You must give prominent notice with each copy of the work that the
++Library is used in it and that the Library and its use are covered by
++this License.  You must supply a copy of this License.  If the work
++during execution displays copyright notices, you must include the
++copyright notice for the Library among them, as well as a reference
++directing the user to the copy of this License.  Also, you must do one
++of these things:
++
++    a) Accompany the work with the complete corresponding
++    machine-readable source code for the Library including whatever
++    changes were used in the work (which must be distributed under
++    Sections 1 and 2 above); and, if the work is an executable linked
++    with the Library, with the complete machine-readable "work that
++    uses the Library", as object code and/or source code, so that the
++    user can modify the Library and then relink to produce a modified
++    executable containing the modified Library.  (It is understood
++    that the user who changes the contents of definitions files in the
++    Library will not necessarily be able to recompile the application
++    to use the modified definitions.)
++
++    b) Use a suitable shared library mechanism for linking with the
++    Library.  A suitable mechanism is one that (1) uses at run time a
++    copy of the library already present on the user's computer system,
++    rather than copying library functions into the executable, and (2)
++    will operate properly with a modified version of the library, if
++    the user installs one, as long as the modified version is
++    interface-compatible with the version that the work was made with.
++
++    c) Accompany the work with a written offer, valid for at
++    least three years, to give the same user the materials
++    specified in Subsection 6a, above, for a charge no more
++    than the cost of performing this distribution.
++
++    d) If distribution of the work is made by offering access to copy
++    from a designated place, offer equivalent access to copy the above
++    specified materials from the same place.
++
++    e) Verify that the user has already received a copy of these
++    materials or that you have already sent this user a copy.
++
++  For an executable, the required form of the "work that uses the
++Library" must include any data and utility programs needed for
++reproducing the executable from it.  However, as a special exception,
++the materials to be distributed need not include anything that is
++normally distributed (in either source or binary form) with the major
++components (compiler, kernel, and so on) of the operating system on
++which the executable runs, unless that component itself accompanies
++the executable.
++
++  It may happen that this requirement contradicts the license
++restrictions of other proprietary libraries that do not normally
++accompany the operating system.  Such a contradiction means you cannot
++use both them and the Library together in an executable that you
++distribute.
++
++  7. You may place library facilities that are a work based on the
++Library side-by-side in a single library together with other library
++facilities not covered by this License, and distribute such a combined
++library, provided that the separate distribution of the work based on
++the Library and of the other library facilities is otherwise
++permitted, and provided that you do these two things:
++
++    a) Accompany the combined library with a copy of the same work
++    based on the Library, uncombined with any other library
++    facilities.  This must be distributed under the terms of the
++    Sections above.
++
++    b) Give prominent notice with the combined library of the fact
++    that part of it is a work based on the Library, and explaining
++    where to find the accompanying uncombined form of the same work.
++
++  8. You may not copy, modify, sublicense, link with, or distribute
++the Library except as expressly provided under this License.  Any
++attempt otherwise to copy, modify, sublicense, link with, or
++distribute the Library is void, and will automatically terminate your
++rights under this License.  However, parties who have received copies,
++or rights, from you under this License will not have their licenses
++terminated so long as such parties remain in full compliance.
++
++  9. You are not required to accept this License, since you have not
++signed it.  However, nothing else grants you permission to modify or
++distribute the Library or its derivative works.  These actions are
++prohibited by law if you do not accept this License.  Therefore, by
++modifying or distributing the Library (or any work based on the
++Library), you indicate your acceptance of this License to do so, and
++all its terms and conditions for copying, distributing or modifying
++the Library or works based on it.
++
++  10. Each time you redistribute the Library (or any work based on the
++Library), the recipient automatically receives a license from the
++original licensor to copy, distribute, link with or modify the Library
++subject to these terms and conditions.  You may not impose any further
++restrictions on the recipients' exercise of the rights granted herein.
++You are not responsible for enforcing compliance by third parties with
++this License.
++
++  11. If, as a consequence of a court judgment or allegation of patent
++infringement or for any other reason (not limited to patent issues),
++conditions are imposed on you (whether by court order, agreement or
++otherwise) that contradict the conditions of this License, they do not
++excuse you from the conditions of this License.  If you cannot
++distribute so as to satisfy simultaneously your obligations under this
++License and any other pertinent obligations, then as a consequence you
++may not distribute the Library at all.  For example, if a patent
++license would not permit royalty-free redistribution of the Library by
++all those who receive copies directly or indirectly through you, then
++the only way you could satisfy both it and this License would be to
++refrain entirely from distribution of the Library.
++
++If any portion of this section is held invalid or unenforceable under any
++particular circumstance, the balance of the section is intended to apply,
++and the section as a whole is intended to apply in other circumstances.
++
++It is not the purpose of this section to induce you to infringe any
++patents or other property right claims or to contest validity of any
++such claims; this section has the sole purpose of protecting the
++integrity of the free software distribution system which is
++implemented by public license practices.  Many people have made
++generous contributions to the wide range of software distributed
++through that system in reliance on consistent application of that
++system; it is up to the author/donor to decide if he or she is willing
++to distribute software through any other system and a licensee cannot
++impose that choice.
++
++This section is intended to make thoroughly clear what is believed to
++be a consequence of the rest of this License.
++
++  12. If the distribution and/or use of the Library is restricted in
++certain countries either by patents or by copyrighted interfaces, the
++original copyright holder who places the Library under this License may add
++an explicit geographical distribution limitation excluding those countries,
++so that distribution is permitted only in or among countries not thus
++excluded.  In such case, this License incorporates the limitation as if
++written in the body of this License.
++
++  13. The Free Software Foundation may publish revised and/or new
++versions of the Lesser General Public License from time to time.
++Such new versions will be similar in spirit to the present version,
++but may differ in detail to address new problems or concerns.
++
++Each version is given a distinguishing version number.  If the Library
++specifies a version number of this License which applies to it and
++"any later version", you have the option of following the terms and
++conditions either of that version or of any later version published by
++the Free Software Foundation.  If the Library does not specify a
++license version number, you may choose any version ever published by
++the Free Software Foundation.
++
++  14. If you wish to incorporate parts of the Library into other free
++programs whose distribution conditions are incompatible with these,
++write to the author to ask for permission.  For software which is
++copyrighted by the Free Software Foundation, write to the Free
++Software Foundation; we sometimes make exceptions for this.  Our
++decision will be guided by the two goals of preserving the free status
++of all derivatives of our free software and of promoting the sharing
++and reuse of software generally.
++
++			    NO WARRANTY
++
++  15. BECAUSE THE LIBRARY IS LICENSED FREE OF CHARGE, THERE IS NO
++WARRANTY FOR THE LIBRARY, TO THE EXTENT PERMITTED BY APPLICABLE LAW.
++EXCEPT WHEN OTHERWISE STATED IN WRITING THE COPYRIGHT HOLDERS AND/OR
++OTHER PARTIES PROVIDE THE LIBRARY "AS IS" WITHOUT WARRANTY OF ANY
++KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, BUT NOT LIMITED TO, THE
++IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
++PURPOSE.  THE ENTIRE RISK AS TO THE QUALITY AND PERFORMANCE OF THE
++LIBRARY IS WITH YOU.  SHOULD THE LIBRARY PROVE DEFECTIVE, YOU ASSUME
++THE COST OF ALL NECESSARY SERVICING, REPAIR OR CORRECTION.
++
++  16. IN NO EVENT UNLESS REQUIRED BY APPLICABLE LAW OR AGREED TO IN
++WRITING WILL ANY COPYRIGHT HOLDER, OR ANY OTHER PARTY WHO MAY MODIFY
++AND/OR REDISTRIBUTE THE LIBRARY AS PERMITTED ABOVE, BE LIABLE TO YOU
++FOR DAMAGES, INCLUDING ANY GENERAL, SPECIAL, INCIDENTAL OR
++CONSEQUENTIAL DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE
++LIBRARY (INCLUDING BUT NOT LIMITED TO LOSS OF DATA OR DATA BEING
++RENDERED INACCURATE OR LOSSES SUSTAINED BY YOU OR THIRD PARTIES OR A
++FAILURE OF THE LIBRARY TO OPERATE WITH ANY OTHER SOFTWARE), EVEN IF
++SUCH HOLDER OR OTHER PARTY HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH
++DAMAGES.
++
++		     END OF TERMS AND CONDITIONS
++
++           How to Apply These Terms to Your New Libraries
++
++  If you develop a new library, and you want it to be of the greatest
++possible use to the public, we recommend making it free software that
++everyone can redistribute and change.  You can do so by permitting
++redistribution under these terms (or, alternatively, under the terms of the
++ordinary General Public License).
++
++  To apply these terms, attach the following notices to the library.  It is
++safest to attach them to the start of each source file to most effectively
++convey the exclusion of warranty; and each file should have at least the
++"copyright" line and a pointer to where the full notice is found.
++
++    <one line to give the library's name and a brief idea of what it does.>
++    Copyright (C) <year>  <name of author>
++
++    This library is free software; you can redistribute it and/or
++    modify it under the terms of the GNU Lesser General Public
++    License as published by the Free Software Foundation; either
++    version 2.1 of the License, or (at your option) any later version.
++
++    This library is distributed in the hope that it will be useful,
++    but WITHOUT ANY WARRANTY; without even the implied warranty of
++    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++    Lesser General Public License for more details.
++
++    You should have received a copy of the GNU Lesser General Public
++    License along with this library; if not, write to the Free Software
++    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
++
++Also add information on how to contact you by electronic and paper mail.
++
++You should also get your employer (if you work as a programmer) or your
++school, if any, to sign a "copyright disclaimer" for the library, if
++necessary.  Here is a sample; alter the names:
++
++  Yoyodyne, Inc., hereby disclaims all copyright interest in the
++  library `Frob' (a library for tweaking knobs) written by James Random Hacker.
++
++  <signature of Ty Coon>, 1 April 1990
++  Ty Coon, President of Vice
++
++That's all there is to it!
+diff --git a/ocaml-nbd/MAINTAINERS b/ocaml-nbd/MAINTAINERS
+new file mode 100644
+index 000000000..3f6c3e6e7
+--- /dev/null
++++ b/ocaml-nbd/MAINTAINERS
+@@ -0,0 +1,12 @@
++How to submit changes to this project
++=====================================
++
++Please submit changes as pull requests to the repository on github.
++Please ensure that all changes have descriptive commit comments and
++include a Signed-off-by: line.
++
++Maintainers list
++----------------
++
++* Jonathan Ludlam <jonathan.ludlam@eu.citrix.com> 
++* David Scott <dave.scott@citrix.com>
+diff --git a/ocaml-nbd/Makefile b/ocaml-nbd/Makefile
+new file mode 100644
+index 000000000..160a84d4b
+--- /dev/null
++++ b/ocaml-nbd/Makefile
+@@ -0,0 +1,33 @@
++.PHONY: build release install uninstall clean test doc reindent
++
++build:
++	dune build @install
++
++release:
++	dune build --profile release @install
++
++install:
++	dune install
++
++uninstall:
++	dune uninstall
++
++clean:
++	dune clean
++
++test:
++	dune runtest
++
++# requires qemu-img
++benchmark: build
++	./benchmark.sh
++
++# requires odoc
++doc:
++	dune build @doc
++
++gh-pages:
++	bash .docgen.sh
++
++format:
++	dune build @fmt --auto-promote
+diff --git a/ocaml-nbd/README.md b/ocaml-nbd/README.md
+new file mode 100644
+index 000000000..586127b79
+--- /dev/null
++++ b/ocaml-nbd/README.md
+@@ -0,0 +1,23 @@
++Network Block Device
++====================
++
++[![Coverage Status](https://coveralls.io/repos/xapi-project/nbd/badge.svg?branch=master)](https://coveralls.io/r/xapi-project/nbd?branch=master)
++
++A pure OCaml implementation of the [Network Block
++Device](http://en.wikipedia.org/wiki/Network_block_device) protocol, which is a
++client/server protocol for accessing block devices.
++
++This repository provides the following OPAM packages:
++
++* `nbd` : core protocol parsing library
++* `nbd-unix` : `Lwt_unix` implementation
++* `nbd-tool`: command line helper for serving and mirroring disks over NBD, and
++  getting information about the disks exported by an NBD server
++
++Each of these OPAM packages installs an ocamlfind library with the same name as
++the OPAM package.
++
++Documentation
++-------------
++
++The [API documentation is on github](https://xapi-project.github.io/nbd/index.html).
+diff --git a/ocaml-nbd/benchmark.sh b/ocaml-nbd/benchmark.sh
+new file mode 100755
+index 000000000..a6430032b
+--- /dev/null
++++ b/ocaml-nbd/benchmark.sh
+@@ -0,0 +1,18 @@
++#!/bin/bash
++
++# Run this script to benchmark the NBD server using qemu-img.
++
++set -eux
++
++dd if=/dev/zero of=/tmp/test bs=1M count=100
++_build/default/cli/main.exe serve --exportname test --no-tls /tmp/test &
++SERVER_PROCESS=$!
++# Wait for the server to start the main loop
++sleep 0.1
++
++stop_server() {
++  kill -9 $SERVER_PROCESS
++}
++trap stop_server EXIT
++
++qemu-img bench 'nbd:0.0.0.0:10809:exportname=test'
+diff --git a/ocaml-nbd/cli/common.ml b/ocaml-nbd/cli/common.ml
+new file mode 100644
+index 000000000..2889a9778
+--- /dev/null
++++ b/ocaml-nbd/cli/common.ml
+@@ -0,0 +1,17 @@
++(*
++ * Copyright (C) 2011-2013 Citrix Inc
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++type t = {debug: bool; verb: bool}
++
++let make debug verb = {debug; verb}
+diff --git a/ocaml-nbd/cli/dune b/ocaml-nbd/cli/dune
+new file mode 100644
+index 000000000..74855b0d0
+--- /dev/null
++++ b/ocaml-nbd/cli/dune
+@@ -0,0 +1,17 @@
++(executable
++ (modes byte exe)
++ (name main)
++ (public_name nbd-tool)
++ (package nbd-tool)
++ (libraries
++   cmdliner
++   fmt
++   lwt
++   lwt.unix
++   lwt_log
++   mirage-block
++   mirage-block-unix
++   nbd
++   nbd-unix
++   ssl
++   uri))
+diff --git a/ocaml-nbd/cli/main.ml b/ocaml-nbd/cli/main.ml
+new file mode 100644
+index 000000000..c514afca7
+--- /dev/null
++++ b/ocaml-nbd/cli/main.ml
+@@ -0,0 +1,472 @@
++(*
++ * Copyright (C) 2011-2015 Citrix Inc
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++let project_url = "http://github.com/xapi-project/nbd"
++
++open Lwt.Infix
++
++module Device = struct
++  type [@warning "-69-34"] id = [`Nbd of Uri.t | `Local of string]
++
++  type t = [`Nbd of Nbd_unix.Client.t | `Local of Block.t]
++
++  type error = [Mirage_block.error | `Protocol_error of Nbd.Protocol.Error.t]
++
++  type write_error =
++    [Mirage_block.write_error | `Protocol_error of Nbd.Protocol.Error.t]
++
++  let pp_error ppf = function
++    | #Mirage_block.error as e ->
++        Mirage_block.pp_error ppf e
++    | `Protocol_error e ->
++        Fmt.string ppf (Nbd.Protocol.Error.to_string e)
++
++  let pp_write_error ppf = function
++    | #Mirage_block.write_error as e ->
++        Mirage_block.pp_write_error ppf e
++    | `Protocol_error e ->
++        Fmt.string ppf (Nbd.Protocol.Error.to_string e)
++
++  let connect uri =
++    match Uri.scheme uri with
++    | Some "file" ->
++        let path = Uri.path uri in
++        Block.connect path >|= fun x -> `Local x
++    | Some "nbd" -> (
++      match Uri.host uri with
++      | Some host ->
++          let port = match Uri.port uri with None -> 10809 | Some x -> x in
++          Nbd_unix.connect host port >>= fun channel ->
++          Nbd_unix.Client.negotiate channel (Uri.to_string uri)
++          >>= fun (t, _, _) -> Lwt.return (`Nbd t)
++      | None ->
++          Lwt.fail_with "Cannot connect to nbd without a host"
++    )
++    | _ ->
++        Lwt.fail_with "unknown scheme"
++
++  type [@warning "-69-34"] info = {read_write: bool; sector_size: int; size_sectors: int64}
++
++  let get_info = function
++    | `Nbd t ->
++        Nbd_unix.Client.get_info t
++    | `Local t ->
++        Block.get_info t
++
++  let read t off bufs =
++    match t with
++    | `Nbd t ->
++        Nbd_unix.Client.read t off bufs
++    | `Local t -> (
++        Block.read t off bufs >>= function
++        | Result.Error `Disconnected ->
++            Lwt.return_error `Disconnected
++        | Result.Error _ ->
++            Lwt.return_error `Disconnected
++        | Result.Ok x ->
++            Lwt.return_ok x
++      )
++
++  let write t off bufs =
++    match t with
++    | `Nbd t ->
++        Nbd_unix.Client.write t off bufs
++    | `Local t -> (
++        Block.write t off bufs >>= function
++        | Result.Error `Disconnected ->
++            Lwt.return_error `Disconnected
++        | Result.Error `Is_read_only ->
++            Lwt.return_error `Is_read_only
++        | Result.Error _ ->
++            Lwt.return_error `Disconnected
++        | Result.Ok x ->
++            Lwt.return_ok x
++      )
++
++  let disconnect t =
++    match t with
++    | `Nbd t ->
++        Nbd_unix.Client.disconnect t
++    | `Local t ->
++        Block.disconnect t
++end
++
++open Cmdliner
++
++(* Help sections common to all commands *)
++
++let common_options = "COMMON OPTIONS"
++
++let help =
++  [
++    `S common_options
++  ; `P "These options are common to all commands."
++  ; `S "MORE HELP"
++  ; `P "Use `$(mname) $(i,COMMAND) --help' for help on a single command."
++  ; `Noblank
++  ; `S "BUGS"
++  ; `P (Printf.sprintf "Check bug reports at %s" project_url)
++  ]
++
++(* Options common to all commands *)
++let common_options_t =
++  let docs = common_options in
++  let debug =
++    let doc = "Give only debug output." in
++    Arg.(value & flag & info ["debug"] ~docs ~doc)
++  in
++  let verb =
++    let doc = "Give verbose output." in
++    let verbose = (true, Arg.info ["v"; "verbose"] ~docs ~doc) in
++    Arg.(last & vflag_all [false] [verbose])
++  in
++  Term.(const Common.make $ debug $ verb)
++
++module Impl = struct
++  open Nbd
++
++  let require name arg =
++    match arg with
++    | None ->
++        failwith (Printf.sprintf "Please supply a %s argument" name)
++    | Some x ->
++        x
++
++  let require_str name arg = require name (if arg = "" then None else Some arg)
++
++  let size host port export =
++    let res =
++      Nbd_unix.connect host port >>= fun client ->
++      Client.negotiate client export
++    in
++    let _, size, _ = Lwt_main.run res in
++    Printf.printf "%Ld\n%!" size ;
++    `Ok ()
++
++  let list _common host port =
++    let t =
++      Nbd_unix.connect host port >>= fun channel ->
++      Client.list channel >>= function
++      | Result.Ok disks ->
++          List.iter print_endline disks ;
++          Lwt.return ()
++      | Result.Error `Unsupported ->
++          Printf.fprintf stderr
++            "The server does not support the query function.\n%!" ;
++          exit 1
++      | Result.Error `Policy ->
++          Printf.fprintf stderr
++            "The server configuration does not permit listing exports.\n%!" ;
++          exit 2
++    in
++    `Ok (Lwt_main.run t)
++
++  (* Helper function for use within this module *)
++  let init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls =
++    if no_tls then
++      None
++    else
++      let certfile = require_str "certfile" certfile in
++      let ciphersuites = require_str "ciphersuites" ciphersuites in
++      Some
++        (Nbd_unix.TlsServer
++           (Nbd_unix.init_tls_get_ctx ~curve ~certfile ~ciphersuites ())
++        )
++
++  let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
++
++  let serve _common filename port exportname certfile curve ciphersuites no_tls
++      =
++    let tls_role =
++      init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls
++    in
++    let filename = require "filename" filename in
++    let validate ~client_exportname =
++      match exportname with
++      | Some exportname when exportname <> client_exportname ->
++          Lwt.fail_with
++            (Printf.sprintf
++               "Client requested invalid exportname %s, name of the export is \
++                %s"
++               client_exportname exportname
++            )
++      | _ ->
++          Lwt.return_unit
++    in
++    let handle_connection fd =
++      Lwt.finalize
++        (fun () ->
++          Nbd_unix.with_channel fd tls_role (fun clearchan ->
++              let offer =
++                match exportname with
++                | None ->
++                    None
++                | Some exportname ->
++                    Some [exportname]
++              in
++              Server.with_connection ?offer clearchan
++                (fun client_exportname svr ->
++                  validate ~client_exportname >>= fun () ->
++                  Nbd_unix.with_block filename
++                    (Server.serve svr ~read_only:false (module Block))
++              )
++          )
++        )
++        (ignore_exn (fun () -> Lwt_unix.close fd))
++    in
++    let t =
++      let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
++      Lwt.finalize
++        (fun () ->
++          Lwt_unix.setsockopt sock Lwt_unix.SO_REUSEADDR true ;
++          let sockaddr = Lwt_unix.ADDR_INET (Unix.inet_addr_any, port) in
++          Lwt_unix.bind sock sockaddr >>= fun () ->
++          Lwt_unix.listen sock 5 ;
++          let rec loop () =
++            Lwt_unix.accept sock >>= fun (fd, _) ->
++            (* Background thread per connection *)
++            let _ =
++              Lwt.catch
++                (fun () -> handle_connection fd)
++                (fun e ->
++                  Lwt_log.error_f
++                    "Caught exception %s while handling connection"
++                    (Printexc.to_string e)
++                )
++            in
++            loop ()
++          in
++          loop ()
++        )
++        (ignore_exn (fun () -> Lwt_unix.close sock))
++    in
++    Lwt_main.run t
++
++  let mirror _common filename port secondary certfile curve ciphersuites no_tls
++      =
++    let tls_role =
++      init_tls_get_server_ctx ~curve ~certfile ~ciphersuites no_tls
++    in
++    let filename = require "filename" filename in
++    let secondary = require "secondary" secondary in
++    let t =
++      let sock = Lwt_unix.socket Unix.PF_INET Unix.SOCK_STREAM 0 in
++      let sockaddr = Lwt_unix.ADDR_INET (Unix.inet_addr_any, port) in
++      Lwt_unix.bind sock sockaddr >>= fun () ->
++      Lwt_unix.listen sock 5 ;
++      let module M = Mirror.Make (Device) (Device) in
++      ( Device.connect (Uri.of_string filename) >>= fun primary ->
++        (* Connect to the secondary *)
++        Device.connect (Uri.of_string secondary) >>= fun secondary ->
++        let progress_cb = function
++          | `Complete ->
++              Printf.fprintf stderr "Mirror synchronised\n%!"
++          | `Percent x ->
++              Printf.fprintf stderr "Mirror %d %% complete\n%!" x
++        in
++        M.connect ~progress_cb primary secondary
++      )
++      >>= fun m ->
++      let rec loop () =
++        Lwt_unix.accept sock >>= fun (fd, _) ->
++        (* Background thread per connection *)
++        let _ =
++          let channel = Nbd_unix.cleartext_channel_of_fd fd tls_role in
++          Server.connect channel () >>= fun (_name, t) ->
++          Server.serve t (module M) m
++        in
++        loop ()
++      in
++      loop ()
++    in
++    Lwt_main.run t
++end
++
++let size_cmd =
++  let doc = "Return the size of a disk served over NBD" in
++  let host =
++    let doc = "Hostname of NBD server" in
++    Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"hostname")
++  in
++  let port =
++    let doc = "Remote port" in
++    Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port")
++  in
++  let export =
++    let doc = "Name of the export" in
++    Arg.(value & opt string "export" & info ["export"] ~doc ~docv:"export")
++  in
++  ( Term.(ret (const Impl.size $ host $ port $ export))
++  , Cmd.info "size" ~version:"1.0.0" ~doc
++  )
++
++(* Used by both serve and mirror cmds *)
++let certfile =
++  let doc = "Path to file containing TLS certificate." in
++  Arg.(value & opt string "" & info ["certfile"] ~doc)
++
++let ciphersuites =
++  let doc =
++    "Set of ciphersuites for TLS (specified in the format accepted by OpenSSL, \
++     stunnel etc.)"
++  in
++  let parse_cipherstring_as_required =
++    ( (fun s -> if s = "" then failwith "ciphersuite is required" else `Ok s)
++    , Format.pp_print_string
++    )
++  in
++  Arg.(
++    value & opt parse_cipherstring_as_required "" & info ["ciphersuites"] ~doc
++  )
++
++(* cli is only used for debugging, so assume user is providing a good cipherstring *)
++
++let curve =
++  let doc = "EC curve to use" in
++  Arg.(value & opt string "secp384r1" & info ["curve"] ~doc)
++
++let serve_cmd =
++  let doc = "serve a disk over NBD" in
++  let man =
++    [
++      `S "DESCRIPTION"
++    ; `P "Create a server which allows a client to access a disk using NBD."
++    ]
++    @ help
++  in
++  let filename =
++    let doc = "Disk (file or block device) to expose" in
++    Arg.(value & pos 0 (some file) None & info [] ~doc)
++  in
++  let port =
++    let doc = "Local port to listen for connections on" in
++    Arg.(value & opt int 10809 & info ["port"] ~doc)
++  in
++  let exportname =
++    let doc =
++      {|Export name to use when serving the file. If specified, clients
++                will be able to list this export, and only this export name
++                will be accepted. If unspecified, listing the exports will not
++                be allowed, and all export names will be accepted when
++                connecting.|}
++    in
++    Arg.(value & opt (some string) None & info ["exportname"] ~doc)
++  in
++  let no_tls =
++    let doc =
++      "Use NOTLS mode (refusing TLS) instead of the default FORCEDTLS."
++    in
++    Arg.(value & flag & info ["no-tls"] ~doc)
++  in
++  ( Term.(
++      ret
++        (const Impl.serve
++        $ common_options_t
++        $ filename
++        $ port
++        $ exportname
++        $ certfile
++        $ curve
++        $ ciphersuites
++        $ no_tls
++        )
++    )
++  , Cmd.info "serve" ~sdocs:common_options ~doc ~man
++  )
++
++let mirror_cmd =
++  let doc = "serve a disk over NBD while mirroring" in
++  let man =
++    [
++      `S "DESCRIPTION"
++    ; `P "Create a server which allows a client to access a disk using NBD."
++    ; `P
++        "The server will pass I/O through to a primary disk underneath, while \
++         also mirroring the contents to a secondary."
++    ; `S "EXAMPLES"
++    ]
++    @ help
++  in
++  let filename =
++    let doc = "URI naming the primary disk" in
++    Arg.(value & pos 0 (some string) None & info [] ~doc)
++  in
++  let secondary =
++    let doc = "URI naming the secondary disk" in
++    Arg.(value & pos 1 (some string) None & info [] ~doc)
++  in
++  let port =
++    let doc = "Local port to listen for connections on" in
++    Arg.(value & opt int 10809 & info ["port"] ~doc)
++  in
++  let no_tls =
++    let doc =
++      "Serve using NOTLS mode (refusing TLS) instead of the default FORCEDTLS."
++    in
++    Arg.(value & flag & info ["no-tls"] ~doc)
++  in
++  ( Term.(
++      ret
++        (const Impl.mirror
++        $ common_options_t
++        $ filename
++        $ port
++        $ secondary
++        $ certfile
++        $ curve
++        $ ciphersuites
++        $ no_tls
++        )
++    )
++  , Cmd.info "mirror" ~sdocs:common_options ~doc ~man
++  )
++
++let list_cmd =
++  let doc = "list the disks exported by an NBD server" in
++  let man =
++    [
++      `S "DESCRIPTION"
++    ; `P
++        "Queries a server and returns a list of known exports. Note older \
++         servers may not support the protocol option: this will result in an \
++         empty list."
++    ]
++    @ help
++  in
++  let host =
++    let doc = "Hostname of NBD server" in
++    Arg.(required & pos 0 (some string) None & info [] ~doc ~docv:"hostname")
++  in
++  let port =
++    let doc = "Remote port" in
++    Arg.(required & pos 1 (some int) None & info [] ~doc ~docv:"port")
++  in
++  ( Term.(ret (const Impl.list $ common_options_t $ host $ port))
++  , Cmd.info "list" ~sdocs:common_options ~doc ~man
++  )
++
++let cmds =
++  [serve_cmd; list_cmd; size_cmd; mirror_cmd]
++  |> List.map (fun (t, i) -> Cmd.v i t)
++
++let () =
++  let default =
++    Term.(ret (const (fun _ -> `Help (`Pager, None)) $ common_options_t))
++  in
++  let doc = "manipulate NBD clients and servers" in
++  let info =
++    Cmd.info "nbd-tool" ~version:"1.0.0" ~sdocs:common_options ~doc ~man:help
++  in
++  let cmd = Cmd.group ~default info cmds in
++  exit (Cmd.eval cmd)
+diff --git a/ocaml-nbd/lib/channel.ml b/ocaml-nbd/lib/channel.ml
+new file mode 100644
+index 000000000..944b938fc
+--- /dev/null
++++ b/ocaml-nbd/lib/channel.ml
+@@ -0,0 +1,46 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++type tls_channel = {
++    read_tls: Cstruct.t -> unit Lwt.t
++  ; write_tls: Cstruct.t -> unit Lwt.t
++  ; close_tls: unit -> unit Lwt.t
++}
++
++type cleartext_channel = {
++    read_clear: Cstruct.t -> unit Lwt.t
++  ; write_clear: Cstruct.t -> unit Lwt.t
++  ; close_clear: unit -> unit Lwt.t
++  ; make_tls_channel: (unit -> tls_channel Lwt.t) option
++}
++
++type generic_channel = {
++    is_tls: bool
++  ; read: Cstruct.t -> unit Lwt.t
++  ; write: Cstruct.t -> unit Lwt.t
++  ; close: unit -> unit Lwt.t
++}
++
++type channel = generic_channel
++
++let generic_of_tls_channel ch =
++  {read= ch.read_tls; write= ch.write_tls; close= ch.close_tls; is_tls= true}
++
++let generic_of_cleartext_channel ch =
++  {
++    read= ch.read_clear
++  ; write= ch.write_clear
++  ; close= ch.close_clear
++  ; is_tls= false
++  }
+diff --git a/ocaml-nbd/lib/channel.mli b/ocaml-nbd/lib/channel.mli
+new file mode 100644
+index 000000000..392728488
+--- /dev/null
++++ b/ocaml-nbd/lib/channel.mli
+@@ -0,0 +1,43 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Channels represent connections between clients and servers. *)
++
++(** An open channel to an NBD client or server. *)
++
++type tls_channel = {
++    read_tls: Cstruct.t -> unit Lwt.t
++  ; write_tls: Cstruct.t -> unit Lwt.t
++  ; close_tls: unit -> unit Lwt.t
++}
++
++type cleartext_channel = {
++    read_clear: Cstruct.t -> unit Lwt.t
++  ; write_clear: Cstruct.t -> unit Lwt.t
++  ; close_clear: unit -> unit Lwt.t
++  ; make_tls_channel: (unit -> tls_channel Lwt.t) option
++}
++
++type generic_channel = {
++    is_tls: bool
++  ; read: Cstruct.t -> unit Lwt.t
++  ; write: Cstruct.t -> unit Lwt.t
++  ; close: unit -> unit Lwt.t
++}
++
++type channel = generic_channel
++
++val generic_of_tls_channel : tls_channel -> generic_channel
++
++val generic_of_cleartext_channel : cleartext_channel -> generic_channel
+diff --git a/ocaml-nbd/lib/client.ml b/ocaml-nbd/lib/client.ml
+new file mode 100644
+index 000000000..3620838a1
+--- /dev/null
++++ b/ocaml-nbd/lib/client.ml
+@@ -0,0 +1,302 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++open Lwt.Infix
++open Protocol
++open Channel
++
++type size = int64
++
++let get_handle =
++  let next = ref 0L in
++  fun () ->
++    let this = !next in
++    next := Int64.succ !next ;
++    this
++
++module NbdRpc = struct
++  type transport = channel
++
++  type id = int64
++
++  type request_hdr = Request.t
++
++  type request_body = Cstruct.t option
++
++  type response_hdr = Reply.t
++
++  type response_body = Cstruct.t list
++
++  let recv_hdr sock =
++    let buf = Cstruct.create 16 in
++    sock.read buf >>= fun () ->
++    match Reply.unmarshal buf with
++    | Ok x ->
++        Lwt.return (Some x.Reply.handle, x)
++    | Error e ->
++        Lwt.fail e
++
++  let recv_body sock req_hdr res_hdr response_body =
++    match res_hdr.Reply.error with
++    | Error e ->
++        Lwt.return_error e
++    | Ok () -> (
++      match req_hdr.Request.ty with
++      | Command.Read ->
++          (* TODO: use a page-aligned memory allocator *)
++          Lwt_list.iter_s sock.read response_body >>= fun () -> Lwt.return_ok ()
++      | _ ->
++          Lwt.return_ok ()
++    )
++
++  let send_one sock req_hdr req_body =
++    let buf = Cstruct.create Request.sizeof in
++    Request.marshal buf req_hdr ;
++    sock.write buf >>= fun () ->
++    match req_body with None -> Lwt.return () | Some data -> sock.write data
++
++  let id_of_request req = req.Request.handle
++
++  let handle_unrequested_packet _t reply =
++    Lwt.fail_with
++      (Printf.sprintf "Unexpected response from server: %s"
++         (Reply.to_string reply)
++      )
++end
++
++module Rpc = Mux.Make (NbdRpc)
++
++type error = [Mirage_block.error | `Protocol_error of Protocol.Error.t]
++
++type write_error =
++  [Mirage_block.write_error | `Protocol_error of Protocol.Error.t]
++
++let pp_error ppf = function
++  | #Mirage_block.error as e ->
++      Mirage_block.pp_error ppf e
++  | `Protocol_error e ->
++      Fmt.string ppf (Protocol.Error.to_string e)
++
++let pp_write_error ppf = function
++  | #Mirage_block.write_error as e ->
++      Mirage_block.pp_write_error ppf e
++  | `Protocol_error e ->
++      Fmt.string ppf (Protocol.Error.to_string e)
++
++type t = {
++    client: Rpc.client
++  ; info: Mirage_block.info
++  ; mutable disconnected: bool
++}
++
++type id = unit
++
++let make channel size_bytes flags =
++  Rpc.create channel >>= fun client ->
++  let read_write = not (List.mem PerExportFlag.Read_only flags) in
++  let sector_size = 1 in
++  (* Note: NBD has no notion of a sector *)
++  let size_sectors = size_bytes in
++  let info = {Mirage_block.read_write; sector_size; size_sectors} in
++  let disconnected = false in
++  Lwt.return {client; info; disconnected}
++
++let list channel =
++  let section = Lwt_log_core.Section.make "Client.list" in
++
++  let buf = Cstruct.create Announcement.sizeof in
++  channel.read buf >>= fun () ->
++  match Announcement.unmarshal buf with
++  | Error e ->
++      Lwt.fail e
++  | Ok kind -> (
++      let buf = Cstruct.create (Negotiate.sizeof kind) in
++      channel.read buf >>= fun () ->
++      match Negotiate.unmarshal buf kind with
++      | Error e ->
++          Lwt.fail e
++      | Ok (Negotiate.V1 _) ->
++          Lwt.return_error `Unsupported
++      | Ok (Negotiate.V2 x) ->
++          let buf = Cstruct.create NegotiateResponse.sizeof in
++          let flags =
++            if List.mem GlobalFlag.Fixed_newstyle x then
++              [ClientFlag.Fixed_newstyle]
++            else
++              []
++          in
++          NegotiateResponse.marshal buf flags ;
++          channel.write buf >>= fun () ->
++          let buf = Cstruct.create OptionRequestHeader.sizeof in
++          OptionRequestHeader.(marshal buf {ty= Option.List; length= 0l}) ;
++          channel.write buf >>= fun () ->
++          let buf = Cstruct.create OptionResponseHeader.sizeof in
++          let rec loop acc =
++            channel.read buf >>= fun () ->
++            match OptionResponseHeader.unmarshal buf with
++            | Error e ->
++                Lwt.fail e
++            | Ok {OptionResponseHeader.response_type= OptionResponse.Ack; _} ->
++                Lwt.return_ok acc
++            | Ok {OptionResponseHeader.response_type= OptionResponse.Policy; _}
++              ->
++                Lwt.return_error `Policy
++            | Ok
++                {
++                  OptionResponseHeader.response_type= OptionResponse.Server
++                ; length
++                ; _
++                } -> (
++                let buf' = Cstruct.create (Int32.to_int length) in
++                channel.read buf' >>= fun () ->
++                match Server.unmarshal buf' with
++                | Ok server ->
++                    loop (server.Server.name :: acc)
++                | Error e ->
++                    Lwt.fail e
++              )
++            | Ok _ ->
++                Lwt.fail_with "Server's OptionResponse had an invalid type"
++          in
++          loop [] >>= fun result ->
++          (* Send NBD_OPT_ABORT to terminate the option haggling *)
++          let buf = Cstruct.create OptionRequestHeader.sizeof in
++          OptionRequestHeader.(marshal buf {ty= Option.Abort; length= 0l}) ;
++          channel.write buf >>= fun () ->
++          (* The NBD protocol says: "the client SHOULD gracefully handle the
++           * server closing the connection after receiving an NBD_OPT_ABORT
++           * without it sending a reply" *)
++          Lwt.catch
++            (fun () ->
++              (* Read ack from server *)
++              let buf = Cstruct.create OptionResponseHeader.sizeof in
++              channel.read buf >>= fun () ->
++              match OptionResponseHeader.unmarshal buf with
++              | Error e ->
++                  Lwt.fail e
++              | Ok {OptionResponseHeader.response_type= OptionResponse.Ack; _}
++                ->
++                  Lwt.return_unit
++              | Ok _ ->
++                  Lwt.fail_with "Server's OptionResponse had an invalid type"
++            )
++            (fun exn ->
++              Lwt_log_core.warning ~section ~exn
++                "Got exception while reading ack from server"
++            )
++          >|= fun () -> result
++    )
++
++let negotiate channel export =
++  let buf = Cstruct.create Announcement.sizeof in
++  channel.read buf >>= fun () ->
++  match Announcement.unmarshal buf with
++  | Error e ->
++      Lwt.fail e
++  | Ok kind -> (
++      let buf = Cstruct.create (Negotiate.sizeof kind) in
++      channel.read buf >>= fun () ->
++      match Negotiate.unmarshal buf kind with
++      | Error e ->
++          Lwt.fail e
++      | Ok (Negotiate.V1 x) ->
++          make channel x.Negotiate.size x.Negotiate.flags >>= fun t ->
++          Lwt.return (t, x.Negotiate.size, x.Negotiate.flags)
++      | Ok (Negotiate.V2 x) -> (
++          let buf = Cstruct.create NegotiateResponse.sizeof in
++          let flags =
++            if List.mem GlobalFlag.Fixed_newstyle x then
++              [ClientFlag.Fixed_newstyle]
++            else
++              []
++          in
++          NegotiateResponse.marshal buf flags ;
++          channel.write buf >>= fun () ->
++          let buf = Cstruct.create OptionRequestHeader.sizeof in
++          OptionRequestHeader.(
++            marshal buf
++              {
++                ty= Option.ExportName
++              ; length= Int32.of_int (String.length export)
++              }
++          ) ;
++          channel.write buf >>= fun () ->
++          let buf = Cstruct.create (ExportName.sizeof export) in
++          ExportName.marshal buf export ;
++          channel.write buf >>= fun () ->
++          let buf = Cstruct.create DiskInfo.sizeof in
++          channel.read buf >>= fun () ->
++          match DiskInfo.unmarshal buf with
++          | Error e ->
++              Lwt.fail e
++          | Ok x ->
++              make channel x.DiskInfo.size x.DiskInfo.flags >>= fun t ->
++              Lwt.return (t, x.DiskInfo.size, x.DiskInfo.flags)
++        )
++    )
++
++let get_info t = Lwt.return t.info
++
++let write_one t from buffer =
++  let handle = get_handle () in
++  let req_hdr =
++    {
++      Request.ty= Command.Write
++    ; handle
++    ; from
++    ; len= Int32.of_int (Cstruct.length buffer)
++    }
++  in
++  Rpc.rpc req_hdr (Some buffer) [] t.client
++
++let write t from buffers =
++  if t.disconnected then
++    Lwt.return_error `Disconnected
++  else
++    let rec loop from = function
++      | [] ->
++          Lwt.return_ok ()
++      | b :: bs -> (
++          write_one t from b >>= function
++          | Ok () ->
++              loop Int64.(add from (of_int (Cstruct.length b))) bs
++          | Error e ->
++              Lwt.return_error e
++        )
++    in
++    loop from buffers >>= function
++    | Error e ->
++        Lwt.return_error (`Protocol_error e)
++    | Ok () ->
++        Lwt.return_ok ()
++
++let read t from buffers =
++  if t.disconnected then
++    Lwt.return_error `Disconnected
++  else
++    let handle = get_handle () in
++    let len =
++      Int32.of_int @@ List.fold_left ( + ) 0 @@ List.map Cstruct.length buffers
++    in
++    let req_hdr = {Request.ty= Command.Read; handle; from; len} in
++    let req_body = None in
++    Rpc.rpc req_hdr req_body buffers t.client >>= function
++    | Error e ->
++        Lwt.return_error (`Protocol_error e)
++    | Ok () ->
++        Lwt.return_ok ()
++
++let disconnect t =
++  t.disconnected <- true ;
++  Lwt.return ()
+diff --git a/ocaml-nbd/lib/client.mli b/ocaml-nbd/lib/client.mli
+new file mode 100644
+index 000000000..2771e7694
+--- /dev/null
++++ b/ocaml-nbd/lib/client.mli
+@@ -0,0 +1,18 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** An NBD client which allows you to connect to remote disks and
++    perform I/O. *)
++
++include S.CLIENT
+diff --git a/ocaml-nbd/lib/dune b/ocaml-nbd/lib/dune
+new file mode 100644
+index 000000000..518e6c39f
+--- /dev/null
++++ b/ocaml-nbd/lib/dune
+@@ -0,0 +1,20 @@
++(library
++ (name nbd)
++ (public_name nbd)
++ (flags
++  (:standard -w -34-32))
++ (libraries
++   cstruct
++   fmt
++   io-page
++   lwt
++   lwt_log
++   lwt_log.core
++   mirage-block
++   rresult
++   sexplib
++   sexplib0
++ )
++ (instrumentation (backend bisect_ppx))
++ (preprocess
++  (pps ppx_cstruct ppx_sexp_conv -no-check)))
+diff --git a/ocaml-nbd/lib/mirror.ml b/ocaml-nbd/lib/mirror.ml
+new file mode 100644
+index 000000000..e8c0329d7
+--- /dev/null
++++ b/ocaml-nbd/lib/mirror.ml
+@@ -0,0 +1,378 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++open Lwt.Infix
++open Result
++
++module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) = struct
++  type error =
++    [ Mirage_block.error
++    | `Primary of Primary.error
++    | `Secondary of Secondary.error ]
++
++  type write_error =
++    [ Mirage_block.write_error
++    | `Primary of Primary.write_error
++    | `Secondary of Secondary.write_error ]
++
++  type mirror_error =
++    [`Primary of Primary.error | `Secondary of Secondary.write_error]
++
++  let pp_error ppf = function
++    | #Mirage_block.error as e ->
++        Mirage_block.pp_error ppf e
++    | `Primary p ->
++        Primary.pp_error ppf p
++    | `Secondary s ->
++        Secondary.pp_error ppf s
++
++  let pp_write_error ppf = function
++    | #Mirage_block.write_error as e ->
++        Mirage_block.pp_write_error ppf e
++    | `Primary p ->
++        Primary.pp_write_error ppf p
++    | `Secondary s ->
++        Secondary.pp_write_error ppf s
++
++  let string_of_error x =
++    let b = Buffer.create 32 in
++    let f = Format.formatter_of_buffer b in
++    pp_error f x ; Buffer.contents b
++
++  module Region_lock = struct
++    (* We need to prevent the background mirror thread racing with an I/O write
++       to a particular region *)
++
++    type region = int64 * int
++
++    let overlap (start, length) (start', _length') =
++      start' >= start && start' < Int64.(add start (of_int length))
++
++    let before (start, length) (start', _length') =
++      Int64.(add start (of_int length)) < start'
++
++    type t = {
++        mutable exclusive_lock: region
++      ; (* extent we're currently copying *)
++        mutable active: region list
++      ; (* extents which are being written to *)
++        c: unit Lwt_condition.t
++      ; m: Lwt_mutex.t
++    }
++
++    (* Exclusively lock up to [offset'] *)
++    let extend_right t offset' =
++      Lwt_mutex.with_lock t.m (fun () ->
++          let rec wait () =
++            let length = Int64.(to_int (sub offset' (fst t.exclusive_lock))) in
++            if
++              List.fold_left ( || ) false
++                (List.map (overlap (fst t.exclusive_lock, length)) t.active)
++            then
++              Lwt_condition.wait ~mutex:t.m t.c >>= fun () -> wait ()
++            else
++              Lwt.return length
++          in
++          wait () >>= fun length ->
++          t.exclusive_lock <- (fst t.exclusive_lock, length) ;
++          Lwt_condition.broadcast t.c () ;
++          Lwt.return ()
++      )
++
++    (* Release lock up to [offset'] *)
++    let release_left t offset' =
++      Lwt_mutex.with_lock t.m (fun () ->
++          let length =
++            Int64.(
++              to_int
++                (sub
++                   (add (fst t.exclusive_lock) (of_int (snd t.exclusive_lock)))
++                   offset'
++                )
++            )
++          in
++          t.exclusive_lock <- (offset', length) ;
++          Lwt_condition.broadcast t.c () ;
++          Lwt.return ()
++      )
++
++    (* Exclude the background copying thread from [offset:offset+length]. This avoids updating
++       a region while it is being actively mirrored, which could cause the old data
++       to overtake and overwrite the new data. *)
++    let with_lock t offset length f =
++      Lwt_mutex.with_lock t.m (fun () ->
++          let rec loop () =
++            if overlap t.exclusive_lock (offset, length) then
++              Lwt_condition.wait ~mutex:t.m t.c >>= fun () -> loop ()
++            else
++              (* if the copy might catch up with us then mark the region as locked *)
++              let unlock =
++                if before t.exclusive_lock (offset, length) then (
++                  t.active <- (offset, length) :: t.active ;
++                  fun () ->
++                    t.active <-
++                      List.filter
++                        (fun (o, l) -> o <> offset || l <> length)
++                        t.active ;
++                    Lwt_condition.broadcast t.c ()
++                ) else
++                  fun () -> ()
++              in
++              Lwt.catch
++                (fun () -> f () >>= fun r -> unlock () ; Lwt.return r)
++                (fun e -> unlock () ; Lwt.fail e)
++          in
++          loop ()
++      )
++
++    let make () =
++      let exclusive_lock = (0L, 0) in
++      let active = [] in
++      let c = Lwt_condition.create () in
++      let m = Lwt_mutex.create () in
++      {exclusive_lock; active; c; m}
++  end
++
++  type t = {
++      primary: Primary.t
++    ; secondary: Secondary.t
++    ; primary_block_size: int
++    ; (* number of primary sectors per info.sector_size *)
++      secondary_block_size: int
++    ; (* number of secondary sectors per info.sector_size *)
++      info: Mirage_block.info
++    ; lock: Region_lock.t
++    ; result: (unit, mirror_error) result Lwt.t
++    ; mutable percent_complete: int
++    ; progress_cb: [`Percent of int | `Complete] -> unit
++    ; mutable disconnected: bool
++  }
++
++  let start_copy t u =
++    let buffer = Io_page.(to_cstruct (get 4096)) in
++    (* round to the nearest sector *)
++    let block = Cstruct.length buffer / t.info.Mirage_block.sector_size in
++    let buffer =
++      Cstruct.sub buffer 0 (block * t.info.Mirage_block.sector_size)
++    in
++    (* split into an array of slots *)
++    let nr_slots = 8 in
++    let block = block / nr_slots in
++    let slots = Array.make nr_slots (Cstruct.create 0) in
++    for i = 0 to nr_slots - 1 do
++      slots.(i) <-
++        Cstruct.sub buffer
++          (i * block * t.info.Mirage_block.sector_size)
++          (block * t.info.Mirage_block.sector_size)
++    done ;
++    (* treat the slots as a circular buffer *)
++    let producer_idx = ref 0 in
++    let consumer_idx = ref 0 in
++    let c = Lwt_condition.create () in
++
++    let rec reader sector =
++      if t.disconnected || sector = t.info.Mirage_block.size_sectors then
++        Lwt.return_ok ()
++      else if !producer_idx - !consumer_idx >= nr_slots then
++        Lwt_condition.wait c >>= fun () -> reader sector
++      else
++        Region_lock.extend_right t.lock Int64.(add sector (of_int block))
++        >>= fun () ->
++        Primary.read t.primary
++          Int64.(mul sector (of_int t.primary_block_size))
++          [slots.(!producer_idx mod nr_slots)]
++        >>= function
++        | Error e ->
++            t.disconnected <- true ;
++            Lwt_condition.signal c () ;
++            Lwt.return_error e
++        | Ok () ->
++            incr producer_idx ;
++            Lwt_condition.signal c () ;
++            reader Int64.(add sector (of_int block))
++    in
++    let rec writer sector =
++      let percent_complete =
++        Int64.(to_int (div (mul sector 100L) t.info.Mirage_block.size_sectors))
++      in
++      if percent_complete <> t.percent_complete then
++        t.progress_cb
++          ( if percent_complete = 100 then
++              `Complete
++          else
++            `Percent percent_complete
++          ) ;
++      t.percent_complete <- percent_complete ;
++      if t.disconnected || sector = t.info.Mirage_block.size_sectors then
++        Lwt.return_ok ()
++      else if !consumer_idx = !producer_idx then
++        Lwt_condition.wait c >>= fun () -> writer sector
++      else
++        Secondary.write t.secondary
++          Int64.(mul sector (of_int t.secondary_block_size))
++          [slots.(!consumer_idx mod nr_slots)]
++        >>= function
++        | Error e ->
++            t.disconnected <- true ;
++            Lwt_condition.signal c () ;
++            Lwt.return_error e
++        | Ok () ->
++            incr consumer_idx ;
++            Region_lock.release_left t.lock Int64.(add sector (of_int block))
++            >>= fun () ->
++            Lwt_condition.signal c () ;
++            writer Int64.(add sector (of_int block))
++    in
++    let read_t = reader 0L in
++    let write_t = writer 0L in
++    read_t >>= fun read_result ->
++    write_t >>= fun write_result ->
++    ( match (read_result, write_result) with
++    | Ok (), Ok () ->
++        Lwt.wakeup u (Ok ())
++    | Error e, _ ->
++        Lwt.wakeup u (Error (`Primary e))
++    | Ok (), Error e ->
++        Lwt.wakeup u (Error (`Secondary e))
++    ) ;
++    Lwt.return ()
++
++  type _id = unit
++
++  let get_info t = Lwt.return t.info
++
++  let connect ?(progress_cb = fun _ -> ()) primary secondary =
++    Primary.get_info primary >>= fun primary_info ->
++    Secondary.get_info secondary >>= fun secondary_info ->
++    let sector_size =
++      max primary_info.Mirage_block.sector_size
++        secondary_info.Mirage_block.sector_size
++    in
++    (* We need our chosen sector_size to be an integer multiple of
++       both primary and secondary sector sizes. This should be the
++       very common case e.g. 4096 and 512; 512 and 1 *)
++    let primary_block_size =
++      sector_size / primary_info.Mirage_block.sector_size
++    in
++    let secondary_block_size =
++      sector_size / secondary_info.Mirage_block.sector_size
++    in
++    let primary_bytes =
++      Int64.(
++        mul primary_info.Mirage_block.size_sectors
++          (of_int primary_info.Mirage_block.sector_size)
++      )
++    in
++    let secondary_bytes =
++      Int64.(
++        mul secondary_info.Mirage_block.size_sectors
++          (of_int secondary_info.Mirage_block.sector_size)
++      )
++    in
++
++    (let open Rresult in
++    ( if
++      sector_size mod primary_info.Mirage_block.sector_size <> 0
++      || sector_size mod secondary_info.Mirage_block.sector_size <> 0
++    then
++        Error
++          (`Msg
++            (Printf.sprintf
++               "Incompatible sector sizes: either primary (%d) or secondary \
++                (%d) must be an integer multiple of the other"
++               primary_info.Mirage_block.sector_size
++               secondary_info.Mirage_block.sector_size
++            )
++            )
++    else
++      Ok ()
++    )
++    >>= fun () ->
++    ( if primary_bytes <> secondary_bytes then
++        Error
++          (`Msg
++            (Printf.sprintf
++               "Incompatible overall sizes: primary (%Ld bytes) and secondary \
++                (%Ld bytes) must be the same size"
++               primary_bytes secondary_bytes
++            )
++            )
++    else
++      Ok ()
++    )
++    >>= fun () ->
++    if not secondary_info.Mirage_block.read_write then
++      Error (`Msg "Cannot mirror to a read-only secondary device")
++    else
++      Ok ()
++    )
++    |> Lwt.return
++    >>= function
++    | Error (`Msg x) ->
++        Lwt.fail_with x
++    | Ok () ->
++        let disconnected = false in
++        let read_write = primary_info.Mirage_block.read_write in
++        let size_sectors = Int64.(div primary_bytes (of_int sector_size)) in
++        let info = {Mirage_block.read_write; sector_size; size_sectors} in
++        let lock = Region_lock.make () in
++        let result, u = Lwt.task () in
++        let percent_complete = 0 in
++        let t =
++          {
++            progress_cb
++          ; primary
++          ; secondary
++          ; primary_block_size
++          ; secondary_block_size
++          ; info
++          ; lock
++          ; result
++          ; percent_complete
++          ; disconnected
++          }
++        in
++        let (_ : unit Lwt.t) = start_copy t u in
++        Lwt.return t
++
++  let read t ofs bufs =
++    Primary.read t.primary ofs bufs >>= function
++    | Error e ->
++        Lwt.return_error (`Primary e)
++    | Ok x ->
++        Lwt.return_ok x
++
++  let write t ofs bufs =
++    let total_length_bytes =
++      List.(fold_left ( + ) 0 (map Cstruct.length bufs))
++    in
++    let length = total_length_bytes / t.info.Mirage_block.sector_size in
++    let primary_ofs = Int64.(mul ofs (of_int t.primary_block_size)) in
++    let secondary_ofs = Int64.(mul ofs (of_int t.secondary_block_size)) in
++    Region_lock.with_lock t.lock ofs length (fun () ->
++        Primary.write t.primary primary_ofs bufs >>= function
++        | Error e ->
++            Lwt.return_error (`Primary e)
++        | Ok () -> (
++            Secondary.write t.secondary secondary_ofs bufs >>= function
++            | Error e ->
++                Lwt.return_error (`Secondary e)
++            | Ok () ->
++                Lwt.return_ok ()
++          )
++    )
++
++  let disconnect t =
++    t.disconnected <- true ;
++    t.result >>= fun _ -> Lwt.return ()
++end
+diff --git a/ocaml-nbd/lib/mirror.mli b/ocaml-nbd/lib/mirror.mli
+new file mode 100644
+index 000000000..ebbe53ebd
+--- /dev/null
++++ b/ocaml-nbd/lib/mirror.mli
+@@ -0,0 +1,40 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++module Make (Primary : Mirage_block.S) (Secondary : Mirage_block.S) : sig
++  include Mirage_block.S
++
++  val connect :
++       ?progress_cb:([`Percent of int | `Complete] -> unit)
++    -> Primary.t
++    -> Secondary.t
++    -> t Lwt.t
++  (** [connect ?progress primary secondary] creates a block device which performs I/O
++      against [primary], while building a mirror of [primary] on top of
++      [secondary] in the background. Existing data in [secondary] will be
++      destroyed.
++
++      If [?progress_cb] is provided then it will be called on every percentage
++      change in mirror progress.
++
++      It is an error if the block size of either [primary] or [secondary]
++      is not an integer multiple of the other.
++
++      It is an error if [primary] and [secondary] have different lengths.
++
++      It is an error if [secondary] is read-only.
++  *)
++
++  val string_of_error : error -> string
++end
+diff --git a/ocaml-nbd/lib/mux.ml b/ocaml-nbd/lib/mux.ml
+new file mode 100644
+index 000000000..317a101f6
+--- /dev/null
++++ b/ocaml-nbd/lib/mux.ml
+@@ -0,0 +1,152 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Lwt connection multiplexer. Multiplexes between parallel requests from
++    multiple clients over a single output channel to a server that may send
++    responses out of order. Each request and response carries an [id] that is
++    used to match responses to requests. *)
++
++open Lwt.Infix
++
++module type RPC = sig
++  (** The transport mechanism used to send and receive messages *)
++  type transport
++
++  (** Each [request_hdr] and [response_hdr] carries an [id] that is used to
++      match responses to requests. *)
++  type id
++
++  type request_hdr
++
++  type request_body
++
++  type response_hdr
++
++  type response_body
++
++  val recv_hdr : transport -> (id option * response_hdr) Lwt.t
++
++  val recv_body :
++       transport
++    -> request_hdr
++    -> response_hdr
++    -> response_body
++    -> (unit, Protocol.Error.t) result Lwt.t
++  (** [recv_body transport request_hdr response_hdr response_body] returns [Ok ()]
++      and receives and writes the body of the response into [response_body] if
++      the request has been successful, otherwise returns an [Error]. The
++      [request_hdr] parameter is the output of a preceding [recv_hdr] call. *)
++
++  val send_one : transport -> request_hdr -> request_body -> unit Lwt.t
++  (** Send a single request. Invocations of this function will not be interleaved
++      because they are protected by a mutex *)
++
++  val id_of_request : request_hdr -> id
++
++  val handle_unrequested_packet : transport -> response_hdr -> unit Lwt.t
++end
++
++module Make (R : RPC) : sig
++  type client
++
++  val rpc :
++       R.request_hdr
++    -> R.request_body
++    -> R.response_body
++    -> client
++    -> (unit, Protocol.Error.t) Result.t Lwt.t
++  (** [rpc req_hdr req_body response_body client] sends a request to the server, and
++      saves the response into [response_body]. Will block until a response to
++      this request is received from the server. *)
++
++  val create : R.transport -> client Lwt.t
++  (** [create transport] creates a new client that manages parallel requests
++      over the given transport channel. All communication over this channel
++      must go through the returned client. *)
++end = struct
++  exception Unexpected_id of R.id
++
++  exception Shutdown
++
++  type[@warning "-69"] client = {
++      transport: R.transport
++    ; outgoing_mutex: Lwt_mutex.t
++    ; id_to_wakeup:
++        ( R.id
++        , R.request_hdr
++          * (unit, Protocol.Error.t) result Lwt.u
++          * R.response_body
++        )
++        Hashtbl.t
++
++    ; [@warning "-69"] mutable dispatcher_thread: unit Lwt.t
++    ; mutable dispatcher_shutting_down: bool
++  }
++
++  let rec dispatcher t =
++    let th =
++      Lwt.catch
++        (fun () ->
++          R.recv_hdr t.transport >>= fun (id, pkt) ->
++          match id with
++          | None ->
++              R.handle_unrequested_packet t.transport pkt
++          | Some id ->
++              if not (Hashtbl.mem t.id_to_wakeup id) then
++                Lwt.fail (Unexpected_id id)
++              else
++                let request_hdr, waker, response_body =
++                  Hashtbl.find t.id_to_wakeup id
++                in
++                R.recv_body t.transport request_hdr pkt response_body
++                >>= fun response ->
++                Lwt.wakeup waker response ;
++                Hashtbl.remove t.id_to_wakeup id ;
++                Lwt.return ()
++        )
++        (fun e ->
++          t.dispatcher_shutting_down <- true ;
++          Hashtbl.iter
++            (fun _ (_, u, _) -> Lwt.wakeup_later_exn u e)
++            t.id_to_wakeup ;
++          Lwt.fail e
++        )
++    in
++    th >>= fun () -> dispatcher t
++
++  let rpc req_hdr req_body response_body t =
++    let sleeper, waker = Lwt.wait () in
++    if t.dispatcher_shutting_down then
++      Lwt.fail Shutdown
++    else
++      let id = R.id_of_request req_hdr in
++      Hashtbl.add t.id_to_wakeup id (req_hdr, waker, response_body) ;
++      Lwt_mutex.with_lock t.outgoing_mutex (fun () ->
++          R.send_one t.transport req_hdr req_body
++      )
++      >>= fun () -> sleeper
++
++  let create transport =
++    let t =
++      {
++        transport
++      ; outgoing_mutex= Lwt_mutex.create ()
++      ; id_to_wakeup= Hashtbl.create 10
++      ; dispatcher_thread= Lwt.return ()
++      ; dispatcher_shutting_down= false
++      }
++    in
++    t.dispatcher_thread <- dispatcher t ;
++    Lwt.return t
++end
+diff --git a/ocaml-nbd/lib/protocol.ml b/ocaml-nbd/lib/protocol.ml
+new file mode 100644
+index 000000000..0f4d16a62
+--- /dev/null
++++ b/ocaml-nbd/lib/protocol.ml
+@@ -0,0 +1,617 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(* NBD client library *)
++
++open Sexplib.Std
++
++(* We need to serialise/deserialise result values *)
++type ('a, 'b) _result = [`Ok of 'a | `Error of 'b] [@@deriving sexp]
++
++let result_of_sexp a b s =
++  match _result_of_sexp a b s with `Ok x -> Ok x | `Error y -> Error y
++
++let sexp_of_result a b r =
++  sexp_of__result a b (match r with Ok x -> `Ok x | Error y -> `Error y)
++
++let _nbd_cmd_read = 0l
++
++let _nbd_cmd_write = 1l
++
++let _nbd_cmd_disc = 2l
++
++let _nbd_cmd_flush = 3l
++
++let _nbd_cmd_trim = 4l
++
++let nbd_request_magic = 0x25609513l
++
++let nbd_reply_magic = 0x67446698l
++
++let nbd_flag_has_flags = 1
++
++let nbd_flag_read_only = 2
++
++let nbd_flag_send_flush = 4
++
++let nbd_flag_send_fua = 8
++
++let nbd_flag_rotational = 16
++
++let nbd_flag_send_trim = 32
++
++let nbd_flag_fixed_newstyle = 1
++
++let nbd_flag_no_zeroes = 2
++
++let nbd_flag_c_fixed_newstyle = 1
++
++let nbd_flag_c_no_zeroes = 2
++
++let zero buf =
++  for i = 0 to Cstruct.length buf - 1 do
++    Cstruct.set_uint8 buf i 0
++  done
++
++module PerExportFlag = struct
++  type t = Read_only | Send_flush | Send_fua | Rotational | Send_trim
++  [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let of_int32 x =
++    let flags = Int32.to_int x in
++    let is_set i mask = i land mask = mask in
++    List.map snd
++      (List.filter
++         (fun (mask, _) -> is_set flags mask)
++         [
++           (nbd_flag_read_only, Read_only)
++         ; (nbd_flag_send_flush, Send_flush)
++         ; (nbd_flag_send_fua, Send_fua)
++         ; (nbd_flag_rotational, Rotational)
++         ; (nbd_flag_send_trim, Send_trim)
++         ]
++      )
++
++  let to_int flags =
++    let one = function
++      | Read_only ->
++          nbd_flag_read_only
++      | Send_flush ->
++          nbd_flag_send_flush
++      | Send_fua ->
++          nbd_flag_send_fua
++      | Rotational ->
++          nbd_flag_rotational
++      | Send_trim ->
++          nbd_flag_send_trim
++    in
++    List.fold_left ( lor ) nbd_flag_has_flags (List.map one flags)
++
++  let to_int32 flags = Int32.of_int (to_int flags)
++end
++
++module GlobalFlag = struct
++  type t = Fixed_newstyle | No_zeroes [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let of_int flags =
++    let is_set i mask = i land mask = mask in
++    List.map snd
++      (List.filter
++         (fun (mask, _) -> is_set flags mask)
++         [
++           (nbd_flag_fixed_newstyle, Fixed_newstyle)
++         ; (nbd_flag_no_zeroes, No_zeroes)
++         ]
++      )
++
++  let to_int flags =
++    let one = function
++      | Fixed_newstyle ->
++          nbd_flag_fixed_newstyle
++      | No_zeroes ->
++          nbd_flag_no_zeroes
++    in
++    List.fold_left ( lor ) 0 (List.map one flags)
++end
++
++module ClientFlag = struct
++  type t = Fixed_newstyle | No_zeroes [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let of_int32 flags =
++    let flags = Int32.to_int flags in
++    let is_set mask = mask land flags <> 0 in
++    List.map snd
++      (List.filter
++         (fun (mask, _) -> is_set mask)
++         [
++           (nbd_flag_c_fixed_newstyle, Fixed_newstyle)
++         ; (nbd_flag_c_no_zeroes, No_zeroes)
++         ]
++      )
++
++  let to_int32 flags =
++    let one = function
++      | Fixed_newstyle ->
++          nbd_flag_c_fixed_newstyle
++      | No_zeroes ->
++          nbd_flag_c_no_zeroes
++    in
++    Int32.of_int (List.fold_left ( lor ) 0 (List.map one flags))
++end
++
++module Error = struct
++  type t = [`EPERM | `EIO | `ENOMEM | `EINVAL | `ENOSPC | `Unknown of int32]
++  [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let of_int32 = function
++    | 1l ->
++        `EPERM
++    | 5l ->
++        `EIO
++    | 12l ->
++        `ENOMEM
++    | 22l ->
++        `EINVAL
++    | 28l ->
++        `ENOSPC
++    | x ->
++        `Unknown x
++
++  let to_int32 = function
++    | `EPERM ->
++        1l
++    | `EIO ->
++        5l
++    | `ENOMEM ->
++        12l
++    | `EINVAL ->
++        22l
++    | `ENOSPC ->
++        28l
++    | `Unknown x ->
++        x
++end
++
++module Command = struct
++  type t = Read | Write | Disc | Flush | Trim | Unknown of int32
++  [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let of_int32 = function
++    | 0l ->
++        Read
++    | 1l ->
++        Write
++    | 2l ->
++        Disc
++    | 3l ->
++        Flush
++    | 4l ->
++        Trim
++    | c ->
++        Unknown c
++
++  let to_int32 = function
++    | Read ->
++        0l
++    | Write ->
++        1l
++    | Disc ->
++        2l
++    | Flush ->
++        3l
++    | Trim ->
++        4l
++    | Unknown c ->
++        c
++end
++
++module Option = struct
++  type t = ExportName | Abort | List | StartTLS | Unknown of int32
++  [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let of_int32 = function
++    | 1l ->
++        ExportName
++    | 2l ->
++        Abort
++    | 3l ->
++        List
++    (* 4 is not in use in the NBD protocol. *)
++    | 5l ->
++        StartTLS
++    (* 6, 7, 8 are not supported in this implementation. *)
++    | c ->
++        Unknown c
++
++  let to_int32 = function
++    | ExportName ->
++        1l
++    | Abort ->
++        2l
++    | List ->
++        3l
++    | StartTLS ->
++        5l
++    | Unknown c ->
++        c
++end
++
++module OptionResponse = struct
++  type t =
++    | Ack
++    | Server
++    | Unsupported
++    | Policy
++    | Invalid
++    | Platform
++    | TlsReqd
++    | Unknown of int32
++  [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let of_int32 = function
++    | 1l ->
++        Ack
++    | 2l ->
++        Server
++    | -2147483647l ->
++        Unsupported
++    | -2147483646l ->
++        Policy
++    | -2147483645l ->
++        Invalid
++    | -2147483644l ->
++        Platform
++    | -2147483643l ->
++        TlsReqd
++    | x ->
++        Unknown x
++
++  let to_int32 = function
++    | Ack ->
++        1l
++    | Server ->
++        2l
++    | Unsupported ->
++        -2147483647l
++    | Policy ->
++        -2147483646l
++    | Invalid ->
++        -2147483645l
++    | Platform ->
++        -2147483644l
++    | TlsReqd ->
++        -2147483643l
++    | Unknown x ->
++        x
++end
++
++(* Sent by the server to the client which includes an initial
++   protocol choice *)
++module Announcement = struct
++  type t = [`V1 | `V2] [@@deriving sexp]
++
++  type%cstruct t = {passwd: uint8_t [@len 8]; magic: uint64_t} [@@big_endian]
++
++  let sizeof = sizeof_t
++
++  let expected_passwd = "NBDMAGIC"
++
++  let v1_magic = 0x00420281861253L
++
++  let v2_magic = 0x49484156454F5054L (* Ascii encoding of "IHAVEOPT" *)
++
++  let marshal buf t =
++    set_t_passwd expected_passwd 0 buf ;
++    set_t_magic buf (match t with `V1 -> v1_magic | `V2 -> v2_magic)
++
++  let unmarshal buf =
++    let passwd = Cstruct.to_string (get_t_passwd buf) in
++    if passwd <> expected_passwd then
++      Error (Failure "Bad magic in negotiate")
++    else
++      let magic = get_t_magic buf in
++      if magic = v1_magic then
++        Ok `V1
++      else if magic = v2_magic then
++        Ok `V2
++      else
++        Error
++          (Failure
++             (Printf.sprintf "Bad magic; expected %Ld or %Ld got %Ld" v1_magic
++                v2_magic magic
++             )
++          )
++end
++
++module Negotiate = struct
++  type v1 = {size: int64; flags: PerExportFlag.t list} [@@deriving sexp]
++
++  type v2 = GlobalFlag.t list [@@deriving sexp]
++
++  type t = V1 of v1 | V2 of v2 [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  type%cstruct v1 = {
++      size: uint64_t
++    ; flags: uint32_t
++    ; padding: uint8_t [@len 124]
++  }
++  [@@big_endian]
++
++  type%cstruct v2 = {flags: uint16_t} [@@big_endian]
++
++  let sizeof = function `V1 -> sizeof_v1 | `V2 -> sizeof_v2
++
++  let marshal buf t =
++    zero buf ;
++    match t with
++    | V1 t ->
++        set_v1_size buf t.size ;
++        set_v1_flags buf (PerExportFlag.to_int32 t.flags)
++    | V2 t ->
++        set_v2_flags buf (GlobalFlag.to_int t)
++
++  let unmarshal buf t =
++    match t with
++    | `V1 ->
++        let size = get_v1_size buf in
++        let flags = PerExportFlag.of_int32 (get_v1_flags buf) in
++        Ok (V1 {size; flags})
++    | `V2 ->
++        let flags = GlobalFlag.of_int (get_v2_flags buf) in
++        Ok (V2 flags)
++end
++
++module NegotiateResponse = struct
++  type t = ClientFlag.t list [@@deriving sexp]
++
++  let sizeof = 4
++
++  let marshal buf t = Cstruct.BE.set_uint32 buf 0 (ClientFlag.to_int32 t)
++
++  let unmarshal buf = ClientFlag.of_int32 (Cstruct.BE.get_uint32 buf 0)
++end
++
++(* In the 'new' and 'new fixed' protocols, options are preceeded by
++   a common header which includes a type and a length. *)
++module OptionRequestHeader = struct
++  type t = {ty: Option.t; length: int32} [@@deriving sexp]
++
++  type%cstruct t = {magic: uint64_t; ty: uint32_t; length: uint32_t}
++  [@@big_endian]
++
++  let sizeof = sizeof_t
++
++  let marshal buf t =
++    set_t_magic buf Announcement.v2_magic ;
++    set_t_ty buf (Option.to_int32 t.ty) ;
++    set_t_length buf t.length
++
++  let unmarshal buf =
++    let open Rresult in
++    let magic = get_t_magic buf in
++    ( if Announcement.v2_magic <> magic then
++        Error
++          (Failure
++             (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld"
++                Announcement.v2_magic magic
++             )
++          )
++    else
++      Ok ()
++    )
++    >>= fun () ->
++    let ty = Option.of_int32 (get_t_ty buf) in
++    let length = get_t_length buf in
++    Ok {ty; length}
++end
++
++(* This is the option sent by the client to select a particular disk
++   export. *)
++module ExportName = struct
++  type t = string [@@deriving sexp]
++
++  let sizeof = String.length
++
++  let marshal buf x = Cstruct.blit_from_string x 0 buf 0 (String.length x)
++end
++
++(* In both the 'new' style handshake and the 'fixed new' style handshake,
++   the server will reply to an ExportName option with either a connection
++   close or a DiskInfo: *)
++module DiskInfo = struct
++  type t = {size: int64; flags: PerExportFlag.t list} [@@deriving sexp]
++
++  type%cstruct t = {
++      size: uint64_t
++    ; flags: uint16_t
++    ; padding: uint8_t [@len 124]
++  }
++  [@@big_endian]
++
++  let sizeof = sizeof_t
++
++  let unmarshal buf =
++    let size = get_t_size buf in
++    let flags = PerExportFlag.of_int32 (Int32.of_int (get_t_flags buf)) in
++    Ok {size; flags}
++
++  let marshal buf t =
++    set_t_size buf t.size ;
++    set_t_flags buf (PerExportFlag.to_int t.flags)
++end
++
++(* In the 'fixed new' style handshake, all options apart from ExportName
++   should result in reply packets as follows: *)
++module OptionResponseHeader = struct
++  type%cstruct t = {
++      magic: uint64_t
++    ; request_type: uint32_t
++    ; response_type: uint32_t
++    ; length: uint32_t
++  }
++  [@@big_endian]
++
++  type t = {
++      request_type: Option.t
++    ; response_type: OptionResponse.t
++    ; length: int32
++  }
++  [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  let sizeof = sizeof_t
++
++  let expected_magic = 0x3e889045565a9L
++
++  let unmarshal buf =
++    let open Rresult in
++    let magic = get_t_magic buf in
++    ( if expected_magic <> magic then
++        Error
++          (Failure
++             (Printf.sprintf "Bad reply magic: expected %Ld, got %Ld"
++                expected_magic magic
++             )
++          )
++    else
++      Ok ()
++    )
++    >>= fun () ->
++    let request_type = Option.of_int32 (get_t_request_type buf) in
++    let response_type = OptionResponse.of_int32 (get_t_response_type buf) in
++    let length = get_t_length buf in
++    Ok {request_type; response_type; length}
++
++  let marshal buf t =
++    set_t_magic buf expected_magic ;
++    set_t_request_type buf (Option.to_int32 t.request_type) ;
++    set_t_response_type buf (OptionResponse.to_int32 t.response_type) ;
++    set_t_length buf t.length
++end
++
++(* A description of an export, sent in response to a List option *)
++module Server = struct
++  type t = {name: string} [@@deriving sexp]
++
++  type%cstruct t = {length: uint32_t} [@@big_endian]
++
++  let sizeof t = sizeof_t + String.length t.name
++
++  let unmarshal buf =
++    let length = Int32.to_int (get_t_length buf) in
++    let buf = Cstruct.shift buf sizeof_t in
++    let name = Cstruct.to_string (Cstruct.sub buf 0 length) in
++    Ok {name}
++end
++
++module Request = struct
++  type t = {ty: Command.t; handle: int64; from: int64; len: int32}
++  [@@deriving sexp]
++
++  let to_string t =
++    Printf.sprintf "{ Command = %s; handle = %Ld; from = %Ld; len = %ld }"
++      (Command.to_string t.ty) t.handle t.from t.len
++
++  type%cstruct t = {
++      magic: uint32_t
++    ; ty: uint32_t
++    ; handle: uint64_t
++    ; from: uint64_t
++    ; len: uint32_t
++  }
++  [@@big_endian]
++
++  let unmarshal (buf : Cstruct.t) =
++    let open Rresult in
++    let magic = get_t_magic buf in
++    ( if nbd_request_magic <> magic then
++        Error
++          (Failure
++             (Printf.sprintf "Bad request magic: expected %ld, got %ld" magic
++                nbd_request_magic
++             )
++          )
++    else
++      Ok ()
++    )
++    >>= fun () ->
++    let ty = Command.of_int32 (get_t_ty buf) in
++    let handle = get_t_handle buf in
++    let from = get_t_from buf in
++    let len = get_t_len buf in
++    Ok {ty; handle; from; len}
++
++  let sizeof = sizeof_t
++
++  let marshal (buf : Cstruct.t) t =
++    set_t_magic buf nbd_request_magic ;
++    set_t_ty buf (Command.to_int32 t.ty) ;
++    set_t_handle buf t.handle ;
++    set_t_from buf t.from ;
++    set_t_len buf t.len
++end
++
++module Reply = struct
++  type t = {error: (unit, Error.t) result; handle: int64} [@@deriving sexp]
++
++  let to_string t = Sexplib.Sexp.to_string (sexp_of_t t)
++
++  type%cstruct t = {magic: uint32_t; error: uint32_t; handle: uint64_t}
++  [@@big_endian]
++
++  let unmarshal (buf : Cstruct.t) =
++    let open Rresult in
++    let magic = get_t_magic buf in
++    ( if nbd_reply_magic <> magic then
++        Error
++          (Failure
++             (Printf.sprintf "Bad reply magic: expected %ld, got %ld" magic
++                nbd_reply_magic
++             )
++          )
++    else
++      Ok ()
++    )
++    >>= fun () ->
++    let error = get_t_error buf in
++    let error = if error = 0l then Ok () else Error (Error.of_int32 error) in
++    let handle = get_t_handle buf in
++    Ok {error; handle}
++
++  let sizeof = sizeof_t
++
++  let marshal (buf : Cstruct.t) t =
++    set_t_magic buf nbd_reply_magic ;
++    let error =
++      match t.error with Ok () -> 0l | Error e -> Error.to_int32 e
++    in
++    set_t_error buf error ; set_t_handle buf t.handle
++end
+diff --git a/ocaml-nbd/lib/protocol.mli b/ocaml-nbd/lib/protocol.mli
+new file mode 100644
+index 000000000..df72876a5
+--- /dev/null
++++ b/ocaml-nbd/lib/protocol.mli
+@@ -0,0 +1,308 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Types representing NBD protocol requests and responses. *)
++
++module Error : sig
++  (** Read and write requests can fail with an error response. *)
++
++  (** Defined error codes which can be returned in response to a request
++      in the data-pushing phase. *)
++  type t =
++    [ `EPERM  (** Operation not permitted *)
++    | `EIO  (** Input/output error *)
++    | `ENOMEM  (** Cannot allocate memory *)
++    | `EINVAL  (** Invalid argument *)
++    | `ENOSPC  (** No space left on device *)
++    | `Unknown of int32 ]
++  [@@deriving sexp]
++
++  val to_string : t -> string
++end
++
++module Command : sig
++  (** Once a connection has been established, the client can submit commands. *)
++
++  type t =
++    | Read  (** Read a block of data *)
++    | Write  (** Write a block of data *)
++    | Disc
++        (** Disconnect: server must flush all outstanding commands and then
++                will close the connection *)
++    | Flush
++        (** A flush request or write barrier. All requests received before
++                this one will have completed before this command is acknowledged. *)
++    | Trim
++        (** A hint that a data region is nolonger required and may be
++                discarded. *)
++    | Unknown of int32
++        (** A command which this protocol implementation doesn't
++                           suport. *)
++  [@@deriving sexp]
++
++  val to_string : t -> string
++end
++
++module PerExportFlag : sig
++  (** Every disk (or 'export') has a number of associated flags. This will
++      be returned from the server when the negotiation is complete. *)
++
++  (** Per-export flags *)
++  type t =
++    | Read_only  (** export is read/only. Writes will receive EPERM *)
++    | Send_flush  (** server supports Command.Flush *)
++    | Send_fua  (** server supports NBD_CMD_FLAG_FUA *)
++    | Rotational  (** let the client schedule I/O for a rotational medium *)
++    | Send_trim  (** server supports Command.Trim *)
++  [@@deriving sexp]
++
++  val to_string : t -> string
++end
++
++module GlobalFlag : sig
++  (** During the protocol negotiation there are some defined flags used
++      to choose protocol variants. These flags are sent by the server. *)
++
++  type t =
++    | Fixed_newstyle  (** server supports the fixed newstyle protocol *)
++    | No_zeroes  (** request to omit the 124 bytes of zeroes *)
++  [@@deriving sexp]
++
++  val to_string : t -> string
++end
++
++module ClientFlag : sig
++  (** During the protocol negotiation there are some defined flags used
++      to choose protocol variants. These flags are sent by the client. *)
++
++  type t =
++    | Fixed_newstyle  (** client acknowledges use of fixed newstyle protocol *)
++    | No_zeroes  (** client acknowledges omission of 124 bytes of zeroes *)
++  [@@deriving sexp]
++
++  val to_string : t -> string
++end
++
++module Option : sig
++  (** In the 'newstyle' negotiation there is an opportunity for the client
++      to negotiate options with the server. These are the known options. *)
++
++  type t =
++    | ExportName
++        (** The client would like to connect to a given disk/export by
++                     name *)
++    | Abort  (** The client would like to quit. *)
++    | List
++        (** The client would like to receive a list of known
++                     disk/exports. *)
++    | StartTLS  (** The client would like to protect the session with TLS. *)
++    | Unknown of int32  (** This option is unknown to this implementation *)
++  [@@deriving sexp]
++
++  val to_string : t -> string
++end
++
++module OptionResponse : sig
++  (** When the client sends an option request, the server must reply. *)
++
++  type t =
++    | Ack  (** Option acknowledged *)
++    | Server  (** A description of an export (in reponse to [List]) *)
++    | Unsupported  (** The option is unsupported *)
++    | Policy  (** The option is blocked by an admin policy *)
++    | Invalid  (** The option was invalid (i.e. the client is buggy) *)
++    | Platform  (** The option is not supported in this platform. *)
++    | TlsReqd
++        (** The option is not allowed when the connection is not using TLS. *)
++    | Unknown of int32  (** The response is unknown to this implementation. *)
++  [@@deriving sexp]
++
++  val to_string : t -> string
++end
++
++module Announcement : sig
++  (** The server sends an initial greeting when the connectino is opened. It
++      can be of two main types: the original [V1] and a 'newstyle' [V2]. *)
++
++  type t = [`V1 | `V2] [@@deriving sexp]
++
++  val sizeof : int
++
++  val marshal : Cstruct.t -> t -> unit
++
++  val unmarshal : Cstruct.t -> (t, exn) result
++end
++
++module Negotiate : sig
++  (** The initial greeting sent by the server *)
++
++  (** The original [V1] protocol supports only one disk. *)
++  type v1 = {
++      size: int64  (** The size of the disk *)
++    ; flags: PerExportFlag.t list  (** Flags associated with the disk *)
++  }
++  [@@deriving sexp]
++
++  (** The 'newstyle' [V2] protocol supports an option negotiation
++      phase and a number of sub-options [GlobalFlag.t]s *)
++  type v2 = GlobalFlag.t list [@@deriving sexp]
++
++  type t = V1 of v1 | V2 of v2  (** The initial greeting sent by the server *)
++
++  val to_string : t -> string
++
++  val sizeof : Announcement.t -> int
++
++  val marshal : Cstruct.t -> t -> unit
++
++  val unmarshal : Cstruct.t -> Announcement.t -> (t, exn) result
++end
++
++module NegotiateResponse : sig
++  (** The client's initial response to the server's greeting *)
++
++  (** The client can send some flags, in response to flags set by the server. *)
++  type t = ClientFlag.t list [@@deriving sexp]
++
++  val sizeof : int
++
++  val marshal : Cstruct.t -> t -> unit
++
++  val unmarshal : Cstruct.t -> t
++end
++
++module OptionRequestHeader : sig
++  (** Every option the client requests has the same header. *)
++
++  (** The header of an option request sent by the client *)
++  type t = {
++      ty: Option.t  (** The option type *)
++    ; length: int32  (** The length of the option data *)
++  }
++  [@@deriving sexp]
++
++  val sizeof : int
++
++  val marshal : Cstruct.t -> t -> unit
++
++  val unmarshal : Cstruct.t -> (t, exn) result
++end
++
++module ExportName : sig
++  (** An ExportName option payload *)
++
++  (** The name of the export the client wishes to connect to *)
++  type t = string [@@deriving sexp]
++
++  val sizeof : t -> int
++
++  val marshal : Cstruct.t -> t -> unit
++end
++
++module DiskInfo : sig
++  (** Details about the export chosen by the client, sent in response
++      to an [ExportName] option. *)
++
++  (** Details about the export chosen by the client. *)
++  type t = {
++      size: int64  (** The size of the disk in bytes *)
++    ; flags: PerExportFlag.t list  (** Flags associated with the disk *)
++  }
++  [@@deriving sexp]
++
++  val sizeof : int
++
++  val unmarshal : Cstruct.t -> (t, exn) result
++
++  val marshal : Cstruct.t -> t -> unit
++end
++
++module OptionResponseHeader : sig
++  (** The server sends a response to every option request sent by the
++      client (except [ExportName] which is followed by a [DiskInfo].
++      This is the header of the response. *)
++
++  (** The header of the response sent by the server in response to
++      the client requesting an option. *)
++  type t = {
++      request_type: Option.t  (** The option type requested *)
++    ; response_type: OptionResponse.t  (** The response code *)
++    ; length: int32
++          (** The length of the payload associated with the response *)
++  }
++  [@@deriving sexp]
++
++  val sizeof : int
++
++  val to_string : t -> string
++
++  val unmarshal : Cstruct.t -> (t, exn) result
++
++  val marshal : Cstruct.t -> t -> unit
++end
++
++module Server : sig
++  (** In response to a [List] option, the server sends a number of
++      [Server] responses and then finally an [Ack] *)
++
++  (** A reponse to a [List] option. Note this option is repeated, once
++      per available disk. *)
++  type t = {name: string  (** The name of an available disk. *)}
++  [@@deriving sexp]
++
++  val sizeof : t -> int
++
++  val unmarshal : Cstruct.t -> (t, exn) result
++end
++
++module Request : sig
++  (** After the negotation phase, clients send I/O requests to the server. *)
++
++  (** An I/O request sent by the client to the server. *)
++  type t = {
++      ty: Command.t  (** The command type *)
++    ; handle: int64
++          (** A unique handle used to match requests with responses.*)
++    ; from: int64  (** The start of the data region *)
++    ; len: int32  (** The length of the data region *)
++  }
++  [@@deriving sexp]
++
++  val to_string : t -> string
++
++  val sizeof : int
++
++  val marshal : Cstruct.t -> t -> unit
++
++  val unmarshal : Cstruct.t -> (t, exn) result
++end
++
++module Reply : sig
++  (** A reply sent from the server in response to a [Request]. Note
++      these arrive out-of-order. *)
++
++  type t = {
++      error: (unit, Error.t) result  (** Success or failure of the request *)
++    ; handle: int64  (** The unique id in the [Request] *)
++  }
++  [@@deriving sexp]
++
++  val to_string : t -> string
++
++  val sizeof : int
++
++  val marshal : Cstruct.t -> t -> unit
++
++  val unmarshal : Cstruct.t -> (t, exn) result
++end
+diff --git a/ocaml-nbd/lib/s.ml b/ocaml-nbd/lib/s.ml
+new file mode 100644
+index 000000000..f4130cbf9
+--- /dev/null
++++ b/ocaml-nbd/lib/s.ml
+@@ -0,0 +1,101 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++open Channel
++
++(** Common signatures used in the library. *)
++
++module type CLIENT = sig
++  (** A Client allows you to list the disks available on a server, connect to
++      a specific disk and then issue read and write requests. *)
++
++  include
++    Mirage_block.S
++      with type error =
++            [Mirage_block.error | `Protocol_error of Protocol.Error.t]
++       and type write_error =
++            [Mirage_block.write_error | `Protocol_error of Protocol.Error.t]
++
++  (** The size of a remote disk *)
++  type size = int64
++
++  val list : channel -> (string list, [`Policy | `Unsupported]) result Lwt.t
++  (** [list channel] returns a list of exports known by the server.
++      [`Error `Policy] means the server has this function disabled deliberately.
++      [`Error `Unsupported] means the server is old and does not support the query
++      function. *)
++
++  val negotiate :
++    channel -> string -> (t * size * Protocol.PerExportFlag.t list) Lwt.t
++  (** [negotiate channel export] takes an already-connected channel,
++      performs the initial protocol negotiation and connects to
++      the named export. Returns [disk * remote disk size * flags] *)
++end
++
++module type SERVER = sig
++  (** A Server allows you to expose an existing block device to remote clients
++      over NBD. *)
++
++  (** An open connection to an NBD client *)
++  type t
++
++  (** The size of a remote disk *)
++  type size = int64
++
++  (** The name of an export. In the 'new style' protocol as used in nbd >= 2.9.17
++      the client must select an export by name. *)
++  type name = string
++
++  (** The client terminated the option haggling phase by sending NBD_OPT_ABORT *)
++  exception Client_requested_abort
++
++  val connect :
++    cleartext_channel -> ?offer:name list -> unit -> (name * t) Lwt.t
++  (** [connect cleartext_channel ?offer ()] performs the 'new style' initial
++      handshake and options negotiation.
++      Note that FORCEDTLS mode will be used in the negotiation unless
++      [cleartext_channel.make_tls_channel] is None, signifying NOTLS mode.
++      If [?offer] is provided then these names will be returned if the client
++      requests a list of exports, otherwise we will return EPERM.
++      The client's choice of name is returned which must be looked up by the
++      application. If the name is invalid, the only option is to close the connection.
++      If the name is valid then use the [serve] function.
++
++      Raises {!Client_requested_abort} if the client aborts the option haggilng
++      phase instead of entering the transmission phase *)
++
++  val serve :
++       t
++    -> ?read_only:bool
++    -> (module Mirage_block.S with type t = 'b)
++    -> 'b
++    -> unit Lwt.t
++  (** [serve t read_only block b] runs forever processing requests from [t], using [block]
++      device type [b]. If [read_only] is true, which is the default, the
++      [block] device [b] is served in read-only mode: the server will set the
++      NBD_FLAG_READ_ONLY transmission flag, and if the client issues a write
++      command, the server will send an EPERM error to the client and will
++      terminate the session. *)
++
++  val close : t -> unit Lwt.t
++  (** [close t] shuts down the connection [t] and frees any allocated resources *)
++
++  val with_connection :
++       Channel.cleartext_channel
++    -> ?offer:name list
++    -> (string -> t -> unit Lwt.t)
++    -> unit Lwt.t
++  (** [with_connection clearchan ~offer f] calls [connect clearchan ~offer] and
++        attempts to apply [f] to the resulting [t], with a guarantee to call
++        [close t] afterwards. *)
++end
+diff --git a/ocaml-nbd/lib/server.ml b/ocaml-nbd/lib/server.ml
+new file mode 100644
+index 000000000..e1e9e1978
+--- /dev/null
++++ b/ocaml-nbd/lib/server.ml
+@@ -0,0 +1,432 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++open Lwt.Infix
++open Protocol
++open Channel
++
++exception Client_requested_abort
++
++type name = string
++
++type t = {
++    channel: channel
++  ; request: Cstruct.t
++  ; (* buffer used to read the request headers *)
++    reply: Cstruct.t
++  ; (* buffer used to write the response headers *)
++    m: Lwt_mutex.t (* prevents partial message interleaving *)
++}
++
++type size = int64
++
++let close t = t.channel.close ()
++
++let make channel =
++  let request = Cstruct.create Request.sizeof in
++  let reply = Cstruct.create Reply.sizeof in
++  let m = Lwt_mutex.create () in
++  {channel; request; reply; m}
++
++let connect channel ?offer () =
++  let section = Lwt_log_core.Section.make "Server.connect" in
++  Lwt_log_core.notice ~section "Starting fixed-newstyle negotiation"
++  >>= fun () ->
++  ( match offer with
++  | Some offers ->
++      Lwt_list.iter_s
++        (fun name ->
++          if String.length name > 4096 then
++            Lwt.fail_with "export name must be no longer than 4096 bytes"
++          else
++            Lwt.return_unit
++        )
++        offers
++  | None ->
++      Lwt.return_unit
++  )
++  >>= fun () ->
++  let buf = Cstruct.create Announcement.sizeof in
++  Announcement.(marshal buf `V2) ;
++  channel.write_clear buf >>= fun () ->
++  let buf = Cstruct.create (Negotiate.sizeof `V2) in
++  Negotiate.(marshal buf (V2 [GlobalFlag.Fixed_newstyle])) ;
++  channel.write_clear buf >>= fun () ->
++  let buf = Cstruct.create NegotiateResponse.sizeof in
++  channel.read_clear buf >>= fun () ->
++  (* Option negotiation *)
++  let req = Cstruct.create OptionRequestHeader.sizeof in
++  let res = Cstruct.create OptionResponseHeader.sizeof in
++  let make_blank_payload hdr =
++    Cstruct.create (Int32.to_int hdr.OptionRequestHeader.length)
++  in
++  let respond ?(len = 0) opt resp writefn =
++    OptionResponseHeader.(
++      marshal res
++        {request_type= opt; response_type= resp; length= Int32.of_int len}
++    ) ;
++    writefn res
++  in
++  let send_ack opt writefn = respond opt OptionResponse.Ack writefn in
++  let read_hdr_and_payload readfn =
++    readfn req >>= fun () ->
++    match OptionRequestHeader.unmarshal req with
++    | Error e ->
++        Lwt.fail e
++    | Ok hdr ->
++        let payload = make_blank_payload hdr in
++        readfn payload >>= fun () ->
++        Lwt.return (hdr.OptionRequestHeader.ty, payload)
++  in
++  let generic_loop chan =
++    let rec loop () =
++      read_hdr_and_payload chan.read >>= fun (opt, payload) ->
++      match opt with
++      | Option.StartTLS ->
++          let resp =
++            if chan.is_tls then
++              OptionResponse.Invalid
++            else
++              OptionResponse.Policy
++          in
++          respond opt resp chan.write >>= loop
++      | Option.ExportName ->
++          Lwt.return (Cstruct.to_string payload, make chan)
++      | Option.Abort ->
++          Lwt.catch
++            (fun () -> send_ack opt chan.write)
++            (fun exn ->
++              Lwt_log_core.warning ~section ~exn
++                "Failed to send ack after receiving abort"
++            )
++          >>= fun () -> Lwt.fail Client_requested_abort
++      | Option.Unknown _ ->
++          respond opt OptionResponse.Unsupported chan.write >>= loop
++      | Option.List -> (
++        match offer with
++        | None ->
++            respond opt OptionResponse.Policy chan.write >>= loop
++        | Some offers ->
++            let rec advertise = function
++              | [] ->
++                  send_ack opt chan.write
++              | x :: xs ->
++                  let len = String.length x in
++                  respond ~len:(len + 4) opt OptionResponse.Server chan.write
++                  >>= fun () ->
++                  let name = Cstruct.create (len + 4) in
++                  Cstruct.BE.set_uint32 name 0 (Int32.of_int len) ;
++                  Cstruct.blit_from_string x 0 name 4 len ;
++                  chan.write name >>= fun () -> advertise xs
++            in
++            advertise offers >>= loop
++      )
++    in
++    loop ()
++  in
++  let negotiate_tls make_tls_channel =
++    let rec negotiate_tls () =
++      read_hdr_and_payload channel.read_clear >>= fun (opt, _) ->
++      match opt with
++      | Option.ExportName ->
++          Lwt.fail_with
++            "Client requested export over cleartext channel but server is in \
++             FORCEDTLS mode."
++      | Option.Abort ->
++          Lwt.fail_with "Client requested abort (before negotiating TLS)."
++      | Option.StartTLS ->
++          send_ack opt channel.write_clear >>= make_tls_channel >>= fun tch ->
++          generic_loop (Channel.generic_of_tls_channel tch)
++      (* For any other option, respond saying TLS is required, then await next OptionRequest. *)
++      | _ ->
++          respond opt OptionResponse.TlsReqd channel.write_clear
++          >>= negotiate_tls
++    in
++    negotiate_tls ()
++  in
++  let client_flags = NegotiateResponse.unmarshal buf in
++  (* Does the client support Fixed_newstyle? *)
++  let old_client = not (List.mem ClientFlag.Fixed_newstyle client_flags) in
++  match channel.make_tls_channel with
++  | None ->
++      (* We are in NOTLS mode *)
++      ( if old_client then
++          Lwt_log_core.warning ~section "Client doesn't report Fixed_newstyle"
++      else
++        Lwt.return_unit
++      )
++      >>= fun () ->
++      (* Continue regardless *)
++      generic_loop (Channel.generic_of_cleartext_channel channel)
++  | Some make_tls_channel ->
++      if (* We are in FORCEDTLS mode *)
++         old_client then
++        Lwt_log_core.error ~section
++          "Server rejecting connection: it wants to use TLS but client flags \
++           don't include Fixed_newstyle"
++        >>= fun () ->
++        Lwt.fail_with
++          "client does not report Fixed_newstyle and server is in FORCEDTLS \
++           mode."
++      else
++        negotiate_tls make_tls_channel
++
++let with_connection clearchan ?offer f =
++  connect clearchan ?offer () >>= fun (exportname, t) ->
++  Lwt.finalize (fun () -> f exportname t) (fun () -> close t)
++
++let negotiate_end t size flags : t Lwt.t =
++  let buf = Cstruct.create DiskInfo.sizeof in
++  DiskInfo.(marshal buf {size; flags}) ;
++  t.channel.write buf >>= fun () ->
++  Lwt.return {channel= t.channel; request= t.request; reply= t.reply; m= t.m}
++
++let next t =
++  t.channel.read t.request >>= fun () ->
++  match Request.unmarshal t.request with
++  | Ok r ->
++      Lwt.return r
++  | Error e ->
++      Lwt.fail e
++
++let ok t handle payload =
++  Lwt_mutex.with_lock t.m (fun () ->
++      Reply.marshal t.reply {Reply.handle; error= Ok ()} ;
++      t.channel.write t.reply >>= fun () ->
++      match payload with
++      | None ->
++          Lwt.return ()
++      | Some data ->
++          t.channel.write data
++  )
++
++let error t handle code =
++  Lwt_mutex.with_lock t.m (fun () ->
++      Reply.marshal t.reply {Reply.handle; error= Error code} ;
++      t.channel.write t.reply
++  )
++
++let serve t (type t) ?(read_only = true) block (b : t) =
++  let section = Lwt_log_core.Section.make "Server.serve" in
++  let module Block = (val block : Mirage_block.S with type t = t) in
++  Lwt_log_core.notice_f ~section "Serving new client, read_only = %b" read_only
++  >>= fun () ->
++  Block.get_info b >>= fun info ->
++  let size =
++    Int64.(
++      mul info.Mirage_block.size_sectors (of_int info.Mirage_block.sector_size)
++    )
++  in
++  ( match (read_only, info.Mirage_block.read_write) with
++  | true, _ ->
++      Lwt.return true
++  | false, true ->
++      Lwt.return false
++  | false, false ->
++      Lwt_log_core.error ~section
++        "Read-write access was requested, but block is read-only, sending \
++         NBD_FLAG_READ_ONLY transmission flag"
++      >>= fun () -> Lwt.return true
++  )
++  >>= fun read_only ->
++  let flags = if read_only then [PerExportFlag.Read_only] else [] in
++  negotiate_end t size flags >>= fun t ->
++  let sector_size = info.Mirage_block.sector_size in
++  let sector_of_offset offset = Int64.(div offset (of_int sector_size)) in
++  (* Pipeline several requests at the same time. The NBD protocol allows the
++     server to reply to requests out of order, so we keep reading requests
++     while the previous ones are still being served. Disk I/O is performed
++     outside [t.m]; the mutex only guarantees that a reply header and its data
++     are written contiguously. A pool of buffers bounds the number of
++     in-flight requests (and hence the memory used), and each request re-uses
++     the buffer it was assigned once it has been served. *)
++  let depth = 8 in
++  Lwt_log.notice_f "depth: %d" depth >>= fun () ->
++  let buffers = Array.init depth (fun _ -> Io_page.(to_cstruct (get 512))) in
++  let buffer_size = Cstruct.length buffers.(0) in
++  Lwt_log.notice_f "block_size: %d" buffer_size >>= fun () ->
++  let free = ref (List.init depth (fun i -> i)) in
++  let available = Lwt_condition.create () in
++  let acquire () =
++    let rec loop () =
++      match !free with
++      | i :: rest ->
++          free := rest ; Lwt.return i
++      | [] ->
++          Lwt_condition.wait available >>= loop
++    in
++    loop ()
++  in
++  let release i =
++    free := i :: !free ;
++    Lwt_condition.broadcast available ()
++  in
++  (* Track in-flight requests so that we can wait for them before closing, and
++     remember the first error so that it can be propagated to the caller. *)
++  let inflight = ref 0 in
++  let idle = Lwt_condition.create () in
++  let first_error = ref None in
++  let spawn th =
++    incr inflight ;
++    Lwt.async (fun () ->
++        Lwt.finalize
++          (fun () ->
++            Lwt.catch (fun () -> th) (fun e ->
++                ( match !first_error with
++                | None ->
++                    first_error := Some e
++                | Some _ ->
++                    ()
++                ) ;
++                Lwt.return_unit
++            )
++          )
++          (fun () ->
++            decr inflight ;
++            Lwt_condition.broadcast idle () ;
++            Lwt.return_unit
++          )
++    );
++    Lwt.return ()
++  in
++  let rec drain () =
++    if !inflight = 0 then Lwt.return_unit
++    else Lwt_condition.wait idle >>= drain
++  in
++  let handle_read request =
++    let len = Int32.to_int request.Request.len in
++    acquire () >>= fun i ->
++    let subblock = Cstruct.sub buffers.(i) 0 (min buffer_size len) in
++    let th () =
++      if len <= buffer_size then
++        Block.read b (sector_of_offset request.Request.from) [subblock]
++        >>= function
++        | Error e ->
++            Lwt.fail_with
++              (Printf.sprintf
++                 "Partial failure during a Block.read: %s; terminating the \
++                  session"
++                 (Fmt.to_to_string Block.pp_error e)
++              )
++        | Ok () ->
++            ok t request.Request.handle (Some subblock)
++      else
++        (* Requests larger than a single buffer are sent while holding the
++           reply mutex, so that the header and its data stay contiguous. *)
++        Lwt_mutex.with_lock t.m (fun () ->
++            Reply.marshal t.reply
++              {Reply.handle= request.Request.handle; error= Ok ()} ;
++            t.channel.write t.reply >>= fun () ->
++            let rec copy offset remaining =
++              let n = min buffer_size remaining in
++              let subblock = Cstruct.sub buffers.(i) 0 n in
++              Block.read b (sector_of_offset offset) [subblock] >>= function
++              | Error e ->
++                  Lwt.fail_with
++                    (Printf.sprintf
++                       "Partial failure during a Block.read: %s; terminating \
++                        the session"
++                       (Fmt.to_to_string Block.pp_error e)
++                    )
++              | Ok () ->
++                  t.channel.write subblock >>= fun () ->
++                  let remaining = remaining - n in
++                  if remaining > 0 then
++                    copy Int64.(add offset (of_int n)) remaining
++                  else
++                    Lwt.return_unit
++            in
++            copy request.Request.from len
++        )
++    in
++    spawn (Lwt.finalize th (fun () -> release i ; Lwt.return_unit))
++  in
++  let handle_write request =
++    let len = Int32.to_int request.Request.len in
++    if read_only then
++      error t request.Request.handle `EPERM
++    else if
++      Int64.(rem request.Request.from (of_int sector_size)) <> 0L
++      || Int64.(rem (of_int32 request.Request.len) (of_int sector_size)) <> 0L
++    then
++      error t request.Request.handle `EINVAL
++    else
++      acquire () >>= fun i ->
++      let subblock = Cstruct.sub buffers.(i) 0 (min buffer_size len) in
++      if len <= buffer_size then (
++        (* The channel is a single ordered stream, so only the request loop
++           reads from it, but the disk write can happen in the background. *)
++        t.channel.read subblock >>= fun () ->
++        let th () =
++          Block.write b (sector_of_offset request.Request.from) [subblock]
++          >>= function
++          | Error e ->
++              Lwt_log_core.debug_f ~section
++                "Error while writing: %s; returning EIO error"
++                (Fmt.to_to_string Block.pp_write_error e)
++              >>= fun () -> error t request.Request.handle `EIO
++          | Ok () ->
++              ok t request.Request.handle None
++        in
++        spawn (Lwt.finalize th (fun () -> release i ; Lwt.return_unit))
++      ) else
++        (* Large writes are read and written chunk by chunk on the request
++           loop; only the final reply needs the reply mutex. *)
++        Lwt.finalize
++          (fun () ->
++            let rec copy offset remaining =
++              let n = min buffer_size remaining in
++              let subblock = Cstruct.sub buffers.(i) 0 n in
++              t.channel.read subblock >>= fun () ->
++              Block.write b (sector_of_offset offset) [subblock] >>= function
++              | Error e ->
++                  Lwt_log_core.debug_f ~section
++                    "Error while writing: %s; returning EIO error"
++                    (Fmt.to_to_string Block.pp_write_error e)
++                  >>= fun () -> error t request.Request.handle `EIO
++              | Ok () ->
++                  let remaining = remaining - n in
++                  if remaining > 0 then
++                    copy Int64.(add offset (of_int n)) remaining
++                  else
++                    ok t request.Request.handle None
++            in
++            copy request.Request.from len
++          )
++          (fun () -> release i ; Lwt.return_unit)
++  in
++  let rec loop () =
++    ( match !first_error with Some e -> Lwt.fail e | None -> next t )
++    >>= fun request ->
++    match request.Request.ty with
++    | Command.Write ->
++        handle_write request >>= loop
++    | Command.Read ->
++        handle_read request >>= loop
++    | Command.Disc ->
++        Lwt_log.notice ~section "Received NBD_CMD_DISC, disconnecting"
++        >>= fun () -> drain ()
++        >>= fun () -> (
++          match !first_error with
++          | Some e ->
++              Lwt.fail e
++          | None ->
++              Lwt.return_unit
++        )
++    | _ ->
++        Lwt_log_core.warning ~section
++          "Received unknown command, returning EINVAL"
++        >>= fun () -> error t request.Request.handle `EINVAL >>= loop
++  in
++  loop ()
+diff --git a/ocaml-nbd/lib/server.mli b/ocaml-nbd/lib/server.mli
+new file mode 100644
+index 000000000..69ad1ad70
+--- /dev/null
++++ b/ocaml-nbd/lib/server.mli
+@@ -0,0 +1,18 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** A Server which allows you to expose an existing block device to
++    remote clients over NBD. *)
++
++include S.SERVER
+diff --git a/ocaml-nbd/nbd-tool.opam b/ocaml-nbd/nbd-tool.opam
+new file mode 100644
+index 000000000..6e892b307
+--- /dev/null
++++ b/ocaml-nbd/nbd-tool.opam
+@@ -0,0 +1,35 @@
++opam-version: "2.0"
++synopsis: "Network Block Device (NBD) protocol implementation"
++description: """
++This library allows applications to export and consume block
++devices using the NBD protocol (as used by Linux, qemu etc)"""
++maintainer: "Xapi project maintainers"
++authors: ["Jonathan Ludlam" "David Scott" "Thomas Sanders"]
++license: "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
++tags: ["org:mirage" "org:xapi-project"]
++homepage: "https://github.com/xapi-project/nbd"
++bug-reports: "https://github.com/xapi-project/nbd/issues"
++depends: [
++  "ocaml" {>= "4.08.0"}
++  "dune" {>= "2.7.0"}
++  "alcotest" {with-test}
++  "alcotest-lwt" {with-test}
++  "cmdliner" {>= "1.1.0"}
++  "lwt" {>= "2.7.0"}
++  "lwt_log"
++  "mirage-block-unix"
++  "nbd-unix" {=version}
++  "odoc" {with-doc}
++  "uri"
++]
++depexts: [
++  ["qemu-img" "nbd" "nmap-ncat"] {with-test & os-family = "rhel"}
++  ["qemu-utils" "nbd-client" "netcat-openbsd"] {with-test & os-family = "debian"}
++]
++build: [
++  ["dune" "subst"] {dev}
++  ["dune" "build" "-p" name "-j" jobs]
++  ["dune" "build" "-p" name "-j" jobs "@doc"] {with-doc}
++  ["dune" "build" "-p" name "-j" jobs "@runtest"] {with-test}
++]
++dev-repo: "git+https://github.com/xapi-project/nbd.git"
+diff --git a/ocaml-nbd/nbd-unix.opam b/ocaml-nbd/nbd-unix.opam
+new file mode 100644
+index 000000000..b1f083e6c
+--- /dev/null
++++ b/ocaml-nbd/nbd-unix.opam
+@@ -0,0 +1,34 @@
++opam-version: "2.0"
++synopsis: "Network Block Device (NBD) protocol implementation"
++description: """
++This library allows applications to export and consume block
++devices using the NBD protocol (as used by Linux, qemu etc)"""
++maintainer: "Xapi project maintainers"
++authors: ["Jonathan Ludlam" "David Scott" "Thomas Sanders"]
++license: "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
++tags: ["org:mirage" "org:xapi-project"]
++homepage: "https://github.com/xapi-project/nbd"
++doc: "https://xapi-project.github.io/nbd/nbd-unix/index.html"
++bug-reports: "https://github.com/xapi-project/nbd/issues"
++depends: [
++  "ocaml" {>= "4.08.0"}
++  "bigarray-compat"
++  "bisect_ppx" {dev & >= "2.5.0"}
++  "dune" {>= "2.7.0"}
++  "cstruct-lwt"
++  "io-page" {>= "2.4.0"}
++  "lwt" {>= "2.7.0"}
++  "lwt_ssl"
++  "mirage-block" {>= "2.0.0"}
++  "mirage-block-unix"
++  "nbd" {=version}
++  "odoc" {with-doc}
++  "ssl"
++]
++build: [
++  ["dune" "subst"] {dev}
++  ["dune" "build" "-p" name "-j" jobs]
++  ["dune" "build" "-p" name "-j" jobs "@doc"] {with-doc}
++  ["dune" "build" "-p" name "-j" jobs "@runtest"] {with-test}
++]
++dev-repo: "git+https://github.com/xapi-project/nbd.git"
+diff --git a/ocaml-nbd/nbd.opam b/ocaml-nbd/nbd.opam
+new file mode 100644
+index 000000000..8c9c87a05
+--- /dev/null
++++ b/ocaml-nbd/nbd.opam
+@@ -0,0 +1,39 @@
++opam-version: "2.0"
++maintainer: "Xapi project maintainers"
++authors: [ "Jonathan Ludlam" "David Scott" "Thomas Sanders" ]
++license: "LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception"
++homepage: "https://github.com/xapi-project/nbd"
++doc: "https://xapi-project.github.io/nbd/nbd/index.html"
++dev-repo: "git+https://github.com/xapi-project/nbd.git"
++bug-reports: "https://github.com/xapi-project/nbd/issues"
++build: [
++  ["dune" "subst"] {dev}
++  ["dune" "build" "-p" name "-j" jobs]
++  ["dune" "build" "-p" name "-j" jobs "@doc"] {with-doc}
++  ["dune" "build" "-p" name "-j" jobs "@runtest"] {with-test}
++]
++depends: [
++  "ocaml" {>= "4.08.0"}
++  "bisect_ppx" {dev & >= "2.5.0"}
++  "dune" {>= "2.7.0"}
++  "alcotest" {with-test}
++  "alcotest-lwt" {with-test}
++  "cstruct" {>= "6.0.0"}
++  "io-page" {>= "2.4.0"}
++  "mirage-block" {>= "3.0.0"}
++  "mirage-block-unix"
++  "lwt" {>= "2.7.0"}
++  "lwt_log"
++  "odoc" {with-doc}
++  "ppx_cstruct" {>= "3.1.0"}
++  "ppx_sexp_conv" {>= "v0.9.0"}
++  "rresult"
++  "sexplib"
++  "uri"
++]
++conflicts: ["result" {< "1.5"}]
++tags: [ "org:mirage" "org:xapi-project" ]
++synopsis: "Network Block Device (NBD) protocol implementation"
++description: """
++This library allows applications to export and consume block
++devices using the NBD protocol (as used by Linux, qemu etc)"""
+diff --git a/ocaml-nbd/unix/dune b/ocaml-nbd/unix/dune
+new file mode 100644
+index 000000000..2fecd3706
+--- /dev/null
++++ b/ocaml-nbd/unix/dune
+@@ -0,0 +1,16 @@
++(library
++ (name nbd_unix)
++ (public_name nbd-unix)
++ (libraries
++   bigarray-compat
++   cstruct
++   cstruct-lwt
++   io-page
++   lwt
++   lwt.unix
++   mirage-block
++   mirage-block-unix
++   ssl
++   lwt_ssl
++   nbd)
++ (instrumentation (backend bisect_ppx)))
+diff --git a/ocaml-nbd/unix/nbd_unix.ml b/ocaml-nbd/unix/nbd_unix.ml
+new file mode 100644
+index 000000000..1f3805597
+--- /dev/null
++++ b/ocaml-nbd/unix/nbd_unix.ml
+@@ -0,0 +1,143 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Mostly concrete implementations for creating various kinds of channels.
++  * Also exposes Nbd.Client and Nbd.Server as Client and Server submodules. *)
++
++open Nbd
++open Channel
++
++let return = Lwt.return
++
++let ( >>= ) = Lwt.( >>= )
++
++type tls_role = TlsClient of Ssl.context | TlsServer of Ssl.context
++
++(* XXX Consider moving this function into a library also used by vhd-tool. *)
++(* Also the read/write/close functions that are inside tls_channel_of_fd. *)
++
++(** Call the io function [op] repeatedly until it reports that in
++    total it has handled enough data to reach the end of the [buffer]
++    (or call [Lwt.fail End_of_file] if [op] ceases to make progress).
++  * The function [op] is an operation (such as a read/write/skip)
++    that takes [fd], a buffer, an offset and a length, and returns
++    an [int Lwt.t] to say how much data it processed.
++  * [fd] is an open file descriptor.
++  * [buffer] contains [buffer.Cstruct.buffer] for the data to be processed,
++    from offset [buffer.Cstruct.off] to the end ([buffer.Cstruct.len]).
++*)
++let io_complete op fd buffer =
++  let ofs = buffer.Cstruct.off in
++  let len = buffer.Cstruct.len in
++  let buf = buffer.Cstruct.buffer in
++  (* loop returns the total of the ints returned by the calls to [op] *)
++  let rec loop acc ofs len =
++    op fd buf ofs len >>= fun n ->
++    let len' = len - n in
++    let acc' = acc + n in
++    if len' = 0 || n = 0 then
++      return acc'
++    else
++      loop acc' (ofs + n) len'
++  in
++  loop 0 ofs len >>= fun n ->
++  if n = 0 && len <> 0 then
++    Lwt.fail End_of_file
++  else
++    return ()
++
++let tls_channel_of_fd fd role () =
++  let ctx, ssl_start =
++    match role with
++    | TlsClient ctx ->
++        (ctx, Lwt_ssl.ssl_connect)
++    | TlsServer ctx ->
++        (ctx, Lwt_ssl.ssl_accept)
++  in
++  ssl_start fd ctx >>= fun sock ->
++  let read_tls buf =
++    io_complete Lwt_ssl.read_bytes sock buf >>= fun () -> return ()
++  in
++
++  let write_tls buf =
++    io_complete Lwt_ssl.write_bytes sock buf >>= fun () -> return ()
++  in
++
++  let close_tls () =
++    ignore (Lwt_ssl.ssl_shutdown sock) ;
++    Lwt_ssl.close sock
++  in
++
++  return {read_tls; write_tls; close_tls}
++
++let cleartext_channel_of_fd fd role_opt =
++  let read_clear = Lwt_cstruct.(complete (read fd)) in
++  let write_clear = Lwt_cstruct.(complete (write fd)) in
++  let close_clear () = Lwt_unix.close fd in
++  let make_tls_channel =
++    match role_opt with
++    | None ->
++        None
++    | Some role ->
++        Some (tls_channel_of_fd fd role)
++  in
++  {read_clear; write_clear; close_clear; make_tls_channel}
++
++let generic_channel_of_fd fd role =
++  let ch = cleartext_channel_of_fd fd role in
++  return (Channel.generic_of_cleartext_channel ch)
++
++(* This function is used by the client. The channel has no TLS ability. *)
++let connect hostname port =
++  let socket = Lwt_unix.socket Lwt_unix.PF_INET Lwt_unix.SOCK_STREAM 0 in
++  Lwt_unix.gethostbyname hostname >>= fun host_info ->
++  let server_address = host_info.Lwt_unix.h_addr_list.(0) in
++  Lwt.catch
++    (fun () ->
++      Lwt_unix.connect socket (Lwt_unix.ADDR_INET (server_address, port))
++    )
++    (fun e -> Lwt_unix.close socket >>= fun () -> Lwt.fail e)
++  >>= fun () -> generic_channel_of_fd socket None
++
++let init_tls_get_ctx ?curve ~certfile ~ciphersuites () =
++  Ssl_threads.init () ;
++  Ssl.init () ;
++  let mk_ctx role_ctx = Ssl.create_context Ssl.TLSv1_2 role_ctx in
++  let ctx = mk_ctx Ssl.Server_context in
++  Ssl.use_certificate ctx certfile certfile ;
++  (* Second one is being used as privkey filename *)
++  Ssl.set_cipher_list ctx ciphersuites ;
++  ( match curve with
++  | None ->
++      ()
++  | Some curve ->
++      Ssl.init_ec_from_named_curve ctx curve
++  ) ;
++  ctx
++
++let with_block filename f =
++  Block.connect filename >>= fun b ->
++  Lwt.finalize (fun () -> f b) (fun () -> Block.disconnect b)
++
++let ignore_exn t () = Lwt.catch t (fun _ -> Lwt.return_unit)
++
++let with_channel fd tls_role f =
++  let clearchan = cleartext_channel_of_fd fd tls_role in
++  Lwt.finalize
++    (fun () -> f clearchan)
++    (* We use ignore_exn lest clearchan was closed already by f. *)
++    (ignore_exn (fun () -> clearchan.close_clear ()))
++
++module Client = Nbd.Client
++module Server = Nbd.Server
+diff --git a/ocaml-nbd/unix/nbd_unix.mli b/ocaml-nbd/unix/nbd_unix.mli
+new file mode 100644
+index 000000000..b6b0149c1
+--- /dev/null
++++ b/ocaml-nbd/unix/nbd_unix.mli
+@@ -0,0 +1,51 @@
++(*
++ * Copyright (C) Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Network Block Device client and servers for Unix *)
++
++open Nbd
++
++type tls_role = TlsClient of Ssl.context | TlsServer of Ssl.context
++
++val connect : string -> int -> Channel.channel Lwt.t
++(** [connect hostname port] connects to host:port and returns
++    a [generic_channel] with no TLS ability or potential. *)
++
++val cleartext_channel_of_fd :
++  Lwt_unix.file_descr -> tls_role option -> Channel.cleartext_channel
++(** [cleartext_channel_of_fd fd role] returns a channel from an existing file descriptor.
++    The channel will have a [make_tls_channel] value that corresponds to [role]. *)
++
++val init_tls_get_ctx :
++  ?curve:string -> certfile:string -> ciphersuites:string -> unit -> Ssl.context
++(** Initialise the Ssl (TLS) library and then create and return a new context. *)
++
++val with_block : string -> (Block.t -> 'a Lwt.t) -> 'a Lwt.t
++(** [with_block filename f] calls [Block.connect filename] and applies [f] to the result,
++    with a guarantee to call [Block.disconnect] afterwards. *)
++
++val with_channel :
++     Lwt_unix.file_descr
++  -> tls_role option
++  -> (Nbd.Channel.cleartext_channel -> 'a Lwt.t)
++  -> 'a Lwt.t
++(** [with_channel fd role f] calls [cleartext_channel_of_fd fd role] then
++    applies [f] to the resulting channel, with a guarantee to call
++    the channel's [close_clear] function afterwards. *)
++
++(** A client allows you to access remote disks *)
++module Client : S.CLIENT
++
++(** A server allows you to expose disks to remote clients *)
++module Server : S.SERVER

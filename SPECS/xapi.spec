@@ -139,8 +139,12 @@ Patch1024: 0024-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
 Patch1025: 0025-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
 Patch1026: 0026-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
-Patch1027: 0028-xapi-nbd-Use-tapdisk-s-NBD-server.patch
-Patch1028: 0029-Handover-insecure_nbd-to-tapdisk-to-avoid-copy.patch
+Patch1027: 0027-tmp.patch
+
+Patch1028: 0028-xapi-nbd-Use-tapdisk-s-NBD-server.patch
+Patch1029: 0029-Handover-insecure_nbd-to-tapdisk-to-avoid-copy.patch
+
+Patch1030: 0030-vendor-ocaml-nbd.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
