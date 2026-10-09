@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.19
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1542,6 +1542,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Oct 09 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.19-1.3
+- Use ntp.xcpng.org as ntpservers (managed by xcpng.org)
+
 * Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.19-1.2
 - Revert the "Only migrate VMs to updated hosts during an RPU" commit
 
