@@ -1,0 +1,131 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tu Dinh <ngoc-tu.dinh@vates.tech>
+Date: Thu, 24 Sep 2026 13:42:06 +0200
+Subject: [PATCH] Add the xenfb VGA type
+
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+
+diff --git a/ocaml/tests/test_xenopsd_metadata.ml b/ocaml/tests/test_xenopsd_metadata.ml
+index 14362e73b688..97eb732a73e3 100644
+--- a/ocaml/tests/test_xenopsd_metadata.ml
++++ b/ocaml/tests/test_xenopsd_metadata.ml
+@@ -130,6 +130,8 @@ module VideoMode = Generic.MakeStateful (struct
+           "Vgpu"
+       | Vm.IGD_passthrough Vm.GVT_d ->
+           "IGD_passthrough"
++      | Vm.Xenfb ->
++          "Xenfb"
+   end
+ 
+   module State = Test_state.XapiDb
+@@ -167,6 +169,7 @@ module VideoMode = Generic.MakeStateful (struct
+       ; ( {oc= []; platform= [("igd_passthrough", "true"); ("vga", "std")]}
+         , Vm.(IGD_passthrough GVT_d)
+         )
++      ; ({oc= []; platform= [("vga", "xenfb")]}, Vm.Xenfb)
+       ]
+ end)
+ 
+diff --git a/ocaml/xapi-idl/xen/xenops_types.ml b/ocaml/xapi-idl/xen/xenops_types.ml
+index 2ed03daf79dd..70eaf898fa90 100644
+--- a/ocaml/xapi-idl/xen/xenops_types.ml
++++ b/ocaml/xapi-idl/xen/xenops_types.ml
+@@ -72,6 +72,7 @@ module Vm = struct
+     | Standard_VGA
+     | Vgpu
+     | IGD_passthrough of igd_passthrough
++    | Xenfb
+   [@@default Cirrus] [@@deriving rpcty, sexp]
+ 
+   type firmware_type = Bios | Uefi of Nvram_uefi_variables.t
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index 3feab40e42f8..d4d860803cb5 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -397,8 +397,13 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
+           Standard_VGA
+       | "cirrus" ->
+           Cirrus
++      | "xenfb" ->
++          Xenfb
+       | x ->
+-          error "Unknown platform/vga option: %s (expected 'std' or 'cirrus')" x ;
++          error
++            "Unknown platform/vga option: %s (expected 'std', 'cirrus' or \
++             'xenfb')"
++            x ;
+           Cirrus
+   in
+   let pci_emulations =
+diff --git a/ocaml/xenopsd/scripts/qemu-wrapper b/ocaml/xenopsd/scripts/qemu-wrapper
+index e4a0c28465e4..580d196032db 100644
+--- a/ocaml/xenopsd/scripts/qemu-wrapper
++++ b/ocaml/xenopsd/scripts/qemu-wrapper
+@@ -245,6 +245,12 @@ def main(argv):
+             n += 1
+             continue
+ 
++        if p == "-xenfb":
++            vga_type = 'xenfb'
++            del qemu_args[n]
++            depriv = False
++            continue
++
+         if p == "-loadvm":
+             loadvm_path = qemu_args[n+1]
+             incoming_fd = os.open(loadvm_path, os.O_RDONLY)
+@@ -256,6 +262,8 @@ def main(argv):
+ 
+     if vga_type == 'vgpu':
+         qemu_args += ["-device", "vgpu"]
++    elif vga_type == 'xenfb':
++        qemu_args += ["-vga", "xenfb"]
+     else:
+         qemu_args += ["-device", ",".join([vga_type, "vgamem_mb=%d" % vgamem_mb] \
+                                           + vga_extra_props)]
+diff --git a/ocaml/xenopsd/xc/device.ml b/ocaml/xenopsd/xc/device.ml
+index 5dc3d6fb7ebe..e7727af5a065 100644
+--- a/ocaml/xenopsd/xc/device.ml
++++ b/ocaml/xenopsd/xc/device.ml
+@@ -2043,6 +2043,7 @@ module Dm_Common = struct
+     | Cirrus
+     | Vgpu of Xenops_interface.Vgpu.t list
+     | GVT_d
++    | Xenfb
+ 
+   (* Display output / keyboard input *)
+   type disp_opt =
+@@ -2204,6 +2205,8 @@ module Dm_Common = struct
+           []
+       | GVT_d ->
+           ["-std-vga"]
++      | Xenfb ->
++          ["-xenfb"]
+       (* relies on pci-passthrough *)
+     in
+     let videoram_opt = ["-videoram"; string_of_int info.video_mib] in
+diff --git a/ocaml/xenopsd/xc/device.mli b/ocaml/xenopsd/xc/device.mli
+index 8bfad2d862fc..53fb639e53ea 100644
+--- a/ocaml/xenopsd/xc/device.mli
++++ b/ocaml/xenopsd/xc/device.mli
+@@ -325,6 +325,7 @@ module Dm : sig
+     | Cirrus
+     | Vgpu of Xenops_interface.Vgpu.t list
+     | GVT_d
++    | Xenfb
+ 
+   type disp_opt =
+     | NONE
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 11158752a4cb..53b5243fdc21 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -2242,6 +2242,8 @@ module VM = struct
+                 internal_error "Vgpu mode specified but no vGPUs"
+             | Vgpu, vgpus ->
+                 Device.Dm.Vgpu vgpus
++            | Xenfb, [] ->
++                Device.Dm.Xenfb
+             | _ ->
+                 internal_error "Invalid graphics mode"
+           in

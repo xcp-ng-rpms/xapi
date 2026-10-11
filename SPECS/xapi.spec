@@ -138,6 +138,12 @@ Patch1023: 0023-libs-vhd_format-Allow-alternatively-provided-buffers.patch
 Patch1024: 0024-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
 Patch1025: 0025-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
+Patch1027: 0001-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
+Patch1028: 0002-Add-the-xenfb-VGA-type.patch
+Patch1029: 0003-Add-IPv4-DNS-setting-for-VIF-configuration.patch
+Patch1030: 0004-Add-IPv6-DNS-setting-for-VIF-configuration.patch
+Patch1031: 0005-Add-tests-for-the-VIF-DNS-setting-feature.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

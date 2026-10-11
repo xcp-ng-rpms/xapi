@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tu Dinh <ngoc-tu.dinh@vates.tech>
+Date: Wed, 23 Sep 2026 11:54:34 +0200
+Subject: [PATCH] Disable HVM PIRQ on fresh boots on non-VGPU VMs
+
+The HVM PIRQ feature is known to have compatibility issues with some AMD
+GPUs. It has been disabled by default in Xenlight version 024e7131be5c.
+
+Change the HVM PIRQ default setting to false on fresh boots. However,
+HVM PIRQ is needed for VMs using VGPU, so we need to keep the default as
+true on these VMs.
+
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 708db34f3efb..11158752a4cb 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -143,10 +143,11 @@ module VmExtra = struct
+           []
+       | PVinPVH _ | PVH _ ->
+           emulation_flags_pvh
+-      | HVM _ ->
++      | HVM hvm_info ->
+           if
+             Platform.is_true ~key:"hvm-pirq"
+-              ~platformdata:vm.Xenops_interface.Vm.platformdata ~default:true
++              ~platformdata:vm.Xenops_interface.Vm.platformdata
++              ~default:(hvm_info.video == Vgpu)
+           then
+             X86_EMU_USE_PIRQ :: emulation_flags_hvm
+           else

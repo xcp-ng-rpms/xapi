@@ -1,0 +1,425 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tu Dinh <ngoc-tu.dinh@vates.tech>
+Date: Wed, 1 Jul 2026 11:29:13 +0000
+Subject: [PATCH] Add IPv4 DNS setting for VIF configuration
+
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 0ed9e361f627..5e6ca0520317 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -3778,6 +3778,15 @@ module VIF = struct
+           ; param_release= dundee_release
+           ; param_default= Some (VString "")
+           }
++        ; {
++            param_type= Set String
++          ; param_name= "dns"
++          ; param_doc=
++              "The list of DNS servers (for static mode only; leave empty to \
++               not set a DNS server)"
++          ; param_release= numbered_release "26.19.0"
++          ; param_default= Some (VSet [])
++          }
+         ]
+       ~allowed_roles:_R_VM_OP ()
+ 
+@@ -4047,6 +4056,8 @@ module VIF = struct
+               ~qualifier:DynamicRO "ipv4_gateway"
+               "IPv4 gateway (the empty string means that no gateway is set)"
+               ~default_value:(Some (VString ""))
++          ; field ~ty:(Set String) ~lifecycle:[] ~qualifier:DynamicRO "ipv4_dns"
++              "IPv4 DNS servers" ~default_value:(Some (VSet []))
+           ; field ~ty:ipv6_configuration_mode
+               ~lifecycle:
+                 [
+diff --git a/ocaml/idl/datamodel_lifecycle.ml b/ocaml/idl/datamodel_lifecycle.ml
+index 4048627ec8a5..82f6ed8ca855 100644
+--- a/ocaml/idl/datamodel_lifecycle.ml
++++ b/ocaml/idl/datamodel_lifecycle.ml
+@@ -103,6 +103,8 @@ let prototyped_of_field = function
+       Some "24.37.0"
+   | "VIF", "trunks" ->
+       Some "26.1.16"
++  | "VIF", "ipv4_dns" ->
++      Some "26.19.0"
+   | "host", "timezone" ->
+       Some "26.0.0"
+   | "host", "ntp_custom_servers" ->
+diff --git a/ocaml/tests/common/test_common.ml b/ocaml/tests/common/test_common.ml
+index 47859d0671b5..c192dc9638ba 100644
+--- a/ocaml/tests/common/test_common.ml
++++ b/ocaml/tests/common/test_common.ml
+@@ -276,7 +276,7 @@ let make_vif ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+     ?(status_code = 0L) ?(status_detail = "") ?(runtime_properties = [])
+     ?(other_config = []) ?(metrics = Ref.null) ?(locking_mode = `unlocked)
+     ?(ipv4_allowed = []) ?(ipv6_allowed = []) ?(ipv4_configuration_mode = `None)
+-    ?(ipv4_addresses = []) ?(ipv4_gateway = "")
++    ?(ipv4_addresses = []) ?(ipv4_gateway = "") ?(ipv4_dns = [])
+     ?(ipv6_configuration_mode = `None) ?(ipv6_addresses = [])
+     ?(ipv6_gateway = "") ?(trunks = []) () =
+   Db.VIF.create ~__context ~ref ~uuid ~current_operations ~allowed_operations
+@@ -284,7 +284,7 @@ let make_vif ~__context ?(ref = Ref.make ()) ?(uuid = make_uuid ())
+     ~qos_algorithm_type ~qos_algorithm_params ~qos_supported_algorithms
+     ~currently_attached ~status_code ~status_detail ~runtime_properties
+     ~other_config ~metrics ~locking_mode ~ipv4_allowed ~ipv6_allowed
+-    ~ipv4_configuration_mode ~ipv4_addresses ~ipv4_gateway
++    ~ipv4_configuration_mode ~ipv4_addresses ~ipv4_gateway ~ipv4_dns
+     ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway
+     ~reserved_pci:Ref.null ~trunks ;
+   ref
+diff --git a/ocaml/tests/test_vif_helpers.ml b/ocaml/tests/test_vif_helpers.ml
+index 7262a6691763..a9d6e83ebe7e 100644
+--- a/ocaml/tests/test_vif_helpers.ml
++++ b/ocaml/tests/test_vif_helpers.ml
+@@ -20,13 +20,13 @@ let create ~__context ~device ~network ~vM ?(mAC = "00:00:00:00:00:00")
+     ?(currently_attached = false) ?(other_config = [])
+     ?(locking_mode = `unlocked) ?(ipv4_allowed = []) ?(ipv6_allowed = [])
+     ?(ipv4_configuration_mode = `None) ?(ipv4_addresses = [])
+-    ?(ipv4_gateway = "") ?(ipv6_configuration_mode = `None)
++    ?(ipv4_gateway = "") ?(ipv4_dns = []) ?(ipv6_configuration_mode = `None)
+     ?(ipv6_addresses = []) ?(ipv6_gateway = "") ?(trunks = []) () =
+   Xapi_vif_helpers.create ~__context ~device ~network ~vM ~mAC ~mTU
+     ~other_config ~qos_algorithm_type ~qos_algorithm_params ~currently_attached
+     ~locking_mode ~ipv4_allowed ~ipv6_allowed ~ipv4_configuration_mode
+-    ~ipv4_addresses ~ipv4_gateway ~ipv6_configuration_mode ~ipv6_addresses
+-    ~ipv6_gateway ~trunks
++    ~ipv4_addresses ~ipv4_dns ~ipv4_gateway ~ipv6_configuration_mode
++    ~ipv6_addresses ~ipv6_gateway ~trunks
+ 
+ let test_create_ok () =
+   let __context = T.make_test_database () in
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index e2d9310ca861..f113e048bbbf 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -2710,7 +2710,7 @@ let rec cmdtable_data : (string * cmd_spec) list =
+   ; ( "vif-configure-ipv4"
+     , {
+         reqd= ["uuid"; "mode"]
+-      ; optn= ["address"; "gateway"]
++      ; optn= ["address"; "gateway"; "dns"]
+       ; help= "Configure IPv4 settings on a VIF."
+       ; implementation= No_fd Cli_operations.vif_configure_ipv4
+       ; flags= []
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index f718a370ee29..ab5589e3178e 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -2861,9 +2861,11 @@ let vif_configure_ipv4 _printer rpc session_id params =
+   in
+   let address = Listext.assoc_default "address" params "" in
+   let gateway = Listext.assoc_default "gateway" params "" in
++  let dns = read_set_params "dns" params in
+   if mode = `Static && address = "" then
+     failwith "Required parameter not found: address" ;
+   Client.VIF.configure_ipv4 ~rpc ~session_id ~self:vif ~mode ~address ~gateway
++    ~dns
+ 
+ let vif_configure_ipv6 _printer rpc session_id params =
+   let vif =
+diff --git a/ocaml/xapi-cli-server/records.ml b/ocaml/xapi-cli-server/records.ml
+index c5258895f406..26a53cc320e4 100644
+--- a/ocaml/xapi-cli-server/records.ml
++++ b/ocaml/xapi-cli-server/records.ml
+@@ -1002,6 +1002,9 @@ let vif_record rpc session_id vif =
+       ; make_field ~name:"ipv4-gateway"
+           ~get:(fun () -> (x ()).API.vIF_ipv4_gateway)
+           ()
++      ; make_field ~name:"ipv4-dns"
++          ~get:(fun () -> concat_with_semi (x ()).API.vIF_ipv4_dns)
++          ()
+       ; make_field ~name:"ipv6-configuration-mode"
+           ~get:(fun () ->
+             Record_util.vif_ipv6_configuration_mode_to_string
+diff --git a/ocaml/xapi-idl/xen/xenops_interface.ml b/ocaml/xapi-idl/xen/xenops_interface.ml
+index 64c05742867d..1302fbd1217b 100644
+--- a/ocaml/xapi-idl/xen/xenops_interface.ml
++++ b/ocaml/xapi-idl/xen/xenops_interface.ml
+@@ -321,12 +321,11 @@ module Vif = struct
+ 
+   type ipv4_configuration =
+     | Unspecified4
+-    | Static4 of string list * string option
++    (* a list of CIDRs, optionally a gateway, a list of DNS servers *)
++    | Static4 of string list * string option * string list
+     | DHCP4
+   [@@deriving rpcty]
+ 
+-  (* a list of CIDRs and optionally a gateway *)
+-
+   let default_ipv4_configuration = Unspecified4
+ 
+   type ipv6_configuration =
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index aa17cee65992..eb3dd8fbd111 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -4695,16 +4695,18 @@ functor
+         let remote_fn = Client.VIF.remove_ipv6_allowed ~self ~value in
+         forward_vif_op ~local_fn ~__context ~self ~remote_fn
+ 
+-      let configure_ipv4 ~__context ~self ~mode ~address ~gateway =
++      let configure_ipv4 ~__context ~self ~mode ~address ~gateway ~dns =
+         info
+           "VIF.configure_ipv4: VIF = '%s'; mode = '%s'; address = '%s'; \
+-           gateway = '%s'"
++           gateway = '%s'; dns = '%s'"
+           (vif_uuid ~__context self)
+           (Record_util.vif_ipv4_configuration_mode_to_string mode)
+-          address gateway ;
+-        let local_fn = Local.VIF.configure_ipv4 ~self ~mode ~address ~gateway in
++          address gateway (String.concat "; " dns) ;
++        let local_fn =
++          Local.VIF.configure_ipv4 ~self ~mode ~address ~gateway ~dns
++        in
+         let remote_fn =
+-          Client.VIF.configure_ipv4 ~self ~mode ~address ~gateway
++          Client.VIF.configure_ipv4 ~self ~mode ~address ~gateway ~dns
+         in
+         forward_vif_op ~local_fn ~__context ~self ~remote_fn
+ 
+diff --git a/ocaml/xapi/xapi_vif.ml b/ocaml/xapi/xapi_vif.ml
+index de4f73cc31a3..634b5c2cf12e 100644
+--- a/ocaml/xapi/xapi_vif.ml
++++ b/ocaml/xapi/xapi_vif.ml
+@@ -48,8 +48,8 @@ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+   create ~__context ~device ~network ~vM ~currently_attached:_currently_attached
+     ~mAC ~mTU ~other_config ~qos_algorithm_type ~qos_algorithm_params
+     ~locking_mode ~ipv4_allowed ~ipv6_allowed ~ipv4_configuration_mode:`None
+-    ~ipv4_addresses:[] ~ipv4_gateway:"" ~ipv6_configuration_mode:`None
+-    ~ipv6_addresses:[] ~ipv6_gateway:"" ~trunks
++    ~ipv4_addresses:[] ~ipv4_gateway:"" ~ipv4_dns:[]
++    ~ipv6_configuration_mode:`None ~ipv6_addresses:[] ~ipv6_gateway:"" ~trunks
+ 
+ let destroy ~__context ~self = destroy ~__context ~self
+ 
+@@ -193,17 +193,19 @@ let assert_no_locking_mode_conflict ~__context ~self kind address =
+               Server_error (address_violates_locking_constraint, [address])
+             )
+ 
+-let configure_ipv4 ~__context ~self ~mode ~address ~gateway =
++let configure_ipv4 ~__context ~self ~mode ~address ~gateway ~dns =
+   if mode = `Static then (
+     Pool_features.assert_enabled ~__context ~f:Features.Guest_ip_setting ;
+     Helpers.assert_is_valid_cidr `ipv4 "address" address ;
+     assert_no_locking_mode_conflict ~__context ~self `ipv4 address ;
+-    if gateway <> "" then Helpers.assert_is_valid_ip `ipv4 "gateway" gateway
++    if gateway <> "" then Helpers.assert_is_valid_ip `ipv4 "gateway" gateway ;
++    List.iter (fun value -> Helpers.assert_is_valid_ip `ipv4 "dns" value) dns
+   ) ;
+   assert_has_feature_static_ip_setting ~__context ~self ;
+   Db.VIF.set_ipv4_configuration_mode ~__context ~self ~value:mode ;
+   Db.VIF.set_ipv4_addresses ~__context ~self ~value:[address] ;
+   Db.VIF.set_ipv4_gateway ~__context ~self ~value:gateway ;
++  Db.VIF.set_ipv4_dns ~__context ~self ~value:dns ;
+   if device_active ~__context ~self then
+     Xapi_xenops.vif_set_ipv4_configuration ~__context ~self
+ 
+diff --git a/ocaml/xapi/xapi_vif.mli b/ocaml/xapi/xapi_vif.mli
+index b78cd36c790d..1365964db8ec 100644
+--- a/ocaml/xapi/xapi_vif.mli
++++ b/ocaml/xapi/xapi_vif.mli
+@@ -119,6 +119,7 @@ val configure_ipv4 :
+   -> mode:[`None | `Static | `DHCP]
+   -> address:string
+   -> gateway:string
++  -> dns:string list
+   -> unit
+ (** Change the IP configuration of a VIF *)
+ 
+diff --git a/ocaml/xapi/xapi_vif_helpers.ml b/ocaml/xapi/xapi_vif_helpers.ml
+index fc17d7c86053..2612387dc739 100644
+--- a/ocaml/xapi/xapi_vif_helpers.ml
++++ b/ocaml/xapi/xapi_vif_helpers.ml
+@@ -239,8 +239,8 @@ let m = Mutex.create () (* prevents duplicate VIFs being created by accident *)
+ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+     ~qos_algorithm_type ~qos_algorithm_params ~currently_attached ~locking_mode
+     ~ipv4_allowed ~ipv6_allowed ~ipv4_configuration_mode ~ipv4_addresses
+-    ~ipv4_gateway ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway ~trunks
+-    : API.ref_VIF =
++    ~ipv4_gateway ~ipv4_dns ~ipv6_configuration_mode ~ipv6_addresses
++    ~ipv6_gateway ~trunks : API.ref_VIF =
+   let () = debug "VIF.create running" in
+   if Xapi_network_sriov_helpers.is_sriov_network ~__context ~self:network then
+     Pool_features.assert_enabled ~__context ~f:Features.Network_sriov ;
+@@ -345,7 +345,7 @@ let create ~__context ~device ~network ~vM ~mAC ~mTU ~other_config
+           ~qos_algorithm_params ~qos_supported_algorithms:[] ~currently_attached
+           ~status_code:0L ~status_detail:"" ~runtime_properties:[] ~other_config
+           ~metrics ~locking_mode ~ipv4_allowed ~ipv6_allowed
+-          ~ipv4_configuration_mode ~ipv4_addresses ~ipv4_gateway
++          ~ipv4_configuration_mode ~ipv4_addresses ~ipv4_gateway ~ipv4_dns
+           ~ipv6_configuration_mode ~ipv6_addresses ~ipv6_gateway
+           ~reserved_pci:Ref.null ~trunks
+       in
+@@ -400,7 +400,7 @@ let copy ~__context ~vm ~preserve_mac_address vif =
+       ~ipv6_allowed:all.API.vIF_ipv6_allowed
+       ~ipv4_configuration_mode:all.API.vIF_ipv4_configuration_mode
+       ~ipv4_addresses:all.API.vIF_ipv4_addresses
+-      ~ipv4_gateway:all.API.vIF_ipv4_gateway
++      ~ipv4_gateway:all.API.vIF_ipv4_gateway ~ipv4_dns:all.API.vIF_ipv4_dns
+       ~ipv6_configuration_mode:all.API.vIF_ipv6_configuration_mode
+       ~ipv6_addresses:all.API.vIF_ipv6_addresses
+       ~ipv6_gateway:all.API.vIF_ipv6_gateway ~trunks:all.API.vIF_trunks
+diff --git a/ocaml/xapi/xapi_vif_helpers.mli b/ocaml/xapi/xapi_vif_helpers.mli
+index 7b062a8df7d7..4d499cde2c79 100644
+--- a/ocaml/xapi/xapi_vif_helpers.mli
++++ b/ocaml/xapi/xapi_vif_helpers.mli
+@@ -52,6 +52,7 @@ val create :
+   -> ipv4_configuration_mode:[< `None | `Static]
+   -> ipv4_addresses:string list
+   -> ipv4_gateway:string
++  -> ipv4_dns:string list
+   -> ipv6_configuration_mode:[< `None | `Static]
+   -> ipv6_addresses:string list
+   -> ipv6_gateway:string
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index d4d860803cb5..19a01e3c932e 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -856,7 +856,7 @@ module MD = struct
+             else
+               Some vif.API.vIF_ipv4_gateway
+           in
+-          Vif.Static4 (vif.API.vIF_ipv4_addresses, gateway)
++          Vif.Static4 (vif.API.vIF_ipv4_addresses, gateway, vif.API.vIF_ipv4_dns)
+       | `DHCP ->
+           Vif.DHCP4
+     in
+diff --git a/ocaml/xenopsd/lib/xenops_server.ml b/ocaml/xenopsd/lib/xenops_server.ml
+index 98c26b65c2e1..3fcdb0365809 100644
+--- a/ocaml/xenopsd/lib/xenops_server.ml
++++ b/ocaml/xenopsd/lib/xenops_server.ml
+@@ -2044,15 +2044,18 @@ let rec perform_atomic ~progress_callback ?result (op : atomic)
+         match ipv4_configuration with
+         | Vif.Unspecified4 ->
+             "None"
+-        | Vif.Static4 (address, gateway) -> (
+-          match gateway with
+-          | None ->
+-              Printf.sprintf "Static: address:%s" (String.concat "; " address)
+-          | Some value ->
+-              Printf.sprintf "Static: address:%s gateway:%s"
+-                (String.concat "; " address)
+-                value
+-        )
++        | Vif.Static4 (address, gateway, dns) ->
++            let address_str = String.concat "; " address in
++            let gateway_str =
++              match gateway with
++              | None ->
++                  "(none)"
++              | Some value ->
++                  Printf.sprintf "%s" value
++            in
++            let dns_str = String.concat "; " dns in
++            Printf.sprintf "Static: address:%s gateway:%s dns:%s" address_str
++              gateway_str dns_str
+         | Vif.DHCP4 ->
+             "DHCP"
+       in
+diff --git a/ocaml/xenopsd/xc/xenops_server_xen.ml b/ocaml/xenopsd/xc/xenops_server_xen.ml
+index 53b5243fdc21..bde97ee88292 100644
+--- a/ocaml/xenopsd/xc/xenops_server_xen.ml
++++ b/ocaml/xenopsd/xc/xenops_server_xen.ml
+@@ -4818,14 +4818,17 @@ module VIF = struct
+       match vif.ipv4_configuration with
+       | Unspecified4 ->
+           [("enabled", "0")]
+-      | Static4 (address :: _, gateway) ->
++      | Static4 (address :: _, gateway, dns) ->
+           let enabled = ("enabled", "1") in
+           let address = ("address", address) in
+           let gateway =
+             match gateway with Some value -> [("gateway", value)] | None -> []
+           in
+-          enabled :: address :: gateway
+-      | Static4 ([], _) ->
++          let dns =
++            List.mapi (fun i value -> (Printf.sprintf "dns/%d" i, value)) dns
++          in
++          enabled :: address :: List.concat [gateway; dns]
++      | Static4 ([], _, _) ->
+           internal_error
+             "Static IPv4 configuration selected, but no address specified."
+       | DHCP4 ->
+@@ -5193,10 +5196,6 @@ module VIF = struct
+ 
+   let set_ip_unspecified_or_autoconf xs xenstore_path suffix enabled_mode =
+     Xs.transaction xs (fun t ->
+-        let ip_setting_enabled =
+-          Printf.sprintf "%s/%s%s" xenstore_path "enabled" suffix
+-        in
+-        t.Xst.write ip_setting_enabled enabled_mode ;
+         let ip_setting_address =
+           Printf.sprintf "%s/%s%s" xenstore_path "address" suffix
+         in
+@@ -5204,10 +5203,18 @@ module VIF = struct
+         let ip_setting_gateway =
+           Printf.sprintf "%s/%s%s" xenstore_path "gateway" suffix
+         in
+-        t.Xst.rm ip_setting_gateway
++        t.Xst.rm ip_setting_gateway ;
++        let ip_setting_dns =
++          Printf.sprintf "%s/%s%s" xenstore_path "dns" suffix
++        in
++        t.Xst.rm ip_setting_dns ;
++        let ip_setting_enabled =
++          Printf.sprintf "%s/%s%s" xenstore_path "enabled" suffix
++        in
++        t.Xst.write ip_setting_enabled enabled_mode
+     )
+ 
+-  let set_ip_static xs xenstore_path suffix address gateway =
++  let set_ip_static xs xenstore_path suffix address gateway dns =
+     Xs.transaction xs (fun t ->
+         let ip_setting_enabled =
+           Printf.sprintf "%s/%s%s" xenstore_path "enabled" suffix
+@@ -5220,12 +5227,23 @@ module VIF = struct
+         let ip_setting_gateway =
+           Printf.sprintf "%s/%s%s" xenstore_path "gateway" suffix
+         in
+-        match gateway with
++        ( match gateway with
+         | None ->
+             t.Xst.rm ip_setting_gateway
+         | Some value ->
+             debug "xenstore-write %s <- %s" ip_setting_gateway value ;
+             t.Xst.write ip_setting_gateway value
++        ) ;
++        let ip_setting_dns =
++          Printf.sprintf "%s/%s%s" xenstore_path "dns" suffix
++        in
++        t.Xst.rm ip_setting_dns ;
++        List.iteri
++          (fun i value ->
++            let ip_setting_dns_one = Printf.sprintf "%s/%d" ip_setting_dns i in
++            t.Xst.write ip_setting_dns_one value
++          )
++          dns
+     )
+ 
+   let set_ipv4_configuration _task vm vif ipv4_configuration =
+@@ -5239,9 +5257,9 @@ module VIF = struct
+         match ipv4_configuration with
+         | Unspecified4 ->
+             set_ip_unspecified_or_autoconf xs xenstore_path "" "0"
+-        | Static4 (address :: _, gateway) ->
+-            set_ip_static xs xenstore_path "" address gateway
+-        | Static4 ([], _) ->
++        | Static4 (address :: _, gateway, dns) ->
++            set_ip_static xs xenstore_path "" address gateway dns
++        | Static4 ([], _, _) ->
+             internal_error
+               "Static IPv4 configuration selected, but no address specified."
+         | DHCP4 ->
+@@ -5260,7 +5278,7 @@ module VIF = struct
+         | Unspecified6 ->
+             set_ip_unspecified_or_autoconf xs xenstore_path "6" "0"
+         | Static6 (address :: _, gateway) ->
+-            set_ip_static xs xenstore_path "6" address gateway
++            set_ip_static xs xenstore_path "6" address gateway [] (* TODO *)
+         | Static6 ([], _) ->
+             internal_error
+               "Static IPv6 configuration selected, but no address specified."
