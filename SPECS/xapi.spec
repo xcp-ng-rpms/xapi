@@ -135,6 +135,9 @@ Patch1019: 0019-xapi_vm_snapshot-Don-t-corrupt-non-snapshot-VDIs.patch
 Patch1020: 0020-tests-test_vdi_cbt-Add-an-offline-host-test-for-VDI..patch
 Patch1021: 0021-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
 
+# Backport of upstream: https://github.com/xapi-project/xen-api/pull/7321
+Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1545,6 +1548,7 @@ Coverage files from unit tests
 - XCPNG-3877: Fix VDI.get_nbd_info erroring out on offline hosts
 - Avoid errors during migration/export of QCOW2-backed VDIs by using a newer qemu-img
 - Report a clear error when host evacuation is blocked by unprotected VMs
+- Fix issues for passthrough of some AMD GPUs by disabling HVM PIRQ
 - Update to upstream 26.1.21-1
 - *** Upstream changelog ***
   * Tue Aug 25 2026 Ming Lu <ming.lu@cloud.com> - 26.1.21-1
