@@ -1,0 +1,44 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 28 Sep 2026 13:49:58 +0000
+Subject: [PATCH] xapi_globs: Switch to the newer version of qemu-img
+
+Instead of using the one provided by the qemu package, switch to the one in
+blktap.
+
+Among other things, it supports Extended L2 entries, which appear in
+non-coalesced VDIs after a migration, and would break migrations if they were
+started too quickly after the previous one.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.ml | 2 +-
+ ocaml/xapi/xapi_globs.ml                            | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.ml b/ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.ml
+index 86540cc1b..7d3cff7a6 100644
+--- a/ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.ml
++++ b/ocaml/libs/vhd/vhd_qcow_parsing/vhd_qcow_parsing.ml
+@@ -107,7 +107,7 @@ let parse_header_interval pipe_reader =
+   (cluster_size, cluster_list)
+ 
+ module Qcow = struct
+-  let qemu_img = "/usr/lib64/xen/bin/qemu-img"
++  let qemu_img = "/usr/bin/qemu-img"
+ 
+   let read_header qcow_path =
+     let progress_cb _ = () in
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index 474a752fc..3682b36e9 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -843,7 +843,7 @@ let qcow_to_stdout = ref "/opt/xensource/libexec/qcow2-to-stdout.py"
+ 
+ let qcow_stream_tool = ref "qcow-stream-tool"
+ 
+-let qemu_img = ref "/usr/lib64/xen/bin/qemu-img"
++let qemu_img = ref "/usr/bin/qemu-img"
+ 
+ let fence = ref "fence"
+ 

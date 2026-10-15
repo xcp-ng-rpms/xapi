@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Thu, 1 Oct 2026 14:25:58 +0000
+Subject: [PATCH] tests/test_vdi_cbt: Add an offline host test for
+ VDI.get_nbd_info
+
+This test is currently failing, since VDI.get_nbd_info simply re-raises an
+exception it gets when trying to contact an offline host that has a PBD of a
+shared SR.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/tests/test_vdi_cbt.ml | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/ocaml/tests/test_vdi_cbt.ml b/ocaml/tests/test_vdi_cbt.ml
+index 10b0875fb..9bd902aed 100644
+--- a/ocaml/tests/test_vdi_cbt.ml
++++ b/ocaml/tests/test_vdi_cbt.ml
+@@ -295,6 +295,11 @@ let test_get_nbd_info =
+         ]
+         ()
+     in
++    let offline_host =
++      make_host ~hostname:"offline_host" sr_of_vdi
++        [(network_1, "92.40.98.99", [], true)]
++        ()
++    in
+     let host1_cert =
+       "-----BEGIN CERTIFICATE-----\n\
+        MIIBwTCCASqgAwIBAgIJAKl3gkjAjMdWMA0GCSqGSIb3DQEBCwUAMBIxEDAOBgNV\n\
+@@ -330,6 +335,9 @@ let test_get_nbd_info =
+         host1_cert
+       else if host = host2 then
+         host2_cert
++      else if host = offline_host then
++        raise
++          Api_errors.(Server_error (host_offline, [Ref.string_of offline_host]))
+       else
+         failwith (Printf.sprintf "unexpected host: %s" (Ref.string_of host))
+     in
