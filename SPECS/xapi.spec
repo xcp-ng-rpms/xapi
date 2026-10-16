@@ -141,6 +141,12 @@ Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
 # xapi-nbd performance optimizations
 Patch1023: 0023-xapi-nbd-Use-tapdisk-s-NBD-server-instead-of-accessi.patch
 
+Patch1031: 0001-Add-IPv4-DNS-setting-for-VIF-configuration.patch
+Patch1032: 0002-Add-IPv6-DNS-setting-for-VIF-configuration.patch
+Patch1033: 0003-Wait-for-VIF-IP-configuration-to-complete.patch
+Patch1034: 0004-Add-tests-for-the-VIF-DNS-setting-feature.patch
+Patch1035: 0005-Add-the-xenfb-VGA-type.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
