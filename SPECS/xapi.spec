@@ -141,6 +141,12 @@ Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
 # Revert upstream commit breaking Veeam VM restore
 Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
 
+Patch1031: 0001-Add-the-xenfb-VGA-type.patch
+Patch1032: 0002-Add-IPv4-DNS-setting-for-VIF-configuration.patch
+Patch1033: 0003-Add-IPv6-DNS-setting-for-VIF-configuration.patch
+Patch1034: 0004-Wait-for-VIF-IP-configuration-to-complete.patch
+Patch1035: 0005-Add-tests-for-the-VIF-DNS-setting-feature.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
