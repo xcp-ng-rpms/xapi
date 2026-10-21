@@ -1,5 +1,5 @@
-%global package_speccommit 299f5002e637f4799b0751f80fc6e509e09951af
-%global package_srccommit v26.7.0
+%global package_speccommit a0ebf9762f743b0644a884e6c07580766f21c225
+%global package_srccommit v26.8.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.7.0
+Version: 26.8.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.7.0.tar.gz
+Source0: xen-api-26.8.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1451,6 +1451,20 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Mar 31 2026 Changlei Li <changlei.li@citrix.com> - 26.8.0-1
+- Import xapi-backtraces into XAPI
+- xenctrlext_stubs.c use "int rc" consistently
+- CA-375277: remove dead code xenforeignmemory*()
+- CP-311148/CP-311150: add a quicktest for XAPI memory overhead calculations
+- fixup! CA-375277 xenctrlext: remove dead code, clean up (#6881)
+- Don't deny smartcards in usb-policy.conf
+- quicktest: speed up running quicktests
+- CP-311971: enable AD extauth cache by default for new pools
+- CP-49134: More detailed exception backtraces
+- Fix opam build due to backtrace library merge
+- CP-51693: extend XMLRPC feature flag to other functions making RPC calls in XAPI
+- CP-311259: Define tls lib to manage TLS version and ciphers
+
 * Thu Mar 19 2026 Changlei Li <changlei.li@cloud.com> - 26.7.0-1
 - CP-311020: ldaps design minior update
 - rrdd: support multiple vm_uuid/sr_uuid query parameters
