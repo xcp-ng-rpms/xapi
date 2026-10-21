@@ -1,5 +1,5 @@
-%global package_speccommit 0dffc2ab56a0a4808b9dc96ab566612d91195b3f
-%global package_srccommit v26.15.1
+%global package_speccommit ec26b2f188c1e14e18a48ae264145e2443885a48
+%global package_srccommit v26.16.1
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -14,12 +14,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.15.1
+Version: 26.16.1
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.15.1.tar.gz
+Source0: xen-api-26.16.1.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -56,7 +56,6 @@ Source27: xenserver-ntp.conf
 %if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
 Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
-Patch3: 0003-csharp-sdk-corrected-certificate-validation-for-HTTP-calls.patch
 %endif
 
 # Xen upstream
@@ -153,6 +152,7 @@ Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
 Provides: XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE) = 1.0.0
+Provides: XS_FEATURE(EXTAUTH_LDAPS) = 1.0.0
 Provides: XS_FEATURE(AUTO_UPDATE_SECUREBOOT_CERTIFICATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.3.3-1
@@ -1365,11 +1365,39 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
-* Tue Jul 14 2026 Changlei Li <changlei.li@citrix.com> - 26.15.1-1
-- MS 2011 Certificate Expiry - CVAD Workaround
+* Fri Jul 17 2026 Changlei Li <changlei.li@citrix.com> - 26.16.1-1
+- auto-mark new VMs for Secure Boot certificate update on boot
+- always record VM secureboot_certificates_state at creation
+- Drop redundant secureboot_certificates_state recompute
+- Corrected certificate validation for HTTP calls
 
-* Mon Jul 13 2026 Ming Lu <ming.lu@citrix.com> - 26.15.0-2
-- Security patch for CSharp SDK with certificate validation.
+* Fri Jul 03 2026 Changlei Li <changlei.li@citrix.com> - 26.16.0-1
+- CP-54107: Secure LDAP Support for XenServer
+- attach_helpers: only control domains can leak VBDs
+- xapi/attach_helpers: remove useless check for leaked vbds
+- CP-311981: Add pool.sync_trusted_certificates_from API
+- Enhancements to the XAPI documentation
+- Prepare for VDI.revert: add tests and robustify error paths
+- Optimize data cluster format for VHD and QCOW
+- VLAN filtering design document
+- xapi_pci: Disallow passthrough for boot devices
+- CA-428177: clarify ldaps trusted certificate error messages
+- xapi: Improve error reporting when pool join fails on TLS
+- Update xapi-storage examples
+- [design doc] LLDP support
+- Add DHCP setting for VIF IP configuration
+- Update datamodel_lifecycle for supported_image_formats
+- Implement Better VM revert using VDI revert
+- xapi_vm_snapshot: do not leak CD VBDs
+- CA-403379: pre-flight cluster_host state before pool-ha-enable
+- xenctrl-ext: link stubs explicitly agains libxenctrl
+- README: Add instructions for installing developer tools
+- CP-310955: Update friendly error messages (#7108)
+- CA-417915: stunnel proxy process is not reaped during stop
+- xe: Fix bash completion for 'xe vlan-create pif-uuid='
+- Remove image format from deprecated receive start
+- build(deps): bump com.fasterxml.jackson.core:jackson-databind
+- CA-429144: Do not leak new vbds after snapshot
 
 * Wed Jun 03 2026 Changlei Li <changlei.li@citrix.com> - 26.15.0-1
 - CA-426408: Consider chunks in task expiry calculation
