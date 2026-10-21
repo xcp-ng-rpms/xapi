@@ -1,24 +1,11 @@
-%global package_speccommit eac44cb3a2d85d351b67b464443dd3657ece890f
-%global package_srccommit v26.14.0
+%global package_speccommit 20dbcf25b766d51a926a39caa1f245603f57204d
+%global package_srccommit v26.15.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
 %global _pythonpath %{_usr}/bin/python3
 
 %global yum_dir %{_sysconfdir}/yum.repos.d
-
-%if 0%{?xenserver} >= 9
-# In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
-%bcond_without dnf_plugin
-%bcond_without own_yum_dir
-# XS9 requires extra configration
-%bcond_without extra_config
-# XS9 reset all epoch to 0
-%define qemu_epoch 0
-%else
-%bcond_without python2_compat
-%define qemu_epoch 2
-%endif
 
 %global api_version_major 2
 %global api_version_minor 23
@@ -27,12 +14,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.14.0
+Version: 26.15.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.14.0.tar.gz
+Source0: xen-api-26.15.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -60,8 +47,6 @@ Source23: inventory.py
 # For xs9, move these config files from xenserver-release
 Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
-# Extra configuration
-Source26: xenserver9.conf
 # NTP configureation for xenserver
 Source27: xenserver-ntp.conf
 
@@ -131,14 +116,6 @@ Requires: python3-six
 # Requires openssl for certificate and key pair management
 Requires: openssl
 Requires: nss-override-id >= 2.0.0
-%if 0%{?xenserver} < 9
-# Requires yum as package manager
-Requires: yum-utils >= 1.1.31
-# Only XS8 support upgrade pbis to winbind
-Requires: upgrade-pbis-to-winbind
-# Keep command `ifconfig` available on XS8
-Requires: net-tools
-%else
 Requires: dnf
 # This is for the following dnf5 plugin which are used by xapi
 Requires: libdnf5-plugin-ptoken
@@ -147,7 +124,6 @@ Requires: libdnf5-plugin-xapitoken
 # For dnf plugins like config-manager
 Requires: dnf5-plugins
 Requires: dmv-utils
-%endif
 Requires: python3-xcp-libs
 Requires: python-pyudev
 Requires: python3-pyudev
@@ -166,13 +142,7 @@ Requires: python3-fasteners
 Requires: sm
 Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
-%if 0%{?xenserver} >= 9
 Requires: firewalld
-%else
-# firewall-port needs iptables-service to perform
-# `service iptables save`
-Requires: iptables-services
-%endif
 Requires: rsync
 Obsoletes: xapi-ssh-monitor <= 1.0.0
 Requires(post): xs-presets >= 1.3
@@ -181,14 +151,13 @@ Requires(postun): xs-presets >= 1.3
 Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
+Provides: XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.3.3-1
 BuildRequires: systemd
 %{?systemd_requires}
 Requires: genisoimage
-%if 0%{?xenserver} >= 9
 Requires: oxenstored >= 0.0.2
-%endif
 Requires: kpatch
 
 %description core
@@ -298,15 +267,13 @@ Requires:       emu-manager
 # Describe minimum qemu version required.
 # If a new major/incompatible version of qemu is released then it will need to:
 # Conflicts: xenopsd-xc < $current_version
-Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
+Requires:       qemu >= 4.2.1-5.0.0
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
-%if 0%{?xenserver} >= 9
 # NUMA memory claims v2
 Requires:       xen-hypervisor >= 4.20.2-5
 Requires:       xen-dom0-libs >= 4.20.2-5
 Requires:       xen-dom0-tools >= 4.20.2-5
 Requires:       kernel >= 6.6.98-18
-%endif
 
 %description -n xenopsd-xc
 Simple VM manager for Xen using libxc.
@@ -361,11 +328,7 @@ Requires:  jemalloc
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
 # Requires Xen support for querying domain VCPU runnable and nonaffine running time
-%if 0%{?xenserver} < 9
-Requires:  xen-dom0-libs >= 4.17.5-18
-%else
 Requires:  xen-dom0-libs >= 4.19.2-12
-%endif
 
 %description -n rrdd-plugins
 This packages contains plugins registering to the RRD daemon and exposing various metrics.
@@ -563,28 +526,16 @@ for f in XenAPI XenAPIPlugin inventory; do
 done
 %endif
 
-%if %{with dnf_plugin}
-# For xs9, use dnf instead of yum, clean yum stuff
+# use dnf instead of yum, clean yum stuff
 rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/accesstoken.py
 rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/ptoken.py
 rm -rf %{buildroot}/%{_usr}/lib/yum-plugins/xapitoken.py
 rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/accesstoken.conf
 rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/ptoken.conf
 rm -rf %{buildroot}/%{_sysconfdir}/yum/pluginconf.d/xapitoken.conf
-%else
-# For xs8, use yum
-echo "/etc/yum/pluginconf.d/accesstoken.conf" >> core-files
-echo "/etc/yum/pluginconf.d/ptoken.conf" >> core-files
-echo "/etc/yum/pluginconf.d/xapitoken.conf" >> core-files
-echo "/usr/lib/yum-plugins/accesstoken.py" >> core-files
-echo "/usr/lib/yum-plugins/ptoken.py" >> core-files
-echo "/usr/lib/yum-plugins/xapitoken.py" >> core-files
-echo "/usr/lib/yum-plugins/__pycache__/*" >> core-files
-%endif
 
-%if %{with own_yum_dir}
+# Yum is removed, xapi declare /etc/yum.conf folder
 mkdir -m 755 -p %{buildroot}/%{yum_dir}
-%endif
 
 %{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python3_sitelib}/
 
@@ -593,10 +544,8 @@ mkdir $RPM_BUILD_ROOT/etc/xapi.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-%if 0%{?xenserver} >= 9
-# make the experimental feature available on XS9
+# Make the experimental feature available
 echo 0 > %{buildroot}/etc/xenserver/features.d/hard_numa
-%endif
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -604,11 +553,6 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/xenopsd-simulator.service
 %{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
 %{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/xenopsd.conf
-
-%if 0%{?xenserver} < 9
-# reuse the flag to disable numa placemet by default in XS8
-echo -e "\nnuma-placement=false" >> %{buildroot}%{_sysconfdir}/xenopsd.conf
-%endif
 
 %{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/squeezed.service
 %{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
@@ -641,11 +585,7 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 
 %{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
 
-%if 0%{?xenserver} < 9
-echo "ssh-auto-mode=false" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
-%else
 echo "firewall-backend=firewalld" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/firewall-backend.conf
-%endif
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %{__install} -D -m 0644 %{SOURCE20} %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
@@ -656,16 +596,9 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_usr}/libexec/xenopsd
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_sysconfdir}/xapi.d/plugins
 
-# For xs9, move this config here from xenserver-release
-%if 0%{?xenserver} >= 9
+# Move this config here from xenserver-release
 %{__install} -D -m 0644 %{SOURCE24} %{buildroot}/%{_sysconfdir}/systemd/system/xapi.service.d/local.conf
 %{__install} -D -m 0644 %{SOURCE25} %{buildroot}/%{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
-%endif
-
-%if %{with extra_config}
-%{__install} -D -m 0644 %{SOURCE26} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
-echo %{_sysconfdir}/xapi.conf.d/xenserver9.conf >> core-files
-%endif
 
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
 
@@ -714,11 +647,6 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 
 # remove old stunnel config file
 rm -f /etc/xensource/xapi-ssl.conf
-
-%if 0%{?xenserver} < 9
-# for XS8 don't use vfork and continue to use forkexecd
-touch /etc/xensource/forkexec-uses-daemon
-%endif
 
 # On upgrade, migrate from the old statefile to the new statefile so that
 # services are not rerun.
@@ -935,10 +863,8 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 %dir /etc/xenserver/features.d
-%if 0%{?xenserver} >= 9
-# make the experimental feature available on XS9
+# Make the experimental feature available
 /etc/xenserver/features.d/hard_numa
-%endif
 %dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/IPMI.py
@@ -965,10 +891,8 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
 %{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
-%if 0%{?xenserver} >= 9
 %{_sysconfdir}/systemd/system/xapi.service.d/local.conf
 %{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
-%endif
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
 /opt/xensource/bin/perfmon
@@ -991,13 +915,6 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 /opt/xensource/bin/hfx_filename
 /opt/xensource/bin/pv2hvm
 /opt/xensource/bin/xe-enable-ipv6
-%if 0%{?xenserver} >= 9
-%exclude /opt/xensource/bin/xe-switch-network-backend
-%exclude /etc/bash_completion.d/xe-switch-network-backend
-%else
-/opt/xensource/bin/xe-switch-network-backend
-/etc/bash_completion.d/xe-switch-network-backend
-%endif
 /opt/xensource/bin/xsh
 %attr(700, root, root) /opt/xensource/gpg
 /etc/xensource/bugtool/xapi.xml
@@ -1074,16 +991,10 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 %{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/xenserver-ntp.conf
-%if 0%{?xenserver} < 9
-%config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
-%else
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/firewall-backend.conf
-%endif
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
-%if %{with own_yum_dir}
 %{yum_dir}
-%endif
 
 %files xe
 %defattr(-,root,root,-)
@@ -1452,6 +1363,24 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Jun 03 2026 Changlei Li <changlei.li@citrix.com> - 26.15.0-1
+- CA-426408: Consider chunks in task expiry calculation
+- CA-406020: parse dnf5 output in pool_update plugins
+- CA-427419 Add timeout in fetch_server_cert
+- CP-310388: Change name used for temporary files during exports.
+- CP-312821: Set default values for XS9
+- Supported image formats
+- Add log when conn_limit_tcp is reached for easy diagnose
+- CP-312304: Set a default user agent for PowerShell and Java.
+- Fix wording in XAPI documentation
+- wsproxy: code removal and stylistic changes
+
+* Wed May 27 2026 Changlei Li <changlei.li@citrix.com> - 26.14.0-3
+- Bump release and rebuild
+
+* Wed May 27 2026 Changlei Li <changlei.li@citrix.com> - 26.14.0-2
+- Provide XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE)
+
 * Tue May 19 2026 Changlei Li <changlei.li@citrix.com> - 26.14.0-1
 - CP-311907: Add VM.secureboot_certificates_state field
 - CP-311908: Add versioned VM.set_NVRAM_EFI_variables with update parameter
