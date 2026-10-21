@@ -1,0 +1,28 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Fri, 6 Mar 2026 09:45:45 +0000
+Subject: [PATCH] [xcp-ng] xapi.conf: Switch to optimized data cluster format
+ for VHD and QCOW
+
+Since XenServer does not use QCOW2 with our patches, they decided to be
+conservative and preserve the behaviour for VHD, so the upstream flag preserves
+previous behaviour.
+
+For XCP-ng, we need the optimized variant for consistency between VHD and QCOW.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ scripts/xapi.conf | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/scripts/xapi.conf b/scripts/xapi.conf
+index d01a5bec6..9774770e5 100644
+--- a/scripts/xapi.conf
++++ b/scripts/xapi.conf
+@@ -422,3 +422,6 @@ create-tools-sr = true
+ 
+ # Allows to modify the host's scheduler granularity
+ allow-host-sched-gran-modification = true
++
++# Switches to optimized data cluster format for VHD and QCOW
++vhd-legacy-blocks-format=false

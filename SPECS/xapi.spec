@@ -65,6 +65,8 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
+# Drop this when upstream feature flag is enabled
+Patch1007: 0007-xcp-ng-xapi.conf-Switch-to-optimized-data-cluster-fo.patch
 
 # Xapi compiles to a baseline of Xen 4.21
 
