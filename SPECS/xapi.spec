@@ -1,5 +1,5 @@
-%global package_speccommit bcac3b67910717c5e410a022e5fcf36a7f1a388d
-%global package_srccommit v26.13.0
+%global package_speccommit eac44cb3a2d85d351b67b464443dd3657ece890f
+%global package_srccommit v26.14.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -21,18 +21,18 @@
 %endif
 
 %global api_version_major 2
-%global api_version_minor 21
+%global api_version_minor 23
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.13.0
+Version: 26.14.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.13.0.tar.gz
+Source0: xen-api-26.14.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -182,7 +182,7 @@ Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
 Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
-Conflicts: varstored < 1.2.0-1
+Conflicts: varstored < 1.3.3-1
 BuildRequires: systemd
 %{?systemd_requires}
 Requires: genisoimage
@@ -1452,6 +1452,21 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue May 19 2026 Changlei Li <changlei.li@citrix.com> - 26.14.0-1
+- CP-311907: Add VM.secureboot_certificates_state field
+- CP-311908: Add versioned VM.set_NVRAM_EFI_variables with update parameter
+- CP-311905: VM.update_secureboot_certificates_on_boot interface
+- CA-426857: Should not apply live patches when RebootHost is mandatory
+- CA-427271: update non secureboot vm certificate state
+- message_forwarding: Don't block cross-pool migrations for unbootable VMs
+- CA-427275: Check slave_emergency_mode in fake_rpc2
+- CA-427275: Clean slave_emergency_mode after leave xapi ha start loop
+- Reuse fake_rpc in Helpers.rpc_fun
+- xapi-cli-server: set name description for SRs, when given
+- CA-427441: Avoid using proxy for local repositories
+- CP-311530 Bump up api_version to 2.23
+- Add rel_orinoco
+
 * Thu May 07 2026 Changlei Li <changlei.li@citrix.com> - 26.13.0-1
 - Improve handling of trusted certificates
 - CP-310090 Stunnel lib: Expose unix socket path for TLS proxy
