@@ -1,5 +1,5 @@
-%global package_speccommit ec26b2f188c1e14e18a48ae264145e2443885a48
-%global package_srccommit v26.16.1
+%global package_speccommit 2367de9a3c74252fe5b349ae706ded8feca936d9
+%global package_srccommit v26.17.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -14,12 +14,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.16.1
+Version: 26.17.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.16.1.tar.gz
+Source0: xen-api-26.17.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -265,6 +265,8 @@ Requires:       xenopsd = %{version}-%{release}
 Requires:       forkexecd
 Requires:       xen-libs
 Requires:       emu-manager
+# ktls-helper links against libssl/libcrypto
+Requires:       openssl-libs
 # NVME support requires newer qemu
 # Describe minimum qemu version required.
 # If a new major/incompatible version of qemu is released then it will need to:
@@ -491,6 +493,9 @@ export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
 %{__make} sdk
+# Build the ktls-helper (a standalone C binary, built with the RPM
+# hardening flags rather than via dune).
+%{__make} -C ocaml/ktls-helper/helper CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
 sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE18} > xapi-storage-script.conf
 
 (cd ocaml/xapi-storage/python && %{py3_build})
@@ -555,6 +560,8 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/xenopsd-simulator.service
 %{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
 %{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/xenopsd.conf
+# Install the ktls-helper alongside the other xapi libexec helpers.
+%{__install} -D -m 0755 ocaml/ktls-helper/helper/ktls-helper %{buildroot}%{_libexecdir}/xapi/ktls-helper
 
 %{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/squeezed.service
 %{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
@@ -965,6 +972,7 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
+/etc/xensource/call-costs.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
@@ -1158,7 +1166,6 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 %files -n xenopsd
 %{_sysconfdir}/udev/rules.d/xen-backend.rules
 %{_libdir}/xen/bin/qemu-wrapper
-%{_libdir}/xen/bin/pygrub-wrapper
 %{_libdir}/xen/bin/swtpm-wrapper
 %{_libexecdir}/xenopsd/vif
 %{_libexecdir}/xenopsd/vif-real
@@ -1180,6 +1187,7 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 %{_unitdir}/xenopsd-xc.service
 %{_mandir}/man1/xenopsd-xc.1.gz
 %{_libexecdir}/xenopsd/set-domain-uuid
+%{_libexecdir}/xapi/ktls-helper
 /opt/xensource/libexec/fence.bin
 /opt/xensource/debug/suspend-image-viewer
 %{_bindir}/list_domains
@@ -1365,6 +1373,63 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Aug 10 2026 Ming Lu <ming.lu@cloud.com> - 26.17.0-1
+- xapi: report a clear error when host evacuation is blocked by unprotected VMs
+- quicktest: Verify non-snapshotted VBDs are not leaked on VM.revert
+- CA-428532: Ensure db flush is executed in shutdown_agent
+- auto-mark new VMs for Secure Boot certificate update on boot
+- always record VM secureboot_certificates_state at creation
+- doc: Update snapshot revert design to follow the implementation
+- Drop redundant secureboot_certificates_state recompute
+- XCPNG-3545: Clear tunnels with corrupted PIFs
+- CP-312949: xenopsd: optional kTLS sender for VM live migration
+- CP-313264: xenopsd: migration-tls.md: add design document
+- CP-313264: xenopsd: log the negotiated kTLS version and cipher
+- CA-422619: Skip xapi-clusterd start when already active
+- CA-422619: Add a timeout to the xapi-clusterd start
+- Corrected certificate validation for HTTP calls
+- vlan_tag_invalid: change the documentation string
+- VLAN filtering on VIF
+- xenopsd: Device.Vif.add: add trunks attribute in debug string
+- xenopsd: update xenstore while updating xapi db
+- test_vif_trunks: cover more coherence checks
+- Rename README.markdown to README.md
+- Update the URL of the OCaml web site
+- Following action for README.markdown to README.md
+- Rate limit: Implement token buckets
+- Rate limit: Implement queueing mechanism
+- Add tests for rate limits and token buckets
+- Add LRU cache to rate limiting library
+- Add caller table to rate limit library
+- Add caller statistics tracker to rate limit library
+- Update rate limit library name to avoid name clashes
+- Add Caller and Rate_limit datamodels
+- Instrument RPC calls with usage logging and rate limiting
+- Add rate limit and caller to xapi CLI
+- Add quicktest for rate limiting
+- Update rate limit design document with correct caller API
+- xapi-caller: Load call costs from external file at startup
+- rate-limit: Remove fairness bug in worker thread
+- rate-limit: Allow tokens to go negative on big requests
+- xapi_caller: Initialise caller table on module load
+- quicktest: Use more realistic bounds in rate limit test
+- http-lib: Canonicalise IPv4-mapped IPv6 client addresses
+- xapi_caller: Serialise all caller_table mutations
+- rate-limit: Skip redundant caller refreshes
+- CA-430005: Should not check non-trusted certificates for duplication
+- rate-limit: Fix deadlock in rate limit deletion
+- opam: Fix rate limit package dependencies
+- xe: print debug info for all connection attempts
+- CA-430085: Fix vncsnapshot 500 error
+- [ci] Don't use timedatectl to set timezone in actions
+- xapi-rate-limit: Add auto-registered caller limit
+- rate-limit: Only show caller groups in the RRDs
+- rate-limit: Improve debug messages when rate limit applied
+- CA-430018: Fix mismatch between VGPU and PCI cards
+- xapi_globs: Remove unused code
+- rate-limit: Add observers to rate limited calls
+- pygrub-wrapper: Drop the script, move logic into xenopsd
+
 * Fri Jul 17 2026 Changlei Li <changlei.li@citrix.com> - 26.16.1-1
 - auto-mark new VMs for Secure Boot certificate update on boot
 - always record VM secureboot_certificates_state at creation
