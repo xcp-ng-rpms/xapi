@@ -65,6 +65,8 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
+# Drop this when upstream feature flag is enabled
+Patch1007: 0007-xcp-ng-xapi.conf-Switch-to-optimized-data-cluster-fo.patch
 
 # Xapi compiles to a baseline of Xen 4.21
 
@@ -1471,6 +1473,7 @@ Coverage files from unit tests
 
 %changelog
 * Wed 21 Oct 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.19.0-2.1
+- Switch back to the optimized QCOW2 path
 - Update to upstream 26.19.0-2
 - *** Upstream changelog ***
   * Thu Sep 17 2026 Changlei Li <changlei.li@citrix.com> - 26.19.0-2
