@@ -54,7 +54,7 @@ Patch1: 0001-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature v26.1.0..v26.1.0-8.3
+#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.19.0..v26.19.0-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -65,11 +65,6 @@ Patch1004: 0004-xcp-ng-open-close-openflow-port.patch
 Patch1005: 0005-xcp-ng-update-db-tunnel-protocol-from-other-config.patch
 # Drop this when the rsyslog configuration changes
 Patch1006: 0006-xcp-ng-do-not-change-rsyslog-configuration.patch
-
-# XS patches (present in v26.9.0)
-Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
-Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
-Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
 
 # Xapi compiles to a baseline of Xen 4.21
 
