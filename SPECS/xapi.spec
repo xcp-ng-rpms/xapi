@@ -1,5 +1,5 @@
-%global package_speccommit a0ebf9762f743b0644a884e6c07580766f21c225
-%global package_srccommit v26.8.0
+%global package_speccommit bcac3b67910717c5e410a022e5fcf36a7f1a388d
+%global package_srccommit v26.13.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.8.0
+Version: 26.13.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.8.0.tar.gz
+Source0: xen-api-26.13.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -68,7 +68,7 @@ Source27: xenserver-ntp.conf
 # Xapi compiles to a baseline of Xen 4.20
 
 # Xen 4.21
-%if "%{dist}" == ".xsx"
+%if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
 Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
@@ -180,6 +180,7 @@ Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
 Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
+Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
 Conflicts: varstored < 1.2.0-1
 BuildRequires: systemd
@@ -1451,6 +1452,65 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu May 07 2026 Changlei Li <changlei.li@citrix.com> - 26.13.0-1
+- Improve handling of trusted certificates
+- CP-310090 Stunnel lib: Expose unix socket path for TLS proxy
+- CA-423556: print full checkout error msg in xe apply-edition
+- xapi-cli-server: stop using SR records to filter ISO-backed PBDs on cross-pool migration
+- xapi-cli-server: stop using SR records for cross pool migrations
+- xapi-cli-server: print reason for failing to select preferred SR
+- xapi_vm_lifecycle: Only consult data-cant-suspend-reason and feature-suspend for live VMs
+- Revert "CA-423816 avoid double counting VM overhead memory"
+- Revert "CA-423816 disable workaround in quicktest"
+- CP-312094: Update rate limiting design document
+
+* Wed Apr 29 2026 Andrew Cooper <andrew.cooper3@citrix.com> - 26.12.0-2
+- Update to Xen 4.21
+
+* Wed Apr 29 2026 Changlei Li <changlei.li@citrix.com> - 26.12.0-1
+- Remove handling of VBD.other_config:backend-local
+- Do not recognise VM.other_config:is_system_domain
+- Do not recognise {VM;PBD}.other_config:storage_driver_domain
+- xapi_vm: Implement RBAC checking for keys in set_other_config
+- xapi_vm: Implement per-key RBAC checking for VM.platform
+- CA-426596: Supports SM feature removing
+
+* Fri Apr 24 2026 Changlei Li <changlei.li@citrix.com> - 26.11.0-1
+- CP-53843: tracing -- link internal subtasks traces
+- quicktests: Force VDI format on creation
+- CP-312160: secureboot certificate update design doc
+- CA-425472: Signal correct daemon during log rotation
+- CP-53843: reusable session for sm_exec
+- Replaced "e.g." with "for example" in docs and some more user visible messages
+- xapi-stdext-std: Remove most functions, optimize escaping functions
+- CP-312368: Query subject group information from xapi db
+- ldaps design: Update error code to align with implementation
+
+* Wed Apr 15 2026 Changlei Li <changlei.li@citrix.com> - 26.10.0-1
+- CP-49158: [later] introduce a batching delay on first response
+- CP-52708: make file descriptor argument optional in Server.dispatch_call
+- [later]: enable Event.from by default for internal calls
+- CP-51693: [later] use JSONRPC by default for internal communication
+- CP-52708: Avoid making Unix read/write calls for internal API calls: forward the API call directly like we do with the CLI for calls to the coordinator when we are the coordinator
+- Listext.List.map_tr: use tail-modulo-cons instead of List.rev
+- Xml.ml: optimize escaping function
+- [maintenance]: drop unused functions from Xml.mli
+- Revert "log/debug: use Ptime's rfc3339 formatting when logging to stdout"
+
+* Tue Apr 14 2026 Changlei Li <changlei.li@citrix.com> - 26.9.0-1
+- CP-311260: ldaps: update design document
+- CA-423202: Xapi can incorrectly expect livepatches for EOL base versions
+- CP-48452: Session.UserAgent is now an instance property and has a default value.
+- CP-311919: Bumped version of Java SDK dependency. Also bumped Java version to 17 (LTS)
+- CP-311541: Expose the PS cmdlets so that they can be called without importing the module.
+- message-forwrding: keep backtraces when reraising an exception
+- CP-312095: xenopsd/QEMU cross-version compatibility
+- opam: update metadata
+- dune-project: define missing opam dependencies
+- CA-423816 avoid double counting VM overhead memory
+- Use the latest version of System.Management.Automation (7.4.14).
+- CA-423816 disable workaround in quicktest
+
 * Tue Mar 31 2026 Changlei Li <changlei.li@citrix.com> - 26.8.0-1
 - Import xapi-backtraces into XAPI
 - xenctrlext_stubs.c use "int rc" consistently
