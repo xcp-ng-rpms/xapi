@@ -1,5 +1,5 @@
-%global package_speccommit 2367de9a3c74252fe5b349ae706ded8feca936d9
-%global package_srccommit v26.17.0
+%global package_speccommit 0cbabbfa8794c1ccfa7bd7f175df85a12149039d
+%global package_srccommit v26.19.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -14,12 +14,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.17.0
-Release: 1%{?xsrel}%{?dist}
+Version: 26.19.0
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.17.0.tar.gz
+Source0: xen-api-26.19.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -50,19 +50,9 @@ Source25: xenopsd-xc-local.conf
 # NTP configureation for xenserver
 Source27: xenserver-ntp.conf
 
-# Xapi compiles to a baseline of Xen 4.20
+Patch1: 0001-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
-# Xen 4.21
-%if "%{dist}" == ".xs9" || "%{dist}" == ".xsx"
-Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
-Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
-%endif
-
-# Xen upstream
-%if "%{dist}" == ".xsu"
-Patch1: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
-Patch2: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
-%endif
+# Xapi compiles to a baseline of Xen 4.21
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1373,6 +1363,61 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Sep 17 2026 Changlei Li <changlei.li@citrix.com> - 26.19.0-2
+- CA-430692: RPU: host-evacuate only migrates VMs to upgraded hosts
+
+* Wed Sep 09 2026 Ming Lu <ming.lu@cloud.com> - 26.19.0-1
+- CP-314129: Optimise event.from with valid_ref_count cache
+- CP-314124: gc_VDIs: use valid_ref instead of List.mem
+- CP-314124: Event.from: move invariant table list to module level
+- CP-314124: add microbenchmarks for gc_VDIs and Event.from changes
+- database: remove unused stats function in db_cache_impl
+- Switch hvm-pirq default back to true
+
+* Wed Sep 02 2026 Ming Lu <ming.lu@cloud.com> - 26.18.0-1
+- storage: Add tags to vdi_info struct
+- storage: Add VDI.{add_tags,remove_tags} methods
+- storage: Preserve VDI tags on SMAPIv1 migrate
+- Start SM service after dbsync to avoid startup deadlock
+- Add explanations re:Storage Repositories to the Xen-API overview
+- scripts/attach-static-vdis: Toggle nullglob to fix behavior on empty dir
+- CA-426637: Drain the remaining bytes in metadata_handler
+- CP-314075: restore VDI.resize_online for online VDI resize
+- CP-314075: allow reintroduction of removed lifecycle features
+- CA-429051: Sync original bond slave network MTU
+- Update datamodel_lifecycle.ml after release v26.17.0
+- CA-430002: Clean up sysprep SR when the SR directory doesn't exist
+- Remove unnecessary guard on sysprep cleanup
+- CP-314125: Fetch only required fields in gc_connector
+- xenopsd/xc: mirror CDF_TRAP_UNMAPPED_ACCESSES from Xenctrl
+- xenopsd/xc: mirror altp2m_count from Xenctrl.domctl_create_config
+- Explain how to work with several branches
+- CA-375277: xenctrlext_stubs.c: add missing enter/leave blocking section
+- CA-375277: unixpwd_stubs.c: factor out common code and release the runtime lock where possible
+- CP-314126: xapi_ha_vm_failover: Add Map/Set modules for ref lookups
+- CP-314126: xapi_ha_vm_failover: Use HostMap for host name lookups
+- CP-314126: xapi_ha_vm_failover: Use HostSet for live host membership
+- CP-314126: xapi_ha_vm_failover: Use VMMap for VM record lookups
+- CP-314126: xapi_ha_vm_failover: Use VMMap for VM memory lookups
+- CP-314126: xapi_ha_vm_failover: Use VMRefSet for restarted VM membership
+- CP-314126: xapi_ha_vm_failover: Guard eager debug formatting
+- CP-314126: xapi_ha_vm_failover: Add Bechamel benchmark for compute_restart_plan
+- xenopsd/xc: set CDF_TRAP_UNMAPPED_ACCESSES for ARM domains
+- CA-430573: Use int64 in Go SDK
+- Fix format: xenopsd/xc: set CDF_TRAP_UNMAPPED_ACCESSES for ARM domains
+- CP-314128: xapi_vm_lifecycle: remove redundant DB round-trips
+- quicktest: add -with-tag and -without-tag suite filters
+- Add "hvm-pirq" platform key
+- xapi_sr_operations: Reorder checks on destroy
+- xapi-cli-server: Fix default params display for snapshots
+- CP-314128: xapi_message: avoid reversing the full in-memory cache
+- CP-314128: repository_helpers: move regex compilation to module level
+- CP-314128: xapi_vm_helpers: fetch only needed fields in host_of_vm
+- CP-314128: rrdp_iostat: use array indexing instead of List.nth
+- CP-314128: network_utils: move regex compilation out of per-line loop
+- CP-314128: repository_helpers: use Set for update deduplication
+- CP-314128: xapi_session: replace O(n^2) intersect and setify
+
 * Mon Aug 10 2026 Ming Lu <ming.lu@cloud.com> - 26.17.0-1
 - xapi: report a clear error when host evacuation is blocked by unprotected VMs
 - quicktest: Verify non-snapshotted VBDs are not leaked on VM.revert
