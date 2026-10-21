@@ -1,5 +1,5 @@
-%global package_speccommit 9b06d1a01d5d82a4885021a88cee7d07be5e0514
-%global package_srccommit v26.4.0
+%global package_speccommit 299f5002e637f4799b0751f80fc6e509e09951af
+%global package_srccommit v26.7.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.4.0
+Version: 26.7.0
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.4.0.tar.gz
+Source0: xen-api-26.7.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1451,6 +1451,89 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Mar 19 2026 Changlei Li <changlei.li@cloud.com> - 26.7.0-1
+- CP-311020: ldaps design minior update
+- rrdd: support multiple vm_uuid/sr_uuid query parameters
+- CP-311489 rename in fe_stubs.c to use caml_*_runtime_system()
+- CP-311489: don't use Int_val calling open()
+- CP-311489: blkgetsize_stubs.c remove unused OCaml includes
+- CP-311489: xenctrlext_stubs.c avoid *_val macros in argument position
+- CP-311489: unixpwd_stubs.c add caml_release_runtime_system()
+- xenctrlext_stubs.c: reformat to resolve space/tabs/indentation
+- CP-311489 xenctrlext_stubs.c use more caml_release/acquire_runtime_system
+- [ci] harden actions/checkout: do not persist credentials
+- [ci]: harden: do not expand input as template (xapi_version)
+- [ci]: harden external references: use env vars instead of template expansion in shell scripts
+- xapi-stdext: add try_map_collect to listext
+- xapi_ha: rework error path for attaching statefile VDIs
+- static_vdis: print both reference and uuid when attaching a VDI
+- xapi/helpers: log error message from launching scripts
+- log/debug: use Ptime's rfc3339 formatting when logging to stdout
+- debug: remove ad-hoc String.split_on_char
+- debug: reformat comment
+- CA-424916 don't exit thread/loop on events error
+- Revert "Rewrite update_vm_links"
+- Revert "Update VDI snapshot and parent links after import"
+- CP-311892: bench_backtrace: introduce a benchmark for Pervasiveext.finally
+- CP-311892: Pervasiveext.finally: avoid costly backtrace formatting when not needed
+- CP-311893: document --minimal in xe
+- CP-311893: document --trace in xe's help message
+- CP-311893: Cross-host backtrace: Store and retrieve the backtrace of a task to propagate backtraces
+- CP-311893: Preserve backtraces from tasks
+- CP-311893: Include hostname in backtraces
+- CA-423760: Retain host.last_update_hash on an ejected host
+- CA-423760: Reset host.latest_synced_updates_applied
+
+* Fri Mar 06 2026 Changlei Li <changlei.li@cloud.com> - 26.6.0-1
+- idl: Clarify error message for hosts joining pools with VLAN networks
+- CP-311612: skip VDI.other-config test on SMAPIv3+
+- CP-311613: do not attempt to export delta VHD from SMAPIv3
+- Refresh remote session during long migrations
+- Log dangling references on import and export
+- Revert "CP-311165 XSI-1958 rely on Linux guest to announce control features"
+- Add new stunnel configuration for VM import
+- Add comment documenting the 'world' stunnel config
+- Update VDI snapshot and parent links after import
+- Rewrite update_vm_links
+- ci: use OCaml 5.4.1
+- CP-28067: refactor work queues - move knowledge of `item` outside of the workerpool
+- CP-28067: refactor work queues -- move knowledge of task dumping out of worker pools
+- CP-28067: refactor work queues -- remove knowledge of operation dumping
+- CP-28067: refactor work queues -- introduce a functor
+- CP-28067: refactor work queues -- move functor to its own file
+- CP-28067: refactor work queues -- move under `ocaml/libs`
+- CP-28067: refactor work queues -- catch exceptions raised by finally
+- CP-28067: refactor work queues -- add an interface
+- CP-28067: refactor work queues -- compiler errors on unsused variables
+- CP-28067: refactor work queues -- rename item as work
+- xapi: Add new message-destroy-all API call
+- CP-311615 Add migration-compression.md design sketch
+- CA-424021: Add GC rule for PCI records
+- CP-311123 support xenguest compression for live migration
+- Add GC rule for PUSB records
+- Add GC rule for Feature records
+- CP-311020: Add TLS specification for ldaps
+- CA-423682: Dead lock on update repository mutex
+- CP-311676: Add design document for rate limiting
+- xe-reset-networking: allow the user to perform a network reset without
+- CA-424473 Fix OpaqueRef:NULL in vm import
+
+* Thu Feb 12 2026 Rob Hoes <rob.hoes@citrix.com> - 26.5.0-1
+- idl: bump the minor datamodel version for the 9.0 release
+- CA-423574: Xenops_task: avoid losing stacktraces when tracing is enabled
+- CA-432574: Xenopsd: avoid losing stacktraces in with_reservation
+- CP-311475: do not change a domain's memory allocation while it is being built
+- XSI-2128: Ignore RBAC when destroying internal tasks
+- CA-423576: cli_progress_bar: move into its own internal library
+- CA-423576: cli_progress_bar: use monotonic time
+- CA-423576: cli_progress_bar: do not crash when ETA > 99h or infinite
+- CA-423576: print more detailed total time when a progress bar finishes
+- CA-423574: avoid losing backtraces when reraising
+- CA-423668/CA-423621: ignore ENOSYS/EPERM from NUMA hypercalls, use Result instead of exceptions
+- CP-311531: handle both 32-bit and 64-bit unreachable distances in the NUMA matrix
+- CP-311125 unhide AD cache pool parameters in XE CLI
+- CA-423708: xapi: Wrap {vhd,qcow}-tool read_header invocation in a thread
+
 * Wed Feb 04 2026 Rob Hoes <rob.hoes@citrix.com> - 26.4.0-1
 - xapi_sm: remove nested call to serialize function
 - xapi_sm: add interface
