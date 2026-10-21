@@ -1,5 +1,5 @@
-%global package_speccommit 9b06d1a01d5d82a4885021a88cee7d07be5e0514
-%global package_srccommit v26.4.0
+%global package_speccommit 0cbabbfa8794c1ccfa7bd7f175df85a12149039d
+%global package_srccommit v26.19.0
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -7,36 +7,19 @@
 
 %global yum_dir %{_sysconfdir}/yum.repos.d
 
-%if 0%{?xenserver} >= 9
-# In XS9, xapi use dnf plugin and own /etc/yum.repo.d dir
-%bcond_without dnf_plugin
-%bcond_without own_yum_dir
-# XS9 requires extra configration
-%if 0%{?xcpng}
-%bcond_with extra_config
-%else
-%bcond_without extra_config
-%endif
-# XS9 reset all epoch to 0
-%define qemu_epoch 0
-%else
-%bcond_without python2_compat
-%define qemu_epoch 2
-%endif
-
 %global api_version_major 2
-%global api_version_minor 21
+%global api_version_minor 23
 
 # -*- rpm-spec -*-
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.4.0
-Release: 1%{?xsrel}.3%{?dist}
+Version: 26.19.0
+Release: 2%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.4.0.tar.gz
+Source0: xen-api-26.19.0.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -64,12 +47,10 @@ Source23: inventory.py
 # For xs9, move these config files from xenserver-release
 Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
-%if %{with extra_config}
-# Extra configuration
-Source26: xenserver9.conf
-%endif
 # replace NTP configuration
 Source27: xcpng-ntp.conf
+
+Patch1: 0001-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
@@ -90,9 +71,7 @@ Patch1007: CP-312095-Update-qemu-wrapper-to-support-QEMU-v10.1..patch
 Patch1008: CP-312095-Use-on-off-instead-of-true-false-for-trad_.patch
 Patch1009: CP-312095-Add-piix3-ide-for-cross-compatibility-to-Q.patch
 
-# Xen 4.21
-Patch1010: 0001-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
-Patch1011: 0002-Xen-4.21-domctl_create_config.altp2m_count.patch
+# Xapi compiles to a baseline of Xen 4.21
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -157,15 +136,6 @@ Requires: openssl
 Requires: openssl-perl
 # XCP-ng: hcp_nss was renamed to nss-override-id. We don't use it at the moment.
 #Requires: nss-override-id >= 2.0.0
-%if 0%{?xenserver} < 9
-# Requires yum as package manager
-Requires: yum-utils >= 1.1.31
-# Only XS8 support upgrade pbis to winbind
-# XCP-ng: remove Requires for proprietary component
-# Requires: upgrade-pbis-to-winbind
-# Keep command `ifconfig` available on XS8
-Requires: net-tools
-%else
 Requires: dnf
 # XCP-ng BEGIN: remove Requires for xs-specific plugins
 %if ! 0%{?xcpng}
@@ -177,7 +147,6 @@ Requires: libdnf5-plugin-xapitoken
 Requires: dnf5-plugins
 %endif
 Requires: dmv-utils
-%endif
 Requires: python3-xcp-libs
 %if %{with python2_compat}
 Requires: python2-pyudev
@@ -200,17 +169,11 @@ Requires: python3-fasteners
 Requires: sm
 Requires: ipmitool
 Requires: python3-opentelemetry-exporter-zipkin
-%if 0%{?xenserver} >= 9
 %if 0%{?xcpng}
 # missing files prevent enabling firewalld
 Requires: iptables-legacy
 %else
 Requires: firewalld
-%endif
-%else
-# firewall-port needs iptables-service to perform
-# `service iptables save`
-Requires: iptables-services
 %endif
 Requires: rsync
 Obsoletes: xapi-ssh-monitor <= 1.0.0
@@ -219,15 +182,17 @@ Requires(preun): xs-presets >= 1.3
 Requires(postun): xs-presets >= 1.3
 Provides: xapi-api-version = %{api_version_major}.%{api_version_minor}
 Provides: XS_FEATURE(OPENSSH_AUTO_MODE) = 1.0.0
+Provides: XS_FEATURE(TRUSTED_CERTIFICATE) = 1.0.0
+Provides: XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE) = 1.0.0
+Provides: XS_FEATURE(EXTAUTH_LDAPS) = 1.0.0
+Provides: XS_FEATURE(AUTO_UPDATE_SECUREBOOT_CERTIFICATE) = 1.0.0
 Conflicts: secureboot-certificates < 1.0.0-1
-Conflicts: varstored < 1.2.0-1
+Conflicts: varstored < 1.3.3-1
 BuildRequires: systemd
 %{?systemd_requires}
 # XCP-ng: we don't use the sysprep plugin/API (it also requires the XS guest agent)
 #Requires: genisoimage
-%if 0%{?xenserver} >= 9
 Requires: oxenstored >= 0.0.2
-%endif
 Requires: kpatch
 
 # XCP-ng: add missing requires towards nbd
@@ -338,19 +303,19 @@ Requires:       forkexecd
 Requires:       xcp-networkd
 Requires:       xen-libs
 Requires:       emu-manager
+# ktls-helper links against libssl/libcrypto
+Requires:       openssl-libs
 # NVME support requires newer qemu
 # Describe minimum qemu version required.
 # If a new major/incompatible version of qemu is released then it will need to:
 # Conflicts: xenopsd-xc < $current_version
-Requires:       qemu >= %{qemu_epoch}:4.2.1-5.0.0
+Requires:       qemu >= 4.2.1-5.0.0
 Obsoletes:      ocaml-xenops-tools < 21.0.0-1
-%if 0%{?xenserver} >= 9
 # NUMA memory claims v2
 Requires:       xen-hypervisor >= 4.20.2-5
 Requires:       xen-dom0-libs >= 4.20.2-5
 Requires:       xen-dom0-tools >= 4.20.2-5
 Requires:       kernel >= 6.6.98-18
-%endif
 
 %description -n xenopsd-xc
 Simple VM manager for Xen using libxc.
@@ -408,11 +373,7 @@ Requires:  sysstat
 Requires:  xen-dom0-tools
 Requires:  xapi-rrd2csv
 # Requires Xen support for querying domain VCPU runnable and nonaffine running time
-%if 0%{?xenserver} < 9
-Requires:  xen-dom0-libs >= 4.17.5-18
-%else
 Requires:  xen-dom0-libs >= 4.19.2-12
-%endif
 
 %description -n rrdd-plugins
 This packages contains plugins registering to the RRD daemon and exposing various metrics.
@@ -578,6 +539,9 @@ export OCAMLPATH=%{_ocamlpath}
 ulimit -s 16384 && COMPILE_JAVA=no %{?_cov_wrap} %{__make}
 %{__make} doc
 %{__make} sdk
+# Build the ktls-helper (a standalone C binary, built with the RPM
+# hardening flags rather than via dune).
+%{__make} -C ocaml/ktls-helper/helper CFLAGS="%{optflags}" LDFLAGS="%{build_ldflags}"
 sed -e "s|@LIBEXECDIR@|%{_libexecdir}|g" %{SOURCE18} > xapi-storage-script.conf
 
 (cd ocaml/xapi-storage/python && %{py3_build})
@@ -664,37 +628,14 @@ for f in XenAPI XenAPIPlugin inventory; do
 done
 %endif
 
-%if %{with dnf_plugin}
-# For xs9, use dnf instead of yum, clean yum stuff
+# use dnf instead of yum, clean yum stuff
 ## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
 rm -r %{buildroot}/etc/yum/pluginconf.d/
 rm -r %{buildroot}/%{_usr}/lib/yum-plugins/
 ## XCP-ng END
-%else
-## XCP-ng BEGIN: remove the ptoken and accesstoken yum plugins
-## # For xs8, use yum
-## echo "/etc/yum/pluginconf.d/accesstoken.conf" >> core-files
-## echo "/etc/yum/pluginconf.d/ptoken.conf" >> core-files
-## echo "/etc/yum/pluginconf.d/xapitoken.conf" >> core-files
-## echo "/usr/lib/yum-plugins/accesstoken.py" >> core-files
-## echo "/usr/lib/yum-plugins/ptoken.py" >> core-files
-## echo "/usr/lib/yum-plugins/xapitoken.py" >> core-files
-## echo "/usr/lib/yum-plugins/__pycache__/*" >> core-files
-rm -f %{buildroot}/etc/yum/pluginconf.d/accesstoken.conf
-rm -f %{buildroot}/etc/yum/pluginconf.d/ptoken.conf
-rm -f %{buildroot}/etc/yum/pluginconf.d/xapitoken.conf
-rm -f %{buildroot}/usr/lib/yum-plugins/accesstoken.py
-rm -f %{buildroot}/usr/lib/yum-plugins/ptoken.py
-rm -f %{buildroot}/usr/lib/yum-plugins/xapitoken.py
-## XCP-ng END
 
-# clean the dnf-plugin as not required by XS8
-rm -rf %{buildroot}/%{python3_sitelib}/dnf-plugins/
-%endif
-
-%if %{with own_yum_dir}
+# Yum is removed, xapi declare /etc/yum.conf folder
 mkdir -m 755 -p %{buildroot}/%{yum_dir}
-%endif
 
 %{__install} -D -m 0644 ocaml/xcp-rrdd/scripts/rrdd/rrdd.py %{buildroot}/%{python3_sitelib}/
 
@@ -705,10 +646,8 @@ mkdir $RPM_BUILD_ROOT/etc/xenopsd.conf.d
 mkdir $RPM_BUILD_ROOT/etc/xcp
 
 mkdir -p %{buildroot}/etc/xenserver/features.d
-%if 0%{?xenserver} >= 9
-# make the experimental feature available on XS9
+# Make the experimental feature available
 echo 0 > %{buildroot}/etc/xenserver/features.d/hard_numa
-%endif
 
 mkdir -p %{buildroot}%{_sbindir}
 mkdir -p %{buildroot}%{_tmpfilesdir}
@@ -716,11 +655,8 @@ mkdir -p %{buildroot}%{_tmpfilesdir}
 %{__install} -D -m 0644 %{SOURCE2} %{buildroot}%{_unitdir}/xenopsd-simulator.service
 %{__install} -D -m 0644 %{SOURCE3} %{buildroot}%{_sysconfdir}/sysconfig/xenopsd
 %{__install} -D -m 0644 %{SOURCE4} %{buildroot}%{_sysconfdir}/xenopsd.conf
-
-%if 0%{?xenserver} < 9
-# reuse the flag to disable numa placemet by default in XS8
-echo -e "\nnuma-placement=false" >> %{buildroot}%{_sysconfdir}/xenopsd.conf
-%endif
+# Install the ktls-helper alongside the other xapi libexec helpers.
+%{__install} -D -m 0755 ocaml/ktls-helper/helper/ktls-helper %{buildroot}%{_libexecdir}/xapi/ktls-helper
 
 %{__install} -D -m 0644 %{SOURCE5} %{buildroot}%{_unitdir}/squeezed.service
 %{__install} -D -m 0644 %{SOURCE6} %{buildroot}%{_sysconfdir}/sysconfig/squeezed
@@ -753,12 +689,8 @@ rm %{buildroot}%{ocaml_docdir}/xapi-storage-script -rf
 
 %{__install} -D -m 0644 %{SOURCE19} %{buildroot}%{_sysconfdir}/xapi.conf.d/tracing.conf
 
-%if 0%{?xenserver} < 9
-echo "ssh-auto-mode=false" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
-%else
 %if ! 0%{?xcpng}
 echo "firewall-backend=firewalld" | %{__install} -D -m 0644 /dev/stdin %{buildroot}%{_sysconfdir}/xapi.conf.d/firewall-backend.conf
-%endif
 %endif
 
 mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
@@ -770,16 +702,9 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_usr}/libexec/xenopsd
 %py_byte_compile %{_pythonpath} %{buildroot}/%{_sysconfdir}/xapi.d/plugins
 
-# For xs9, move this config here from xenserver-release
-%if 0%{?xenserver} >= 9
+# Move this config here from xenserver-release
 %{__install} -D -m 0644 %{SOURCE24} %{buildroot}/%{_sysconfdir}/systemd/system/xapi.service.d/local.conf
 %{__install} -D -m 0644 %{SOURCE25} %{buildroot}/%{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
-%endif
-
-%if %{with extra_config}
-%{__install} -D -m 0644 %{SOURCE26} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
-echo %{_sysconfdir}/xapi.conf.d/xenserver9.conf >> core-files
-%endif
 
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
 
@@ -825,11 +750,6 @@ getent group rrdmetrics >/dev/null || groupadd -r rrdmetrics
 
 # remove old stunnel config file
 rm -f /etc/xensource/xapi-ssl.conf
-
-%if 0%{?xenserver} < 9
-# for XS8 don't use vfork and continue to use forkexecd
-touch /etc/xensource/forkexec-uses-daemon
-%endif
 
 # On upgrade, migrate from the old statefile to the new statefile so that
 # services are not rerun.
@@ -1049,10 +969,8 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 %config(noreplace) /etc/sysconfig/xapi
 /etc/xcp
 %dir /etc/xenserver/features.d
-%if 0%{?xenserver} >= 9
-# make the experimental feature available on XS9
+# Make the experimental feature available
 /etc/xenserver/features.d/hard_numa
-%endif
 %dir /etc/xapi.conf.d
 /etc/xapi.d/base-path
 /etc/xapi.d/plugins/IPMI.py
@@ -1079,10 +997,8 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 /etc/xensource/master.d/03-mpathalert-daemon
 %config(noreplace) /etc/xensource/pool.conf
 %{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
-%if 0%{?xenserver} >= 9
 %{_sysconfdir}/systemd/system/xapi.service.d/local.conf
 %{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
-%endif
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
 /opt/xensource/bin/perfmon
@@ -1105,13 +1021,6 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 /opt/xensource/bin/hfx_filename
 /opt/xensource/bin/pv2hvm
 /opt/xensource/bin/xe-enable-ipv6
-%if 0%{?xenserver} >= 9
-%exclude /opt/xensource/bin/xe-switch-network-backend
-%exclude /etc/bash_completion.d/xe-switch-network-backend
-%else
-/opt/xensource/bin/xe-switch-network-backend
-/etc/bash_completion.d/xe-switch-network-backend
-%endif
 /opt/xensource/bin/xsh
 %attr(700, root, root) /opt/xensource/gpg
 /etc/xensource/bugtool/xapi.xml
@@ -1160,6 +1069,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
+/etc/xensource/call-costs.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
@@ -1188,18 +1098,12 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 %{_unitdir}/toolstack.target
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/tracing.conf
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/xcpng-ntp.conf
-%if 0%{?xenserver} < 9
-%config(noreplace) %{_sysconfdir}/xapi.conf.d/ssh-auto-mode.conf
-%else
 %if ! 0%{?xcpng}
 %config(noreplace) %{_sysconfdir}/xapi.conf.d/firewall-backend.conf
 %endif
-%endif
 %config(noreplace) %{_sysconfdir}/xapi.pool-recommendations.d/xapi.conf
 %{_bindir}/xs-trace
-%if %{with own_yum_dir}
 %{yum_dir}
-%endif
 
 %files xe
 %defattr(-,root,root,-)
@@ -1361,7 +1265,6 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 %files -n xenopsd
 %{_sysconfdir}/udev/rules.d/xen-backend.rules
 %{_libdir}/xen/bin/qemu-wrapper
-%{_libdir}/xen/bin/pygrub-wrapper
 %{_libdir}/xen/bin/swtpm-wrapper
 %{_libexecdir}/xenopsd/vif
 %{_libexecdir}/xenopsd/vif-real
@@ -1384,6 +1287,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 %{_unitdir}/xenopsd-xc.service
 %{_mandir}/man1/xenopsd-xc.1.gz
 %{_libexecdir}/xenopsd/set-domain-uuid
+%{_libexecdir}/xapi/ktls-helper
 /opt/xensource/libexec/fence.bin
 /opt/xensource/debug/suspend-image-viewer
 %{_bindir}/list_domains
@@ -1571,6 +1475,344 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed 21 Oct 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.19.0-2.1
+- Update to upstream 26.19.0-2
+- *** Upstream changelog ***
+  * Thu Sep 17 2026 Changlei Li <changlei.li@citrix.com> - 26.19.0-2
+  - CA-430692: RPU: host-evacuate only migrates VMs to upgraded hosts
+
+  * Wed Sep 09 2026 Ming Lu <ming.lu@cloud.com> - 26.19.0-1
+  - CP-314129: Optimise event.from with valid_ref_count cache
+  - CP-314124: gc_VDIs: use valid_ref instead of List.mem
+  - CP-314124: Event.from: move invariant table list to module level
+  - CP-314124: add microbenchmarks for gc_VDIs and Event.from changes
+  - database: remove unused stats function in db_cache_impl
+  - Switch hvm-pirq default back to true
+
+  * Wed Sep 02 2026 Ming Lu <ming.lu@cloud.com> - 26.18.0-1
+  - storage: Add tags to vdi_info struct
+  - storage: Add VDI.{add_tags,remove_tags} methods
+  - storage: Preserve VDI tags on SMAPIv1 migrate
+  - Start SM service after dbsync to avoid startup deadlock
+  - Add explanations re:Storage Repositories to the Xen-API overview
+  - scripts/attach-static-vdis: Toggle nullglob to fix behavior on empty dir
+  - CA-426637: Drain the remaining bytes in metadata_handler
+  - CP-314075: restore VDI.resize_online for online VDI resize
+  - CP-314075: allow reintroduction of removed lifecycle features
+  - CA-429051: Sync original bond slave network MTU
+  - Update datamodel_lifecycle.ml after release v26.17.0
+  - CA-430002: Clean up sysprep SR when the SR directory doesn't exist
+  - Remove unnecessary guard on sysprep cleanup
+  - CP-314125: Fetch only required fields in gc_connector
+  - xenopsd/xc: mirror CDF_TRAP_UNMAPPED_ACCESSES from Xenctrl
+  - xenopsd/xc: mirror altp2m_count from Xenctrl.domctl_create_config
+  - Explain how to work with several branches
+  - CA-375277: xenctrlext_stubs.c: add missing enter/leave blocking section
+  - CA-375277: unixpwd_stubs.c: factor out common code and release the runtime lock where possible
+  - CP-314126: xapi_ha_vm_failover: Add Map/Set modules for ref lookups
+  - CP-314126: xapi_ha_vm_failover: Use HostMap for host name lookups
+  - CP-314126: xapi_ha_vm_failover: Use HostSet for live host membership
+  - CP-314126: xapi_ha_vm_failover: Use VMMap for VM record lookups
+  - CP-314126: xapi_ha_vm_failover: Use VMMap for VM memory lookups
+  - CP-314126: xapi_ha_vm_failover: Use VMRefSet for restarted VM membership
+  - CP-314126: xapi_ha_vm_failover: Guard eager debug formatting
+  - CP-314126: xapi_ha_vm_failover: Add Bechamel benchmark for compute_restart_plan
+  - xenopsd/xc: set CDF_TRAP_UNMAPPED_ACCESSES for ARM domains
+  - CA-430573: Use int64 in Go SDK
+  - Fix format: xenopsd/xc: set CDF_TRAP_UNMAPPED_ACCESSES for ARM domains
+  - CP-314128: xapi_vm_lifecycle: remove redundant DB round-trips
+  - quicktest: add -with-tag and -without-tag suite filters
+  - Add "hvm-pirq" platform key
+  - xapi_sr_operations: Reorder checks on destroy
+  - xapi-cli-server: Fix default params display for snapshots
+  - CP-314128: xapi_message: avoid reversing the full in-memory cache
+  - CP-314128: repository_helpers: move regex compilation to module level
+  - CP-314128: xapi_vm_helpers: fetch only needed fields in host_of_vm
+  - CP-314128: rrdp_iostat: use array indexing instead of List.nth
+  - CP-314128: network_utils: move regex compilation out of per-line loop
+  - CP-314128: repository_helpers: use Set for update deduplication
+  - CP-314128: xapi_session: replace O(n^2) intersect and setify
+
+  * Mon Aug 10 2026 Ming Lu <ming.lu@cloud.com> - 26.17.0-1
+  - xapi: report a clear error when host evacuation is blocked by unprotected VMs
+  - quicktest: Verify non-snapshotted VBDs are not leaked on VM.revert
+  - CA-428532: Ensure db flush is executed in shutdown_agent
+  - auto-mark new VMs for Secure Boot certificate update on boot
+  - always record VM secureboot_certificates_state at creation
+  - doc: Update snapshot revert design to follow the implementation
+  - Drop redundant secureboot_certificates_state recompute
+  - XCPNG-3545: Clear tunnels with corrupted PIFs
+  - CP-312949: xenopsd: optional kTLS sender for VM live migration
+  - CP-313264: xenopsd: migration-tls.md: add design document
+  - CP-313264: xenopsd: log the negotiated kTLS version and cipher
+  - CA-422619: Skip xapi-clusterd start when already active
+  - CA-422619: Add a timeout to the xapi-clusterd start
+  - Corrected certificate validation for HTTP calls
+  - vlan_tag_invalid: change the documentation string
+  - VLAN filtering on VIF
+  - xenopsd: Device.Vif.add: add trunks attribute in debug string
+  - xenopsd: update xenstore while updating xapi db
+  - test_vif_trunks: cover more coherence checks
+  - Rename README.markdown to README.md
+  - Update the URL of the OCaml web site
+  - Following action for README.markdown to README.md
+  - Rate limit: Implement token buckets
+  - Rate limit: Implement queueing mechanism
+  - Add tests for rate limits and token buckets
+  - Add LRU cache to rate limiting library
+  - Add caller table to rate limit library
+  - Add caller statistics tracker to rate limit library
+  - Update rate limit library name to avoid name clashes
+  - Add Caller and Rate_limit datamodels
+  - Instrument RPC calls with usage logging and rate limiting
+  - Add rate limit and caller to xapi CLI
+  - Add quicktest for rate limiting
+  - Update rate limit design document with correct caller API
+  - xapi-caller: Load call costs from external file at startup
+  - rate-limit: Remove fairness bug in worker thread
+  - rate-limit: Allow tokens to go negative on big requests
+  - xapi_caller: Initialise caller table on module load
+  - quicktest: Use more realistic bounds in rate limit test
+  - http-lib: Canonicalise IPv4-mapped IPv6 client addresses
+  - xapi_caller: Serialise all caller_table mutations
+  - rate-limit: Skip redundant caller refreshes
+  - CA-430005: Should not check non-trusted certificates for duplication
+  - rate-limit: Fix deadlock in rate limit deletion
+  - opam: Fix rate limit package dependencies
+  - xe: print debug info for all connection attempts
+  - CA-430085: Fix vncsnapshot 500 error
+  - [ci] Don't use timedatectl to set timezone in actions
+  - xapi-rate-limit: Add auto-registered caller limit
+  - rate-limit: Only show caller groups in the RRDs
+  - rate-limit: Improve debug messages when rate limit applied
+  - CA-430018: Fix mismatch between VGPU and PCI cards
+  - xapi_globs: Remove unused code
+  - rate-limit: Add observers to rate limited calls
+  - pygrub-wrapper: Drop the script, move logic into xenopsd
+
+  * Fri Jul 17 2026 Changlei Li <changlei.li@citrix.com> - 26.16.1-1
+  - auto-mark new VMs for Secure Boot certificate update on boot
+  - always record VM secureboot_certificates_state at creation
+  - Drop redundant secureboot_certificates_state recompute
+  - Corrected certificate validation for HTTP calls
+
+  * Fri Jul 03 2026 Changlei Li <changlei.li@citrix.com> - 26.16.0-1
+  - CP-54107: Secure LDAP Support for XenServer
+  - attach_helpers: only control domains can leak VBDs
+  - xapi/attach_helpers: remove useless check for leaked vbds
+  - CP-311981: Add pool.sync_trusted_certificates_from API
+  - Enhancements to the XAPI documentation
+  - Prepare for VDI.revert: add tests and robustify error paths
+  - Optimize data cluster format for VHD and QCOW
+  - VLAN filtering design document
+  - xapi_pci: Disallow passthrough for boot devices
+  - CA-428177: clarify ldaps trusted certificate error messages
+  - xapi: Improve error reporting when pool join fails on TLS
+  - Update xapi-storage examples
+  - [design doc] LLDP support
+  - Add DHCP setting for VIF IP configuration
+  - Update datamodel_lifecycle for supported_image_formats
+  - Implement Better VM revert using VDI revert
+  - xapi_vm_snapshot: do not leak CD VBDs
+  - CA-403379: pre-flight cluster_host state before pool-ha-enable
+  - xenctrl-ext: link stubs explicitly agains libxenctrl
+  - README: Add instructions for installing developer tools
+  - CP-310955: Update friendly error messages (#7108)
+  - CA-417915: stunnel proxy process is not reaped during stop
+  - xe: Fix bash completion for 'xe vlan-create pif-uuid='
+  - Remove image format from deprecated receive start
+  - build(deps): bump com.fasterxml.jackson.core:jackson-databind
+  - CA-429144: Do not leak new vbds after snapshot
+
+  * Wed Jun 03 2026 Changlei Li <changlei.li@citrix.com> - 26.15.0-1
+  - CA-426408: Consider chunks in task expiry calculation
+  - CA-406020: parse dnf5 output in pool_update plugins
+  - CA-427419 Add timeout in fetch_server_cert
+  - CP-310388: Change name used for temporary files during exports.
+  - CP-312821: Set default values for XS9
+  - Supported image formats
+  - Add log when conn_limit_tcp is reached for easy diagnose
+  - CP-312304: Set a default user agent for PowerShell and Java.
+  - Fix wording in XAPI documentation
+  - wsproxy: code removal and stylistic changes
+
+  * Wed May 27 2026 Changlei Li <changlei.li@citrix.com> - 26.14.0-3
+  - Bump release and rebuild
+
+  * Wed May 27 2026 Changlei Li <changlei.li@citrix.com> - 26.14.0-2
+  - Provide XS_FEATURE(SECUREBOOT_CERTIFICATE_UPDATE)
+
+  * Tue May 19 2026 Changlei Li <changlei.li@citrix.com> - 26.14.0-1
+  - CP-311907: Add VM.secureboot_certificates_state field
+  - CP-311908: Add versioned VM.set_NVRAM_EFI_variables with update parameter
+  - CP-311905: VM.update_secureboot_certificates_on_boot interface
+  - CA-426857: Should not apply live patches when RebootHost is mandatory
+  - CA-427271: update non secureboot vm certificate state
+  - message_forwarding: Don't block cross-pool migrations for unbootable VMs
+  - CA-427275: Check slave_emergency_mode in fake_rpc2
+  - CA-427275: Clean slave_emergency_mode after leave xapi ha start loop
+  - Reuse fake_rpc in Helpers.rpc_fun
+  - xapi-cli-server: set name description for SRs, when given
+  - CA-427441: Avoid using proxy for local repositories
+  - CP-311530 Bump up api_version to 2.23
+  - Add rel_orinoco
+
+  * Thu May 07 2026 Changlei Li <changlei.li@citrix.com> - 26.13.0-1
+  - Improve handling of trusted certificates
+  - CP-310090 Stunnel lib: Expose unix socket path for TLS proxy
+  - CA-423556: print full checkout error msg in xe apply-edition
+  - xapi-cli-server: stop using SR records to filter ISO-backed PBDs on cross-pool migration
+  - xapi-cli-server: stop using SR records for cross pool migrations
+  - xapi-cli-server: print reason for failing to select preferred SR
+  - xapi_vm_lifecycle: Only consult data-cant-suspend-reason and feature-suspend for live VMs
+  - Revert "CA-423816 avoid double counting VM overhead memory"
+  - Revert "CA-423816 disable workaround in quicktest"
+  - CP-312094: Update rate limiting design document
+
+  * Wed Apr 29 2026 Andrew Cooper <andrew.cooper3@citrix.com> - 26.12.0-2
+  - Update to Xen 4.21
+
+  * Wed Apr 29 2026 Changlei Li <changlei.li@citrix.com> - 26.12.0-1
+  - Remove handling of VBD.other_config:backend-local
+  - Do not recognise VM.other_config:is_system_domain
+  - Do not recognise {VM;PBD}.other_config:storage_driver_domain
+  - xapi_vm: Implement RBAC checking for keys in set_other_config
+  - xapi_vm: Implement per-key RBAC checking for VM.platform
+  - CA-426596: Supports SM feature removing
+
+  * Fri Apr 24 2026 Changlei Li <changlei.li@citrix.com> - 26.11.0-1
+  - CP-53843: tracing -- link internal subtasks traces
+  - quicktests: Force VDI format on creation
+  - CP-312160: secureboot certificate update design doc
+  - CA-425472: Signal correct daemon during log rotation
+  - CP-53843: reusable session for sm_exec
+  - Replaced "e.g." with "for example" in docs and some more user visible messages
+  - xapi-stdext-std: Remove most functions, optimize escaping functions
+  - CP-312368: Query subject group information from xapi db
+  - ldaps design: Update error code to align with implementation
+
+  * Wed Apr 15 2026 Changlei Li <changlei.li@citrix.com> - 26.10.0-1
+  - CP-49158: [later] introduce a batching delay on first response
+  - CP-52708: make file descriptor argument optional in Server.dispatch_call
+  - [later]: enable Event.from by default for internal calls
+  - CP-51693: [later] use JSONRPC by default for internal communication
+  - CP-52708: Avoid making Unix read/write calls for internal API calls: forward the API call directly like we do with the CLI for calls to the coordinator when we are the coordinator
+  - Listext.List.map_tr: use tail-modulo-cons instead of List.rev
+  - Xml.ml: optimize escaping function
+  - [maintenance]: drop unused functions from Xml.mli
+  - Revert "log/debug: use Ptime's rfc3339 formatting when logging to stdout"
+
+  * Tue Apr 14 2026 Changlei Li <changlei.li@citrix.com> - 26.9.0-1
+  - CP-311260: ldaps: update design document
+  - CA-423202: Xapi can incorrectly expect livepatches for EOL base versions
+  - CP-48452: Session.UserAgent is now an instance property and has a default value.
+  - CP-311919: Bumped version of Java SDK dependency. Also bumped Java version to 17 (LTS)
+  - CP-311541: Expose the PS cmdlets so that they can be called without importing the module.
+  - message-forwrding: keep backtraces when reraising an exception
+  - CP-312095: xenopsd/QEMU cross-version compatibility
+  - opam: update metadata
+  - dune-project: define missing opam dependencies
+  - CA-423816 avoid double counting VM overhead memory
+  - Use the latest version of System.Management.Automation (7.4.14).
+  - CA-423816 disable workaround in quicktest
+
+  * Tue Mar 31 2026 Changlei Li <changlei.li@citrix.com> - 26.8.0-1
+  - Import xapi-backtraces into XAPI
+  - xenctrlext_stubs.c use "int rc" consistently
+  - CA-375277: remove dead code xenforeignmemory*()
+  - CP-311148/CP-311150: add a quicktest for XAPI memory overhead calculations
+  - fixup! CA-375277 xenctrlext: remove dead code, clean up (#6881)
+  - Don't deny smartcards in usb-policy.conf
+  - quicktest: speed up running quicktests
+  - CP-311971: enable AD extauth cache by default for new pools
+  - CP-49134: More detailed exception backtraces
+  - Fix opam build due to backtrace library merge
+  - CP-51693: extend XMLRPC feature flag to other functions making RPC calls in XAPI
+  - CP-311259: Define tls lib to manage TLS version and ciphers
+
+  * Thu Mar 19 2026 Changlei Li <changlei.li@cloud.com> - 26.7.0-1
+  - CP-311020: ldaps design minior update
+  - rrdd: support multiple vm_uuid/sr_uuid query parameters
+  - CP-311489 rename in fe_stubs.c to use caml_*_runtime_system()
+  - CP-311489: don't use Int_val calling open()
+  - CP-311489: blkgetsize_stubs.c remove unused OCaml includes
+  - CP-311489: xenctrlext_stubs.c avoid *_val macros in argument position
+  - CP-311489: unixpwd_stubs.c add caml_release_runtime_system()
+  - xenctrlext_stubs.c: reformat to resolve space/tabs/indentation
+  - CP-311489 xenctrlext_stubs.c use more caml_release/acquire_runtime_system
+  - [ci] harden actions/checkout: do not persist credentials
+  - [ci]: harden: do not expand input as template (xapi_version)
+  - [ci]: harden external references: use env vars instead of template expansion in shell scripts
+  - xapi-stdext: add try_map_collect to listext
+  - xapi_ha: rework error path for attaching statefile VDIs
+  - static_vdis: print both reference and uuid when attaching a VDI
+  - xapi/helpers: log error message from launching scripts
+  - log/debug: use Ptime's rfc3339 formatting when logging to stdout
+  - debug: remove ad-hoc String.split_on_char
+  - debug: reformat comment
+  - CA-424916 don't exit thread/loop on events error
+  - Revert "Rewrite update_vm_links"
+  - Revert "Update VDI snapshot and parent links after import"
+  - CP-311892: bench_backtrace: introduce a benchmark for Pervasiveext.finally
+  - CP-311892: Pervasiveext.finally: avoid costly backtrace formatting when not needed
+  - CP-311893: document --minimal in xe
+  - CP-311893: document --trace in xe's help message
+  - CP-311893: Cross-host backtrace: Store and retrieve the backtrace of a task to propagate backtraces
+  - CP-311893: Preserve backtraces from tasks
+  - CP-311893: Include hostname in backtraces
+  - CA-423760: Retain host.last_update_hash on an ejected host
+  - CA-423760: Reset host.latest_synced_updates_applied
+
+  * Fri Mar 06 2026 Changlei Li <changlei.li@cloud.com> - 26.6.0-1
+  - idl: Clarify error message for hosts joining pools with VLAN networks
+  - CP-311612: skip VDI.other-config test on SMAPIv3+
+  - CP-311613: do not attempt to export delta VHD from SMAPIv3
+  - Refresh remote session during long migrations
+  - Log dangling references on import and export
+  - Revert "CP-311165 XSI-1958 rely on Linux guest to announce control features"
+  - Add new stunnel configuration for VM import
+  - Add comment documenting the 'world' stunnel config
+  - Update VDI snapshot and parent links after import
+  - Rewrite update_vm_links
+  - ci: use OCaml 5.4.1
+  - CP-28067: refactor work queues - move knowledge of `item` outside of the workerpool
+  - CP-28067: refactor work queues -- move knowledge of task dumping out of worker pools
+  - CP-28067: refactor work queues -- remove knowledge of operation dumping
+  - CP-28067: refactor work queues -- introduce a functor
+  - CP-28067: refactor work queues -- move functor to its own file
+  - CP-28067: refactor work queues -- move under `ocaml/libs`
+  - CP-28067: refactor work queues -- catch exceptions raised by finally
+  - CP-28067: refactor work queues -- add an interface
+  - CP-28067: refactor work queues -- compiler errors on unsused variables
+  - CP-28067: refactor work queues -- rename item as work
+  - xapi: Add new message-destroy-all API call
+  - CP-311615 Add migration-compression.md design sketch
+  - CA-424021: Add GC rule for PCI records
+  - CP-311123 support xenguest compression for live migration
+  - Add GC rule for PUSB records
+  - Add GC rule for Feature records
+  - CP-311020: Add TLS specification for ldaps
+  - CA-423682: Dead lock on update repository mutex
+  - CP-311676: Add design document for rate limiting
+  - xe-reset-networking: allow the user to perform a network reset without
+  - CA-424473 Fix OpaqueRef:NULL in vm import
+
+  * Thu Feb 12 2026 Rob Hoes <rob.hoes@citrix.com> - 26.5.0-1
+  - idl: bump the minor datamodel version for the 9.0 release
+  - CA-423574: Xenops_task: avoid losing stacktraces when tracing is enabled
+  - CA-432574: Xenopsd: avoid losing stacktraces in with_reservation
+  - CP-311475: do not change a domain's memory allocation while it is being built
+  - XSI-2128: Ignore RBAC when destroying internal tasks
+  - CA-423576: cli_progress_bar: move into its own internal library
+  - CA-423576: cli_progress_bar: use monotonic time
+  - CA-423576: cli_progress_bar: do not crash when ETA > 99h or infinite
+  - CA-423576: print more detailed total time when a progress bar finishes
+  - CA-423574: avoid losing backtraces when reraising
+  - CA-423668/CA-423621: ignore ENOSYS/EPERM from NUMA hypercalls, use Result instead of exceptions
+  - CP-311531: handle both 32-bit and 64-bit unreachable distances in the NUMA matrix
+  - CP-311125 unhide AD cache pool parameters in XE CLI
+  - CA-423708: xapi: Wrap {vhd,qcow}-tool read_header invocation in a thread
+
 * Fri 02 Oct 2026 Yann Dirson <yann.dirson@vates.tech> - 26.4.0-1.3
 - Unset GIT_CEILING_DIRECTORIES while proceeding with the $sha or $sha-dirty
   replacement
