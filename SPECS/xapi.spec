@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.21
-Release: 1%{?xsrel}.1%{?dist}
+Release: 1%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -137,9 +137,6 @@ Patch1021: 0021-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
 
 # Backport of upstream: https://github.com/xapi-project/xen-api/pull/7321
 Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
-
-# xapi-nbd performance optimizations
-Patch1023: 0023-xapi-nbd-Use-tapdisk-s-NBD-server-instead-of-accessi.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1545,6 +1542,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Mon Oct 26 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.2
+- Revert "XCPNG-3888: Improve performance of xapi-nbd"
+
 * Fri Oct 02 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.1
 - XCPNG-3854: Fix race leading to VDI.snapshot_of corruption
 - XCPNG-3515: Prevent SR issues from blocking XAPI startup
