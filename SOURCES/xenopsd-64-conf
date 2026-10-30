@@ -44,3 +44,14 @@ eliloader=/usr/bin/eliloader
 default-vbd-backend-kind=vbd3
 
 ca-140252-workaround=true
+
+# TLS transport for VM live migration.
+#   ""         — default; the stunnel client subprocess as today (recommended baseline).
+#   "stunnel"  — same as "".
+#   "ktls"     — spawn /usr/libexec/xapi/ktls-helper to perform the TLS
+#                handshake, install kTLS on the socket via setsockopt(SOL_TLS,...),
+#                and hand the fd back via SCM_RIGHTS. On any failure (helper missing,
+#                handshake error, tls.ko not loaded, ...) xenopsd logs a warning and
+#                falls back to the stunnel path for that connection.
+#migration-tls=
+#xenopsd-tls-helper=/usr/libexec/xapi/ktls-helper
