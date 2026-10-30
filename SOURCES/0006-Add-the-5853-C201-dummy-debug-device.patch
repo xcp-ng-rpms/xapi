@@ -1,0 +1,20 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Tu Dinh <ngoc-tu.dinh@vates.tech>
+Date: Mon, 26 Oct 2026 07:31:29 +0100
+Subject: [PATCH] Add the 5853:C201 dummy debug device
+
+Signed-off-by: Tu Dinh <ngoc-tu.dinh@vates.tech>
+
+diff --git a/ocaml/xenopsd/scripts/qemu-wrapper b/ocaml/xenopsd/scripts/qemu-wrapper
+index 580d196032db..f5e7d900e0d1 100644
+--- a/ocaml/xenopsd/scripts/qemu-wrapper
++++ b/ocaml/xenopsd/scripts/qemu-wrapper
+@@ -268,6 +268,8 @@ def main(argv):
+         qemu_args += ["-device", ",".join([vga_type, "vgamem_mb=%d" % vgamem_mb] \
+                                           + vga_extra_props)]
+ 
++    qemu_args += ["-device", "xen-pvdevice,vendor-id=0x5853,device-id=0xc201"]
++
+     s1, s2 = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+     open_fds.append(s1.fileno())
+     qemu_args += ["-vnc-clipboard-socket-fd", str(s1.fileno())]
