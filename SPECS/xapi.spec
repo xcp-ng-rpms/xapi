@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.21
-Release: 1%{?xsrel}.2%{?dist}
+Release: 1%{?xsrel}.3%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -137,6 +137,9 @@ Patch1021: 0021-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
 
 # Backport of upstream: https://github.com/xapi-project/xen-api/pull/7321
 Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
+
+# Revert upstream commit breaking Veeam VM restore
+Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1542,6 +1545,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Oct 30 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.3
+- Revert the commit breaking Veeam VM restore
+
 * Mon Oct 26 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.2
 - Revert "XCPNG-3888: Improve performance of xapi-nbd"
 
