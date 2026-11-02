@@ -1,0 +1,31 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Mon, 2 Nov 2026 11:26:16 +0000
+Subject: [PATCH] Adjust upstream XSAs to the LCM code
+
+The commit that changed the parameter
+from Unix.file_descr to Unix.file_descr option is not present in 8.3
+
+(https://github.com/xapi-project/xen-api/commit/ac4ff6d3781d0bb20102355b789ad7fd7b02f5a4)
+
+Adjust the XSA unit test patch - use an arbitrary fd instead of None. This is
+safe since no forwarding takes place in the unit tests anyway.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/tests/test_task_ownership.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/tests/test_task_ownership.ml b/ocaml/tests/test_task_ownership.ml
+index c81be0b50..f73021ecb 100644
+--- a/ocaml/tests/test_task_ownership.ml
++++ b/ocaml/tests/test_task_ownership.ml
+@@ -311,7 +311,7 @@ let dispatch ?task ?(supports_async = true) ~session_id () =
+     Server_helpers.do_dispatch ~session_id supports_async "Test.call"
+       (fun ~__context:_ -> ran := true)
+       (fun () -> Rpc.Null)
+-      None
++      Unix.stdout
+       (request_with_task_header ?task ~session_id ())
+       "test_do_dispatch" `Sync true
+   in
