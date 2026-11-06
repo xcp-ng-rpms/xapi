@@ -141,6 +141,24 @@ Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
 # Revert upstream commit breaking Veeam VM restore
 Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
 
+# Backport of upstream: https://github.com/xapi-project/xen-api/pull/7333
+Patch1024: 0024-xapi-cli-server-add-an-interface-to-the-Cli_frontend.patch
+Patch1025: 0025-xapi-cli-server-simplify-parse_commandline.patch
+Patch1026: 0026-Get-rid-of-the-useless-rio_help-function-definition.patch
+Patch1027: 0027-xapi-cli-server-rewrite-vm_migrate-options-without-L.patch
+Patch1028: 0028-xapi-cli-server-factor-out-params_except-helper.patch
+Patch1029: 0029-xapi-cli-server-factor-out-override_param-helper.patch
+Patch1030: 0030-xapi-cli-server-factor-out-assoc_default_ci-helper.patch
+Patch1031: 0031-xapi-cli-server-route-command-line-parameter-access-.patch
+Patch1032: 0032-xapi-cli-server-read-map-set-parameters-through-Cli_.patch
+Patch1033: 0033-xapi-cli-server-name-the-map-set-parameters-via-Cli_.patch
+Patch1034: 0034-xapi-cli-server-give-choose_params-select_fields-an-.patch
+Patch1035: 0035-xapi-cli-server-track-which-command-line-parameters-.patch
+Patch1036: 0036-tests-unit-test-the-Cli_args-read-tracking-engine.patch
+Patch1037: 0037-xapi-cli-server-require-a-separator-after-a-map-set-.patch
+Patch1038: 0038-xapi-cli-server-report-command-line-parameters-the-c.patch
+Patch1039: 0039-xapi-cli-server-add-an-xapi.conf-switch-for-the-igno.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

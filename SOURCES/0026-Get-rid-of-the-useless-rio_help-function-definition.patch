@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Fri, 21 Aug 2026 15:24:44 +0200
+Subject: [PATCH] Get rid of the useless rio_help function definition
+Content-Type: text/plain; charset="utf-8"
+
+It is used only to define cmd_help, whihc is better defined directly.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 762638fe6fe2878be0cac2fadd26cd17fa523470)
+---
+ ocaml/xapi-cli-server/cli_frontend.ml | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index d66828bf21..043211fed9 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -4052,7 +4052,7 @@ let make_list l =
+   in
+   doline (indent ^ List.hd l) [] (List.tl l)
+ 
+-let rio_help printer minimal cmd =
++let cmd_help printer minimal cmd =
+   let docmd cmd =
+     match Hashtbl.find_opt cmdtable cmd with
+     | Some cmd_spec ->
+@@ -4191,5 +4191,3 @@ Common command list
+         printer (Cli_printer.PList [h]) ;
+         printer (Cli_printer.PList (make_list cmds))
+       )
+-
+-let cmd_help printer minimal cmd = rio_help printer minimal cmd

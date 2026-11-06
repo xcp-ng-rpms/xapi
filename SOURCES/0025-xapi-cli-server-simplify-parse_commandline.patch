@@ -1,0 +1,75 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 7 Sep 2026 17:58:15 +0200
+Subject: [PATCH] xapi-cli-server: simplify parse_commandline
+Content-Type: text/plain; charset="utf-8"
+
+This function is called only once in the codebase, with a list which is non-empty by construction. As the first argument of the list is special (the name of the program), it is simpler not to add it to the list at all and to pass it along separately.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 2646a3d12d3dc95ea75fbb1d4f3c3327efda8f1f)
+---
+ ocaml/xapi-cli-server/cli_frontend.ml  | 7 +++----
+ ocaml/xapi-cli-server/cli_frontend.mli | 2 +-
+ ocaml/xapi-cli-server/xapi_cli.ml      | 2 +-
+ quality-gate.sh                        | 2 +-
+ 4 files changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index e2d9310ca8..d66828bf21 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -4022,14 +4022,13 @@ let rec parse_params_2 xs =
+   | [] ->
+       []
+ 
+-let parse_commandline arg_list =
++let parse_commandline (argv0, arg_list) =
+   try
+-    let argv0 = List.hd arg_list in
+-    let cmdname = List.hd (List.tl arg_list) in
++    let cmdname = List.hd arg_list in
+     (* Detect the case when the command-name is missing *)
+     if String.contains cmdname '=' then
+       raise (ParseError "command name is missing") ;
+-    let params = parse_params_2 (List.tl (List.tl arg_list)) in
++    let params = parse_params_2 (List.tl arg_list) in
+     {cmdname; argv0; params}
+   with e ->
+     error "Rethrowing %s as ParseError \"\"" (Printexc.to_string e) ;
+diff --git a/ocaml/xapi-cli-server/cli_frontend.mli b/ocaml/xapi-cli-server/cli_frontend.mli
+index f5c83d8bb9..d8146fc87e 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.mli
++++ b/ocaml/xapi-cli-server/cli_frontend.mli
+@@ -32,4 +32,4 @@ val populate_cmdtable : Cli_operations.rpc -> API.ref_session -> unit
+ 
+ val cmd_help : (Cli_printer.printval -> unit) -> bool -> commandline -> unit
+ 
+-val parse_commandline : string list -> commandline
++val parse_commandline : string * string list -> commandline
+diff --git a/ocaml/xapi-cli-server/xapi_cli.ml b/ocaml/xapi-cli-server/xapi_cli.ml
+index 908327e7c1..796b7f07be 100644
+--- a/ocaml/xapi-cli-server/xapi_cli.ml
++++ b/ocaml/xapi-cli-server/xapi_cli.ml
+@@ -406,7 +406,7 @@ let handler (req : Http.Request.t) (s : Unix.file_descr) _ =
+   let session, args = parse_session_and_args str in
+   try
+     (* Unfortunately parse errors can happen preventing the '--trace' option from working *)
+-    let cmd = parse_commandline ("xe" :: args) in
++    let cmd = parse_commandline ("xe", args) in
+     match
+       Backtrace.with_backtraces (fun () -> exec_command req cmd s session args)
+     with
+diff --git a/quality-gate.sh b/quality-gate.sh
+index 8c58c30101..e33cef5682 100755
+--- a/quality-gate.sh
++++ b/quality-gate.sh
+@@ -3,7 +3,7 @@
+ set -e
+ 
+ list-hd () {
+-  N=240
++  N=239
+   LIST_HD=$(git grep -r --count 'List.hd' -- **/*.ml | cut -d ':' -f 2 | paste -sd+ - | bc)
+   if [ "$LIST_HD" -eq "$N" ]; then
+     echo "OK counted $LIST_HD List.hd usages"

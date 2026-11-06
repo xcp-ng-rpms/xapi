@@ -1,0 +1,99 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Tue, 8 Sep 2026 15:16:36 +0200
+Subject: [PATCH] xapi-cli-server: require a separator after a map/set
+ parameter name
+Content-Type: text/plain; charset="utf-8"
+
+A scoped Cli_args.view matched an entry by checking only that its key
+started with the view's prefix, then skipped one character as the
+separator without looking at it. So view "other-config" also matched
+"other-configuration", reading its bare key as "ration".
+
+No command defines both a map view "foo" and a scalar parameter of the
+shape "foo<x>bar" that this could divert, so nothing is mis-read today.
+But it is fragile, and it costs the ignored-parameter report its
+accuracy: a diverted key would be marked used along with the view and so
+never reported as ignored.
+
+Require the character after the prefix to be ':' or '-' -- the two
+separators the map/set syntax uses, and what the view docstring already
+says. This is the only behaviour change in the series; it removes just
+the matches that were wrong. The preceding commits keep introducing
+Cli_args.view and Cli_maps with no behaviour change.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 4c1ac93cea8da1c0ea31c56cd47535866572da1d)
+---
+ ocaml/tests/test_cli_args.ml      | 18 ++++++++++++++++++
+ ocaml/xapi-cli-server/cli_args.ml | 14 +++++++++-----
+ 2 files changed, 27 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/tests/test_cli_args.ml b/ocaml/tests/test_cli_args.ml
+index e3a2eaffa6..9471dc13fe 100644
+--- a/ocaml/tests/test_cli_args.ml
++++ b/ocaml/tests/test_cli_args.ml
+@@ -81,6 +81,23 @@ let test_view_accepts_legacy_dash_separator () =
+     (get_opt "target" dc) ;
+   check_unused "and marked on the root" ["z"] t
+ 
++let test_view_requires_a_separator () =
++  let t =
++    t_of
++      [
++        ("other-config:real", "1")
++      ; ("other-configuration", "2")
++      ; ("other-configx", "3")
++      ]
++  in
++  let oc = view "other-config" t in
++  Alcotest.check strings "only prefix + separator + key is in scope" ["real"]
++    (keys oc) ;
++  ignore (consume oc) ;
++  check_unused "keys sharing the prefix without a separator stay untouched"
++    ["other-configuration"; "other-configx"]
++    t
++
+ let test_consume_marks_all_visible () =
+   let t = t_of [("a", "1"); ("b", "2")] in
+   ignore (consume t) ;
+@@ -146,6 +163,7 @@ let tests =
+         , `Quick
+         , test_view_accepts_legacy_dash_separator
+         )
++      ; ("view requires a separator", `Quick, test_view_requires_a_separator)
+       ; ("consume marks all visible", `Quick, test_consume_marks_all_visible)
+       ; ( "consume on view respects scope"
+         , `Quick
+diff --git a/ocaml/xapi-cli-server/cli_args.ml b/ocaml/xapi-cli-server/cli_args.ml
+index 9186cc0627..2ea439fec1 100644
+--- a/ocaml/xapi-cli-server/cli_args.ml
++++ b/ocaml/xapi-cli-server/cli_args.ml
+@@ -19,10 +19,10 @@
+ type 'a entry = {mutable key: string; value: 'a; mutable used: bool}
+ 
+ (* [scope = Some prefix] restricts the visible entries to those whose key is
+-   [prefix] followed by at least one more character (any separator, matching the
+-   historical map-parameter parsing); their keys are seen with that prefix and
+-   its separator removed. [entries] is shared with the structure the view was
+-   taken from. *)
++   [prefix], then a [:] or [-] separator, then at least one more character (the
++   [prefix:key=value] map/set syntax and the legacy [prefix-key=value] form);
++   their keys are seen with that prefix and separator removed. [entries] is
++   shared with the structure the view was taken from. *)
+ type 'a t = {entries: 'a entry list; scope: string option}
+ 
+ (* [bare t e] is [e]'s key as seen through [t] (scope prefix stripped), or [None]
+@@ -34,7 +34,11 @@ let bare t e =
+   | Some prefix ->
+       let plen = String.length prefix in
+       let len = plen + 1 in
+-      if String.length e.key > len && String.sub e.key 0 plen = prefix then
++      if
++        String.length e.key > len
++        && String.sub e.key 0 plen = prefix
++        && (e.key.[plen] = ':' || e.key.[plen] = '-')
++      then
+         Some (String.sub e.key len (String.length e.key - len))
+       else
+         None

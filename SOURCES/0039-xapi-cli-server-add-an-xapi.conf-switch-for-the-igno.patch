@@ -1,0 +1,116 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Wed, 2 Sep 2026 19:53:59 +0200
+Subject: [PATCH] xapi-cli-server: add an xapi.conf switch for the
+ ignored-parameter report
+Content-Type: text/plain; charset="utf-8"
+
+The previous commit enables the report per invocation
+(report-ignored-params=warn). Add a second source for the same key:
+xapi.conf, so an operator can turn the report on for every xe on a host
+or pool at once, without touching each user's environment.
+
+The command-line value wins; xapi.conf is only consulted when the key
+is absent from the invocation. The mode is stored in a Constants ref
+because xapi-cli-server does not link xapi-globs; xapi_globs wires the
+config entry to it, exactly as it already does for use-event-next.
+
+This commit is self-contained: reverting it leaves the per-invocation
+control from the previous commit working.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 0b2048c23c8f2899d6dea4cd80f3fc1b3d5cc7b7)
+---
+ ocaml/xapi-cli-server/xapi_cli.ml | 14 ++++++++++----
+ ocaml/xapi-consts/constants.ml    |  7 +++++++
+ ocaml/xapi/xapi_globs.ml          | 16 ++++++++++++++++
+ scripts/xapi.conf                 |  5 +++++
+ 4 files changed, 38 insertions(+), 4 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/xapi_cli.ml b/ocaml/xapi-cli-server/xapi_cli.ml
+index 8e13698191..7594da2160 100644
+--- a/ocaml/xapi-cli-server/xapi_cli.ml
++++ b/ocaml/xapi-cli-server/xapi_cli.ml
+@@ -92,11 +92,17 @@ let forward args s session =
+ (* Check that keys are all present in cmd *)
+ let check_required_keys cmd keylist = List.map (get_reqd_param cmd) keylist
+ 
+-(* Whether this invocation asked for the ignored-parameter report:
+-   report-ignored-params=warn, passed on the command line, via XE_EXTRA_ARGS, or
+-   in ~/.xe. *)
++(* Whether this invocation asked for the ignored-parameter report. The
++   command-line value (also settable via XE_EXTRA_ARGS or ~/.xe) wins; when it
++   is absent, fall back to the report-ignored-params key in xapi.conf. *)
+ let want_ignored_params_report params =
+-  Cli_args.get_opt "report-ignored-params" params = Some "warn"
++  match Cli_args.get_opt "report-ignored-params" params with
++  | Some "warn" ->
++      true
++  | Some _ ->
++      false
++  | None ->
++      !Constants.cli_report_ignored_parameters = Constants.Warn
+ 
+ (* Print, on stderr, one line per command-line parameter that the command never
+    read -- only when the invocation asked for it. *)
+diff --git a/ocaml/xapi-consts/constants.ml b/ocaml/xapi-consts/constants.ml
+index 8047b42f77..4bbd14f73a 100644
+--- a/ocaml/xapi-consts/constants.ml
++++ b/ocaml/xapi-consts/constants.ml
+@@ -317,6 +317,13 @@ let owner_key = "owner"
+ (* xapi-cli-server doesn't link xapi-globs *)
+ let use_event_next = ref true
+ 
++(* What xe does with command-line parameters that the command never read.
++   Set from xapi.conf (see xapi_globs), read by the CLI server; lives here
++   because xapi-cli-server doesn't link xapi-globs. *)
++type cli_report_ignored_parameters = Off | Warn
++
++let cli_report_ignored_parameters = ref Off
++
+ (* the time taken to wait before restarting in a different mode for pool eject/join operations *)
+ let fuse_time = ref 10.
+ 
+diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
+index 3682b36e99..73af3ff0ab 100644
+--- a/ocaml/xapi/xapi_globs.ml
++++ b/ocaml/xapi/xapi_globs.ml
+@@ -1596,6 +1596,22 @@ let other_options =
+     , (fun () -> string_of_bool !Constants.use_event_next)
+     , "Use deprecated Event.next instead of Event.from"
+     )
++  ; ( "report-ignored-params"
++    , Arg.String
++        (fun s ->
++          Constants.cli_report_ignored_parameters :=
++            match s with "warn" -> Warn | _ -> Off
++        )
++    , (fun () ->
++        match !Constants.cli_report_ignored_parameters with
++        | Off ->
++            "off"
++        | Warn ->
++            "warn"
++      )
++    , "What xe does with command-line parameters a command did not read: 'off' \
++       (default) or 'warn' to print them on stderr."
++    )
+   ; ( "nvidia_multi_vgpu_enabled_driver_versions"
+     , Arg.String
+         (fun x ->
+diff --git a/scripts/xapi.conf b/scripts/xapi.conf
+index 7fc2e80467..62bd8f5eed 100644
+--- a/scripts/xapi.conf
++++ b/scripts/xapi.conf
+@@ -88,6 +88,11 @@ igd-passthru-vendor-whitelist = 8086
+ # Allow the use of custom UEFI certificates
+ allow-custom-uefi-certs = true
+ 
++# What xe does with command-line parameters a command did not read: 'off'
++# (default) or 'warn' to print them on stderr. A report-ignored-params value on
++# the xe command line (or in XE_EXTRA_ARGS / ~/.xe) overrides this.
++# report-ignored-params = off
++
+ # Paths to utilities: ############################################
+ 
+ search-path = @LIBEXECDIR@:@OPTDIR@/bin
