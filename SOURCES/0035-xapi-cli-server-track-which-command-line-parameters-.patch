@@ -1,0 +1,812 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 31 Aug 2026 16:32:52 +0200
+Subject: [PATCH] xapi-cli-server: track which command-line parameters are read
+Content-Type: text/plain; charset="utf-8"
+
+Give each Cli_args entry a mutable [used] flag. Every value accessor
+(get / get_opt / get_default / get_all / exists / assoc_default_ci) marks
+the entries it touches. Entry records are shared through views, so
+marking via a view is visible from the root. Cli_args.unused -- the keys
+of entries nobody read -- is defined here but not called yet; nothing
+reads [used], so there is no behaviour change. The report of ignored
+parameters is a later commit.
+
+Once reads are tracked, a bulk reader that returns the parameters as a
+plain list without marking them is a trap: the command does consume those
+parameters, yet the report still lists them as ignored. So the same
+commit closes that hole. The interface now offers only marking ways to
+take a parameter's contents out:
+
+  - Cli_args.consume marks every visible entry; a set parameter is read
+    as consume |> keys.
+  - Cli_args.map_contents (consume then to_pairs) is the reader for a
+    map/set parameter and for the "rest of the command line": the
+    Cli_maps.* reads, params_except, the field filters of
+    select_vms / *-list, and the option subsets forwarded by
+    diagnostic_net_stats / host_crashdump_upload / host_bugreport_upload
+    all go through it. assoc_default_ci, a case-insensitive get_default,
+    moves into Cli_args alongside it.
+  - Cli_args.log_args renders the "key=value ..." line for the command
+    log, censoring the values it is told to; being diagnostic output it
+    deliberately does not mark.
+
+to_pairs, the unchecked reader, is no longer exposed by cli_args.mli.
+
+override_param marks its synthesized entry (never a user parameter); the
+CLI framework marks Cli_args.reserved in exec_command. vm_migrate renamed
+host-uuid / host-name to host by round-tripping through to_pairs /
+from_pairs, which rebuilt fresh entries and lost the tracking; it now
+uses Cli_args.rename_key, which mutates the shared entry records in
+place.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 24fdc34ca7470f02d1fb448731880f2e26fbe029)
+---
+ ocaml/xapi-cli-server/cli_args.ml       | 149 +++++++++++++++++++-----
+ ocaml/xapi-cli-server/cli_args.mli      |  38 +++++-
+ ocaml/xapi-cli-server/cli_maps.ml       |   2 +-
+ ocaml/xapi-cli-server/cli_maps.mli      |   2 +-
+ ocaml/xapi-cli-server/cli_operations.ml | 146 +++++++++++------------
+ ocaml/xapi-cli-server/xapi_cli.ml       |  18 +--
+ 6 files changed, 225 insertions(+), 130 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_args.ml b/ocaml/xapi-cli-server/cli_args.ml
+index 4bc6fa829a..9186cc0627 100644
+--- a/ocaml/xapi-cli-server/cli_args.ml
++++ b/ocaml/xapi-cli-server/cli_args.ml
+@@ -12,33 +12,46 @@
+  * GNU Lesser General Public License for more details.
+  *)
+ 
++(* [used] records whether a command has read this parameter. It is mutable and
++   the entry records are shared between a structure and the views taken from it
++   ({!view}), so marking through a view is visible from the root. Nothing reads
++   [used] yet -- the report of ignored parameters is a later commit. *)
++type 'a entry = {mutable key: string; value: 'a; mutable used: bool}
++
+ (* [scope = Some prefix] restricts the visible entries to those whose key is
+    [prefix] followed by at least one more character (any separator, matching the
+    historical map-parameter parsing); their keys are seen with that prefix and
+-   its separator removed. [pairs] is shared with the unscoped structure the view
+-   was taken from. *)
+-type 'a t = {pairs: (string * 'a) list; scope: string option}
++   its separator removed. [entries] is shared with the structure the view was
++   taken from. *)
++type 'a t = {entries: 'a entry list; scope: string option}
+ 
+-(* The entries visible through [t], with the scope prefix stripped from keys. *)
+-let visible t =
++(* [bare t e] is [e]'s key as seen through [t] (scope prefix stripped), or [None]
++   when [e] is not visible through [t]. *)
++let bare t e =
+   match t.scope with
+   | None ->
+-      t.pairs
++      Some e.key
+   | Some prefix ->
+       let plen = String.length prefix in
+       let len = plen + 1 in
+-      List.filter_map
+-        (fun (k, v) ->
+-          if String.length k > len && String.sub k 0 plen = prefix then
+-            Some (String.sub k len (String.length k - len), v)
+-          else
+-            None
+-        )
+-        t.pairs
++      if String.length e.key > len && String.sub e.key 0 plen = prefix then
++        Some (String.sub e.key len (String.length e.key - len))
++      else
++        None
+ 
+-let from_pairs pairs = {pairs; scope= None}
++(* The entries visible through [t], each paired with its bare key. *)
++let visible t =
++  List.filter_map (fun e -> Option.map (fun k -> (k, e)) (bare t e)) t.entries
+ 
+-let to_pairs = visible
++let mark e = e.used <- true
++
++let from_pairs pairs =
++  {
++    entries= List.map (fun (key, value) -> {key; value; used= false}) pairs
++  ; scope= None
++  }
++
++let to_pairs t = List.map (fun (k, e) -> (k, e.value)) (visible t)
+ 
+ let view prefix t = {t with scope= Some prefix}
+ 
+@@ -46,34 +59,110 @@ let reserved = ["server"; "username"; "password"; "port"; "minimal"; "all"]
+ 
+ let is_reserved arg = List.mem arg reserved
+ 
+-let get key t = List.assoc key (visible t)
++let get_opt key t =
++  match List.find_opt (fun (k, _) -> k = key) (visible t) with
++  | Some (_, e) ->
++      mark e ; Some e.value
++  | None ->
++      None
+ 
+-let get_opt key t = List.assoc_opt key (visible t)
++let get key t = match get_opt key t with Some v -> v | None -> raise Not_found
+ 
+ let get_default key t default =
+-  match List.assoc_opt key (visible t) with None -> default | Some v -> v
++  match get_opt key t with None -> default | Some v -> v
++
++(* Like [get_default key t ""] but matching [key] case-insensitively; marks the
++   matched entry as read. *)
++let assoc_default_ci key t =
++  let key = String.lowercase_ascii key in
++  match
++    List.find_opt (fun (k, _) -> String.lowercase_ascii k = key) (visible t)
++  with
++  | Some (_, e) ->
++      mark e ; e.value
++  | None ->
++      ""
+ 
+ let get_all key t =
+   List.filter_map
+-    (fun (k, v) ->
+-      if k = key then
+-        Some v
+-      else
++    (fun (k, e) ->
++      if k = key then (
++        mark e ; Some e.value
++      ) else
+         None
+     )
+     (visible t)
+ 
+-let exists key t = List.mem_assoc key (visible t)
++let exists key t = Option.is_some (get_opt key t)
+ 
+ let keys t = List.map fst (visible t)
+ 
+-(* The mutating helpers below are only ever used on an unscoped structure. *)
++(* Mark every visible entry of [t] as read, and return [t]. Underlies
++   {!map_contents}; also used directly with {!keys} to drain a set parameter. *)
++let consume t =
++  List.iter (fun (_, e) -> mark e) (visible t) ;
++  t
+ 
+-let add key value t = {t with pairs= (key, value) :: t.pairs}
++(* The visible [(key, value)] pairs of [t], all marked as read -- for forwarding
++   a whole map/set parameter (or a filtered parameter list) wholesale to the
++   API. Reads the contents, so it consumes: never left un-consumed, or the
++   entries would be reported as ignored. *)
++let map_contents t = to_pairs (consume t)
+ 
+-let remove key t = {t with pairs= List.remove_assoc key t.pairs}
++(* Render [t] as a "key=value key=value" line for a log, replacing the value of
++   every [key] for which [censor key] holds with "(omitted)". Does not mark
++   entries: this is diagnostic output, not the command reading its parameters. *)
++let log_args ~censor t =
++  to_pairs t
++  |> List.map (fun (k, v) ->
++      let v =
++        if censor k then
++          "(omitted)"
++        else
++          v
++      in
++      Printf.sprintf "%s=%s" k v
++  )
++  |> String.concat " "
+ 
+-let filter pred t = {t with pairs= List.filter (fun (k, _) -> pred k) t.pairs}
++(* The bare keys of the entries visible through [t] that no command has read.
++   Not called yet -- the report of ignored parameters is a later commit. *)
++let unused t =
++  List.filter_map
++    (fun (k, e) ->
++      if e.used then
++        None
++      else
++        Some k
++    )
++    (visible t)
+ 
+-let filter_out pred t =
+-  {t with pairs= List.filter (fun (k, _) -> not (pred k)) t.pairs}
++(* Mark the entry for [key], if any, as read -- without reading its value. *)
++let mark_used key t = ignore (get_opt key t)
++
++(* The helpers below are only ever used on an unscoped structure. *)
++
++(* Rename every entry keyed [from_] to [to_], in place: the entry records are
++   shared with the views taken from [t], so the rename is seen everywhere,
++   including a report computed on the structure this one was derived from. *)
++let rename_key ~from_ ~to_ t =
++  List.iter (fun e -> if e.key = from_ then e.key <- to_) t.entries
++
++let add key value t = {t with entries= {key; value; used= false} :: t.entries}
++
++let remove key t =
++  let rec go = function
++    | [] ->
++        []
++    | e :: rest ->
++        if e.key = key then
++          rest
++        else
++          e :: go rest
++  in
++  {t with entries= go t.entries}
++
++let filter pred t =
++  {t with entries= List.filter (fun e -> pred e.key) t.entries}
++
++let filter_out pred t = filter (Fun.negate pred) t
+diff --git a/ocaml/xapi-cli-server/cli_args.mli b/ocaml/xapi-cli-server/cli_args.mli
+index 03c4923237..f9f24241e8 100644
+--- a/ocaml/xapi-cli-server/cli_args.mli
++++ b/ocaml/xapi-cli-server/cli_args.mli
+@@ -23,10 +23,6 @@ type 'a t
+ val from_pairs : (string * string) list -> string t
+ (** Build the structure from the parsed command-line [(key, value)] pairs. *)
+ 
+-val to_pairs : 'a t -> (string * 'a) list
+-(** The [(key, value)] pairs, in command-line order. On a view (see {!view}),
+-    only the entries under the view's prefix, with that prefix stripped. *)
+-
+ val view : string -> 'a t -> 'a t
+ (** [view prefix t] is [t] restricted to the entries whose key is [prefix]
+     followed by a separator and at least one more character (the
+@@ -49,12 +45,40 @@ val get_opt : string -> 'a t -> 'a option
+ val get_default : string -> 'a t -> 'a -> 'a
+ (** [get_default key t default] is the value bound to [key], or [default]. *)
+ 
++val assoc_default_ci : string -> string t -> string
++(** [assoc_default_ci key t] is the value bound to [key] matched
++    case-insensitively, or [""] if absent. Marks the matched entry as read. *)
++
+ val get_all : string -> 'a t -> 'a list
+ (** Every value bound to [key], in command-line order (a key may legitimately
+     appear more than once). *)
+ 
+ val exists : string -> 'a t -> bool
+ 
++val consume : 'a t -> 'a t
++(** Mark every entry visible through [t] as read, and return [t]. For call sites
++    that take a whole (view's) contents wholesale -- e.g. a set parameter read
++    with {!keys}; a map parameter goes through {!map_contents} instead. *)
++
++val map_contents : 'a t -> (string * 'a) list
++(** The visible [(key, value)] pairs of [t], all marked as read. For forwarding a
++    whole map parameter -- or a filtered parameter list -- to the API:
++    [Cli_maps.other_config params |> map_contents]. Marks as it reads, so the
++    entries cannot be left unconsumed and then wrongly reported as ignored --
++    which is why it, rather than a raw pair list, is what the interface exposes. *)
++
++val log_args : censor:(string -> bool) -> string t -> string
++(** [t] rendered as a ["key=value key=value"] line for a log, with the value of
++    every [key] for which [censor key] is [true] replaced by ["(omitted)"]. Does
++    not mark entries -- diagnostic output, not a command reading its arguments. *)
++
++val mark_used : string -> 'a t -> unit
++(** Mark the entry for [key], if any, as read, without reading its value. *)
++
++val unused : 'a t -> string list
++(** The keys of the entries no command has read through {!get} & co. Used to
++    report the parameters a command silently ignored. *)
++
+ val add : string -> 'a -> 'a t -> 'a t
+ (** [add key value t] prepends [(key, value)], shadowing any existing binding
+     for [key] in subsequent {!get} / {!get_opt} lookups. *)
+@@ -68,4 +92,10 @@ val filter_out : (string -> bool) -> 'a t -> 'a t
+ val remove : string -> 'a t -> 'a t
+ (** Remove the first pair bound to [key] (mirrors [List.remove_assoc]). *)
+ 
++val rename_key : from_:string -> to_:string -> 'a t -> unit
++(** Rename every entry keyed [from_] to [to_], in place. The entry records are
++    shared with the views of [t] and with the structure it was derived from, so
++    the rename -- and any subsequent {!mark_used} -- is visible from all of
++    them. *)
++
+ val keys : 'a t -> string list
+diff --git a/ocaml/xapi-cli-server/cli_maps.ml b/ocaml/xapi-cli-server/cli_maps.ml
+index 15896003cc..1e6a622ba8 100644
+--- a/ocaml/xapi-cli-server/cli_maps.ml
++++ b/ocaml/xapi-cli-server/cli_maps.ml
+@@ -15,7 +15,7 @@
+ (** Named views onto the map-valued parameters of an [xe] command line (the
+     [name:key=value] syntax), and the set-valued parameters -- which are maps
+     whose values are ignored, so read the result with {!Cli_args.keys} rather
+-    than {!Cli_args.to_pairs}.
++    than {!Cli_args.map_contents}.
+ 
+     Each entry is [fun params -> Cli_args.view "name" params]: a lens onto the
+     [name:*] entries of [params], presenting their keys with the [name:] prefix
+diff --git a/ocaml/xapi-cli-server/cli_maps.mli b/ocaml/xapi-cli-server/cli_maps.mli
+index 1567d17217..3501324f4e 100644
+--- a/ocaml/xapi-cli-server/cli_maps.mli
++++ b/ocaml/xapi-cli-server/cli_maps.mli
+@@ -15,7 +15,7 @@
+ (** Named views onto the map-valued parameters of an [xe] command line (the
+     [name:key=value] syntax), and the set-valued parameters -- which are maps
+     whose values are ignored, so read the result with {!Cli_args.keys} rather
+-    than {!Cli_args.to_pairs}.
++    than {!Cli_args.map_contents}.
+ 
+     Each accessor is [fun params -> Cli_args.view "name" params]: a lens onto the
+     [name:*] entries of [params], presenting their keys with the [name:] prefix
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index ecc883c233..caf6a27db6 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -435,30 +435,25 @@ let stdparams =
+   ; "trace"
+   ]
+ 
++let map_contents = Cli_args.map_contents
++
+ (* [params_except extra params] is the [(key, value)] pairs of [params] with the
+    standard framework keys and [extra] removed. Used by commands that treat every
+    remaining pair as data (map/set contents, event filters, report query
+    strings); it is the boundary past which the command line is plain data rather
+-   than tracked CLI arguments. *)
++   than tracked CLI arguments, so the returned entries are marked as read. *)
+ let params_except extra params =
+-  Cli_args.to_pairs params
+-  |> List.filter (fun (k, _) -> not (List.mem k (extra @ stdparams)))
++  params
++  |> Cli_args.filter_out (fun k -> List.mem k (extra @ stdparams))
++  |> map_contents
+ 
+ (* [override_param key value params] prepends [key=value], overriding whatever the
+-   user supplied for [key] (subsequent lookups return [value]). *)
+-let override_param = Cli_args.add
+-
+-(* [assoc_default_ci key params] looks up [key] in [params] ignoring the case of
+-   the keys, defaulting to "". *)
+-let assoc_default_ci key params =
+-  let key = String.lowercase_ascii key in
+-  Cli_args.to_pairs params
+-  |> List.map (fun (k, v) -> (String.lowercase_ascii k, v))
+-  |> fun params -> Listext.assoc_default key params ""
+-
+-(* This goes through the list of parameters, extracting any of the form map-name-key=value   *)
+-(* where map-name is the name of a map in the class. These will be used to set the key-value *)
+-(* pair in the map. Returns a list of params that didn't fit this form *)
++   user supplied for [key] (subsequent lookups return [value]). The synthetic
++   entry is marked read: it is never a parameter the user passed and forgot. *)
++let override_param key value params =
++  let params = Cli_args.add key value params in
++  Cli_args.mark_used key params ;
++  params
+ 
+ let choose_params ?(key = "params") params defaults =
+   if Cli_args.exists key params then
+@@ -1466,7 +1461,7 @@ let pool_disable_binary_storage (_ : printer) rpc session_id (_ : params) =
+   Client.Pool.disable_binary_storage ~rpc ~session_id
+ 
+ let pool_ha_enable (_ : printer) rpc session_id params =
+-  let configuration = Cli_args.to_pairs (Cli_maps.ha_config params) in
++  let configuration = map_contents (Cli_maps.ha_config params) in
+   let uuids =
+     Option.fold ~none:[] ~some:(String.split_on_char ',')
+       (Cli_args.get_opt "heartbeat-sr-uuids" params)
+@@ -1764,7 +1759,7 @@ let pool_deconfigure_wlb (_ : printer) rpc session_id (_ : params) =
+   Client.Pool.deconfigure_wlb ~rpc ~session_id
+ 
+ let pool_send_wlb_configuration (_ : printer) rpc session_id params =
+-  let config = Cli_args.to_pairs (Cli_maps.config params) in
++  let config = map_contents (Cli_maps.config params) in
+   Client.Pool.send_wlb_configuration ~rpc ~session_id ~config
+ 
+ let pool_retrieve_wlb_configuration printer rpc session_id _params =
+@@ -1994,8 +1989,8 @@ let vdi_create printer rpc session_id params =
+       `user
+   in
+   let sharable = get_bool_param params "sharable" in
+-  let sm_config = Cli_args.to_pairs (Cli_maps.sm_config params) in
+-  let tags = Cli_args.keys (Cli_maps.tags params) in
++  let sm_config = map_contents (Cli_maps.sm_config params) in
++  let tags = Cli_args.keys (Cli_args.consume (Cli_maps.tags params)) in
+   let vdi =
+     Client.VDI.create ~rpc ~session_id ~name_label ~name_description:"" ~sR
+       ~virtual_size ~_type:ty ~sharable ~read_only:false ~xenstore_data:[]
+@@ -2022,9 +2017,9 @@ let vdi_introduce printer rpc session_id params =
+   let sharable = get_bool_param params "sharable" in
+   let read_only = get_bool_param params "read-only" in
+   (* NB call is new so backwards compat other-config- not required *)
+-  let other_config = Cli_args.to_pairs (Cli_maps.other_config params) in
+-  let xenstore_data = Cli_args.to_pairs (Cli_maps.xenstore_data params) in
+-  let sm_config = Cli_args.to_pairs (Cli_maps.sm_config params) in
++  let other_config = map_contents (Cli_maps.other_config params) in
++  let xenstore_data = map_contents (Cli_maps.xenstore_data params) in
++  let sm_config = map_contents (Cli_maps.sm_config params) in
+   let location = Cli_args.get "location" params in
+   let managed = get_bool_param params "managed" in
+   let virtual_size = 0L and physical_utilisation = 0L in
+@@ -2123,7 +2118,7 @@ let vdi_clone printer rpc session_id params =
+   let vdi =
+     Client.VDI.get_by_uuid ~rpc ~session_id ~uuid:(Cli_args.get "uuid" params)
+   in
+-  let driver_params = Cli_args.to_pairs (Cli_maps.driver_params params) in
++  let driver_params = map_contents (Cli_maps.driver_params params) in
+   let name_label = Cli_args.get_opt "new-name-label" params in
+   let name_description = Cli_args.get_opt "new-name-description" params in
+   let newvdi = Client.VDI.clone ~rpc ~session_id ~vdi ~driver_params in
+@@ -2142,7 +2137,7 @@ let vdi_snapshot printer rpc session_id params =
+   let vdi =
+     Client.VDI.get_by_uuid ~rpc ~session_id ~uuid:(Cli_args.get "uuid" params)
+   in
+-  let driver_params = Cli_args.to_pairs (Cli_maps.driver_params params) in
++  let driver_params = map_contents (Cli_maps.driver_params params) in
+   let newvdi = Client.VDI.snapshot ~rpc ~session_id ~vdi ~driver_params in
+   let newuuid = Client.VDI.get_uuid ~rpc ~session_id ~self:newvdi in
+   printer (Cli_printer.PList [newuuid])
+@@ -2564,7 +2559,7 @@ let sr_create fd _printer rpc session_id params =
+   in
+   let _type = Cli_args.get "type" params in
+   let content_type = Cli_args.get_default "content-type" params "" in
+-  let device_config = Cli_args.to_pairs (Cli_maps.device_config params) in
++  let device_config = map_contents (Cli_maps.device_config params) in
+   (* If the device-config parameter is of the form k-filename=v, then we assume the
+      	   key is 'k' and the value is stored in a file named 'v' *)
+   let suffix = "-filename" in
+@@ -2585,7 +2580,7 @@ let sr_create fd _printer rpc session_id params =
+       )
+       device_config
+   in
+-  let sm_config = Cli_args.to_pairs (Cli_maps.sm_config params) in
++  let sm_config = map_contents (Cli_maps.sm_config params) in
+   let sr =
+     Client.SR.create ~rpc ~session_id ~host ~device_config ~name_label
+       ~name_description ~physical_size ~_type ~content_type ~shared ~sm_config
+@@ -2600,7 +2595,7 @@ let sr_introduce printer rpc session_id params =
+   let content_type = Cli_args.get_default "content-type" params "" in
+   let uuid = Cli_args.get "uuid" params in
+   let shared = get_bool_param params "shared" in
+-  let sm_config = Cli_args.to_pairs (Cli_maps.sm_config params) in
++  let sm_config = map_contents (Cli_maps.sm_config params) in
+   let _ =
+     Client.SR.introduce ~rpc ~session_id ~uuid ~name_label ~name_description
+       ~_type ~content_type ~shared ~sm_config
+@@ -2613,8 +2608,8 @@ type probe_result = Raw of string (* SMAPIv1 adapters return arbitrary data *)
+ let sr_probe printer rpc session_id params =
+   let host = parse_host_uuid rpc session_id params in
+   let _type = Cli_args.get "type" params in
+-  let device_config = Cli_args.to_pairs (Cli_maps.device_config params) in
+-  let sm_config = Cli_args.to_pairs (Cli_maps.sm_config params) in
++  let device_config = map_contents (Cli_maps.device_config params) in
++  let sm_config = map_contents (Cli_maps.sm_config params) in
+   let txt =
+     Client.SR.probe ~rpc ~session_id ~host ~_type ~device_config ~sm_config
+   in
+@@ -2632,8 +2627,8 @@ let sr_probe printer rpc session_id params =
+ let sr_probe_ext printer rpc session_id params =
+   let host = parse_host_uuid rpc session_id params in
+   let _type = Cli_args.get "type" params in
+-  let device_config = Cli_args.to_pairs (Cli_maps.device_config params) in
+-  let sm_config = Cli_args.to_pairs (Cli_maps.sm_config params) in
++  let device_config = map_contents (Cli_maps.device_config params) in
++  let sm_config = map_contents (Cli_maps.sm_config params) in
+   let results =
+     Client.SR.probe_ext ~rpc ~session_id ~host ~device_config ~_type ~sm_config
+   in
+@@ -2742,7 +2737,7 @@ let sr_disable_database_replication _printer rpc session_id params =
+ let pbd_create printer rpc session_id params =
+   let host_uuid = Cli_args.get "host-uuid" params in
+   let sr_uuid = Cli_args.get "sr-uuid" params in
+-  let device_config = Cli_args.to_pairs (Cli_maps.device_config params) in
++  let device_config = map_contents (Cli_maps.device_config params) in
+   let host = Client.Host.get_by_uuid ~rpc ~session_id ~uuid:host_uuid in
+   let sR = Client.SR.get_by_uuid ~rpc ~session_id ~uuid:sr_uuid in
+   let pbd =
+@@ -3223,8 +3218,7 @@ let select_vms ?(include_control_vms = false) ?(include_template_vms = false)
+       params
+   in
+   (* Filter all the records *)
+-  List.fold_left filter_records_on_fields all_recs
+-    (Cli_args.to_pairs filter_params)
++  List.fold_left filter_records_on_fields all_recs (map_contents filter_params)
+ 
+ let select_hosts rpc session_id params ignore_params =
+   let host_name_or_ref =
+@@ -3262,8 +3256,7 @@ let select_hosts rpc session_id params ignore_params =
+       params
+   in
+   (* Filter all the records *)
+-  List.fold_left filter_records_on_fields all_recs
+-    (Cli_args.to_pairs filter_params)
++  List.fold_left filter_records_on_fields all_recs (map_contents filter_params)
+ 
+ let select_srs rpc session_id params ignore_params =
+   let sr_name_or_ref =
+@@ -3299,8 +3292,7 @@ let select_srs rpc session_id params ignore_params =
+       params
+   in
+   (* Filter all the records *)
+-  List.fold_left filter_records_on_fields all_recs
+-    (Cli_args.to_pairs filter_params)
++  List.fold_left filter_records_on_fields all_recs (map_contents filter_params)
+ 
+ exception Multiple_failure of (string * string) list
+ 
+@@ -3565,7 +3557,7 @@ let vm_call_plugin fd printer rpc session_id params =
+   let vm = Client.VM.get_by_uuid ~rpc ~session_id ~uuid:vm_uuid in
+   let plugin = Cli_args.get "plugin" params in
+   let fn = Cli_args.get "fn" params in
+-  let args = Cli_args.to_pairs (Cli_maps.args params) in
++  let args = map_contents (Cli_maps.args params) in
+   let args = List.map (args_file fd) args in
+   let result = Client.VM.call_plugin ~rpc ~session_id ~vm ~plugin ~fn ~args in
+   printer (Cli_printer.PList [result])
+@@ -3575,7 +3567,7 @@ let vm_call_host_plugin fd printer rpc session_id params =
+   let vm = Client.VM.get_by_uuid ~rpc ~session_id ~uuid:vm_uuid in
+   let plugin = Cli_args.get "plugin" params in
+   let fn = Cli_args.get "fn" params in
+-  let args = Cli_args.to_pairs (Cli_maps.args params) in
++  let args = map_contents (Cli_maps.args params) in
+   let args = List.map (args_file fd) args in
+   let result =
+     Client.VM.call_host_plugin ~rpc ~session_id ~vm ~plugin ~fn ~args
+@@ -4650,17 +4642,10 @@ let vm_migrate_sxm_params =
+   ]
+ 
+ let vm_migrate printer rpc session_id params =
+-  (* Hack to match host-uuid and host-name for backwards compatibility *)
+-  let params =
+-    Cli_args.to_pairs params
+-    |> List.map (fun (k, v) ->
+-        if k = "host-uuid" || k = "host-name" then
+-          ("host", v)
+-        else
+-          (k, v)
+-    )
+-    |> Cli_args.from_pairs
+-  in
++  (* Accept host-uuid and host-name as aliases of host, for backwards
++     compatibility. *)
++  Cli_args.rename_key ~from_:"host-uuid" ~to_:"host" params ;
++  Cli_args.rename_key ~from_:"host-name" ~to_:"host" params ;
+   let compress =
+     (* Avoid setting a default for the compress option here if none
+        given; let the API decide if no option is given. Otherwise API and
+@@ -4787,7 +4772,7 @@ let vm_migrate printer rpc session_id params =
+               let net = remote Client.Network.get_by_uuid ~uuid:net_uuid in
+               (vif, net)
+             )
+-            (Cli_args.to_pairs (Cli_maps.vif params))
++            (map_contents (Cli_maps.vif params))
+         in
+         let vdi_map =
+           List.map
+@@ -4798,7 +4783,7 @@ let vm_migrate printer rpc session_id params =
+               let sr = remote Client.SR.get_by_uuid ~uuid:sr_uuid in
+               (vdi, sr)
+             )
+-            (Cli_args.to_pairs (Cli_maps.vdi params))
++            (map_contents (Cli_maps.vdi params))
+         in
+         let vgpu_map =
+           List.map
+@@ -4811,7 +4796,7 @@ let vm_migrate printer rpc session_id params =
+               in
+               (vgpu, gpu_group)
+             )
+-            (Cli_args.to_pairs (Cli_maps.vgpu params))
++            (map_contents (Cli_maps.vgpu params))
+         in
+         let preferred_sr =
+           (* The preferred SR is determined to be as the SR that the
+@@ -4981,7 +4966,7 @@ let vm_migrate printer rpc session_id params =
+               in
+               (vdi, vdi_fmt)
+             )
+-            (Cli_args.to_pairs (Cli_maps.image_format params))
++            (map_contents (Cli_maps.image_format params))
+         in
+         let new_vm =
+           do_vm_op ~include_control_vms:false ~include_template_vms:true printer
+@@ -5737,7 +5722,7 @@ let vm_import fd _printer rpc session_id params =
+   let vm_metadata_only = get_bool_param params "metadata" in
+   let force = get_bool_param params "force" in
+   let dry_run = get_bool_param params "dry-run" in
+-  let vdi_map = Cli_args.to_pairs (Cli_maps.vdi params) in
++  let vdi_map = map_contents (Cli_maps.vdi params) in
+   if Cli_args.exists "url" params && Cli_args.exists "filename" params then (
+     marshal fd
+       (Command
+@@ -5751,7 +5736,7 @@ let vm_import fd _printer rpc session_id params =
+   if Vpx_types.of_string _type <> Vpx_types.XenServer then
+     let username = Cli_args.get "host-username" params in
+     let password = Cli_args.get "host-password" params in
+-    let remote_config = Cli_args.to_pairs (Cli_maps.remote_config params) in
++    let remote_config = map_contents (Cli_maps.remote_config params) in
+     Client.VM.import_convert ~rpc ~session_id ~_type ~username ~password ~sr
+       ~remote_config
+   else if Cli_args.exists "url" params then
+@@ -6394,8 +6379,9 @@ let diagnostic_net_stats printer rpc session_id params =
+     ["method"; "uri"; "params"; "requests"; "connections"; "framed"]
+   in
+   let xapi_params =
+-    Cli_args.to_pairs params
+-    |> List.filter (fun (k, _) -> List.mem k args_pass_to_api)
++    params
++    |> Cli_args.filter (fun k -> List.mem k args_pass_to_api)
++    |> map_contents
+   in
+   ignore
+     (do_host_op rpc session_id ~multiple:false
+@@ -6554,10 +6540,10 @@ let pif_reconfigure_ip _printer rpc session_id params =
+   let mode =
+     Record_util.ip_configuration_mode_of_string (Cli_args.get "mode" params)
+   in
+-  let iP = assoc_default_ci "IP" params in
++  let iP = Cli_args.assoc_default_ci "IP" params in
+   let netmask = Cli_args.get_default "netmask" params "" in
+   let gateway = Cli_args.get_default "gateway" params "" in
+-  let dNS = assoc_default_ci "DNS" params in
++  let dNS = Cli_args.assoc_default_ci "DNS" params in
+   let () =
+     Client.PIF.reconfigure_ip ~rpc ~session_id ~self:pif ~mode ~iP ~netmask
+       ~gateway ~dNS
+@@ -6571,9 +6557,9 @@ let pif_reconfigure_ipv6 _printer rpc session_id params =
+   let mode =
+     Record_util.ipv6_configuration_mode_of_string (Cli_args.get "mode" params)
+   in
+-  let iPv6 = assoc_default_ci "IPv6" params in
++  let iPv6 = Cli_args.assoc_default_ci "IPv6" params in
+   let gateway = Cli_args.get_default "gateway" params "" in
+-  let dNS = assoc_default_ci "DNS" params in
++  let dNS = Cli_args.assoc_default_ci "DNS" params in
+   let () =
+     Client.PIF.reconfigure_ipv6 ~rpc ~session_id ~self:pif ~mode ~iPv6 ~gateway
+       ~dNS
+@@ -6650,7 +6636,7 @@ let bond_create printer rpc session_id params =
+   let mode =
+     Record_util.bond_mode_of_string (Cli_args.get_default "mode" params "")
+   in
+-  let properties = Cli_args.to_pairs (Cli_maps.properties params) in
++  let properties = map_contents (Cli_maps.properties params) in
+   let bond =
+     Client.Bond.create ~rpc ~session_id ~network ~members:pifs ~mAC ~mode
+       ~properties
+@@ -6790,7 +6776,7 @@ let pool_apply_edition printer rpc session_id params =
+ 
+ let host_set_power_on_mode _printer rpc session_id params =
+   let power_on_mode = Cli_args.get "power-on-mode" params in
+-  let power_on_config = Cli_args.to_pairs (Cli_maps.power_on_config params) in
++  let power_on_config = map_contents (Cli_maps.power_on_config params) in
+   ignore
+     (do_host_op rpc session_id
+        (fun _ host ->
+@@ -6809,8 +6795,9 @@ let host_crash_upload _printer rpc session_id params =
+   let url = Cli_args.get_default "url" params "" in
+   (* pass everything else in as an option *)
+   let options =
+-    Cli_args.to_pairs params
+-    |> List.filter (fun (k, _) -> k <> "uuid" && k <> "url")
++    params
++    |> Cli_args.filter_out (fun k -> k = "uuid" || k = "url")
++    |> map_contents
+   in
+   Client.Host_crashdump.upload ~rpc ~session_id ~self:crash ~url ~options
+ 
+@@ -6826,8 +6813,9 @@ let host_bugreport_upload _printer rpc session_id params =
+     let url = Cli_args.get_default "url" params "" in
+     (* pass everything else in as an option *)
+     let options =
+-      Cli_args.to_pairs params
+-      |> List.filter (fun (k, _) -> k <> "host" && k <> "url")
++      params
++      |> Cli_args.filter_out (fun k -> k = "host" || k = "url")
++      |> map_contents
+     in
+     Client.Host.bugreport_upload ~rpc ~session_id ~host:(host.getref ()) ~url
+       ~options
+@@ -6920,13 +6908,13 @@ let pool_enable_external_auth _printer rpc session_id params =
+   let pool = get_pool_with_default rpc session_id params "uuid" in
+   let auth_type = Cli_args.get "auth-type" params in
+   let service_name = Cli_args.get "service-name" params in
+-  let config = Cli_args.to_pairs (Cli_maps.config params) in
++  let config = map_contents (Cli_maps.config params) in
+   Client.Pool.enable_external_auth ~rpc ~session_id ~pool ~config ~service_name
+     ~auth_type
+ 
+ let pool_disable_external_auth _printer rpc session_id params =
+   let pool = get_pool_with_default rpc session_id params "uuid" in
+-  let config = Cli_args.to_pairs (Cli_maps.config params) in
++  let config = map_contents (Cli_maps.config params) in
+   Client.Pool.disable_external_auth ~rpc ~session_id ~pool ~config
+ 
+ let pool_external_auth_set_ldaps _printer rpc session_id params =
+@@ -7081,7 +7069,7 @@ let host_call_plugin fd printer rpc session_id params =
+   let host = Client.Host.get_by_uuid ~rpc ~session_id ~uuid:host_uuid in
+   let plugin = Cli_args.get "plugin" params in
+   let fn = Cli_args.get "fn" params in
+-  let args = Cli_args.to_pairs (Cli_maps.args params) in
++  let args = map_contents (Cli_maps.args params) in
+   let args = List.map (args_file fd) args in
+   let result =
+     Client.Host.call_plugin ~rpc ~session_id ~host ~plugin ~fn ~args
+@@ -7097,7 +7085,7 @@ let host_enable_external_auth _printer rpc session_id params =
+   let host_uuid = Cli_args.get "host-uuid" params in
+   let auth_type = Cli_args.get "auth-type" params in
+   let service_name = Cli_args.get "service-name" params in
+-  let config = Cli_args.to_pairs (Cli_maps.config params) in
++  let config = map_contents (Cli_maps.config params) in
+   let host = Client.Host.get_by_uuid ~rpc ~session_id ~uuid:host_uuid in
+   Client.Host.enable_external_auth ~rpc ~session_id ~host ~config ~service_name
+     ~auth_type
+@@ -7110,7 +7098,7 @@ let host_disable_external_auth _printer rpc session_id params =
+        must be forced (use --force)." ;
+   let host_uuid = Cli_args.get "host-uuid" params in
+   let host = Client.Host.get_by_uuid ~rpc ~session_id ~uuid:host_uuid in
+-  let config = Cli_args.to_pairs (Cli_maps.config params) in
++  let config = map_contents (Cli_maps.config params) in
+   Client.Host.disable_external_auth ~rpc ~session_id ~host ~config ~force:true
+ 
+ let host_external_auth_set_ldaps _printer rpc session_id params =
+@@ -7529,7 +7517,7 @@ let session_subject_identifier_logout_all _printer rpc session_id _params =
+ 
+ let secret_create printer rpc session_id params =
+   let value = Cli_args.get "value" params in
+-  let other_config = Cli_args.to_pairs (Cli_maps.other_config params) in
++  let other_config = map_contents (Cli_maps.other_config params) in
+   let ref = Client.Secret.create ~rpc ~session_id ~value ~other_config in
+   let uuid = Client.Secret.get_uuid ~rpc ~session_id ~self:ref in
+   printer (Cli_printer.PList [uuid])
+@@ -7553,7 +7541,7 @@ let vmss_create printer rpc session_id params =
+   let name_label = Cli_args.get "name-label" params in
+   let ty = Record_util.vmss_type_of_string (get "type") in
+   let frequency = Record_util.vmss_frequency_of_string (get "frequency") in
+-  let schedule = Cli_args.to_pairs (Cli_maps.schedule params) in
++  let schedule = map_contents (Cli_maps.schedule params) in
+   (* optional parameters with default values *)
+   let name_description = get "name-description" ~default:"" in
+   let enabled = get_bool_param ~default:true params "enabled" in
+@@ -7689,7 +7677,7 @@ let vgpu_destroy _printer rpc session_id params =
+ 
+ let dr_task_create printer rpc session_id params =
+   let _type = Cli_args.get "type" params in
+-  let device_config = Cli_args.to_pairs (Cli_maps.device_config params) in
++  let device_config = map_contents (Cli_maps.device_config params) in
+   let whitelist =
+     if Cli_args.exists "sr-whitelist" params then
+       String.split_on_char ',' (Cli_args.get "sr-whitelist" params)
+diff --git a/ocaml/xapi-cli-server/xapi_cli.ml b/ocaml/xapi-cli-server/xapi_cli.ml
+index 25b54b56a5..21ad318b5a 100644
+--- a/ocaml/xapi-cli-server/xapi_cli.ml
++++ b/ocaml/xapi-cli-server/xapi_cli.ml
+@@ -221,6 +221,8 @@ let uninteresting_cmd_postfixes = ["help"; "-get"; "-list"]
+ 
+ let exec_command req cmd s session args =
+   let params = get_params cmd in
++  (* Parameters consumed by the CLI framework itself, not by the command. *)
++  List.iter (fun k -> Cli_args.mark_used k params) Cli_args.reserved ;
+   let minimal =
+     Cli_args.get_opt "minimal" params
+     |> Option.fold ~none:false ~some:bool_of_string
+@@ -277,21 +279,7 @@ let exec_command req cmd s session args =
+     let must_censor param_name =
+       List.exists (fun filter -> filter param_name) param_filters
+     in
+-    do_log "xe %s %s" cmd_name
+-      (String.concat " "
+-         (List.map
+-            (fun (k, v) ->
+-              let v' =
+-                if must_censor k then
+-                  "(omitted)"
+-                else
+-                  v
+-              in
+-              k ^ "=" ^ v'
+-            )
+-            (Cli_args.to_pairs params)
+-         )
+-      ) ;
++    do_log "xe %s %s" cmd_name (Cli_args.log_args ~censor:must_censor params) ;
+     do_rpcs req s u p minimal cmd session args
+ 
+ let get_line str i =

@@ -1,0 +1,85 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 7 Sep 2026 17:56:05 +0200
+Subject: [PATCH] xapi-cli-server: add an interface to the Cli_frontend module
+Content-Type: text/plain; charset="utf-8"
+
+To better keep track of what the module exports and how this is
+impacted by the changes to come.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit d68e10b36413fdf9de03b8494bcaee2c8afea01b)
+---
+ ocaml/xapi-cli-server/cli_frontend.mli | 35 ++++++++++++++++++++++++++
+ ocaml/xapi-cli-server/xapi_cli.ml      |  2 +-
+ quality-gate.sh                        |  2 +-
+ 3 files changed, 37 insertions(+), 2 deletions(-)
+ create mode 100644 ocaml/xapi-cli-server/cli_frontend.mli
+
+diff --git a/ocaml/xapi-cli-server/cli_frontend.mli b/ocaml/xapi-cli-server/cli_frontend.mli
+new file mode 100644
+index 0000000000..f5c83d8bb9
+--- /dev/null
++++ b/ocaml/xapi-cli-server/cli_frontend.mli
+@@ -0,0 +1,35 @@
++(*
++ * Copyright (C) 2026 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Interface of the Cli_frontend module *)
++
++exception ParseError of string
++
++exception ParamNotFound of string
++
++type commandline
++
++val get_params : commandline -> (string * string) list
++
++val get_cmdname : commandline -> string
++
++val get_reqd_param : commandline -> string -> string
++
++val cmdtable : (string, Cli_cmdtable.cmd_spec) Hashtbl.t
++
++val populate_cmdtable : Cli_operations.rpc -> API.ref_session -> unit
++
++val cmd_help : (Cli_printer.printval -> unit) -> bool -> commandline -> unit
++
++val parse_commandline : string list -> commandline
+diff --git a/ocaml/xapi-cli-server/xapi_cli.ml b/ocaml/xapi-cli-server/xapi_cli.ml
+index b8376bf45b..908327e7c1 100644
+--- a/ocaml/xapi-cli-server/xapi_cli.ml
++++ b/ocaml/xapi-cli-server/xapi_cli.ml
+@@ -415,7 +415,7 @@ let handler (req : Http.Request.t) (s : Unix.file_descr) _ =
+     | `Error (e, bt) ->
+         exception_handler s e ;
+         (* Command execution errors can use --trace *)
+-        if Cli_operations.get_bool_param cmd.params "trace" then (
++        if Cli_operations.get_bool_param (get_params cmd) "trace" then (
+           marshal s
+             (Command
+                (PrintStderr (Printf.sprintf "Raised %s\n" (Printexc.to_string e))
+diff --git a/quality-gate.sh b/quality-gate.sh
+index 0ff70a5413..8c58c30101 100755
+--- a/quality-gate.sh
++++ b/quality-gate.sh
+@@ -25,7 +25,7 @@ verify-cert () {
+ }
+ 
+ mli-files () {
+-  N=453
++  N=452
+   X="ocaml/tests"
+   X+="|ocaml/quicktest"
+   X+="|ocaml/message-switch/core_test"

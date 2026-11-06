@@ -1,0 +1,93 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 31 Aug 2026 17:45:31 +0200
+Subject: [PATCH] xapi-cli-server: give choose_params / select_fields an
+ optional ~key
+Content-Type: text/plain; charset="utf-8"
+
+choose_params and select_fields hard-coded the parameter name "params".
+vm_disk_list_aux worked around that by rebuilding the whole parameter
+list with vbd-params / vdi-params renamed to params. Add an optional
+~key argument instead and pass ~key:"vbd-params" / ~key:"vdi-params"
+from vm_disk_list_aux; the rebuilds go away. No behaviour change.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 33c137bd75277f573550660db29ff23a531199ba)
+---
+ ocaml/xapi-cli-server/cli_operations.ml | 35 +++++--------------------
+ 1 file changed, 7 insertions(+), 28 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 229e7527b0..ecc883c233 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -460,9 +460,9 @@ let assoc_default_ci key params =
+ (* where map-name is the name of a map in the class. These will be used to set the key-value *)
+ (* pair in the map. Returns a list of params that didn't fit this form *)
+ 
+-let choose_params params defaults =
+-  if Cli_args.exists "params" params then
+-    let ps = Cli_args.get "params" params in
++let choose_params ?(key = "params") params defaults =
++  if Cli_args.exists key params then
++    let ps = Cli_args.get key params in
+     if ps = "all" then
+       []
+     else
+@@ -470,8 +470,8 @@ let choose_params params defaults =
+   else
+     defaults
+ 
+-let select_fields params records default_params =
+-  let params = choose_params params default_params in
++let select_fields ?(key = "params") params records default_params =
++  let params = choose_params ~key params default_params in
+   if params = [] then
+     List.map (fun record -> record.fields) records
+   else
+@@ -5048,35 +5048,14 @@ let vm_disk_list_aux vm is_cd_list printer rpc session_id params =
+       )
+       vbds
+   in
+-  (* Hack - convert 'vbd-params' to 'params' *)
+-  let params' =
+-    Cli_args.to_pairs params
+-    |> List.map (fun (a, b) ->
+-        if a = "vbd-params" then
+-          ("params", b)
+-        else
+-          (a, b)
+-    )
+-    |> Cli_args.from_pairs
+-  in
+   let selectedvbd =
+-    select_fields params' vbdrecords
++    select_fields ~key:"vbd-params" params vbdrecords
+       ( if is_cd_list then
+           ["uuid"; "vm-name-label"; "userdevice"; "empty"]
+         else
+           ["uuid"; "vm-name-label"; "userdevice"]
+       )
+   in
+-  let params' =
+-    Cli_args.to_pairs params
+-    |> List.map (fun (a, b) ->
+-        if a = "vdi-params" then
+-          ("params", b)
+-        else
+-          (a, b)
+-    )
+-    |> Cli_args.from_pairs
+-  in
+   let rec doit vbds vdis n =
+     match (vbds, vdis) with
+     | [], [] ->
+@@ -5097,7 +5076,7 @@ let vm_disk_list_aux vm is_cd_list printer rpc session_id params =
+         | Some vdi ->
+             let selectedvdi =
+               List.hd
+-                (select_fields params' [vdi]
++                (select_fields ~key:"vdi-params" params [vdi]
+                    ["uuid"; "name-label"; "virtual-size"; "sr-name-label"]
+                 )
+             in

@@ -1,0 +1,85 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 31 Aug 2026 13:09:38 +0200
+Subject: [PATCH] xapi-cli-server: factor out assoc_default_ci helper
+Content-Type: text/plain; charset="utf-8"
+
+pif_reconfigure_ip and pif_reconfigure_ipv6 each defined an identical
+local read_optional_case_insensitive. Lift it to a module-level
+assoc_default_ci. No behaviour change.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 224794de7fb5c6f7ab477e18411bf950e79f378b)
+---
+ ocaml/xapi-cli-server/cli_operations.ml | 29 ++++++++++---------------
+ 1 file changed, 11 insertions(+), 18 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index fad8371766..bd8ac67b7f 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -464,6 +464,13 @@ let params_except extra params =
+    user supplied for [key] (subsequent List.assoc lookups return [value]). *)
+ let override_param key value params = (key, value) :: params
+ 
++(* [assoc_default_ci key params] looks up [key] in [params] ignoring the case of
++   the keys, defaulting to "". *)
++let assoc_default_ci key params =
++  let key = String.lowercase_ascii key in
++  let params = List.map (fun (k, v) -> (String.lowercase_ascii k, v)) params in
++  Listext.assoc_default key params ""
++
+ (* This goes through the list of parameters, extracting any of the form map-name-key=value   *)
+ (* where map-name is the name of a map in the class. These will be used to set the key-value *)
+ (* pair in the map. Returns a list of params that didn't fit this form *)
+@@ -6596,23 +6603,16 @@ module Network_sriov = struct
+ end
+ 
+ let pif_reconfigure_ip _printer rpc session_id params =
+-  let read_optional_case_insensitive key =
+-    let lower_case_params =
+-      List.map (fun (k, v) -> (String.lowercase_ascii k, v)) params
+-    in
+-    let lower_case_key = String.lowercase_ascii key in
+-    Listext.assoc_default lower_case_key lower_case_params ""
+-  in
+   let pif =
+     Client.PIF.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "uuid" params)
+   in
+   let mode =
+     Record_util.ip_configuration_mode_of_string (List.assoc "mode" params)
+   in
+-  let iP = read_optional_case_insensitive "IP" in
++  let iP = assoc_default_ci "IP" params in
+   let netmask = Listext.assoc_default "netmask" params "" in
+   let gateway = Listext.assoc_default "gateway" params "" in
+-  let dNS = read_optional_case_insensitive "DNS" in
++  let dNS = assoc_default_ci "DNS" params in
+   let () =
+     Client.PIF.reconfigure_ip ~rpc ~session_id ~self:pif ~mode ~iP ~netmask
+       ~gateway ~dNS
+@@ -6620,22 +6620,15 @@ let pif_reconfigure_ip _printer rpc session_id params =
+   ()
+ 
+ let pif_reconfigure_ipv6 _printer rpc session_id params =
+-  let read_optional_case_insensitive key =
+-    let lower_case_params =
+-      List.map (fun (k, v) -> (String.lowercase_ascii k, v)) params
+-    in
+-    let lower_case_key = String.lowercase_ascii key in
+-    Listext.assoc_default lower_case_key lower_case_params ""
+-  in
+   let pif =
+     Client.PIF.get_by_uuid ~rpc ~session_id ~uuid:(List.assoc "uuid" params)
+   in
+   let mode =
+     Record_util.ipv6_configuration_mode_of_string (List.assoc "mode" params)
+   in
+-  let iPv6 = read_optional_case_insensitive "IPv6" in
++  let iPv6 = assoc_default_ci "IPv6" params in
+   let gateway = Listext.assoc_default "gateway" params "" in
+-  let dNS = read_optional_case_insensitive "DNS" in
++  let dNS = assoc_default_ci "DNS" params in
+   let () =
+     Client.PIF.reconfigure_ipv6 ~rpc ~session_id ~self:pif ~mode ~iPv6 ~gateway
+       ~dNS

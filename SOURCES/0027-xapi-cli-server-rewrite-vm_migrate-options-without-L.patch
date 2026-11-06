@@ -1,0 +1,54 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 31 Aug 2026 12:59:30 +0200
+Subject: [PATCH] xapi-cli-server: rewrite vm_migrate options without Listext
+ helpers
+Content-Type: text/plain; charset="utf-8"
+
+Preparatory commit for the upcoming Cli_args migration: express the
+force/live/copy option handling with plain List.assoc_opt so the later
+substitution to Cli_args accessors is 1:1 and mechanical.
+
+No behaviour change: same validation (bool_of_string still names the
+offending key on error), same canonicalisation to "true"/"false", same
+ordering (compress first, then force, live, copy). Removes the local
+comp2 and the Listext.map_assoc_with_key / restrict_with_default calls.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+(cherry picked from commit 4d17d17d02e05ec038f1adf23fb0ab51ce288a9a)
+---
+ ocaml/xapi-cli-server/cli_operations.ml | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index f718a370ee..4d3a3b7358 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -4683,7 +4683,6 @@ let vm_migrate_sxm_params =
+   ]
+ 
+ let vm_migrate printer rpc session_id params =
+-  let comp2 f g a b = f (g a b) in
+   (* Hack to match host-uuid and host-name for backwards compatibility *)
+   let params =
+     List.map
+@@ -4703,11 +4702,15 @@ let vm_migrate printer rpc session_id params =
+     match List.assoc_opt key params with Some v -> [(key, v)] | None -> []
+   in
+   let options =
+-    Listext.map_assoc_with_key
+-      (comp2 string_of_bool bool_of_string)
+-      (Listext.restrict_with_default "false" ["force"; "live"; "copy"] params)
++    (* For each boolean option, take the value given on the command line or
++       default to "false", then validate it and canonicalise it to
++       "true"/"false". *)
++    let bool_option key =
++      let raw = Option.value ~default:"false" (List.assoc_opt key params) in
++      (key, string_of_bool (bool_of_string key raw))
++    in
++    compress @ List.map bool_option ["force"; "live"; "copy"]
+   in
+-  let options = List.concat [compress; options] in
+   (* We assume the user wants to do Storage XenMotion if they supply any of the
+      SXM-specific parameters, and then we use the new codepath. *)
+   let use_sxm_migration =
