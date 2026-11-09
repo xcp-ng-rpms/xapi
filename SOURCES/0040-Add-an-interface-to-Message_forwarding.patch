@@ -1,0 +1,160 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 9 Nov 2026 14:35:31 +0100
+Subject: [PATCH 40/44] Add an interface to Message_forwarding
+Content-Type: text/plain; charset="utf-8"
+
+The interface makes the compiler report the values that are never
+used; remove them.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi/message_forwarding.ml  | 27 -------------
+ ocaml/xapi/message_forwarding.mli | 65 +++++++++++++++++++++++++++++++
+ quality-gate.sh                   |  2 +-
+ 3 files changed, 66 insertions(+), 28 deletions(-)
+ create mode 100644 ocaml/xapi/message_forwarding.mli
+
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index aa17cee659..537d212ec9 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -519,14 +519,6 @@ functor
+           Ref.string_of pbd
+       with _ -> "invalid"
+ 
+-    let task_uuid ~__context task =
+-      try
+-        if Pool_role.is_master () then
+-          Db.Task.get_uuid ~__context ~self:task
+-        else
+-          Ref.string_of task
+-      with _ -> "invalid"
+-
+     let crashdump_uuid ~__context cd =
+       try
+         if Pool_role.is_master () then
+@@ -623,14 +615,6 @@ functor
+           Ref.string_of sdn_controller
+       with _ -> "invalid"
+ 
+-    let pusb_uuid ~__context pusb =
+-      try
+-        if Pool_role.is_master () then
+-          Db.PUSB.get_uuid ~__context ~self:pusb
+-        else
+-          Ref.string_of pusb
+-      with _ -> "invalid"
+-
+     let usb_group_uuid ~__context usb_group =
+       try
+         if Pool_role.is_master () then
+@@ -3122,12 +3106,6 @@ functor
+           (host_uuid ~__context host) ;
+         Local.VM.copy_bios_strings ~__context ~vm ~host
+ 
+-      let set_protection_policy ~__context ~self:_ ~value:_ =
+-        raise
+-          Api_errors.(
+-            Server_error (not_implemented, ["VM.set_protection_policy"])
+-          )
+-
+       let set_snapshot_schedule ~__context ~self ~value =
+         info "VM.set_snapshot_schedule: self = '%s'; " (vm_uuid ~__context self) ;
+         Local.VM.set_snapshot_schedule ~__context ~self ~value
+@@ -3905,11 +3883,6 @@ functor
+         in
+         do_op_on ~local_fn ~__context ~host ~remote_fn
+ 
+-      (* legacy names *)
+-      let certificate_install = install_ca_certificate
+-
+-      let certificate_uninstall = uninstall_ca_certificate ~force:false
+-
+       let certificate_list ~__context ~host =
+         info "Host.certificate_list: host = '%s'" (host_uuid ~__context host) ;
+         let local_fn = Local.Host.certificate_list ~host in
+diff --git a/ocaml/xapi/message_forwarding.mli b/ocaml/xapi/message_forwarding.mli
+new file mode 100644
+index 0000000000..c3159fcbfe
+--- /dev/null
++++ b/ocaml/xapi/message_forwarding.mli
+@@ -0,0 +1,65 @@
++(*
++ * Copyright (C) 2026 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Forwarding of API calls to the host where they must run *)
++
++val call_slave_with_session :
++     (Context.t -> string -> API.ref_task option -> Rpc.call -> Rpc.response)
++  -> Context.t
++  -> API.ref_host
++  -> API.ref_task option
++  -> (rpc:(Rpc.call -> Rpc.response) -> session_id:API.ref_session -> 'a)
++  -> 'a
++(** [call_slave_with_session remote_rpc_fn __context host task_opt f]
++    calls [f] with an RPC function to [host] built by [remote_rpc_fn],
++    and a pool session that is destroyed afterwards. *)
++
++val do_op_on_common :
++     local_fn:(__context:Context.t -> 'a)
++  -> __context:Context.t
++  -> host:API.ref_host
++  -> remote_fn:'b
++  -> (Context.t -> API.ref_host -> API.ref_task option -> 'b -> 'a)
++  -> 'a
++(** Run [local_fn] if [host] is the local host, otherwise call the last
++    argument to run [remote_fn] on [host]. *)
++
++val do_op_on_nolivecheck_no_retry :
++     local_fn:(__context:Context.t -> 'a)
++  -> __context:Context.t
++  -> host:API.ref_host
++  -> remote_fn:
++       (rpc:(Rpc.call -> Rpc.response) -> session_id:API.ref_session -> 'a)
++  -> 'a
++(** Run an operation on [host] with a pool session, without checking
++    that [host] is live and without retrying. *)
++
++val do_op_on_localsession_nolivecheck :
++     local_fn:(__context:Context.t -> 'a)
++  -> __context:Context.t
++  -> host:API.ref_host
++  -> remote_fn:
++       (rpc:(Rpc.call -> Rpc.response) -> session_id:API.ref_session -> 'a)
++  -> 'a
++(** Run an operation on [host] with a local session, without checking
++    that [host] is live and without retrying. *)
++
++(** Implementation of the API that forwards each call to the host where
++    it must run, and runs it there with the given implementation. *)
++module Forward : functor (_ : Custom_actions.CUSTOM_ACTIONS) ->
++  Custom_actions.CUSTOM_ACTIONS
++
++val register_callback_fns : unit -> unit
++(** Register the callbacks used by the RPC clients to track stunnel
++    processes and check the destination of stunnel connections. *)
+diff --git a/quality-gate.sh b/quality-gate.sh
+index e33cef5682..6e9f428cb8 100755
+--- a/quality-gate.sh
++++ b/quality-gate.sh
+@@ -25,7 +25,7 @@ verify-cert () {
+ }
+ 
+ mli-files () {
+-  N=452
++  N=451
+   X="ocaml/tests"
+   X+="|ocaml/quicktest"
+   X+="|ocaml/message-switch/core_test"

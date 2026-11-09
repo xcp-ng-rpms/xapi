@@ -159,6 +159,13 @@ Patch1037: 0037-xapi-cli-server-require-a-separator-after-a-map-set-.patch
 Patch1038: 0038-xapi-cli-server-report-command-line-parameters-the-c.patch
 Patch1039: 0039-xapi-cli-server-add-an-xapi.conf-switch-for-the-igno.patch
 
+# Domain ID in VM lifecycle messages (XCPNG-4048)
+Patch1040: 0040-Add-an-interface-to-Message_forwarding.patch
+Patch1041: 0041-Move-the-VM-lifecycle-message-bodies-to-a-Vm_message.patch
+Patch1042: 0042-Test-the-bodies-of-the-VM-lifecycle-messages.patch
+Patch1043: 0043-Create-VM-lifecycle-messages-from-a-single-event-typ.patch
+Patch1044: 0044-Add-the-domain-ID-to-the-VM-lifecycle-messages-creat.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

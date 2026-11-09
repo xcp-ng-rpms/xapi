@@ -1,0 +1,499 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Mon, 9 Nov 2026 13:19:41 +0100
+Subject: [PATCH 41/44] Move the VM lifecycle message bodies to a Vm_message
+ module
+Content-Type: text/plain; charset="utf-8"
+
+Each VM lifecycle message (VM_STARTED, VM_MIGRATED, VM_SNAPSHOTTED...)
+created in Message_forwarding had its body built inline. Move the
+code building each body, unchanged, to a separate function of a new
+Vm_message module, so that it can be tested.
+
+The moved lines can be checked with:
+
+  git show --color-moved=plain --color-moved-ws=allow-indentation-change
+
+Apart from the new function headers and their calls, the only lines
+that are not moved as is are those of the VM_MIGRATED format string:
+since it is less indented in Vm_message, ocamlformat splits it at a
+different place.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi/message_forwarding.ml | 127 +++++-------------------------
+ ocaml/xapi/vm_message.ml         | 130 +++++++++++++++++++++++++++++++
+ ocaml/xapi/vm_message.mli        |  70 +++++++++++++++++
+ 3 files changed, 218 insertions(+), 109 deletions(-)
+ create mode 100644 ocaml/xapi/vm_message.ml
+ create mode 100644 ocaml/xapi/vm_message.mli
+
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index 537d212ec9..6c88b1032d 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -1840,12 +1840,7 @@ functor
+             (fun () -> forward_to_access_srs ~local_fn ~__context ~vm ~remote_fn
+           )
+         in
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) snapshotted, snapshot name: %s"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            new_name
+-        in
++        let message_body = Vm_message.snapshot_body ~__context ~vm ~new_name in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_snapshotted ;
+         result
+@@ -1865,10 +1860,7 @@ functor
+           )
+         in
+         let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) checkpointed, snapshot name: %s"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            new_name
++          Vm_message.checkpoint_body ~__context ~vm ~new_name
+         in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_checkpointed ;
+@@ -2010,13 +2002,7 @@ functor
+         update_vbd_operations ~__context ~vm ;
+         update_vif_operations ~__context ~vm ;
+         let uuid = Db.VM.get_uuid ~__context ~self:vm in
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) started on host: %s (uuid: %s)"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            (Db.Host.get_name_label ~__context ~self:host)
+-            (Db.Host.get_uuid ~__context ~self:host)
+-        in
++        let message_body = Vm_message.start_body ~__context ~vm ~host in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_started ;
+         Rrdd_proxy.push_rrd ~__context ~vm_uuid:uuid
+@@ -2072,13 +2058,7 @@ functor
+         update_vbd_operations ~__context ~vm ;
+         update_vif_operations ~__context ~vm ;
+         let _ (* uuid *) = Db.VM.get_uuid ~__context ~self:vm in
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) started on host: %s (uuid: %s)"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            (Db.Host.get_name_label ~__context ~self:host)
+-            (Db.Host.get_uuid ~__context ~self:host)
+-        in
++        let message_body = Vm_message.start_on_body ~__context ~vm ~host in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_started ;
+         Rrdd_proxy.push_rrd ~__context
+@@ -2091,11 +2071,7 @@ functor
+         with_vm_operation ~__context ~self:vm ~doc:"VM.pause" ~op:`pause
+           (fun () -> forward_vm_op ~local_fn ~__context ~vm ~remote_fn
+         ) ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) paused"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.pause_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_paused ;
+         update_vbd_operations ~__context ~vm ;
+@@ -2108,11 +2084,7 @@ functor
+         with_vm_operation ~__context ~self:vm ~doc:"VM.unpause" ~op:`unpause
+           (fun () -> forward_vm_op ~local_fn ~__context ~vm ~remote_fn
+         ) ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) unpaused"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.unpause_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_unpaused ;
+         update_vbd_operations ~__context ~vm ;
+@@ -2180,11 +2152,7 @@ functor
+           ~op:`clean_shutdown (fun () ->
+             forward_vm_op ~local_fn ~__context ~vm ~remote_fn
+         ) ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) shutdown"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.clean_shutdown_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_shutdown ;
+         update_vbd_operations ~__context ~vm ;
+@@ -2222,11 +2190,7 @@ functor
+         ) ;
+         update_vbd_operations ~__context ~vm ;
+         update_vif_operations ~__context ~vm ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) shutdown"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.shutdown_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_shutdown
+ 
+@@ -2248,11 +2212,7 @@ functor
+                 )
+             )
+         ) ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) rebooted cleanly"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.clean_reboot_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_rebooted ;
+         update_vbd_operations ~__context ~vm ;
+@@ -2309,11 +2269,7 @@ functor
+             in
+             policy ~local_fn ~__context ~remote_fn
+         ) ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) shutdown forcibly"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.hard_shutdown_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_shutdown ;
+         update_vbd_operations ~__context ~vm ;
+@@ -2345,11 +2301,7 @@ functor
+                 )
+             )
+         ) ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) rebooted forcibly"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.hard_reboot_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_rebooted ;
+         update_vbd_operations ~__context ~vm ;
+@@ -2380,11 +2332,7 @@ functor
+           (fun () -> forward_vm_op ~local_fn ~__context ~vm ~remote_fn
+         ) ;
+         (* debug "placeholder for retrieving the current value of memory-actual";*)
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) suspended"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-        in
++        let message_body = Vm_message.suspend_body ~__context ~vm in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_suspended ;
+         update_vbd_operations ~__context ~vm ;
+@@ -2452,13 +2400,7 @@ functor
+                   forward_to_access_srs ~local_fn ~__context ~vm ~remote_fn
+             )
+         ) ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) reverted to snapshot: %s (uuid %s)"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            (Db.VM.get_name_label ~__context ~self:snapshot)
+-            (Db.VM.get_uuid ~__context ~self:snapshot)
+-        in
++        let message_body = Vm_message.revert_body ~__context ~vm ~snapshot in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_snapshot_reverted
+ 
+@@ -2481,12 +2423,7 @@ functor
+                 ~__context ~vm ~remote_fn ()
+           )
+         in
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) cloned (new uuid: %s)"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:result)
+-        in
++        let message_body = Vm_message.csvm_body ~__context ~vm ~result in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_cloned ;
+         result
+@@ -2516,13 +2453,7 @@ functor
+         in
+         update_vbd_operations ~__context ~vm ;
+         update_vif_operations ~__context ~vm ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) resumed on host: %s (uuid: %s)"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            (Db.Host.get_name_label ~__context ~self:host)
+-            (Db.Host.get_uuid ~__context ~self:host)
+-        in
++        let message_body = Vm_message.resume_body ~__context ~vm ~host in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_resumed ;
+         Rrdd_proxy.push_rrd ~__context
+@@ -2552,13 +2483,7 @@ functor
+         ) ;
+         update_vbd_operations ~__context ~vm ;
+         update_vif_operations ~__context ~vm ;
+-        let message_body =
+-          Printf.sprintf "VM '%s' (uuid: %s) resumed on host: %s (uuid: %s)"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            (Db.Host.get_name_label ~__context ~self:host)
+-            (Db.Host.get_uuid ~__context ~self:host)
+-        in
++        let message_body = Vm_message.resume_on_body ~__context ~vm ~host in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_resumed ;
+         Rrdd_proxy.push_rrd ~__context
+@@ -2611,15 +2536,7 @@ functor
+             )
+         ) ;
+         let message_body =
+-          Printf.sprintf
+-            "VM '%s' (uuid: %s) migrated from host '%s' (uuid: %s) to host \
+-             '%s' (uuid: %s)"
+-            (Db.VM.get_name_label ~__context ~self:vm)
+-            (Db.VM.get_uuid ~__context ~self:vm)
+-            (Db.Host.get_name_label ~__context ~self:source_host)
+-            (Db.Host.get_uuid ~__context ~self:source_host)
+-            (Db.Host.get_name_label ~__context ~self:host)
+-            (Db.Host.get_uuid ~__context ~self:host)
++          Vm_message.pool_migrate_body ~__context ~vm ~source_host ~host
+         in
+         create_vm_message ~__context ~vm ~message_body
+           ~message:Api_messages.vm_migrated ;
+@@ -2748,15 +2665,7 @@ functor
+         ( match migration_type with
+         | `Live_intrapool host ->
+             let message_body =
+-              Printf.sprintf
+-                "VM '%s' (uuid: %s) migrated from host '%s' (uuid: %s) to host \
+-                 '%s' (uuid: %s)"
+-                (Db.VM.get_name_label ~__context ~self:vm)
+-                (Db.VM.get_uuid ~__context ~self:vm)
+-                (Db.Host.get_name_label ~__context ~self:source_host)
+-                (Db.Host.get_uuid ~__context ~self:source_host)
+-                (Db.Host.get_name_label ~__context ~self:host)
+-                (Db.Host.get_uuid ~__context ~self:host)
++              Vm_message.migrate_send_body ~__context ~vm ~source_host ~host
+             in
+             create_vm_message ~__context ~vm ~message_body
+               ~message:Api_messages.vm_migrated
+diff --git a/ocaml/xapi/vm_message.ml b/ocaml/xapi/vm_message.ml
+new file mode 100644
+index 0000000000..534f95c01f
+--- /dev/null
++++ b/ocaml/xapi/vm_message.ml
+@@ -0,0 +1,130 @@
++(*
++ * Copyright (C) 2026 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(* Bodies of the messages recording the lifecycle of a VM *)
++
++let snapshot_body ~__context ~vm ~new_name =
++  Printf.sprintf "VM '%s' (uuid: %s) snapshotted, snapshot name: %s"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    new_name
++
++let checkpoint_body ~__context ~vm ~new_name =
++  Printf.sprintf "VM '%s' (uuid: %s) checkpointed, snapshot name: %s"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    new_name
++
++let start_body ~__context ~vm ~host =
++  Printf.sprintf "VM '%s' (uuid: %s) started on host: %s (uuid: %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.Host.get_name_label ~__context ~self:host)
++    (Db.Host.get_uuid ~__context ~self:host)
++
++let start_on_body ~__context ~vm ~host =
++  Printf.sprintf "VM '%s' (uuid: %s) started on host: %s (uuid: %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.Host.get_name_label ~__context ~self:host)
++    (Db.Host.get_uuid ~__context ~self:host)
++
++let pause_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) paused"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let unpause_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) unpaused"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let clean_shutdown_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) shutdown"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let shutdown_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) shutdown"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let clean_reboot_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) rebooted cleanly"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let hard_shutdown_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) shutdown forcibly"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let hard_reboot_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) rebooted forcibly"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let suspend_body ~__context ~vm =
++  Printf.sprintf "VM '%s' (uuid: %s) suspended"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++
++let revert_body ~__context ~vm ~snapshot =
++  Printf.sprintf "VM '%s' (uuid: %s) reverted to snapshot: %s (uuid %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.VM.get_name_label ~__context ~self:snapshot)
++    (Db.VM.get_uuid ~__context ~self:snapshot)
++
++let csvm_body ~__context ~vm ~result =
++  Printf.sprintf "VM '%s' (uuid: %s) cloned (new uuid: %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:result)
++
++let resume_body ~__context ~vm ~host =
++  Printf.sprintf "VM '%s' (uuid: %s) resumed on host: %s (uuid: %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.Host.get_name_label ~__context ~self:host)
++    (Db.Host.get_uuid ~__context ~self:host)
++
++let resume_on_body ~__context ~vm ~host =
++  Printf.sprintf "VM '%s' (uuid: %s) resumed on host: %s (uuid: %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.Host.get_name_label ~__context ~self:host)
++    (Db.Host.get_uuid ~__context ~self:host)
++
++let pool_migrate_body ~__context ~vm ~source_host ~host =
++  Printf.sprintf
++    "VM '%s' (uuid: %s) migrated from host '%s' (uuid: %s) to host '%s' (uuid: \
++     %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.Host.get_name_label ~__context ~self:source_host)
++    (Db.Host.get_uuid ~__context ~self:source_host)
++    (Db.Host.get_name_label ~__context ~self:host)
++    (Db.Host.get_uuid ~__context ~self:host)
++
++let migrate_send_body ~__context ~vm ~source_host ~host =
++  Printf.sprintf
++    "VM '%s' (uuid: %s) migrated from host '%s' (uuid: %s) to host '%s' (uuid: \
++     %s)"
++    (Db.VM.get_name_label ~__context ~self:vm)
++    (Db.VM.get_uuid ~__context ~self:vm)
++    (Db.Host.get_name_label ~__context ~self:source_host)
++    (Db.Host.get_uuid ~__context ~self:source_host)
++    (Db.Host.get_name_label ~__context ~self:host)
++    (Db.Host.get_uuid ~__context ~self:host)
+diff --git a/ocaml/xapi/vm_message.mli b/ocaml/xapi/vm_message.mli
+new file mode 100644
+index 0000000000..e43c280588
+--- /dev/null
++++ b/ocaml/xapi/vm_message.mli
+@@ -0,0 +1,70 @@
++(*
++ * Copyright (C) 2026 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Bodies of the messages recording the lifecycle of a VM, one function
++    per operation creating such a message *)
++
++val snapshot_body :
++  __context:Context.t -> vm:API.ref_VM -> new_name:string -> string
++
++val checkpoint_body :
++  __context:Context.t -> vm:API.ref_VM -> new_name:string -> string
++
++val start_body :
++  __context:Context.t -> vm:API.ref_VM -> host:API.ref_host -> string
++
++val start_on_body :
++  __context:Context.t -> vm:API.ref_VM -> host:API.ref_host -> string
++
++val pause_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val unpause_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val clean_shutdown_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val shutdown_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val clean_reboot_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val hard_shutdown_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val hard_reboot_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val suspend_body : __context:Context.t -> vm:API.ref_VM -> string
++
++val revert_body :
++  __context:Context.t -> vm:API.ref_VM -> snapshot:API.ref_VM -> string
++
++val csvm_body :
++  __context:Context.t -> vm:API.ref_VM -> result:API.ref_VM -> string
++
++val resume_body :
++  __context:Context.t -> vm:API.ref_VM -> host:API.ref_host -> string
++
++val resume_on_body :
++  __context:Context.t -> vm:API.ref_VM -> host:API.ref_host -> string
++
++val pool_migrate_body :
++     __context:Context.t
++  -> vm:API.ref_VM
++  -> source_host:API.ref_host
++  -> host:API.ref_host
++  -> string
++
++val migrate_send_body :
++     __context:Context.t
++  -> vm:API.ref_VM
++  -> source_host:API.ref_host
++  -> host:API.ref_host
++  -> string
