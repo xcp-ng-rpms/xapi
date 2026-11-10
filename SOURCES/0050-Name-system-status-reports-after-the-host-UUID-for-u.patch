@@ -1,0 +1,193 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Tue, 10 Nov 2026 21:44:57 +0100
+Subject: [PATCH 50/52] Name system status reports after the host UUID for
+ unusual host names
+Content-Type: text/plain; charset="utf-8"
+
+System_status_helpers.make_filename now also takes the UUID of the
+host, and uses it instead of the host name when the host name does not
+satisfy Cli_protocol.is_valid_hostname. xapi refuses such host names in
+Host.set_hostname_live, but the host name of the system is copied into
+the database at startup without being checked.
+
+A test checks that the xe client accepts the names that make_filename
+produces, whatever the host name.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi-aux/dune                           |  9 +--
+ ocaml/xapi-aux/system_status_helpers.ml       | 10 ++-
+ ocaml/xapi-aux/system_status_helpers.mli      | 13 ++--
+ ocaml/xapi-aux/system_status_helpers_test.ml  | 61 +++++++++++++++++++
+ ocaml/xapi-aux/system_status_helpers_test.mli |  1 +
+ ocaml/xapi/system_status.ml                   |  3 +-
+ 6 files changed, 85 insertions(+), 12 deletions(-)
+ create mode 100644 ocaml/xapi-aux/system_status_helpers_test.ml
+ create mode 100644 ocaml/xapi-aux/system_status_helpers_test.mli
+
+diff --git a/ocaml/xapi-aux/dune b/ocaml/xapi-aux/dune
+index 5df06b889e..bf38769955 100644
+--- a/ocaml/xapi-aux/dune
++++ b/ocaml/xapi-aux/dune
+@@ -1,7 +1,7 @@
+ (library
+   (name xapi_aux)
+   (modes best)
+-  (modules :standard \ version_test)
++  (modules :standard \ version_test system_status_helpers_test)
+   (libraries
+     astring
+     clock
+@@ -13,6 +13,7 @@
+     tar
+     threads.posix
+     unix
++    xapi-cli-protocol
+     xapi-consts
+     xapi-idl.network
+     xapi-inventory
+@@ -27,9 +28,9 @@
+ 
+ ; to run this test: dune exec ./version_test.exe
+ (tests
+- (names version_test)
++ (names version_test system_status_helpers_test)
+   (modes (best exe))
+-  (modules version_test)
++  (modules version_test system_status_helpers_test)
+   (package xapi)
+   (libraries
+-    xapi_aux alcotest))
++    alcotest ptime xapi-cli-protocol xapi_aux))
+diff --git a/ocaml/xapi-aux/system_status_helpers.ml b/ocaml/xapi-aux/system_status_helpers.ml
+index f12c817d84..9ff3471600 100644
+--- a/ocaml/xapi-aux/system_status_helpers.ml
++++ b/ocaml/xapi-aux/system_status_helpers.ml
+@@ -43,8 +43,14 @@ module Output = struct
+         "application/zip"
+ end
+ 
+-let make_filename ~time ~hostname ~output =
++let make_filename ~time ~hostname ~uuid ~output =
+   let (y, mo, d), ((h, mi, s), _) = Ptime.to_date_time ~tz_offset_s:0 time in
+   let timestamp = Printf.sprintf "%04d%02d%02dT%02d%02d%02dZ" y mo d h mi s in
+-  Printf.sprintf "system_status-%s-%s.%s" timestamp hostname
++  let host =
++    if Cli_protocol.is_valid_hostname hostname then
++      hostname
++    else
++      uuid
++  in
++  Printf.sprintf "system_status-%s-%s.%s" timestamp host
+     (Output.to_extension output)
+diff --git a/ocaml/xapi-aux/system_status_helpers.mli b/ocaml/xapi-aux/system_status_helpers.mli
+index 71a5016484..3d9a67834c 100644
+--- a/ocaml/xapi-aux/system_status_helpers.mli
++++ b/ocaml/xapi-aux/system_status_helpers.mli
+@@ -23,8 +23,11 @@ module Output : sig
+   val to_mime : t -> string
+ end
+ 
+-val make_filename : time:Ptime.t -> hostname:string -> output:Output.t -> string
+-(** [make_filename ~time ~hostname ~output] is the name under which the system
+-    status report of host [hostname], requested at [time], is downloaded. The
+-    time is written in UTC, in the ISO 8601 basic format (20261110T163518Z),
+-    so that the name contains no colon. *)
++val make_filename :
++  time:Ptime.t -> hostname:string -> uuid:string -> output:Output.t -> string
++(** [make_filename ~time ~hostname ~uuid ~output] is the name under which the
++    system status report of the host whose host name is [hostname] and UUID is
++    [uuid], requested at [time], is downloaded. The time is written in UTC, in
++    the ISO 8601 basic format (20261110T163518Z), so that the name contains no
++    colon. The host name is replaced with the UUID when it does not satisfy
++    [Cli_protocol.is_valid_hostname], so that the xe client accepts the name. *)
+diff --git a/ocaml/xapi-aux/system_status_helpers_test.ml b/ocaml/xapi-aux/system_status_helpers_test.ml
+new file mode 100644
+index 0000000000..4cb85ad2ae
+--- /dev/null
++++ b/ocaml/xapi-aux/system_status_helpers_test.ml
+@@ -0,0 +1,61 @@
++open Alcotest
++open System_status_helpers
++
++let time =
++  match Ptime.of_date_time ((2026, 11, 10), ((16, 35, 18), 0)) with
++  | Some t ->
++      t
++  | None ->
++      assert false
++
++let uuid = "0b2b1a2e-7a4c-4b1e-9e55-3c5d8a7f6e21"
++
++let outputs = Output.[Tar; TarBz2; Zip]
++
++let filename () =
++  check string __LOC__ "system_status-20261110T163518Z-host1.tar"
++    (make_filename ~time ~hostname:"host1" ~uuid ~output:Output.Tar) ;
++  check string __LOC__ "system_status-20261110T163518Z-host1.tar.bz2"
++    (make_filename ~time ~hostname:"host1" ~uuid ~output:Output.TarBz2) ;
++  check string __LOC__ "system_status-20261110T163518Z-host1.zip"
++    (make_filename ~time ~hostname:"host1" ~uuid ~output:Output.Zip) ;
++  check string __LOC__
++    ("system_status-20261110T163518Z-" ^ uuid ^ ".tar")
++    (make_filename ~time ~hostname:"host_1" ~uuid ~output:Output.Tar)
++
++(* Every name that xapi gives to a system status report must be accepted by
++   the xe client *)
++let accepted_by_xe () =
++  let hostnames =
++    [
++      "host1"
++    ; "host-1.example.com"
++    ; ""
++    ; "-host1"
++    ; "host_1"
++    ; "h\195\180te"
++    ; "host/1"
++    ; String.make 65 'a'
++    ]
++  in
++  List.iter
++    (fun hostname ->
++      List.iter
++        (fun output ->
++          let name = make_filename ~time ~hostname ~uuid ~output in
++          check bool name true
++            (Cli_protocol.is_server_filename_accepted
++               ~command:"host-get-system-status" name
++            )
++        )
++        outputs
++    )
++    hostnames
++
++let tests =
++  [
++    test_case "filename" `Quick filename
++  ; test_case "accepted by xe" `Quick accepted_by_xe
++  ]
++
++let () = run __MODULE__ [(__MODULE__, tests)]
+diff --git a/ocaml/xapi-aux/system_status_helpers_test.mli b/ocaml/xapi-aux/system_status_helpers_test.mli
+new file mode 100644
+index 0000000000..e790aeb70f
+--- /dev/null
++++ b/ocaml/xapi-aux/system_status_helpers_test.mli
+@@ -0,0 +1 @@
++(* empty *)
+diff --git a/ocaml/xapi/system_status.ml b/ocaml/xapi/system_status.ml
+index 6e1ce70382..8606af094f 100644
+--- a/ocaml/xapi/system_status.ml
++++ b/ocaml/xapi/system_status.ml
+@@ -52,8 +52,9 @@ module Bugtool = struct
+   let filename __context output =
+     let self = Helpers.get_localhost ~__context in
+     let hostname = Db.Host.get_hostname ~__context ~self in
++    let uuid = Db.Host.get_uuid ~__context ~self in
+     System_status_helpers.make_filename ~time:(Ptime_clock.now ()) ~hostname
+-      ~output
++      ~uuid ~output
+ end
+ 
+ let get_capabilities () = Helpers.get_process_output Bugtool.cmd_capabilities

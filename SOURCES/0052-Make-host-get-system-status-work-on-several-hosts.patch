@@ -1,0 +1,145 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Thu, 29 Oct 2026 10:33:44 +0100
+Subject: [PATCH 52/52] Make host-get-system-status work on several hosts
+Content-Type: text/plain; charset="utf-8"
+
+The filename parameter of host-get-system-status becomes optional.
+Without it, each host's report is downloaded into the current
+directory under the name xapi already gives it in the
+Content-Disposition header, system_status-<time>-<hostname>.<ext>,
+which the xe client accepts. All the names contain the time at which
+the command started.
+
+filename is refused when several hosts match, instead of making every
+host but the first fail because the file already exists. With a single
+matching host, filename behaves as before, with or without --multiple.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi-aux/system_status_helpers.ml  |  2 ++
+ ocaml/xapi-aux/system_status_helpers.mli |  2 ++
+ ocaml/xapi-cli-server/cli_frontend.ml    | 14 +++++---
+ ocaml/xapi-cli-server/cli_operations.ml  | 41 ++++++++++++++++++------
+ 4 files changed, 44 insertions(+), 15 deletions(-)
+
+diff --git a/ocaml/xapi-aux/system_status_helpers.ml b/ocaml/xapi-aux/system_status_helpers.ml
+index 9ff3471600..5122d72034 100644
+--- a/ocaml/xapi-aux/system_status_helpers.ml
++++ b/ocaml/xapi-aux/system_status_helpers.ml
+@@ -26,6 +26,8 @@ module Output = struct
+     | _ ->
+         None
+ 
++  let to_string = function Tar -> "tar" | TarBz2 -> "tar.bz2" | Zip -> "zip"
++
+   let to_extension = function
+     | Tar ->
+         "tar"
+diff --git a/ocaml/xapi-aux/system_status_helpers.mli b/ocaml/xapi-aux/system_status_helpers.mli
+index 3d9a67834c..d821c053ce 100644
+--- a/ocaml/xapi-aux/system_status_helpers.mli
++++ b/ocaml/xapi-aux/system_status_helpers.mli
+@@ -18,6 +18,8 @@ module Output : sig
+ 
+   val of_string : string -> t option
+ 
++  val to_string : t -> string
++
+   val to_extension : t -> string
+ 
+   val to_mime : t -> string
+diff --git a/ocaml/xapi-cli-server/cli_frontend.ml b/ocaml/xapi-cli-server/cli_frontend.ml
+index 928e536977..4911e8b839 100644
+--- a/ocaml/xapi-cli-server/cli_frontend.ml
++++ b/ocaml/xapi-cli-server/cli_frontend.ml
+@@ -959,12 +959,16 @@ let rec cmdtable_data : (string * cmd_spec) list =
+     )
+   ; ( "host-get-system-status"
+     , {
+-        reqd= ["filename"]
+-      ; optn= ["entries"; "output"]
++        reqd= []
++      ; optn= ["filename"; "entries"; "output"]
+       ; help=
+-          "Download system status into <filename>.  Entries is a \
+-           comma-separated list.  Output may be 'tar', 'tar.bz2' (the default) \
+-           or 'zip'."
++          "Download system status into <filename>.  Without filename, the \
++           status of each host is downloaded into the current directory, under \
++           a name containing the time and the host name, or the host UUID if \
++           the host name contains other characters than letters, digits, '-' \
++           and '.'.  filename cannot be given when several hosts match.  \
++           Entries is a comma-separated list.  Output may be 'tar', 'tar.bz2' \
++           (the default) or 'zip'."
+       ; implementation= With_fd Cli_operations.host_get_system_status
+       ; flags= [Host_selectors]
+       }
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index c0cf2f8c62..13cc86cb88 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -7034,18 +7034,38 @@ let host_get_system_status_capabilities printer rpc session_id params =
+     )
+ 
+ let host_get_system_status fd _printer rpc session_id params =
+-  let filename = Cli_args.get "filename" params in
++  let filename = Cli_args.get_opt "filename" params in
+   let entries = Cli_args.get_default "entries" params "" in
+-  let output = try Cli_args.get "output" params with _ -> "tar.bz2" in
+-  ( match output with
+-  | "tar.bz2" | "tar" | "zip" ->
+-      ()
+-  | _ ->
+-      failwith "Invalid output format. Must be 'tar', 'zip' or 'tar.bz2'"
+-  ) ;
++  let output =
++    match
++      System_status_helpers.Output.of_string
++        (Cli_args.get_default "output" params "tar.bz2")
++    with
++    | Some output ->
++        output
++    | None ->
++        failwith "Invalid output format. Must be 'tar', 'zip' or 'tar.bz2'"
++  in
++  let time = Date.(to_ptime (now ())) in
++  let ignore_params = ["filename"; "entries"; "output"] in
++  let hosts = select_hosts rpc session_id params ignore_params in
++  if Option.is_some filename && List.length hosts > 1 then
++    failwith
++      "filename cannot be given when several hosts match. Omit it to get one \
++       file per host, named after the host" ;
+   let op _ host =
+     let doit task_id =
+       let uuid = safe_get_field (field_lookup host.fields "uuid") in
++      let filename =
++        match filename with
++        | Some filename ->
++            filename
++        | None ->
++            let hostname =
++              safe_get_field (field_lookup host.fields "hostname")
++            in
++            System_status_helpers.make_filename ~time ~hostname ~uuid ~output
++      in
+       let someone =
+         try SpecificHost (Client.Host.get_by_uuid ~rpc ~session_id ~uuid)
+         with _ -> Master
+@@ -7054,13 +7074,14 @@ let host_get_system_status fd _printer rpc session_id params =
+       let url =
+         Printf.sprintf "%s%s?session_id=%s&entries=%s&output=%s&task_id=%s"
+           prefix Constants.system_status_uri (Ref.string_of session_id) entries
+-          output (Ref.string_of task_id)
++          (System_status_helpers.Output.to_string output)
++          (Ref.string_of task_id)
+       in
+       HttpGet (filename, url)
+     in
+     track_http_operation fd rpc session_id doit "system-status download"
+   in
+-  ignore (do_host_op rpc session_id op params ["filename"; "entries"; "output"])
++  ignore (do_host_op_on_hosts op params hosts)
+ 
+ let host_set_hostname_live _printer rpc session_id params =
+   let host_uuid = Cli_args.get "host-uuid" params in

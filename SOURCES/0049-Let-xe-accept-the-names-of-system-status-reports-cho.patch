@@ -1,0 +1,243 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Tue, 10 Nov 2026 21:43:40 +0100
+Subject: [PATCH 49/52] Let xe accept the names of system status reports chosen
+ by the server
+Content-Type: text/plain; charset="utf-8"
+
+The xe client refuses to write a downloaded file whose name does not
+appear on its command line. For host-get-system-status, it now also
+accepts the names of the form
+
+  system_status-<YYYYmmdd>T<HHMMSS>Z-<hostname>.<tar|tar.bz2|zip>
+
+where <hostname> is made of ASCII letters, digits, '-' and '.', does
+not start or end with '-', and is at most 64 characters long. Such a
+name contains no '/' and does not start with a dot, so the file is
+created in the current directory and, as before, never overwrites an
+existing file.
+
+The check is Cli_protocol.is_server_filename_accepted, which takes the
+command and the file name, in the library shared by the client and the
+server. Uploads are not affected.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ .../xapi-cli-protocol/test_cli_protocol.ml    | 60 ++++++++++++++++++-
+ ocaml/xapi-cli-protocol/cli_protocol.ml       | 60 +++++++++++++++++++
+ ocaml/xe-cli/newcli.ml                        | 50 ++++++++--------
+ 3 files changed, 145 insertions(+), 25 deletions(-)
+
+diff --git a/ocaml/tests/xapi-cli-protocol/test_cli_protocol.ml b/ocaml/tests/xapi-cli-protocol/test_cli_protocol.ml
+index a174f8b995..89865089e2 100644
+--- a/ocaml/tests/xapi-cli-protocol/test_cli_protocol.ml
++++ b/ocaml/tests/xapi-cli-protocol/test_cli_protocol.ml
+@@ -46,6 +46,64 @@ let roundtrip_marshaling_tests =
+   in
+   List.map test_case examples
+ 
++let server_filenames =
++  let command = "host-get-system-status" in
++  let accepted =
++    [
++      "system_status-20261110T163518Z-host1.tar"
++    ; "system_status-20261110T163518Z-host1.tar.bz2"
++    ; "system_status-20261110T163518Z-host1.zip"
++    ; "system_status-20261110T163518Z-host-1.example.com.tar"
++    ; "system_status-20261110T163518Z-H.tar"
++    ; "system_status-20261110T163518Z-0b2b1a2e-7a4c-4b1e-9e55-3c5d8a7f6e21.zip"
++    ]
++  in
++  let refused =
++    [
++      ""
++    ; "foo.tar"
++    ; ".bashrc"
++    ; "../system_status-20261110T163518Z-host1.tar"
++    ; "dir/system_status-20261110T163518Z-host1.tar"
++    ; "system_status-20261110T163518Z-host1"
++    ; "system_status-20261110T163518Z-host1.tgz"
++    ; "system_status-20261110T163518Z-.tar"
++    ; "system_status-20261110T163518Z--host1.tar"
++    ; "system_status-20261110T163518Z-host1-.tar"
++    ; "system_status-20261110T163518Z-host_1.tar"
++    ; "system_status-20261110T163518Z-host/1.tar"
++    ; "system_status-20261110T163518Z-h\195\180te.tar"
++    ; "system_status-2026-11-10T16:35:18Z-host1.tar"
++    ; "system_status-20261110T163518-host1.tar"
++    ; "system_status-20261110t163518z-host1.tar"
++    ; "system_status-2026111XT163518Z-host1.tar"
++    ; "system_status-20261110T163518Zhost1.tar"
++    ; "system_status-20261110T163518Z-" ^ String.make 65 'a' ^ ".tar"
++    ]
++  in
++  let test_case expected filename =
++    Alcotest.test_case filename `Quick (fun () ->
++        Alcotest.(check bool)
++          "accepted" expected
++          (is_server_filename_accepted ~command filename)
++    )
++  in
++  let other_command =
++    Alcotest.test_case "other command" `Quick (fun () ->
++        Alcotest.(check bool)
++          "accepted" false
++          (is_server_filename_accepted ~command:"vm-list"
++             "system_status-20261110T163518Z-host1.tar"
++          )
++    )
++  in
++  List.map (test_case true) accepted
++  @ List.map (test_case false) refused
++  @ [other_command]
++
+ let () =
+   Alcotest.run "CLI Protocol"
+-    [("roundtrip-marshaling", roundtrip_marshaling_tests)]
++    [
++      ("roundtrip-marshaling", roundtrip_marshaling_tests)
++    ; ("server-filenames", server_filenames)
++    ]
+diff --git a/ocaml/xapi-cli-protocol/cli_protocol.ml b/ocaml/xapi-cli-protocol/cli_protocol.ml
+index bf58263eab..0568ba022a 100644
+--- a/ocaml/xapi-cli-protocol/cli_protocol.ml
++++ b/ocaml/xapi-cli-protocol/cli_protocol.ml
+@@ -336,3 +336,63 @@ let unmarshal_protocol (fd : Unix.file_descr) =
+     let minor', _ = unmarshal_int (minor_str, 0) in
+     (major', minor')
+   with e -> raise (Unmarshal_failure (e, Buffer.contents buf))
++
++(* Names of downloaded files that the xe client accepts from the server
++   although they do not appear on its command line. Such a name contains no
++   '/' and does not start with a dot, so the file is created in the current
++   directory. *)
++
++let is_valid_hostname s =
++  let n = String.length s in
++  n > 0
++  && n <= 64
++  && String.for_all
++       (function
++         | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '-' | '.' -> true | _ -> false
++         )
++       s
++  && s.[0] <> '-'
++  && s.[n - 1] <> '-'
++
++(* system_status-<YYYYmmdd>T<HHMMSS>Z-<hostname>.<tar|tar.bz2|zip> *)
++let is_system_status_filename name =
++  let is_digit = function '0' .. '9' -> true | _ -> false in
++  let is_timestamp s =
++    String.length s = 16
++    && String.for_all is_digit (String.sub s 0 8)
++    && s.[8] = 'T'
++    && String.for_all is_digit (String.sub s 9 6)
++    && s.[15] = 'Z'
++  in
++  let remove_extension s =
++    List.find_map
++      (fun ext ->
++        let suffix = "." ^ ext in
++        if String.ends_with ~suffix s then
++          Some (String.sub s 0 (String.length s - String.length suffix))
++        else
++          None
++      )
++      ["tar"; "tar.bz2"; "zip"]
++  in
++  let prefix = "system_status-" in
++  String.starts_with ~prefix name
++  &&
++  let rest =
++    String.sub name (String.length prefix)
++      (String.length name - String.length prefix)
++  in
++  match remove_extension rest with
++  | Some rest when String.length rest > 17 ->
++      is_timestamp (String.sub rest 0 16)
++      && rest.[16] = '-'
++      && is_valid_hostname (String.sub rest 17 (String.length rest - 17))
++  | _ ->
++      false
++
++let is_server_filename_accepted ~command filename =
++  match command with
++  | "host-get-system-status" ->
++      is_system_status_filename filename
++  | _ ->
++      false
+diff --git a/ocaml/xe-cli/newcli.ml b/ocaml/xe-cli/newcli.ml
+index 52b3c0facb..ee0630d38c 100644
+--- a/ocaml/xe-cli/newcli.ml
++++ b/ocaml/xe-cli/newcli.ml
+@@ -476,7 +476,7 @@ let assert_filename_permitted ?(permit_cwd = false) permitted_filenames filename
+   | _ ->
+       ()
+ 
+-let main_loop ifd ofd permitted_filenames =
++let main_loop ifd ofd ~command permitted_filenames =
+   (* Intially exchange version information *)
+   let major', minor' =
+     try unmarshal_protocol ifd with
+@@ -760,8 +760,9 @@ let main_loop ifd ofd permitted_filenames =
+                 if filename = "" then
+                   Unix.out_channel_of_descr (Unix.dup Unix.stdout)
+                 else (
+-                  assert_filename_permitted ~permit_cwd:true permitted_filenames
+-                    filename ;
++                  if not (is_server_filename_accepted ~command filename) then
++                    assert_filename_permitted ~permit_cwd:true
++                      permitted_filenames filename ;
+                   try
+                     open_out_gen
+                       [Open_wronly; Open_creat; Open_excl]
+@@ -831,27 +832,28 @@ let main () =
+       let args, traceparent = parse_args args in
+       (* All the named args are taken as permitted filename to be uploaded *)
+       let permitted_filenames = get_permit_filenames args in
+-      if args = [] then
+-        raise Usage
+-      else
+-        with_open_channels @@ fun (ic, oc) ->
+-        Printf.fprintf oc "POST /cli HTTP/1.0\r\n" ;
+-        let args =
+-          args @ ["username=" ^ !xapiuname; "password=" ^ !xapipword]
+-        in
+-        let args = String.concat "\n" args in
+-        Printf.fprintf oc "User-agent: xe-cli/Unix/%d.%d\r\n" major minor ;
+-        Printf.fprintf oc "originator: cli\r\n" ;
+-        Option.iter (Printf.fprintf oc "traceparent: %s\r\n") traceparent ;
+-        Option.iter
+-          (Printf.fprintf oc "baggage: %s\r\n")
+-          (Sys.getenv_opt "BAGGAGE") ;
+-        Printf.fprintf oc "content-length: %d\r\n\r\n" (String.length args) ;
+-        Printf.fprintf oc "%s" args ;
+-        flush_all () ;
+-        let in_fd = Unix.descr_of_in_channel ic
+-        and out_fd = Unix.descr_of_out_channel oc in
+-        exit_status := main_loop in_fd out_fd permitted_filenames
++      match args with
++      | [] ->
++          raise Usage
++      | command :: _ ->
++          with_open_channels @@ fun (ic, oc) ->
++          Printf.fprintf oc "POST /cli HTTP/1.0\r\n" ;
++          let args =
++            args @ ["username=" ^ !xapiuname; "password=" ^ !xapipword]
++          in
++          let args = String.concat "\n" args in
++          Printf.fprintf oc "User-agent: xe-cli/Unix/%d.%d\r\n" major minor ;
++          Printf.fprintf oc "originator: cli\r\n" ;
++          Option.iter (Printf.fprintf oc "traceparent: %s\r\n") traceparent ;
++          Option.iter
++            (Printf.fprintf oc "baggage: %s\r\n")
++            (Sys.getenv_opt "BAGGAGE") ;
++          Printf.fprintf oc "content-length: %d\r\n\r\n" (String.length args) ;
++          Printf.fprintf oc "%s" args ;
++          flush_all () ;
++          let in_fd = Unix.descr_of_in_channel ic
++          and out_fd = Unix.descr_of_out_channel oc in
++          exit_status := main_loop in_fd out_fd ~command permitted_filenames
+     with
+     | Usage ->
+         exit_status := 0 ;

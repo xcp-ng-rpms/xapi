@@ -1,0 +1,41 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Thu, 29 Oct 2026 10:31:03 +0100
+Subject: [PATCH 51/52] Split host selection out of do_host_op in the CLI
+ server
+Content-Type: text/plain; charset="utf-8"
+
+do_host_op_on_hosts takes an already selected list of hosts and does
+what do_host_op did after selecting them. do_host_op now selects the
+hosts and calls it, so its callers are unchanged.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi-cli-server/cli_operations.ml | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi-cli-server/cli_operations.ml b/ocaml/xapi-cli-server/cli_operations.ml
+index 229d612313..c0cf2f8c62 100644
+--- a/ocaml/xapi-cli-server/cli_operations.ml
++++ b/ocaml/xapi-cli-server/cli_operations.ml
+@@ -3388,8 +3388,7 @@ let do_vm_op ?(include_control_vms = false) ?(include_template_vms = false)
+       ^ "' is not a field of the VM class. Failed to select VM for operation."
+       )
+ 
+-let do_host_op rpc session_id op params ?(multiple = true) ignore_params =
+-  let hosts = select_hosts rpc session_id params ignore_params in
++let do_host_op_on_hosts op params ?(multiple = true) hosts =
+   match List.length hosts with
+   | 0 ->
+       failwith "No matching hosts found"
+@@ -3408,6 +3407,10 @@ let do_host_op rpc session_id op params ?(multiple = true) ignore_params =
+                the operation"
+           )
+ 
++let do_host_op rpc session_id op params ?(multiple = true) ignore_params =
++  let hosts = select_hosts rpc session_id params ignore_params in
++  do_host_op_on_hosts op params ~multiple hosts
++
+ let do_sr_op rpc session_id op params ?(multiple = true) ignore_params =
+   let srs = select_srs rpc session_id params ignore_params in
+   match srs with

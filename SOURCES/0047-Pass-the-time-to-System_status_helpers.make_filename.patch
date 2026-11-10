@@ -1,0 +1,73 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Thu, 29 Oct 2026 11:49:54 +0100
+Subject: [PATCH 47/52] Pass the time to System_status_helpers.make_filename
+Content-Type: text/plain; charset="utf-8"
+
+make_filename no longer reads the clock: its caller gives the time to
+put in the name. System_status passes the current time, as before, and
+xapi_aux no longer depends on ptime.clock.os.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi-aux/dune                      | 1 -
+ ocaml/xapi-aux/system_status_helpers.ml  | 4 ++--
+ ocaml/xapi-aux/system_status_helpers.mli | 7 +++----
+ ocaml/xapi/system_status.ml              | 3 ++-
+ 4 files changed, 7 insertions(+), 8 deletions(-)
+
+diff --git a/ocaml/xapi-aux/dune b/ocaml/xapi-aux/dune
+index 6fc0c55020..5df06b889e 100644
+--- a/ocaml/xapi-aux/dune
++++ b/ocaml/xapi-aux/dune
+@@ -10,7 +10,6 @@
+     ipaddr
+     ipaddr.unix
+     ptime
+-    ptime.clock.os
+     tar
+     threads.posix
+     unix
+diff --git a/ocaml/xapi-aux/system_status_helpers.ml b/ocaml/xapi-aux/system_status_helpers.ml
+index 8814815420..98f6b9da82 100644
+--- a/ocaml/xapi-aux/system_status_helpers.ml
++++ b/ocaml/xapi-aux/system_status_helpers.ml
+@@ -43,7 +43,7 @@ module Output = struct
+         "application/zip"
+ end
+ 
+-let make_filename ~hostname ~output =
+-  let timestamp = Ptime_clock.now () |> Ptime.to_rfc3339 ~tz_offset_s:0 in
++let make_filename ~time ~hostname ~output =
++  let timestamp = Ptime.to_rfc3339 ~tz_offset_s:0 time in
+   Printf.sprintf "system_status-%s-%s.%s" timestamp hostname
+     (Output.to_extension output)
+diff --git a/ocaml/xapi-aux/system_status_helpers.mli b/ocaml/xapi-aux/system_status_helpers.mli
+index ac6ec14b6a..5c662196b0 100644
+--- a/ocaml/xapi-aux/system_status_helpers.mli
++++ b/ocaml/xapi-aux/system_status_helpers.mli
+@@ -23,7 +23,6 @@ module Output : sig
+   val to_mime : t -> string
+ end
+ 
+-val make_filename : hostname:string -> output:Output.t -> string
+-(** [make_filename ~hostname ~output] is the name under which the system
+-    status report of host [hostname] is downloaded, with the current time in
+-    it *)
++val make_filename : time:Ptime.t -> hostname:string -> output:Output.t -> string
++(** [make_filename ~time ~hostname ~output] is the name under which the system
++    status report of host [hostname], requested at [time], is downloaded *)
+diff --git a/ocaml/xapi/system_status.ml b/ocaml/xapi/system_status.ml
+index 0ac9d94d12..6e1ce70382 100644
+--- a/ocaml/xapi/system_status.ml
++++ b/ocaml/xapi/system_status.ml
+@@ -52,7 +52,8 @@ module Bugtool = struct
+   let filename __context output =
+     let self = Helpers.get_localhost ~__context in
+     let hostname = Db.Host.get_hostname ~__context ~self in
+-    System_status_helpers.make_filename ~hostname ~output
++    System_status_helpers.make_filename ~time:(Ptime_clock.now ()) ~hostname
++      ~output
+ end
+ 
+ let get_capabilities () = Helpers.get_process_output Bugtool.cmd_capabilities

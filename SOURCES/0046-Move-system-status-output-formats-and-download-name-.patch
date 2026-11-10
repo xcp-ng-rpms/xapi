@@ -1,0 +1,201 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Thu, 29 Oct 2026 10:32:40 +0100
+Subject: [PATCH 46/52] Move system status output formats and download name to
+ xapi_aux
+Content-Type: text/plain; charset="utf-8"
+
+The new System_status_helpers module holds the Output type, moved from
+System_status, and make_filename, which builds the name under which a
+host's system status report is downloaded from the host name and the
+output format. System_status uses both for the local host; the CLI
+server, which cannot depend on xapi, will be able to use them for any
+host.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi-aux/dune                      |  2 +
+ ocaml/xapi-aux/system_status_helpers.ml  | 49 ++++++++++++++++++++++++
+ ocaml/xapi-aux/system_status_helpers.mli | 29 ++++++++++++++
+ ocaml/xapi/system_status.ml              | 40 +++----------------
+ 4 files changed, 85 insertions(+), 35 deletions(-)
+ create mode 100644 ocaml/xapi-aux/system_status_helpers.ml
+ create mode 100644 ocaml/xapi-aux/system_status_helpers.mli
+
+diff --git a/ocaml/xapi-aux/dune b/ocaml/xapi-aux/dune
+index 85d8624802..6fc0c55020 100644
+--- a/ocaml/xapi-aux/dune
++++ b/ocaml/xapi-aux/dune
+@@ -9,6 +9,8 @@
+     forkexec
+     ipaddr
+     ipaddr.unix
++    ptime
++    ptime.clock.os
+     tar
+     threads.posix
+     unix
+diff --git a/ocaml/xapi-aux/system_status_helpers.ml b/ocaml/xapi-aux/system_status_helpers.ml
+new file mode 100644
+index 0000000000..8814815420
+--- /dev/null
++++ b/ocaml/xapi-aux/system_status_helpers.ml
+@@ -0,0 +1,49 @@
++(*
++ * Copyright (C) 2006-2009 Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++module Output = struct
++  (** The output formats of xen-bugtool *)
++  type t = Tar | TarBz2 | Zip
++
++  let of_string = function
++    | "tar" ->
++        Some Tar
++    | "tar.bz2" ->
++        Some TarBz2
++    | "zip" ->
++        Some Zip
++    | _ ->
++        None
++
++  let to_extension = function
++    | Tar ->
++        "tar"
++    | TarBz2 ->
++        "tar.bz2"
++    | Zip ->
++        "zip"
++
++  let to_mime = function
++    | Tar ->
++        "application/x-tar"
++    | TarBz2 ->
++        "application/x-bzip2"
++    | Zip ->
++        "application/zip"
++end
++
++let make_filename ~hostname ~output =
++  let timestamp = Ptime_clock.now () |> Ptime.to_rfc3339 ~tz_offset_s:0 in
++  Printf.sprintf "system_status-%s-%s.%s" timestamp hostname
++    (Output.to_extension output)
+diff --git a/ocaml/xapi-aux/system_status_helpers.mli b/ocaml/xapi-aux/system_status_helpers.mli
+new file mode 100644
+index 0000000000..ac6ec14b6a
+--- /dev/null
++++ b/ocaml/xapi-aux/system_status_helpers.mli
+@@ -0,0 +1,29 @@
++(*
++ * Copyright (C) 2006-2009 Citrix Systems Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++module Output : sig
++  (** The output formats of xen-bugtool *)
++  type t = Tar | TarBz2 | Zip
++
++  val of_string : string -> t option
++
++  val to_extension : t -> string
++
++  val to_mime : t -> string
++end
++
++val make_filename : hostname:string -> output:Output.t -> string
++(** [make_filename ~hostname ~output] is the name under which the system
++    status report of host [hostname] is downloaded, with the current time in
++    it *)
+diff --git a/ocaml/xapi/system_status.ml b/ocaml/xapi/system_status.ml
+index 8c71aca1ab..0ac9d94d12 100644
+--- a/ocaml/xapi/system_status.ml
++++ b/ocaml/xapi/system_status.ml
+@@ -20,36 +20,7 @@ let task_label = "Retrieving system status"
+ 
+ module L = Debug.Make (struct let name = __MODULE__ end)
+ 
+-module Output = struct
+-  (** The output formats of xen-bugtool *)
+-  type t = Tar | TarBz2 | Zip
+-
+-  let of_string = function
+-    | "tar" ->
+-        Some Tar
+-    | "tar.bz2" ->
+-        Some TarBz2
+-    | "zip" ->
+-        Some Zip
+-    | _ ->
+-        None
+-
+-  let to_extension = function
+-    | Tar ->
+-        "tar"
+-    | TarBz2 ->
+-        "tar.bz2"
+-    | Zip ->
+-        "zip"
+-
+-  let to_mime = function
+-    | Tar ->
+-        "application/x-tar"
+-    | TarBz2 ->
+-        "application/x-bzip2"
+-    | Zip ->
+-        "application/zip"
+-end
++module Output = System_status_helpers.Output
+ 
+ module Bugtool = struct
+   let path = "/usr/sbin/xen-bugtool"
+@@ -78,11 +49,10 @@ module Bugtool = struct
+     L.debug "%s: running %s" __FUNCTION__ cmd ;
+     cmd
+ 
+-  let filename __context extension =
+-    let timestamp = Ptime_clock.now () |> Ptime.to_rfc3339 ~tz_offset_s:0 in
++  let filename __context output =
+     let self = Helpers.get_localhost ~__context in
+     let hostname = Db.Host.get_hostname ~__context ~self in
+-    Printf.sprintf "system_status-%s-%s.%s" timestamp hostname extension
++    System_status_helpers.make_filename ~hostname ~output
+ end
+ 
+ let get_capabilities () = Helpers.get_process_output Bugtool.cmd_capabilities
+@@ -93,7 +63,7 @@ let send_via_fd __context s entries output =
+   let uuid = Uuidx.to_string (Uuidx.make ()) in
+   let extension = Output.to_extension output in
+   let content_type = Output.to_mime output in
+-  let filename = Bugtool.filename __context extension in
++  let filename = Bugtool.filename __context output in
+   let params = Bugtool.params_fd ~entries ~extension ~uuid in
+   let headers =
+     Http.http_200_ok ~keep_alive:false ~version:"1.0" ()
+@@ -126,7 +96,7 @@ let send_via_cp __context s entries output =
+   let cmd = Bugtool.cmd_cp ~entries ~extension in
+   try
+     let filepath = String.trim (Helpers.get_process_output cmd) in
+-    let filename = Bugtool.filename __context extension in
++    let filename = Bugtool.filename __context output in
+     let hsts_time = !Xapi_globs.hsts_max_age in
+     finally
+       (fun () ->

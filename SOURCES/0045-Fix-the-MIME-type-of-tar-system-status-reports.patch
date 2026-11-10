@@ -1,0 +1,27 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Thu, 29 Oct 2026 11:35:41 +0100
+Subject: [PATCH 45/52] Fix the MIME type of tar system status reports
+Content-Type: text/plain; charset="utf-8"
+
+xapi sent "appliation/x-tar" as the Content-Type of system status
+reports in the tar format.
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi/system_status.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi/system_status.ml b/ocaml/xapi/system_status.ml
+index e17dadb8a0..8c71aca1ab 100644
+--- a/ocaml/xapi/system_status.ml
++++ b/ocaml/xapi/system_status.ml
+@@ -44,7 +44,7 @@ module Output = struct
+ 
+   let to_mime = function
+     | Tar ->
+-        "appliation/x-tar"
++        "application/x-tar"
+     | TarBz2 ->
+         "application/x-bzip2"
+     | Zip ->

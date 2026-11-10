@@ -1,0 +1,42 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Seb Hinderer <sebastien.hinderer@vates.tech>
+Date: Tue, 10 Nov 2026 19:27:15 +0100
+Subject: [PATCH 48/52] Write the time of system status download names without
+ colons
+Content-Type: text/plain; charset="utf-8"
+
+The download name of a system status report now gives the time in
+the ISO 8601 basic format, in UTC (system_status-20261110T163518Z-
+<hostname>.tar), instead of RFC 3339 (2026-11-10T16:35:18Z).
+
+Signed-off-by: Seb Hinderer <sebastien.hinderer@vates.tech>
+---
+ ocaml/xapi-aux/system_status_helpers.ml  | 3 ++-
+ ocaml/xapi-aux/system_status_helpers.mli | 4 +++-
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/xapi-aux/system_status_helpers.ml b/ocaml/xapi-aux/system_status_helpers.ml
+index 98f6b9da82..f12c817d84 100644
+--- a/ocaml/xapi-aux/system_status_helpers.ml
++++ b/ocaml/xapi-aux/system_status_helpers.ml
+@@ -44,6 +44,7 @@ module Output = struct
+ end
+ 
+ let make_filename ~time ~hostname ~output =
+-  let timestamp = Ptime.to_rfc3339 ~tz_offset_s:0 time in
++  let (y, mo, d), ((h, mi, s), _) = Ptime.to_date_time ~tz_offset_s:0 time in
++  let timestamp = Printf.sprintf "%04d%02d%02dT%02d%02d%02dZ" y mo d h mi s in
+   Printf.sprintf "system_status-%s-%s.%s" timestamp hostname
+     (Output.to_extension output)
+diff --git a/ocaml/xapi-aux/system_status_helpers.mli b/ocaml/xapi-aux/system_status_helpers.mli
+index 5c662196b0..71a5016484 100644
+--- a/ocaml/xapi-aux/system_status_helpers.mli
++++ b/ocaml/xapi-aux/system_status_helpers.mli
+@@ -25,4 +25,6 @@ end
+ 
+ val make_filename : time:Ptime.t -> hostname:string -> output:Output.t -> string
+ (** [make_filename ~time ~hostname ~output] is the name under which the system
+-    status report of host [hostname], requested at [time], is downloaded *)
++    status report of host [hostname], requested at [time], is downloaded. The
++    time is written in UTC, in the ISO 8601 basic format (20261110T163518Z),
++    so that the name contains no colon. *)

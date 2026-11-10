@@ -166,6 +166,16 @@ Patch1042: 0042-Test-the-bodies-of-the-VM-lifecycle-messages.patch
 Patch1043: 0043-Create-VM-lifecycle-messages-from-a-single-event-typ.patch
 Patch1044: 0044-Add-the-domain-ID-to-the-VM-lifecycle-messages-creat.patch
 
+# xe host-get-system-status on several hosts
+Patch1045: 0045-Fix-the-MIME-type-of-tar-system-status-reports.patch
+Patch1046: 0046-Move-system-status-output-formats-and-download-name-.patch
+Patch1047: 0047-Pass-the-time-to-System_status_helpers.make_filename.patch
+Patch1048: 0048-Write-the-time-of-system-status-download-names-witho.patch
+Patch1049: 0049-Let-xe-accept-the-names-of-system-status-reports-cho.patch
+Patch1050: 0050-Name-system-status-reports-after-the-host-UUID-for-u.patch
+Patch1051: 0051-Split-host-selection-out-of-do_host_op-in-the-CLI-se.patch
+Patch1052: 0052-Make-host-get-system-status-work-on-several-hosts.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
