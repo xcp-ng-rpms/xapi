@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.21
-Release: 1%{?xsrel}.3%{?dist}
+Release: 1%{?xsrel}.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -140,6 +140,11 @@ Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
 
 # Revert upstream commit breaking Veeam VM restore
 Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
+
+# Sanitize potentially user controlled Qemu arguments
+Patch1024: 0024-xen-reject-unsafe-qemu-serial-backends-from-VM.platf.patch
+Patch1025: 0025-xen-restrict-qemu-nic_type-boot-order-and-keymap-fro.patch
+Patch1026: 0026-tests-cover-qemu-device-model-value-validation.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1545,6 +1550,10 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Nov 10 2026 Julian Vetter <julian.vetter@vates.tech> - 26.1.21-1.4
+- Sanitize potentially user-controlled QEMU device-model arguments
+  (hvm_serial, nic_type, boot order, keymap)
+
 * Fri Oct 30 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.3
 - Revert the commit breaking Veeam VM restore
 

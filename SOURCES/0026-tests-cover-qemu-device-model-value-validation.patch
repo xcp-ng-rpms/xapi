@@ -1,0 +1,109 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Tue, 10 Nov 2026 11:41:48 +0100
+Subject: [PATCH] tests: cover qemu device-model value validation
+
+Add unit tests for Hvm_serial.is_safe and Vm_platform.check_hvm_serial,
+covering the safe backends (pty, none, null, tcp:host:port with
+connection-only options) and a range of rejected values, including
+attempts to append extra qemu options after a comma.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+
+diff --git a/ocaml/tests/test_platformdata.ml b/ocaml/tests/test_platformdata.ml
+index f5d591a750e8..2362bbddee51 100644
+--- a/ocaml/tests/test_platformdata.ml
++++ b/ocaml/tests/test_platformdata.ml
+@@ -348,9 +348,92 @@ module SanityCheck = Generic.MakeStateless (struct
+       ]
+ end)
+ 
++(* Check hvm_serial - only accept specific backends *)
++module HvmSerial = struct
++  let safe =
++    [
++      "pty"
++    ; "none"
++    ; "null"
++    ; "tcp:1.2.3.4:7001"
++    ; "tcp::7001"
++    ; "tcp::7001,server,nowait"
++    ; "tcp:localhost:7001,server=on,wait=off,nodelay"
++    ; "tcp:[::1]:7001"
++    ]
++
++  let unsafe =
++    [
++      "file:/path/to/x"
++    ; "file:/tmp/serial.log"
++    ; "pipe:/path/to/x"
++    ; "/dev/sda"
++    ; "/dev/ttyS0"
++    ; "unix:/var/run/x.sock,server"
++    ; "udp:1.2.3.4:7001"
++    ; "mon:stdio"
++    ; "mon:pty"
++    ; "stdio"
++    ; "vc"
++    ; "chardev:foo"
++    ; ""
++    ; "PTY"
++    ; "pty,logfile=/path/to/x"
++    ; "tcp:1.2.3.4:7001,logfile=/path/to/x"
++    ; "tcp:1.2.3.4:7001,tls-creds=x"
++    ; "tcp:1.2.3.4"
++    ; "tcp:1.2.3.4:0"
++    ; "tcp:1.2.3.4:65536"
++    ; "tcp:1.2.3.4:70a1"
++    ; "tcp:a/b:7001"
++    ; "tcp:1.2.3.4:7001\n"
++    ]
++
++  let test_safe v () =
++    Alcotest.(check bool)
++      (Printf.sprintf "%S is safe" v)
++      true (Hvm_serial.is_safe v)
++
++  let test_unsafe v () =
++    Alcotest.(check bool)
++      (Printf.sprintf "%S is unsafe" v)
++      false (Hvm_serial.is_safe v)
++
++  let raises_invalid field v f =
++    Alcotest.check_raises
++      (Printf.sprintf "%s:hvm_serial=%S rejected" field v)
++      Api_errors.(Server_error (invalid_value, [field ^ ":hvm_serial"; v]))
++      f
++
++  let test_check () =
++    let bad = "file:/path/to/x" in
++    Vm_platform.check_hvm_serial
++      ~platform:[("hvm_serial", "pty")]
++      ~other_config:[("hvm_serial", "tcp::7001")] ;
++    Vm_platform.check_hvm_serial ~platform:[] ~other_config:[] ;
++    raises_invalid "platform" bad (fun () ->
++        Vm_platform.check_hvm_serial
++          ~platform:[("hvm_serial", bad)]
++          ~other_config:[]
++    ) ;
++    (* a dormant other_config value is rejected too, even though platform
++       currently overrides it *)
++    raises_invalid "other_config" bad (fun () ->
++        Vm_platform.check_hvm_serial
++          ~platform:[("hvm_serial", "pty")]
++          ~other_config:[("hvm_serial", bad)]
++    )
++
++  let tests =
++    List.map (fun v -> (v, `Quick, test_safe v)) safe
++    @ List.map (fun v -> (v, `Quick, test_unsafe v)) unsafe
++    @ [("check_hvm_serial", `Quick, test_check)]
++end
++
+ let tests =
+   [
+     ( "platform_data"
+     , List.concat [Key_values.tests; Licensing.tests; SanityCheck.tests]
+     )
++  ; ("hvm_serial", HvmSerial.tests)
+   ]

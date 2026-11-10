@@ -1,0 +1,379 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Julian Vetter <julian.vetter@vates.tech>
+Date: Tue, 10 Nov 2026 11:41:15 +0100
+Subject: [PATCH] xen: reject unsafe qemu serial backends from VM.platform
+
+platform:hvm_serial (and the other_config fallback) is passed through to
+qemu as [-serial <value>]. Qemu opens the serial backend while it is
+still running as root in dom0, before it chroots and drops privileges,
+so only an allowlist of safe backends is accepted and all other values
+are rejected.
+
+Management stacks talk to XAPI as pool-admin so the role check actually
+passes. Moreover the value can also come back from a restored (possibly
+untrusted) saved VM image bypassing the XAPI checks.
+
+Add a shared Hvm_serial module (ocaml/xapi-idl/xen) that accepts only
+the pty, none, null and tcp:host:port backends, and rejects anything
+else.  Perform a check at various points:
+
+- at the XAPI configuration points: VM.create (also used by VM.import),
+  add_to/set_platform and other_config, and VM.start
+- at the xenopsd launch step in device.ml, which also covers values
+  restored from a saved image
+- with an independent check in qemu-wrapper
+
+A root-only /etc/xensource/allow-unsafe-hvm-serial bypass is provided
+for legacy and debugging setups.
+
+Signed-off-by: Julian Vetter <julian.vetter@vates.tech>
+
+diff --git a/ocaml/xapi-idl/xen/dune b/ocaml/xapi-idl/xen/dune
+index 832668655374..e61bb6943995 100644
+--- a/ocaml/xapi-idl/xen/dune
++++ b/ocaml/xapi-idl/xen/dune
+@@ -1,7 +1,7 @@
+ (library
+  (name xcp_xen_interface_types)
+  (public_name xapi-idl.xen.interface.types)
+- (modules xenops_types device_number)
++ (modules xenops_types device_number hvm_serial)
+  (libraries
+    astring
+    result
+@@ -35,7 +35,7 @@
+ (library
+  (name xcp_xen)
+  (public_name xapi-idl.xen)
+- (modules (:standard \ device_number xenops_interface xenops_types))
++ (modules (:standard \ device_number hvm_serial xenops_interface xenops_types))
+  (libraries
+    result
+    rpclib.core
+diff --git a/ocaml/xapi-idl/xen/hvm_serial.ml b/ocaml/xapi-idl/xen/hvm_serial.ml
+new file mode 100644
+index 000000000000..ac3063221ca7
+--- /dev/null
++++ b/ocaml/xapi-idl/xen/hvm_serial.ml
+@@ -0,0 +1,90 @@
++(*
++ * Copyright (C) 2026 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(* The value of the "hvm_serial" platform / other_config key is handed to
++   Qemu as [-serial <value>]. Qemu opens the serial backend while it still runs
++   as root in dom0, before it chroots and drops privileges, so only an
++   allowlist of safe backends is accepted and all other values are rejected.
++
++   Restricting who may set the key (RBAC) is not enough: management stacks talk
++   to XAPI as pool-admin, and xenopsd also restores the value from a suspended
++   VM's last_booted_record. *)
++
++let key = "hvm_serial"
++
++let override_file = "/etc/xensource/allow-unsafe-hvm-serial"
++
++let unsafe_override_enabled () =
++  try Sys.file_exists override_file with _ -> false
++
++let is_host_char = function
++  | 'a' .. 'z' | 'A' .. 'Z' | '0' .. '9' | '.' | '-' | ':' | '[' | ']' ->
++      true
++  | _ ->
++      false
++
++let is_valid_port s =
++  s <> ""
++  && String.length s <= 5
++  && String.for_all (function '0' .. '9' -> true | _ -> false) s
++  &&
++  match int_of_string_opt s with
++  | Some p ->
++      p > 0 && p < 65536
++  | None ->
++      false
++
++(* Options of the tcp: backend that only affect connection behaviour. Anything
++   else (tls-creds=, reconnect=, logfile=, ...) is rejected. *)
++let allowed_tcp_options =
++  [
++    "server"
++  ; "server=on"
++  ; "server=off"
++  ; "nowait"
++  ; "wait=on"
++  ; "wait=off"
++  ; "nodelay"
++  ; "nodelay=on"
++  ; "nodelay=off"
++  ]
++
++(* "tcp:[host]:port[,opt...]"; host may be empty, a name, IPv4, or [IPv6]. *)
++let is_safe_tcp rest =
++  match String.split_on_char ',' rest with
++  | [] ->
++      false
++  | addr :: opts -> (
++      List.for_all (fun o -> List.mem o allowed_tcp_options) opts
++      &&
++      match Astring.String.cut ~rev:true ~sep:":" addr with
++      | Some (host, port) ->
++          String.for_all is_host_char host && is_valid_port port
++      | None ->
++          false
++    )
++
++let is_safe value =
++  match value with
++  | "pty" | "none" | "null" ->
++      true
++  | _ -> (
++    match Astring.String.cut ~sep:":" value with
++    | Some ("tcp", rest) ->
++        is_safe_tcp rest
++    | _ ->
++        false
++  )
++
++let is_allowed value = is_safe value || unsafe_override_enabled ()
+diff --git a/ocaml/xapi-idl/xen/hvm_serial.mli b/ocaml/xapi-idl/xen/hvm_serial.mli
+new file mode 100644
+index 000000000000..51f3d6b735df
+--- /dev/null
++++ b/ocaml/xapi-idl/xen/hvm_serial.mli
+@@ -0,0 +1,30 @@
++(*
++ * Copyright (C) 2026 Vates.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(** Validation of the qemu serial backend selected by the [hvm_serial] key. *)
++
++val key : string
++(** ["hvm_serial"], as used in VM.platform and VM.other_config. *)
++
++val override_file : string
++(** If this file exists in dom0, unsafe values are accepted. Only root can
++    create it. It exists for legacy debugging setups. *)
++
++val is_safe : string -> bool
++(** [is_safe v] is true iff [v] is one of [pty], [none], [null], or
++    [tcp:host:port] with only connection-behaviour options. All other
++    values are rejected. *)
++
++val is_allowed : string -> bool
++(** [is_safe v], or the dom0 override file is present. *)
+diff --git a/ocaml/xapi/vm_platform.ml b/ocaml/xapi/vm_platform.ml
+index ceeef60f0a11..c07d4bb0f040 100644
+--- a/ocaml/xapi/vm_platform.ml
++++ b/ocaml/xapi/vm_platform.ml
+@@ -271,3 +271,25 @@ let check_restricted_device_model ~__context platform =
+            ]
+          )
+       )
++
++(* hvm_serial is passed to qemu verbatim and opened while qemu is still root
++   in dom0, so RBAC on the key is not sufficient (callers are typically
++   pool-admin). Only an allowlist of safe backends is accepted; all other
++   values are rejected. See Hvm_serial. *)
++let assert_valid_hvm_serial ~field value =
++  if not (Hvm_serial.is_allowed value) then
++    raise
++      (Api_errors.Server_error
++         ( Api_errors.invalid_value
++         , [Printf.sprintf "%s:%s" field Hvm_serial.key; value]
++         )
++      )
++
++let check_hvm_serial ~platform ~other_config =
++  List.iter
++    (fun (field, map) ->
++      Option.iter
++        (assert_valid_hvm_serial ~field)
++        (List.assoc_opt Hvm_serial.key map)
++    )
++    [("platform", platform); ("other_config", other_config)]
+diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
+index 70c8bcf5e520..3928e5928bd6 100644
+--- a/ocaml/xapi/xapi_vm.ml
++++ b/ocaml/xapi/xapi_vm.ml
+@@ -591,7 +591,9 @@ let create ~__context ~name_label ~name_description ~power_state ~user_version
+     else
+       other_config
+   in
+-  (* NB apart from the above, parameter validation is delayed until VM.start *)
++  (* NB apart from the above and hvm_serial (which is security-relevant and
++     also used by VM.import), parameter validation is delayed until VM.start *)
++  Vm_platform.check_hvm_serial ~platform ~other_config ;
+   let uuid = Uuidx.make () in
+   let vm_ref = Ref.make () in
+   let resident_on = Ref.null in
+@@ -1881,24 +1883,30 @@ let sysprep ~__context ~self ~unattend ~timeout =
+       raise e
+ 
+ let add_to_other_config ~__context ~self ~key ~value =
++  if key = Hvm_serial.key then
++    Vm_platform.assert_valid_hvm_serial ~field:"other_config" value ;
+   Db.VM.add_to_other_config ~__context ~self ~key ~value
+ 
+ let remove_from_other_config ~__context ~self ~key =
+   Db.VM.remove_from_other_config ~__context ~self ~key
+ 
+ let set_other_config ~__context ~self ~value =
++  Vm_platform.check_hvm_serial ~platform:[] ~other_config:value ;
+   let match_protected = Helpers.match_protected_key "VM" in
+   Helpers.set_map_with_rbac ~__context ~self ~value
+     ~get_fn:Db.VM.get_other_config ~set_fn:Db.VM.set_other_config
+     ~match_protected ~object_name:"vm" ~field_name:"other_config"
+ 
+ let add_to_platform ~__context ~self ~key ~value =
++  if key = Hvm_serial.key then
++    Vm_platform.assert_valid_hvm_serial ~field:"platform" value ;
+   Db.VM.add_to_platform ~__context ~self ~key ~value
+ 
+ let remove_from_platform ~__context ~self ~key =
+   Db.VM.remove_from_platform ~__context ~self ~key
+ 
+ let set_platform ~__context ~self ~value =
++  Vm_platform.check_hvm_serial ~platform:value ~other_config:[] ;
+   let match_protected = Helpers.match_protected_key "VM" in
+   Helpers.set_map_with_rbac ~__context ~self ~value ~get_fn:Db.VM.get_platform
+     ~set_fn:Db.VM.set_platform ~match_protected ~object_name:"vm"
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index c2500e3b36fd..2b1aa5afd017 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -293,7 +293,9 @@ let validate_basic_parameters ~__context ~self ~snapshot:x =
+   validate_shadow_multiplier
+     ~hVM_shadow_multiplier:x.API.vM_HVM_shadow_multiplier ;
+   validate_actions_after_crash ~__context ~self
+-    ~value:x.API.vM_actions_after_crash
++    ~value:x.API.vM_actions_after_crash ;
++  Vm_platform.check_hvm_serial ~platform:x.API.vM_platform
++    ~other_config:x.API.vM_other_config
+ 
+ let assert_vm_supports_quiesce_snapshot ~__context ~self =
+   let vmr = Db.VM.get_record_internal ~__context ~self in
+diff --git a/ocaml/xapi/xapi_xenops.ml b/ocaml/xapi/xapi_xenops.ml
+index 418c0def5cd4..34aac7a7b9bc 100644
+--- a/ocaml/xapi/xapi_xenops.ml
++++ b/ocaml/xapi/xapi_xenops.ml
+@@ -458,8 +458,10 @@ let builder_of_vm ~__context (vmref, vm) timeoffset pci_passthrough vgpu =
+          | None, None ->
+              Some "pty"
+          | _, Some value ->
++             Vm_platform.assert_valid_hvm_serial ~field:"platform" value ;
+              Some value
+          | Some value, None ->
++             Vm_platform.assert_valid_hvm_serial ~field:"other_config" value ;
+              Some value
+         )
+     ; keymap= List.assoc_opt "keymap" vm.API.vM_platform
+diff --git a/ocaml/xenopsd/scripts/qemu-wrapper b/ocaml/xenopsd/scripts/qemu-wrapper
+index e4a0c28465e4..1ebd046b06ca 100644
+--- a/ocaml/xenopsd/scripts/qemu-wrapper
++++ b/ocaml/xenopsd/scripts/qemu-wrapper
+@@ -19,6 +19,7 @@ import errno
+ import stat
+ import pwd
+ import grp
++import re
+ import subprocess
+ import ctypes
+ import ctypes.util
+@@ -53,6 +54,15 @@ CLONE_NEWNS = 0x00020000 # mount namespace
+ CLONE_NEWNET = 0x40000000 # network namespace
+ CLONE_NEWIPC = 0x08000000 # IPC namespace
+ 
++# qemu opens the -serial backend while it is still running as root in dom0,
++# before it chroots and drops privileges, so only an allowlist of safe
++# backends is accepted and all other values are rejected. Keep in sync with
++# ocaml/xapi-idl/xen/hvm_serial.ml.
++UNSAFE_SERIAL_OVERRIDE = "/etc/xensource/allow-unsafe-hvm-serial"
++SAFE_SERIAL_TCP_OPTIONS = frozenset([
++    "server", "server=on", "server=off", "nowait", "wait=on", "wait=off",
++    "nodelay", "nodelay=on", "nodelay=off"])
++SAFE_SERIAL_TCP_ADDR = re.compile(r"[A-Za-z0-9.:\[\]-]*:([0-9]{1,5})")
+ def unshare(flags):
+     libc = ctypes.CDLL(ctypes.util.find_library('c'), use_errno=True)
+     unshare_prototype = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_int, use_errno=True)
+@@ -120,6 +130,25 @@ def prepare_exec():
+     sys.stdout.flush()
+     sys.stderr.flush()
+ 
++def is_safe_serial(value):
++    """Return True if a -serial value is one of the allowed safe backends,
++    and False for anything else."""
++    if value in ("pty", "none", "null"):
++        return True
++    if not value.startswith("tcp:"):
++        return False
++    parts = value[len("tcp:"):].split(",")
++    match = SAFE_SERIAL_TCP_ADDR.fullmatch(parts[0])
++    if match is None or not 0 < int(match.group(1)) < 65536:
++        return False
++    return all(opt in SAFE_SERIAL_TCP_OPTIONS for opt in parts[1:])
++
++def check_serial(value):
++    if is_safe_serial(value) or os.path.exists(UNSAFE_SERIAL_OVERRIDE):
++        return
++    raise SystemExit("refusing unsafe -serial backend %r "
++                     "(allowed: pty, none, null, tcp:host:port)" % value)
++
+ def main(argv):
+     print("Arguments: %s" % " ".join(argv[1:]))
+ 
+@@ -196,6 +225,7 @@ def main(argv):
+             continue
+ 
+         if p == "-serial":
++            check_serial(qemu_args[n + 1])
+             params = qemu_args[n + 1].split(',')
+             if params[0].startswith('tcp'):
+                 print("serial: '%s'" % qemu_args[n + 1])
+diff --git a/ocaml/xenopsd/xc/device.ml b/ocaml/xenopsd/xc/device.ml
+index 5dc3d6fb7ebe..13d8e32d1a3a 100644
+--- a/ocaml/xenopsd/xc/device.ml
++++ b/ocaml/xenopsd/xc/device.ml
+@@ -3416,6 +3416,22 @@ module Backend = struct
+             match info.Dm_Common.serial with
+             | None ->
+                 []
++            | Some x when not (Hvm_serial.is_allowed x) ->
++                (* qemu opens the serial backend as root before dropping
++                   privileges; this is the last point before that happens,
++                   and it also covers values restored from a suspended VM's
++                   saved state, which bypass XAPI's checks. *)
++                error "domid %d: refusing unsafe serial backend %S" domid x ;
++                raise
++                  (Xenopsd_error
++                     (Internal_error
++                        (sprintf
++                           "refusing unsafe %s value %S (allowed: pty, none, \
++                            null, tcp:host:port)"
++                           Hvm_serial.key x
++                        )
++                     )
++                  )
+             | Some x ->
+                 ["-serial"; x]
+           )
