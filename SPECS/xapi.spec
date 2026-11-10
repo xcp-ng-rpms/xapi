@@ -141,6 +141,9 @@ Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
 # Revert upstream commit breaking Veeam VM restore
 Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
 
+Patch1024: 0024-test.patch
+Patch1025: 0025-union.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
