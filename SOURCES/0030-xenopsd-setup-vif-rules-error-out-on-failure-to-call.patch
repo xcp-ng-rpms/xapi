@@ -1,0 +1,40 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sebastien Rodot <sebastien.rodot@vates.tech>
+Date: Thu, 27 Aug 2026 08:29:40 +0200
+Subject: [PATCH] xenopsd: setup-vif-rules: error out on failure to call
+ ovs-ofctl
+
+when calling "add_flow" or "del-flows" subcommands, failures are important.
+check the return code of the command, and error out if something bad happens.
+
+Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
+---
+ ocaml/xenopsd/scripts/setup-vif-rules | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/ocaml/xenopsd/scripts/setup-vif-rules b/ocaml/xenopsd/scripts/setup-vif-rules
+index 82936a320..1cab9ecbc 100755
+--- a/ocaml/xenopsd/scripts/setup-vif-rules
++++ b/ocaml/xenopsd/scripts/setup-vif-rules
+@@ -225,16 +225,18 @@ def get_parent_bridge(bridge_name):
+ def clear_vswitch_rules(vif_name):
+     '''clear OVS rules, if any'''
+     port = get_vswitch_port(vif_name)
+-    if port != '':
++    if port not in ['', '-1']:
+         bridge_name = get_current_bridge_name_vswitch(vif_name)
+         bridge_name = get_parent_bridge(bridge_name)
+-        doexec([ofctl, "del-flows", bridge_name, "in_port=%s,cookie=1/-1" % port])
++        run(ON_ERROR_FAIL, [ofctl, "del-flows", bridge_name, "in_port=%s,cookie=1/-1" % port])
+ 
+ def add_flow(bridge_name, args):
+-    doexec([ofctl, "add-flow", bridge_name, "cookie=1," + args])
++    run(ON_ERROR_FAIL, [ofctl, "add-flow", bridge_name, "cookie=1," + args])
+ 
+ def create_vswitch_rules(bridge_name, config):
+     port = get_vswitch_port(vif_name)
++    if port in ['', '-1']:
++        return
+     bridge_name = get_parent_bridge(bridge_name)
+     mac = config["mac"]
+     ipv4_allowed = config["ipv4_allowed"]

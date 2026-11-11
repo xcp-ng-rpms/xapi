@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Sebastien Rodot <sebastien.rodot@vates.tech>
+Date: Thu, 27 Aug 2026 08:29:40 +0200
+Subject: [PATCH] xenopsd: setup-vif-rules: ensure OpenFlow10 commands are
+ available
+
+when calling ovs-ofctl, the protocol used for negociating should be allowed.
+ensure that OpenFlow10 is allowed by either be enabled by default (Bridge.protocols="[]"),
+or either be explicitly present.
+
+Signed-off-by: Sebastien Rodot <sebastien.rodot@vates.tech>
+---
+ ocaml/xenopsd/scripts/setup-vif-rules | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/ocaml/xenopsd/scripts/setup-vif-rules b/ocaml/xenopsd/scripts/setup-vif-rules
+index 1cab9ecbc..2184f328d 100755
+--- a/ocaml/xenopsd/scripts/setup-vif-rules
++++ b/ocaml/xenopsd/scripts/setup-vif-rules
+@@ -222,12 +222,22 @@ def get_parent_bridge(bridge_name):
+     (rc, stdout, stderr) = doexec([vsctl, "br-to-parent", bridge_name ])
+     return stdout.readline().strip()
+ 
++def vswitch_enable_openflow10(bridge_name):
++    (rc, stdout, stderr) = doexec([vsctl, "get", "Bridge", bridge_name, "protocols"])
++    protocols = stdout.readline().strip()
++
++    if protocols == "[]" or "OpenFlow10" in protocols:
++        return
++
++    doexec([vsctl, "add", "Bridge", bridge_name, "protocols", "OpenFlow10"])
++
+ def clear_vswitch_rules(vif_name):
+     '''clear OVS rules, if any'''
+     port = get_vswitch_port(vif_name)
+     if port not in ['', '-1']:
+         bridge_name = get_current_bridge_name_vswitch(vif_name)
+         bridge_name = get_parent_bridge(bridge_name)
++        vswitch_enable_openflow10(bridge_name)
+         run(ON_ERROR_FAIL, [ofctl, "del-flows", bridge_name, "in_port=%s,cookie=1/-1" % port])
+ 
+ def add_flow(bridge_name, args):
+@@ -238,6 +248,7 @@ def create_vswitch_rules(bridge_name, config):
+     if port in ['', '-1']:
+         return
+     bridge_name = get_parent_bridge(bridge_name)
++    vswitch_enable_openflow10(bridge_name)
+     mac = config["mac"]
+     ipv4_allowed = config["ipv4_allowed"]
+     ipv6_allowed = config["ipv6_allowed"]

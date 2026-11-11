@@ -168,6 +168,10 @@ Patch1028: 0028-xapi_pool-Handle-dangling-Host.local_cache_sr-on-poo.patch
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7397
 Patch1029: 0029-xapi_vm_snapshot-Clone-VBDs-even-for-reverted-VDIs-i.patch
 
+# sdn-controller reliability fixes
+Patch1030: 0030-xenopsd-setup-vif-rules-error-out-on-failure-to-call.patch
+Patch1031: 0031-xenopsd-setup-vif-rules-ensure-OpenFlow10-commands-a.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1581,6 +1585,7 @@ Coverage files from unit tests
 - XCPNG-3991: Fix Host.evacuate getting stuck due to losing track of an event in some cases
 - XCPNG-3898: Improve performance for storage migrations with snapshots by fixing the order of migrations
 - Fix issue with a host getting stuck when joining the pool because of a dangling reference
+- sdn-controller: Add reliability fixes, guarantee rules are applied
 - Fix forkexecd potentially exhausting dom0 memory when using tracing
 - Introduce a new API for rate-limiting clients
 - Update to upstream 26.1.23-2
