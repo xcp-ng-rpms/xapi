@@ -1,0 +1,35 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Lunfan Zhang <Lunfan.Zhang@cloud.com>
+Date: Wed, 28 Oct 2026 06:27:30 +0000
+Subject: [PATCH] CA-432792: Tag the mirror leaf VDI through the destination's
+ SMAPI
+
+receive_start_common runs on the source host when called through
+receive_start3, with SMAPI bound to the destination host's storage API.
+The leaf VDI is created there, but its tags were added through Local,
+the source host's own storage mux, which has no plugin for the
+destination SR. Every SXM of a tagged VDI to an SR not plugged on the
+source host, including all cross-pool migrations, failed with
+No_storage_plugin_for_sr.
+
+Add the tags through SMAPI, like every other operation on the leaf.
+
+Signed-off-by: Lunfan Zhang <Lunfan.Zhang@cloud.com>
+(cherry picked from commit a416d1d0589ae5fa1282944019fab6b47dc0959f)
+---
+ ocaml/xapi/storage_smapiv1_migrate.ml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi/storage_smapiv1_migrate.ml b/ocaml/xapi/storage_smapiv1_migrate.ml
+index b8d43ee79..0031f6125 100644
+--- a/ocaml/xapi/storage_smapiv1_migrate.ml
++++ b/ocaml/xapi/storage_smapiv1_migrate.ml
+@@ -652,7 +652,7 @@ module MIRROR : SMAPIv2_MIRROR = struct
+       let leaf = SMAPI.VDI.create dbg sr vdi_info in
+ 
+       List.iter
+-        (fun tag -> Local.VDI.add_tags dbg sr leaf.vdi tag)
++        (fun tag -> SMAPI.VDI.add_tags dbg sr leaf.vdi tag)
+         vdi_info.tags ;
+ 
+       D.info "Created leaf VDI for mirror receive: %s" (string_of_vdi_info leaf) ;

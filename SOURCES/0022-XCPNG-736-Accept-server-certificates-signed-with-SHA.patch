@@ -1,0 +1,63 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: "Claude Opus 5.5" <noreply@anthropic.com>
+Date: Wed, 14 Oct 2026 23:01:56 +0100
+Subject: [PATCH] XCPNG-736: Accept server certificates signed with SHA384
+
+Host.install_server_certificate only accepted leaf certificates signed
+with SHA256 or SHA512, and refused SHA384 with
+SERVER_CERTIFICATE_SIGNATURE_NOT_SUPPORTED, although it is a SHA2
+algorithm between the two. Some CAs can only issue SHA384 certificates.
+
+Accept SHA384 too, add it to the test cases and to the error's
+description. SHA1 and other algorithms are still refused.
+
+Tracking-reference: XCPNG-736
+Signed-off-by: Colin James <colin.barr@vates.tech>
+---
+ ocaml/gencert/lib.ml          | 2 +-
+ ocaml/gencert/test_lib.ml     | 5 +++++
+ ocaml/idl/datamodel_errors.ml | 2 +-
+ 3 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/ocaml/gencert/lib.ml b/ocaml/gencert/lib.ml
+index 95be7b0b2..b9428b980 100644
+--- a/ocaml/gencert/lib.ml
++++ b/ocaml/gencert/lib.ml
+@@ -93,7 +93,7 @@ let validate_pem_chain ~pem_leaf ~pem_chain now private_key =
+   in
+   let ensure_signature_algorithm certificate =
+     match X509.Certificate.signature_algorithm certificate with
+-    | Some (_, (`SHA256 | `SHA512)) ->
++    | Some (_, (`SHA256 | `SHA384 | `SHA512)) ->
+         Ok certificate
+     | _ ->
+         Error (`Msg (server_certificate_signature_not_supported, []))
+diff --git a/ocaml/gencert/test_lib.ml b/ocaml/gencert/test_lib.ml
+index 48f25a4e6..742f731bf 100644
+--- a/ocaml/gencert/test_lib.ml
++++ b/ocaml/gencert/test_lib.ml
+@@ -50,6 +50,11 @@ let valid_leaf_certificates =
+     , "2020-02-01T00:00:00Z"
+     , `SHA256
+     )
++  ; ( "Valid, SHA384, matches key"
++    , "pkey_rsa_2048"
++    , "2020-02-01T00:00:00Z"
++    , `SHA384
++    )
+   ; ( "Valid, SHA512, matches key"
+     , "pkey_rsa_2048"
+     , "2020-02-01T00:00:00Z"
+diff --git a/ocaml/idl/datamodel_errors.ml b/ocaml/idl/datamodel_errors.ml
+index 18dd886f0..233591b5f 100644
+--- a/ocaml/idl/datamodel_errors.ml
++++ b/ocaml/idl/datamodel_errors.ml
+@@ -1802,7 +1802,7 @@ let _ =
+   error Api_errors.server_certificate_signature_not_supported []
+     ~doc:
+       "The provided certificate is not using one of the following SHA2 \
+-       signature algorithms:  SHA256, SHA512."
++       signature algorithms:  SHA256, SHA384, SHA512."
+     () ;
+ 
+   error Api_errors.server_certificate_chain_invalid []

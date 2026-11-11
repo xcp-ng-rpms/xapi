@@ -144,6 +144,9 @@ Patch1019: 0019-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
 # In v26.1.24 upstream
 Patch1020: 0020-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
 Patch1021: 0021-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
+Patch1022: 0022-XCPNG-736-Accept-server-certificates-signed-with-SHA.patch
+Patch1023: 0023-storage_access-Remove-duplicate-SM-records.patch
+Patch1024: 0024-CA-432792-Tag-the-mirror-leaf-VDI-through-the-destin.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1551,6 +1554,9 @@ Coverage files from unit tests
 
 %changelog
 * Wed Nov 11 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.23-2.1
+- XCPNG-736: Support adding SSL certificates signed with SHA384
+- Fix issue with duplicate SM plugins registered breaking SR functionality
+- Fix migration of VDIs with tags to SRs not plugged on the source host
 - Fix forkexecd potentially exhausting dom0 memory when using tracing
 - Introduce a new API for rate-limiting clients
 - Update to upstream 26.1.23-2
