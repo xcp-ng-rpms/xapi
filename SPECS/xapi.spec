@@ -156,6 +156,10 @@ Patch1025: 0025-Release-leftover-HA-static-VDIs-when-HA-is-disabled-.patch
 # Merged upstream
 Patch1026: 0026-xapi-client-tasks-keep-updated-classes-in-wait_for_a.patch
 
+# XCPNG-3898: Performance optimization for storage migrations with snapshots
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7349
+Patch1027: 0027-XCPNG-3898-Copy-snapshots-before-their-overlays.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1567,6 +1571,7 @@ Coverage files from unit tests
 - Fix migration of VDIs with tags to SRs not plugged on the source host
 - XCPNG-3914: Fix incomplete VDI cleanup when HA is disabled while host is fenced
 - XCPNG-3991: Fix Host.evacuate getting stuck due to losing track of an event in some cases
+- XCPNG-3898: Improve performance for storage migrations with snapshots by fixing the order of migrations
 - Fix forkexecd potentially exhausting dom0 memory when using tracing
 - Introduce a new API for rate-limiting clients
 - Update to upstream 26.1.23-2

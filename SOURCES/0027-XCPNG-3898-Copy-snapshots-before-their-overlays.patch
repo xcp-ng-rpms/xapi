@@ -1,0 +1,50 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Colin James <contificate@gmail.com>
+Date: Wed, 21 Oct 2026 15:48:01 +0100
+Subject: [PATCH] XCPNG-3898: Copy snapshots before their overlays
+
+Disks were sorted before their snapshots when their snapshot_time was older: it
+is the epoch, or the time the disk was cloned. Each disk was then sent in full.
+The destination finds a base for a delta by matching content_id (other_config
+field), but mirroring clears it on the disk, so its snapshots were sent in full
+too.
+
+Copying snapshots first lets each disk be sent as a delta against its snapshot.
+This can halve the space used on the destination and the data sent.
+
+Tracking-reference: XCPNG-3898
+Reported-by: Florent Beauchamp <florent.beauchamp@vates.tech>
+Signed-off-by: Colin James <contificate@gmail.com>
+---
+ ocaml/xapi/xapi_vm_migrate.ml | 15 ++++++++-------
+ 1 file changed, 8 insertions(+), 7 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_vm_migrate.ml b/ocaml/xapi/xapi_vm_migrate.ml
+index a1b46a095..634bae085 100644
+--- a/ocaml/xapi/xapi_vm_migrate.ml
++++ b/ocaml/xapi/xapi_vm_migrate.ml
+@@ -1537,16 +1537,17 @@ let migrate_send' ~__context ~vm ~dest ~live:_ ~vdi_map ~vdi_format_map ~vif_map
+        chances that similar but smaller VDIs would arrive comparatively
+        earlier, which can serve as base for incremental copying the larger
+        ones. *)
++    (* Non-snapshots last, so they can use their snapshots as base. *)
++    let age v =
++      if Db.VDI.get_is_a_snapshot ~__context ~self:v.vdi then
++        Date.to_unix_time (Db.VDI.get_snapshot_time ~__context ~self:v.vdi)
++      else
++        Float.infinity
++    in
+     let compare_fun v1 v2 =
+       let r = Int64.compare v1.size v2.size in
+       if r = 0 then
+-        let t1 =
+-          Date.to_unix_time (Db.VDI.get_snapshot_time ~__context ~self:v1.vdi)
+-        in
+-        let t2 =
+-          Date.to_unix_time (Db.VDI.get_snapshot_time ~__context ~self:v2.vdi)
+-        in
+-        compare t1 t2
++        Float.compare (age v1) (age v2)
+       else
+         r
+     in
