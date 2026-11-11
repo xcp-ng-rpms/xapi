@@ -148,6 +148,14 @@ Patch1022: 0022-XCPNG-736-Accept-server-certificates-signed-with-SHA.patch
 Patch1023: 0023-storage_access-Remove-duplicate-SM-records.patch
 Patch1024: 0024-CA-432792-Tag-the-mirror-leaf-VDI-through-the-destin.patch
 
+# XCPNG-3914: Fix incomplete VDI cleanup when HA is disabled while host is fenced
+# Merged upstream
+Patch1025: 0025-Release-leftover-HA-static-VDIs-when-HA-is-disabled-.patch
+
+# XCPNG-3991: Fix Host.evacuate getting stuck due to losing track of an event in some cases
+# Merged upstream
+Patch1026: 0026-xapi-client-tasks-keep-updated-classes-in-wait_for_a.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1557,6 +1565,8 @@ Coverage files from unit tests
 - XCPNG-736: Support adding SSL certificates signed with SHA384
 - Fix issue with duplicate SM plugins registered breaking SR functionality
 - Fix migration of VDIs with tags to SRs not plugged on the source host
+- XCPNG-3914: Fix incomplete VDI cleanup when HA is disabled while host is fenced
+- XCPNG-3991: Fix Host.evacuate getting stuck due to losing track of an event in some cases
 - Fix forkexecd potentially exhausting dom0 memory when using tracing
 - Introduce a new API for rate-limiting clients
 - Update to upstream 26.1.23-2

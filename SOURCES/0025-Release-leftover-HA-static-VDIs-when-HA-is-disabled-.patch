@@ -1,0 +1,176 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Guillaume Thouvenin <guillaume.thouvenin@vates.tech>
+Date: Mon, 19 Oct 2026 14:43:21 +0200
+Subject: [PATCH] Release leftover HA static VDIs when HA is disabled at
+ startup
+
+This patch fixes an issue where the HA statefile and metadata VDIs remain
+attached to dom0 after a host restart, even if HA has been disabled on the
+pool. Here is the scenario:
+- HA is enabled on the pool
+- A host is fenced, so it is shut down
+- HA is disabled on the pool. ha_release_resources is called on live hosts but
+  the fenced one doesn't receive the cleanup and keeps the statefile and
+  metadata VDIs in /etc/xensource/static-vdis
+- The fenced host restarts:
+  - Its local database still has ha.armed set to true, so on_server_restart
+    attached the static VDIs and tries to start the HA daemon
+  - ha_start_daemon fails with MTC_EXIT_INVALID_POOL_STATE because the pool is
+    no longer in HA mode. While failing, it sets ha.armed to false in the local
+    database without releasing the static VDIs
+  - Later resynchronise_ha_state sees HA disabled on both localhost and the
+    pool. So the (true, false) case, which normally calls ha_release_resources,
+    is not taken and no cleanup is done.
+At the end of the boot, the statefile and the metadata VDIs are still attached
+to dom0 and must be removed manually with "static-vdis detach/del".
+
+So the patch adds release_local_ha_static_vdis that deactivates and detaches
+any HA statefile or metadata VDI still configured as a static VDI on the host,
+and calls it in the (false, false) case of resynchronise_ha_state. When nothing
+is left behind it does nothing.
+
+ha_release_resources now also uses this helper. It used
+Db.Pool.get_ha_statefiles to find statefiles, but a statefile attached on the
+host always has a local static-vdis entry, so the local configuration is what
+this host actually need to release. Metadata VDIs were already found using the
+local configuration. Xha_metadata_vdi.deactivate_and_detach_existing is no
+longer used and is removed.
+
+Tracking-reference: XCPNG-3914
+Signed-off-by: Guillaume Thouvenin <guillaume.thouvenin@vates.tech>
+(cherry picked from commit ac2246af7b555be217bd8246c7e4c35aaf998b2a)
+---
+ ocaml/xapi/xapi.ml             |  9 +++++-
+ ocaml/xapi/xapi_ha.ml          | 51 ++++++++++++++++------------------
+ ocaml/xapi/xapi_ha.mli         |  6 ++++
+ ocaml/xapi/xha_metadata_vdi.ml | 16 -----------
+ 4 files changed, 38 insertions(+), 44 deletions(-)
+
+diff --git a/ocaml/xapi/xapi.ml b/ocaml/xapi/xapi.ml
+index 81d5ab676..17f206d1e 100644
+--- a/ocaml/xapi/xapi.ml
++++ b/ocaml/xapi/xapi.ml
+@@ -614,7 +614,14 @@ let resynchronise_ha_state () =
+         | true, true ->
+             info "HA is enabled on both localhost and the Pool"
+         | false, false ->
+-            info "HA is disabled on both localhost and the Pool"
++            info "HA is disabled on both localhost and the Pool" ;
++            (* We can be in a situation where HA has been disabled locally
++               because on_server_restart failed due to an invalid pool state.
++               While failing, it set ha.armed to false in the local database.
++               So the (true, false) case, which normally releases the HA
++               resources, is not taken. In this case the statefile and metadata
++               VDIs can be left behind, so we need to deal with that. *)
++            Xapi_ha.release_local_ha_static_vdis ~__context
+         | true, false ->
+             info
+               "HA has been disabled on the Pool while we were offline; \
+diff --git a/ocaml/xapi/xapi_ha.ml b/ocaml/xapi/xapi_ha.ml
+index 738627d14..c097ea53d 100644
+--- a/ocaml/xapi/xapi_ha.ml
++++ b/ocaml/xapi/xapi_ha.ml
+@@ -1213,35 +1213,32 @@ let emergency_ha_disable __context soft =
+     if not soft then Localdb.put Constants.ha_armed "false"
+   )
+ 
++(** Deactivate and detach HA statefile or metadata VDI that is still configured
++    as static VDI on this host. *)
++let release_local_ha_static_vdis ~__context =
++  let ha_vdis =
++    Xha_statefile.list_existing_statefiles ()
++    @ Xha_metadata_vdi.list_existing ()
++  in
++  List.iter
++    (fun {Static_vdis.uuid; reason; _} ->
++      info "%s: releasing static VDI %s (reason: %s)" __FUNCTION__ uuid reason ;
++      Helpers.log_exn_continue
++        (Printf.sprintf "releasing static VDI UUID: %s" uuid)
++        (fun () ->
++          Static_vdis.permanent_vdi_deactivate_by_uuid ~__context ~uuid ;
++          Static_vdis.permanent_vdi_detach_by_uuid ~__context ~uuid
++        )
++        ()
++    )
++    ha_vdis
++
+ let ha_release_resources __context _localhost =
+   Monitor.stop () ;
+-
+-  (* Why aren't we calling Xha_statefile.detach_existing_statefiles?
+-     Does Db.Pool.get_ha_statefiles return a different set of
+-     statefiles than Xha_statefile.list_existing_statefiles? *)
+-
+-  (* Deactivate and detach all statefile VDIs in the entire pool *)
+-  let statefile_vdis =
+-    Db.Pool.get_ha_statefiles ~__context ~self:(Helpers.get_pool ~__context)
+-  and deactivate_and_detach_vdi vdi_str =
+-    match Db.VDI.get_uuid ~__context ~self:(Ref.of_string vdi_str) with
+-    | uuid ->
+-        Helpers.log_exn_continue
+-          (Printf.sprintf "detaching statefile VDI uuid: %s" uuid)
+-          (fun () ->
+-            Static_vdis.permanent_vdi_deactivate_by_uuid ~__context ~uuid ;
+-            Static_vdis.permanent_vdi_detach_by_uuid ~__context ~uuid
+-          )
+-          ()
+-    | exception _e ->
+-        warn "%s: VDI %s not found in database" __FUNCTION__ vdi_str
+-  in
+-  List.iter deactivate_and_detach_vdi statefile_vdis ;
+-  (* Deactivate and detach any metadata VDIs *)
+-  Helpers.log_exn_continue
+-    (Printf.sprintf "deactivating and detaching metadata VDIs")
+-    (fun () -> Xha_metadata_vdi.deactivate_and_detach_existing ~__context)
+-    () ;
++  (* Deactivate and detach the statefile and metadata VDIs configured on this
++     host. We use the local static-vdis configuration rather than
++     Db.Pool.get_ha_statefiles: it is what this host actually attached. *)
++  release_local_ha_static_vdis ~__context ;
+   (* At this point a restart won't enable the HA subsystem *)
+   Localdb.put Constants.ha_armed "false"
+ 
+diff --git a/ocaml/xapi/xapi_ha.mli b/ocaml/xapi/xapi_ha.mli
+index ddf583d6c..de3d472c3 100644
+--- a/ocaml/xapi/xapi_ha.mli
++++ b/ocaml/xapi/xapi_ha.mli
+@@ -67,6 +67,12 @@ val ha_stop_daemon : 'a -> 'b -> unit
+ val emergency_ha_disable : 'a -> bool -> unit
+ (** Emergency-mode API call to disarm localhost *)
+ 
++val release_local_ha_static_vdis : __context:Context.t -> unit
++(** Deactivate and detach any HA statefile or metadata VDI that is still
++    configured as a static VDI on this host (in /etc/xensource/static-vdis).
++    Used by ha_release_resources, and at startup to clean up VDIs left behind
++    when HA was disabled on the pool while we were offline. *)
++
+ val ha_release_resources : Context.t -> 'a -> unit
+ (** Internal API call to release any HA resources after the system has been
+     shutdown. This call is idempotent. Modified for CA-48539 to call
+diff --git a/ocaml/xapi/xha_metadata_vdi.ml b/ocaml/xapi/xha_metadata_vdi.ml
+index d2142c30d..3bc92ad87 100644
+--- a/ocaml/xapi/xha_metadata_vdi.ml
++++ b/ocaml/xapi/xha_metadata_vdi.ml
+@@ -65,22 +65,6 @@ let detach_existing ~__context =
+     )
+     vdis
+ 
+-(** Added for CA-48539 *)
+-let deactivate_and_detach_existing ~__context =
+-  let vdi_uuids =
+-    List.map (fun vdi -> vdi.Static_vdis.uuid) (list_existing ())
+-  in
+-  List.iter
+-    (fun vdi_uuid ->
+-      Static_vdis.permanent_vdi_deactivate_by_uuid ~__context ~uuid:vdi_uuid
+-    )
+-    vdi_uuids ;
+-  List.iter
+-    (fun vdi_uuid ->
+-      Static_vdis.permanent_vdi_detach_by_uuid ~__context ~uuid:vdi_uuid
+-    )
+-    vdi_uuids
+-
+ (** Attempt to flush the database to the metadata VDI *)
+ let flush_database ~__context log =
+   let open Xapi_database in

@@ -1,0 +1,74 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Guillaume Thouvenin <guillaume.thouvenin@vates.tech>
+Date: Wed, 28 Oct 2026 17:16:31 +0100
+Subject: [PATCH] xapi-client/tasks: keep updated classes in wait_for_all_inner
+ fold
+
+In wait_for_all_inner, the lambda used in the fold drops the classes from the
+accumulator and returns the outer classes for records that are not a task
+completion. So when a task ends and a new one is created, if another record
+(for example a process update) come after it in the same batchn the new class
+is lost.
+
+For example with three tasks in flight:
+- init: task set [A, B, C], classes [task/A, task/B, task/C]
+- A ends and D is created: task set [B, C, D], classes [task/B, task/C, task/D]
+- B is updated: task set [B, C, D], classes [task/A, task/B, task/C]
+
+D is pending but no longer subscribed. If D ends before another task recomputes
+classes from the task set, its completion is never seen and the caller waits
+forever. We saw this with host.evacuate stuck at progess 64/65 during a RPU.
+
+This patch fixes it by computing the class from the pending task set after the
+fold, so they always in sync.
+
+Tracking-reference: XCPNG-3991
+Signed-off-by: Guillaume Thouvenin <guillaume.thouvenin@vates.tech>
+(cherry picked from commit d3b7072463a13f1988cb2fd0b18428de65dbf8f8)
+---
+ ocaml/xapi-client/tasks.ml | 18 ++++++++----------
+ 1 file changed, 8 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/xapi-client/tasks.ml b/ocaml/xapi-client/tasks.ml
+index a9da21890..15d70185e 100644
+--- a/ocaml/xapi-client/tasks.ml
++++ b/ocaml/xapi-client/tasks.ml
+@@ -63,9 +63,9 @@ let wait_for_all_inner ~rpc ~session_id ~all_timeout ~tasks ~callback =
+             List.map Event_helper.record_of_event event_from.events
+           in
+           (* If any records indicate that a task is no longer pending, remove that task from the set. *)
+-          let pending_task_set, completed_task_count, classes =
++          let pending_task_set, completed_task_count =
+             List.fold_left
+-              (fun (task_set', completed_task_count, _) record ->
++              (fun (task_set', completed_task_count) record ->
+                 match record with
+                 | Event_helper.Task (t, Some t_rec) ->
+                     if
+@@ -82,20 +82,18 @@ let wait_for_all_inner ~rpc ~session_id ~all_timeout ~tasks ~callback =
+                           (fun task_set task -> TaskSet.add task task_set)
+                           new_task_set tasks_to_add
+                       in
+-                      ( new_task_set
+-                      , completed_task_count
+-                      , get_new_classes new_task_set
+-                      )
++                      (new_task_set, completed_task_count)
+                     else
+-                      (task_set', completed_task_count, classes)
++                      (task_set', completed_task_count)
+                 | _ ->
+-                    (task_set', completed_task_count, classes)
++                    (task_set', completed_task_count)
+               )
+-              (task_set, completed_task_count, classes)
++              (task_set, completed_task_count)
+               records
+           in
+           wait ~token:event_from.Event_types.token ~task_set:pending_task_set
+-            ~completed_task_count ~classes
++            ~completed_task_count
++            ~classes:(get_new_classes pending_task_set)
+   in
+   let token = "" in
+   let task_set =
