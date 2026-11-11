@@ -1,5 +1,5 @@
-%global package_speccommit f0bd703e1e87c64586550a1e33e3a4b3587a9f33
-%global package_srccommit v26.1.21
+%global package_speccommit 4f63b58bdb72ac379eee7628010549733279a06f
+%global package_srccommit v26.1.23
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.21
+Version: 26.1.23
 Release: 1%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.21.tar.gz
+Source0: xen-api-26.1.23.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -1053,6 +1053,7 @@ systemctl is-failed -q pvsproxy.service && systemctl restart -q pvsproxy.service
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
+/etc/xensource/call-costs.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
@@ -1459,6 +1460,47 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Sep 29 2026 Ming Lu <ming.lu@cloud.com> - 26.1.23-1
+- Add "hvm-pirq" platform key
+- quicktest: add -with-tag and -without-tag suite filters
+- Switch hvm-pirq default back to true
+- Rate limit: Implement token buckets
+- Rate limit: Implement queueing mechanism
+- Add tests for rate limits and token buckets
+- Add LRU cache to rate limiting library
+- Add caller table to rate limit library
+- Add caller statistics tracker to rate limit library
+- Update rate limit library name to avoid name clashes
+- Add Caller and Rate_limit datamodels
+- Instrument RPC calls with usage logging and rate limiting
+- Add rate limit and caller to xapi CLI
+- Add quicktest for rate limiting
+- Update rate limit design document with correct caller API
+- xapi-caller: Load call costs from external file at startup
+- rate-limit: Remove fairness bug in worker thread
+- rate-limit: Allow tokens to go negative on big requests
+- xapi_caller: Initialise caller table on module load
+- quicktest: Use more realistic bounds in rate limit test
+- http-lib: Canonicalise IPv4-mapped IPv6 client addresses
+- xapi_caller: Serialise all caller_table mutations
+- rate-limit: Skip redundant caller refreshes
+- CA-431811: Install depexts explicitly for opam 2.6
+- CA-431670: Hold the LRU lock across the mutation
+- CA-431322: Rolled up livepatches not reported for host update
+- CA-431322: Unit tests for Rolled up livepatches for host update report
+- CA-431283: Close the tracing exporter's HTTP channels
+- CA-431283: Treat a non-2xx span export as a failure
+- CA-431283: Cap forkexecd control message length
+- CA-431283: Log rejected forkexecd headers to syslog
+- rate-limit: Fix deadlock in rate limit deletion
+- opam: Fix rate limit package dependencies
+- xapi-rate-limit: Add auto-registered caller limit
+- rate-limit: Only show caller groups in the RRDs
+- rate-limit: Improve debug messages when rate limit applied
+- rate-limit: Add observers to rate limited calls
+- opam: Change all package URLs to point to 26.1-lcm instead of master
+- Update datamodel_lifecycle.ml for release 26.1.21
+
 * Tue Aug 25 2026 Ming Lu <ming.lu@cloud.com> - 26.1.21-1
 - update ocaml/idl/datamodel_lifecycle.ml
 - vlan_tag_invalid: change the documentation string
