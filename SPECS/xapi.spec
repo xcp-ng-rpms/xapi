@@ -160,6 +160,10 @@ Patch1026: 0026-xapi-client-tasks-keep-updated-classes-in-wait_for_a.patch
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7349
 Patch1027: 0027-XCPNG-3898-Copy-snapshots-before-their-overlays.patch
 
+# Fix pool.join breaking due to dangling ref
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7365
+Patch1028: 0028-xapi_pool-Handle-dangling-Host.local_cache_sr-on-poo.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
@@ -1572,6 +1576,7 @@ Coverage files from unit tests
 - XCPNG-3914: Fix incomplete VDI cleanup when HA is disabled while host is fenced
 - XCPNG-3991: Fix Host.evacuate getting stuck due to losing track of an event in some cases
 - XCPNG-3898: Improve performance for storage migrations with snapshots by fixing the order of migrations
+- Fix issue with a host getting stuck when joining the pool because of a dangling reference
 - Fix forkexecd potentially exhausting dom0 memory when using tracing
 - Introduce a new API for rate-limiting clients
 - Update to upstream 26.1.23-2
