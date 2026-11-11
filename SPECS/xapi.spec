@@ -1,4 +1,4 @@
-%global package_speccommit 4f63b58bdb72ac379eee7628010549733279a06f
+%global package_speccommit c5dfe41c0dad7e5c367df6c128eb014b7ebf9ad3
 %global package_srccommit v26.1.23
 
 # This matches the location where xen installs the ocaml libraries
@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.23
-Release: 1%{?xsrel}%{?dist}
+Release: 2%{?xsrel}%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -83,6 +83,16 @@ Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
+%endif
+
+# Security fixes: XSA-529, XSA-530. XS8.4 only
+%if 0%{?xenserver} < 9
+Patch8:  0008-CA-430073-VM.create-bypasses-per-key-RBAC-on-other_c.patch
+Patch9:  0009-CA-430074-Network.create-lets-vm-admin-reconfigure-d.patch
+Patch10: 0010-CA-430075-Symlink-directory-creation-traversal-via-P.patch
+Patch11: 0011-CA-430076-Variable-time-comparison-of-pool_secret.patch
+Patch12: 0012-CA-430077-Low-privilege-user-can-force-fail-arbitrar.patch
+Patch13: 0013-CA-430810-Newline-in-repository_proxy_url-injects-yu.patch
 %endif
 
 %{?_cov_buildrequires}
@@ -1460,6 +1470,14 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Nov 03 2026 Ming Lu <ming.lu@citrix.com> - 26.1.23-2
+- CA-430073: VM.create bypasses per-key RBAC on other_config and platform protected keys
+- CA-430074: Network.create lets vm-admin reconfigure dom0 IP and HIMN listener
+- CA-430075: Symlink/directory creation traversal via PUT /messages body
+- CA-430076: Variable-time comparison of pool_secret
+- CA-430077: Low-privilege user can force-fail arbitrary tasks via task_id parameter
+- CA-430810: Newline in repository_proxy_url injects yum/dnf .repo directives
+
 * Tue Sep 29 2026 Ming Lu <ming.lu@cloud.com> - 26.1.23-1
 - Add "hvm-pirq" platform key
 - quicktest: add -with-tag and -without-tag suite filters
