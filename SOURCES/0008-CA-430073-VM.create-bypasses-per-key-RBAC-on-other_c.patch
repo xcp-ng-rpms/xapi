@@ -1,0 +1,1110 @@
+From a3229a005430d96acff01bc8280d7e414c2909cb Mon Sep 17 00:00:00 2001
+From: Ming Lu <ming.lu@citrix.com>
+Date: Mon, 2 Nov 2026 19:20:13 +0800
+Subject: [PATCH 08/13] CA-430073: VM.create bypasses per-key RBAC on
+ other_config and platform protected keys
+
+This defeats the _R_POOL_ADMIN per-key gates that XSA-489 added for
+VM.other_config:pci and VM.platform:hvm_serial.
+
+Additionally, there are other paths that may bypass the gate: VM clone
+and import. Note that the API calls are forwarded to supporter hosts
+with session created by pool secret. It needs to be recovered to the
+original session for RBAC check.
+
+VM.create only needs the VM admin role, but it takes a whole VM record,
+including fields whose setters need a higher role. Two of them are
+checked as well:
+
+  - ha_restart_priority: a VM with "restart" is protected by HA and takes
+    resources from the pool's point of view.
+  - appliance: is managed from pool's point of view as well.
+
+There are other VM fields which currently require higher role. But one
+of them, ha_always_run, is deprecated. Others seem not necessary to be
+managed by higher role, or from the pool's point of view.
+
+Includes unit tests for the per-key RBAC check on maps of VM, and for
+the RBAC check on protected fields of VM.
+
+This is CVE-2026-102706, part of XSA-530.
+
+Signed-off-by: Ming Lu <ming.lu@citrix.com>
+Reviewed-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/tests/suite_alcotest.ml           |   2 +
+ ocaml/tests/test_vm_protected_fields.ml | 300 ++++++++++++++++++
+ ocaml/tests/test_vm_protected_keys.ml   | 404 ++++++++++++++++++++++++
+ ocaml/xapi/helpers.ml                   | 103 +++++-
+ ocaml/xapi/import.ml                    |   8 +
+ ocaml/xapi/xapi_vm.ml                   |   8 +
+ ocaml/xapi/xapi_vm_clone.ml             |  24 ++
+ ocaml/xapi/xapi_vm_clone.mli            |   8 +
+ ocaml/xapi/xapi_vm_helpers.ml           |   9 +
+ 9 files changed, 863 insertions(+), 3 deletions(-)
+ create mode 100644 ocaml/tests/test_vm_protected_fields.ml
+ create mode 100644 ocaml/tests/test_vm_protected_keys.ml
+
+diff --git a/ocaml/tests/suite_alcotest.ml b/ocaml/tests/suite_alcotest.ml
+index d93a266340..b93ad873ae 100644
+--- a/ocaml/tests/suite_alcotest.ml
++++ b/ocaml/tests/suite_alcotest.ml
+@@ -65,11 +65,13 @@ let () =
+     @ Test_pvs_cache_storage.tests
+     @ Test_helpers.tests
+     @ Test_datamodel_lifecycle.tests
+     @ Test_psr.tests
+     @ Test_context.tests
+     @ Test_session.tests
+     @ Test_xapi_cmd_result.tests
+     @ Test_extauth_plugin_ADwinbind.tests
+     @ Test_rfb_client_msgtype_parser.tests
+     @ Test_tracked_user_agents.tests
++    @ Test_vm_protected_keys.tests
++    @ Test_vm_protected_fields.tests
+     )
+diff --git a/ocaml/tests/test_vm_protected_fields.ml b/ocaml/tests/test_vm_protected_fields.ml
+new file mode 100644
+index 0000000000..bc42eb96f3
+--- /dev/null
++++ b/ocaml/tests/test_vm_protected_fields.ml
+@@ -0,0 +1,300 @@
++(*
++ * Copyright (C) Cloud Software Group, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(* Tests for the RBAC guard protecting the fields of VM whose setters need a
++   higher role than VM.create: setting such a field to anything but its default
++   needs the permission of its setter.
++
++   Paths covered:
++     - the shared helper itself                    (module Helper)
++     - VM.create via [Xapi_vm.create]              (module Create)
++     - VM.clone / VM.copy via [Xapi_vm_clone.assert_protected_fields_allowed],
++       and the deliberate NON-gating of
++       VM.snapshot / VM.checkpoint                 (module Clone)
++ *)
++
++let rbac_denied = Api_errors.rbac_permission_denied
++
++(* The exact permission strings a session must hold to set the fields. *)
++let perm_set_ha_restart_priority = "vm.set_ha_restart_priority"
++
++let perm_set_appliance = "vm.set_appliance"
++
++let context_with_session base ~is_local_superuser ~rbac_permissions =
++  let session_id =
++    Test_common.make_session ~__context:base ~is_local_superuser
++      ~rbac_permissions ()
++  in
++  Context.make ~session_id "test"
++
++(* A context with no session at all, simulating a trusted internal caller. *)
++let sessionless_context () = Context.make "no-session"
++
++let unprivileged base =
++  context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++
++let make_appliance ~__context =
++  let ref = Ref.make () in
++  Db.VM_appliance.create ~__context ~ref ~uuid:(Test_common.make_uuid ())
++    ~name_label:"appliance" ~name_description:"" ~allowed_operations:[]
++    ~current_operations:[] ;
++  ref
++
++let expect_rbac_denied msg f =
++  match f () with
++  | () ->
++      Alcotest.failf "%s: expected %s but the call succeeded" msg rbac_denied
++  | exception Api_errors.Server_error (code, _) when code = rbac_denied ->
++      ()
++  | exception e ->
++      Alcotest.failf "%s: expected %s but got %s" msg rbac_denied
++        (ExnHelper.string_of_exn e)
++
++let expect_ok msg f =
++  match f () with
++  | () ->
++      ()
++  | exception e ->
++      Alcotest.failf "%s: expected success but got %s" msg
++        (ExnHelper.string_of_exn e)
++
++module Helper = struct
++  let assert_allowed ~__context ~is_default =
++    Xapi_vm_helpers.assert_protected_field_allowed ~__context
++      ~field_name:"ha_restart_priority" ~is_default
++
++  let test_denies_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let __context = unprivileged base in
++    expect_rbac_denied "non-default value" (fun () ->
++        assert_allowed ~__context ~is_default:false
++    )
++
++  let test_allows_default () =
++    let base = Test_common.make_test_database () in
++    let __context = unprivileged base in
++    expect_ok "default value" (fun () ->
++        assert_allowed ~__context ~is_default:true
++    )
++
++  let test_allows_with_permission () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false
++        ~rbac_permissions:[perm_set_ha_restart_priority]
++    in
++    expect_ok "allowed non-default value" (fun () ->
++        assert_allowed ~__context ~is_default:false
++    )
++
++  let test_denies_other_permission () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false
++        ~rbac_permissions:[perm_set_appliance]
++    in
++    expect_rbac_denied "permission of another field" (fun () ->
++        assert_allowed ~__context ~is_default:false
++    )
++
++  let test_allows_superuser () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    expect_ok "superuser non-default value" (fun () ->
++        assert_allowed ~__context ~is_default:false
++    )
++
++  let test_allows_sessionless () =
++    let __context = sessionless_context () in
++    expect_ok "sessionless caller, non-default value" (fun () ->
++        assert_allowed ~__context ~is_default:false
++    )
++
++  let tests =
++    [
++      ("denies unprivileged session", `Quick, test_denies_unprivileged)
++    ; ("allows default value", `Quick, test_allows_default)
++    ; ("allows session with permission", `Quick, test_allows_with_permission)
++    ; ( "denies session with another permission"
++      , `Quick
++      , test_denies_other_permission
++      )
++    ; ("allows local superuser", `Quick, test_allows_superuser)
++    ; ("allows sessionless caller", `Quick, test_allows_sessionless)
++    ]
++end
++
++module Create = struct
++  let test_denies_ha_restart_priority () =
++    let base = Test_common.make_test_database () in
++    let __context = unprivileged base in
++    expect_rbac_denied "VM.create with ha_restart_priority 'restart'" (fun () ->
++        ignore (Test_common.make_vm ~__context ~ha_restart_priority:"restart" ())
++    )
++
++  let test_denies_appliance () =
++    let base = Test_common.make_test_database () in
++    let appliance = make_appliance ~__context:base in
++    let __context = unprivileged base in
++    expect_rbac_denied "VM.create with an appliance" (fun () ->
++        ignore (Test_common.make_vm ~__context ~appliance ())
++    )
++
++  let test_allows_defaults () =
++    let base = Test_common.make_test_database () in
++    let __context = unprivileged base in
++    expect_ok "unprivileged VM.create with defaults" (fun () ->
++        ignore (Test_common.make_vm ~__context ())
++    )
++
++  let test_allows_ha_always_run () =
++    (* Deprecated, and only effective with the "restart" priority. *)
++    let base = Test_common.make_test_database () in
++    let __context = unprivileged base in
++    expect_ok "unprivileged VM.create with ha_always_run" (fun () ->
++        ignore (Test_common.make_vm ~__context ~ha_always_run:true ())
++    )
++
++  let test_allows_with_permission () =
++    let base = Test_common.make_test_database () in
++    let appliance = make_appliance ~__context:base in
++    let __context =
++      context_with_session base ~is_local_superuser:false
++        ~rbac_permissions:[perm_set_ha_restart_priority; perm_set_appliance]
++    in
++    expect_ok "allowed VM.create with both fields" (fun () ->
++        ignore
++          (Test_common.make_vm ~__context ~ha_restart_priority:"restart"
++             ~appliance ()
++          )
++    )
++
++  let test_allows_superuser () =
++    let base = Test_common.make_test_database () in
++    let appliance = make_appliance ~__context:base in
++    let __context =
++      context_with_session base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    expect_ok "superuser VM.create with both fields" (fun () ->
++        ignore
++          (Test_common.make_vm ~__context ~ha_restart_priority:"restart"
++             ~appliance ()
++          )
++    )
++
++  let test_allows_sessionless () =
++    let __context = Test_common.make_test_database () in
++    expect_ok "sessionless VM.create with ha_restart_priority 'restart'"
++      (fun () ->
++        ignore (Test_common.make_vm ~__context ~ha_restart_priority:"restart" ())
++    )
++
++  let tests =
++    [
++      ( "denies unprivileged ha_restart_priority"
++      , `Quick
++      , test_denies_ha_restart_priority
++      )
++    ; ("denies unprivileged appliance", `Quick, test_denies_appliance)
++    ; ("allows defaults", `Quick, test_allows_defaults)
++    ; ("allows ha_always_run", `Quick, test_allows_ha_always_run)
++    ; ("allows session with permissions", `Quick, test_allows_with_permission)
++    ; ("allows local superuser", `Quick, test_allows_superuser)
++    ; ("allows sessionless caller", `Quick, test_allows_sessionless)
++    ]
++end
++
++module Clone = struct
++  open Xapi_vm_clone
++
++  let make_source base ?(ha_restart_priority = "") ?(appliance = Ref.null) () =
++    Test_common.make_vm ~__context:base ~ha_restart_priority ~appliance ()
++
++  let check ~__context ~vm ~disk_op =
++    assert_protected_fields_allowed ~__context ~vm disk_op
++
++  let test_denies_clone_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~ha_restart_priority:"restart" () in
++    let __context = unprivileged base in
++    expect_rbac_denied "clone with ha_restart_priority 'restart'" (fun () ->
++        check ~__context ~vm ~disk_op:Disk_op_clone
++    )
++
++  let test_denies_copy_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~ha_restart_priority:"restart" () in
++    let __context = unprivileged base in
++    expect_rbac_denied "copy with ha_restart_priority 'restart'" (fun () ->
++        check ~__context ~vm ~disk_op:(Disk_op_copy None)
++    )
++
++  let test_allows_appliance_unprivileged () =
++    (* The appliance of the new VM is reset. *)
++    let base = Test_common.make_test_database () in
++    let appliance = make_appliance ~__context:base in
++    let vm = make_source base ~appliance () in
++    let __context = unprivileged base in
++    expect_ok "clone of a VM in an appliance" (fun () ->
++        check ~__context ~vm ~disk_op:Disk_op_clone
++    )
++
++  let test_allows_snapshot_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~ha_restart_priority:"restart" () in
++    let __context = unprivileged base in
++    expect_ok "snapshot is not gated" (fun () ->
++        check ~__context ~vm ~disk_op:Disk_op_snapshot
++    )
++
++  let test_allows_checkpoint_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~ha_restart_priority:"restart" () in
++    let __context = unprivileged base in
++    expect_ok "checkpoint is not gated" (fun () ->
++        check ~__context ~vm ~disk_op:Disk_op_checkpoint
++    )
++
++  let test_allows_clone_superuser () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~ha_restart_priority:"restart" () in
++    let __context =
++      context_with_session base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    expect_ok "superuser clone with ha_restart_priority 'restart'" (fun () ->
++        check ~__context ~vm ~disk_op:Disk_op_clone
++    )
++
++  let tests =
++    [
++      ("denies unprivileged clone", `Quick, test_denies_clone_unprivileged)
++    ; ("denies unprivileged copy", `Quick, test_denies_copy_unprivileged)
++    ; ( "allows clone of a VM in an appliance"
++      , `Quick
++      , test_allows_appliance_unprivileged
++      )
++    ; ("snapshot is not gated", `Quick, test_allows_snapshot_unprivileged)
++    ; ("checkpoint is not gated", `Quick, test_allows_checkpoint_unprivileged)
++    ; ("allows superuser clone", `Quick, test_allows_clone_superuser)
++    ]
++end
++
++let tests =
++  [
++    ("VM protected fields: helper", Helper.tests)
++  ; ("VM protected fields: VM.create", Create.tests)
++  ; ("VM protected fields: VM.clone/copy/snapshot", Clone.tests)
++  ]
+diff --git a/ocaml/tests/test_vm_protected_keys.ml b/ocaml/tests/test_vm_protected_keys.ml
+new file mode 100644
+index 0000000000..ffb31da669
+--- /dev/null
++++ b/ocaml/tests/test_vm_protected_keys.ml
+@@ -0,0 +1,404 @@
++(*
++ * Copyright (C) Cloud Software Group, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++(* Tests for the per-key RBAC guard protecting the "protected keys" of
++   VM.other_config and VM.platform. The keys are declared in the datamodel of VM
++   via [map_keys_roles].
++
++   Paths covered:
++     - the shared helper itself                    (module Helper)
++     - VM.create via [Xapi_vm.create]              (module Create)
++     - VM.clone / VM.copy via [Xapi_vm_clone.assert_protected_map_keys_allowed],
++       and the deliberate NON-gating of
++       VM.snapshot / VM.checkpoint                 (module Clone)
++     - the forwarded path, where the originating
++       session is recovered from the task          (module Forwarded)
++ *)
++
++let rbac_denied = Api_errors.rbac_permission_denied
++
++(* Protected keys and a plain (unprotected) key for control cases. *)
++let oc_pci = [("pci", "0000:00:00.0")]
++
++let pf_hvm = [("hvm_serial", "pty")]
++
++let oc_plain = [("a_plain_key", "value")]
++
++(* The exact permission strings a session must hold to set the keys above. *)
++let perm_add_pci = "vm.add_to_other_config/key:pci"
++
++let perm_add_hvm_serial = "vm.add_to_platform/key:hvm_serial"
++
++let context_with_session base ~is_local_superuser ~rbac_permissions =
++  let session_id =
++    Test_common.make_session ~__context:base ~is_local_superuser
++      ~rbac_permissions ()
++  in
++  Context.make ~session_id "test"
++
++(* A context with no session at all, simulating a trusted internal caller. *)
++let sessionless_context () = Context.make "no-session"
++
++(* A task as the coordinator creates it, recording the session that issued the
++   call in [Task.session]. *)
++let make_task ~__context ~session_id label =
++  let self = Ref.make () in
++  Db.Task.create ~__context ~ref:self ~uuid:(Test_common.make_uuid ())
++    ~name_label:label ~name_description:"" ~created:API.Date.epoch
++    ~finished:API.Date.epoch ~status:`pending ~session:session_id
++    ~resident_on:!Xapi_globs.localhost_ref ~progress:0. ~_type:"<none/>"
++    ~result:"" ~error_info:[] ~allowed_operations:[] ~current_operations:[]
++    ~subtask_of:Ref.null ~other_config:[] ~stunnelpid:(-1L) ~forwarded:true
++    ~forwarded_to:Ref.null ~externalpid:(-1L) ~backtrace:"" ;
++  self
++
++(* The session [Message_forwarding.call_slave_with_session] creates when it
++   forwards a call: pool + local superuser. *)
++let forwarding_session base =
++  Test_common.make_session ~__context:base ~pool:true ~is_local_superuser:true
++    ()
++
++let forwarded_context ~session_id ~task_id =
++  Context.from_forwarded_task ~session_id task_id
++
++let expect_rbac_denied msg f =
++  match f () with
++  | () ->
++      Alcotest.failf "%s: expected %s but the call succeeded" msg rbac_denied
++  | exception Api_errors.Server_error (code, _) when code = rbac_denied ->
++      ()
++  | exception e ->
++      Alcotest.failf "%s: expected %s but got %s" msg rbac_denied
++        (ExnHelper.string_of_exn e)
++
++let expect_ok msg f =
++  match f () with
++  | () ->
++      ()
++  | exception e ->
++      Alcotest.failf "%s: expected success but got %s" msg
++        (ExnHelper.string_of_exn e)
++
++module Helper = struct
++  let assert_allowed ~__context ~field_name ~value =
++    Xapi_vm_helpers.assert_protected_map_keys_allowed ~__context ~field_name
++      ~value
++
++  let test_denies_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_rbac_denied "other_config with protected 'pci'" (fun () ->
++        assert_allowed ~__context ~field_name:"other_config" ~value:oc_pci
++    ) ;
++    expect_rbac_denied "platform with protected 'hvm_serial'" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_allows_with_permission () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false
++        ~rbac_permissions:[perm_add_pci]
++    in
++    expect_ok "permitted other_config 'pci'" (fun () ->
++        assert_allowed ~__context ~field_name:"other_config" ~value:oc_pci
++    )
++
++  let test_allows_superuser () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    expect_ok "superuser other_config 'pci'" (fun () ->
++        assert_allowed ~__context ~field_name:"other_config" ~value:oc_pci
++    ) ;
++    expect_ok "superuser platform 'hvm_serial'" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_allows_unprotected_keys () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_ok "unprivileged, no protected keys" (fun () ->
++        assert_allowed ~__context ~field_name:"other_config" ~value:oc_plain
++    )
++
++  let test_allows_sessionless () =
++    let __context = sessionless_context () in
++    expect_ok "sessionless caller, protected 'pci'" (fun () ->
++        assert_allowed ~__context ~field_name:"other_config" ~value:oc_pci
++    )
++
++  let tests =
++    [
++      ("denies unprivileged session", `Quick, test_denies_unprivileged)
++    ; ("allows session with permission", `Quick, test_allows_with_permission)
++    ; ("allows local superuser", `Quick, test_allows_superuser)
++    ; ("allows unprotected keys", `Quick, test_allows_unprotected_keys)
++    ; ("allows sessionless caller", `Quick, test_allows_sessionless)
++    ]
++end
++
++module Create = struct
++  let test_denies_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_rbac_denied "VM.create with platform 'hvm_serial'" (fun () ->
++        ignore (Test_common.make_vm ~__context ~platform:pf_hvm ())
++    ) ;
++    expect_rbac_denied "VM.create with other_config 'pci'" (fun () ->
++        ignore (Test_common.make_vm ~__context ~other_config:oc_pci ())
++    )
++
++  let test_allows_superuser () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    expect_ok "superuser VM.create with platform 'hvm_serial'" (fun () ->
++        ignore (Test_common.make_vm ~__context ~platform:pf_hvm ())
++    )
++
++  let test_allows_with_permission () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false
++        ~rbac_permissions:[perm_add_hvm_serial]
++    in
++    expect_ok "permitted VM.create with platform 'hvm_serial'" (fun () ->
++        ignore (Test_common.make_vm ~__context ~platform:pf_hvm ())
++    )
++
++  let test_allows_unprotected_keys () =
++    let base = Test_common.make_test_database () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_ok "unprivileged VM.create, no protected keys" (fun () ->
++        ignore (Test_common.make_vm ~__context ~other_config:oc_plain ())
++    )
++
++  let test_allows_sessionless () =
++    let __context = Test_common.make_test_database () in
++    expect_ok "sessionless VM.create with platform 'hvm_serial'" (fun () ->
++        ignore (Test_common.make_vm ~__context ~platform:pf_hvm ())
++    )
++
++  let tests =
++    [
++      ("denies unprivileged session", `Quick, test_denies_unprivileged)
++    ; ("allows local superuser", `Quick, test_allows_superuser)
++    ; ("allows session with permission", `Quick, test_allows_with_permission)
++    ; ("allows unprotected keys", `Quick, test_allows_unprotected_keys)
++    ; ("allows sessionless caller", `Quick, test_allows_sessionless)
++    ]
++end
++
++module Clone = struct
++  open Xapi_vm_clone
++
++  (* Create the source VM (with a protected key already present) using an
++     internal/sessionless context, so setting up the test bypassing the guard. *)
++  let make_source base ?(other_config = []) ?(platform = []) () =
++    Test_common.make_vm ~__context:base ~other_config ~platform ()
++
++  let copy ~__context ~vm ~disk_op =
++    assert_protected_map_keys_allowed ~__context ~vm disk_op
++
++  let test_denies_clone_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~other_config:oc_pci () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_rbac_denied "clone with protected other_config 'pci'" (fun () ->
++        copy ~__context ~vm ~disk_op:Disk_op_clone
++    )
++
++  let test_denies_copy_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~platform:pf_hvm () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_rbac_denied "copy with protected platform 'hvm_serial'" (fun () ->
++        copy ~__context ~vm ~disk_op:(Disk_op_copy None)
++    )
++
++  let test_allows_snapshot_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~other_config:oc_pci () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_ok "snapshot is not gated (other_config 'pci')" (fun () ->
++        copy ~__context ~vm ~disk_op:Disk_op_snapshot
++    )
++
++  let test_allows_checkpoint_unprivileged () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~platform:pf_hvm () in
++    let __context =
++      context_with_session base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    expect_ok "checkpoint is not gated (platform 'hvm_serial')" (fun () ->
++        copy ~__context ~vm ~disk_op:Disk_op_checkpoint
++    )
++
++  let test_allows_clone_superuser () =
++    let base = Test_common.make_test_database () in
++    let vm = make_source base ~other_config:oc_pci () in
++    let __context =
++      context_with_session base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    expect_ok "superuser clone with protected other_config 'pci'" (fun () ->
++        copy ~__context ~vm ~disk_op:Disk_op_clone
++    )
++
++  let tests =
++    [
++      ("denies unprivileged clone", `Quick, test_denies_clone_unprivileged)
++    ; ("denies unprivileged copy", `Quick, test_denies_copy_unprivileged)
++    ; ("snapshot is not gated", `Quick, test_allows_snapshot_unprivileged)
++    ; ("checkpoint is not gated", `Quick, test_allows_checkpoint_unprivileged)
++    ; ("allows superuser clone", `Quick, test_allows_clone_superuser)
++    ]
++end
++
++(* The forwarded path: the call arrives on a supporter host under a session
++   created from the pool secret. *)
++module Forwarded = struct
++  let assert_allowed = Helper.assert_allowed
++
++  (* The session that actually issued the API call on the coordinator. *)
++  let caller base ~is_local_superuser ~rbac_permissions =
++    Test_common.make_session ~__context:base ~is_local_superuser
++      ~rbac_permissions ()
++
++  let forwarded base ~originator =
++    let session_id = forwarding_session base in
++    let task_id = make_task ~__context:base ~session_id:originator "VM.clone" in
++    forwarded_context ~session_id ~task_id
++
++  let test_denies_unprivileged_originator () =
++    let base = Test_common.make_test_database () in
++    let originator =
++      caller base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    let __context = forwarded base ~originator in
++    expect_rbac_denied "forwarded: originator lacks the permission" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_allows_permitted_originator () =
++    let base = Test_common.make_test_database () in
++    let originator =
++      caller base ~is_local_superuser:false
++        ~rbac_permissions:[perm_add_hvm_serial]
++    in
++    let __context = forwarded base ~originator in
++    expect_ok "forwarded: originator holds the permission" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_allows_superuser_originator () =
++    let base = Test_common.make_test_database () in
++    let originator =
++      caller base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    let __context = forwarded base ~originator in
++    expect_ok "forwarded: originator is local superuser" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_denies_when_task_has_no_session () =
++    let base = Test_common.make_test_database () in
++    let __context = forwarded base ~originator:Ref.null in
++    expect_rbac_denied "forwarded: task records no session" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_denies_when_task_is_dummy () =
++    let base = Test_common.make_test_database () in
++    let session_id = forwarding_session base in
++    let __context =
++      forwarded_context ~session_id ~task_id:(Ref.make_dummy "no-db-task")
++    in
++    expect_rbac_denied "forwarded: no task in database" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_pool_session_without_forwarded_task () =
++    let base = Test_common.make_test_database () in
++    let session_id = forwarding_session base in
++    let __context = Context.make ~session_id "test" in
++    expect_ok "pool superuser session, not forwarded" (fun () ->
++        assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let test_forwarded_task_with_user_session () =
++    let base = Test_common.make_test_database () in
++    let privileged =
++      caller base ~is_local_superuser:true ~rbac_permissions:[]
++    in
++    let task_id = make_task ~__context:base ~session_id:privileged "VM.clone" in
++    let session_id =
++      caller base ~is_local_superuser:false ~rbac_permissions:[]
++    in
++    let __context = forwarded_context ~session_id ~task_id in
++    expect_rbac_denied
++      "forwarded task with a non-forwarding session is not redirected"
++      (fun () -> assert_allowed ~__context ~field_name:"platform" ~value:pf_hvm
++    )
++
++  let tests =
++    [
++      ( "denies unprivileged originator"
++      , `Quick
++      , test_denies_unprivileged_originator
++      )
++    ; ("allows permitted originator", `Quick, test_allows_permitted_originator)
++    ; ("allows superuser originator", `Quick, test_allows_superuser_originator)
++    ; ( "denies when task has no session"
++      , `Quick
++      , test_denies_when_task_has_no_session
++      )
++    ; ( "denies when task is not in database"
++      , `Quick
++      , test_denies_when_task_is_dummy
++      )
++    ; ( "pool session without forwarded task"
++      , `Quick
++      , test_pool_session_without_forwarded_task
++      )
++    ; ( "forwarded task with user session"
++      , `Quick
++      , test_forwarded_task_with_user_session
++      )
++    ]
++end
++
++let tests =
++  [
++    ("VM protected keys: helper", Helper.tests)
++  ; ("VM protected keys: VM.create", Create.tests)
++  ; ("VM protected keys: VM.clone/copy/snapshot", Clone.tests)
++  ; ("VM protected keys: forwarded call", Forwarded.tests)
++  ]
+diff --git a/ocaml/xapi/helpers.ml b/ocaml/xapi/helpers.ml
+index 7fdaa14d2d..a163acc3dd 100644
+--- a/ocaml/xapi/helpers.ml
++++ b/ocaml/xapi/helpers.ml
+@@ -2546,22 +2546,22 @@ let match_protected_key objname fieldname =
+ 
+    There is normally no key-related RBAC checking for
+    "set_X" (e.g. set_other_config) because the required writer role for the
+    entire field is usually higher than the role(s) required for
+    individually-protected keys.
+ 
+    {Task,VM}.set_other_config and VM.set_platform are special cases where
+    lower-privileged sessions must be able to manipulate a subset of entries
+    (those not protected by a more privileged role).
+ *)
+-let set_map_with_rbac ~__context ~self ~value ~get_fn ~set_fn ~match_protected
+-    ~object_name ~field_name =
++let set_map_with_rbac' ~session_id ~__context ~self ~value ~get_fn ~set_fn
++    ~match_protected ~object_name ~field_name =
+   let match_protected = match_protected field_name in
+   let module S = Set.Make (String) in
+   let create_lookup kvs =
+     let table = List.to_seq kvs |> Hashtbl.of_seq in
+     Hashtbl.find_opt table
+   in
+   let old_value = get_fn ~__context ~self in
+   let lookup_old, lookup_new = (create_lookup old_value, create_lookup value) in
+   let keys_before, keys_after =
+     let keys = List.map fst in
+@@ -2614,21 +2614,20 @@ let set_map_with_rbac ~__context ~self ~value ~get_fn ~set_fn ~match_protected
+        generated for "add_to" and "remove_from" (both implemented
+        above). They can be defined as custom AND use RBAC checking within
+        server.ml because their operation is purely destructive, so it's
+        sufficient to guard the entire action with Rbac.check. *)
+     let added_perms = List.map (format "add_to") added in
+     let removed_perms = List.map (format "remove_from") removed in
+     added_perms @ removed_perms
+   in
+   (* Find the first disallowed permission, indicating that we cannot
+      perform the action. *)
+-  let session_id = Context.get_session_id __context in
+   match
+     Rbac.find_first_disallowed_permission ~__context ~session_id ~permissions
+   with
+   | None ->
+       (* No disallowed permission, perform the update. *)
+       set_fn ~__context ~self ~value
+   | Some disallowed ->
+       (* Report it as an RBAC error. *)
+       let action = Printf.sprintf "%s.set_%s" object_name field_name in
+       let extra_msg = "" in
+@@ -2643,10 +2642,108 @@ let ldaps_enabled_in_config ~config =
+   (* Default to false, true iff v = true (case-insensitive) *)
+   | Some v when bool_of_string_opt (String.lowercase_ascii v) = Some true ->
+       true
+   | _ ->
+       false
+ 
+ (* Check if Active Directory external authentication is enabled on a host *)
+ let is_ad_enabled ~__context ~host =
+   let auth_type = Db.Host.get_external_auth_type ~__context ~self:host in
+   auth_type = Xapi_globs.auth_type_AD
++
++let set_map_with_rbac ~__context ~self ~value ~get_fn ~set_fn ~match_protected
++    ~object_name ~field_name =
++  set_map_with_rbac'
++    ~session_id:(Context.get_session_id __context)
++    ~__context ~self ~value ~get_fn ~set_fn ~match_protected ~object_name
++    ~field_name
++
++(* Try to recover the original session from the task as it is still useful even
++   after passing the RBAC check in API message entry. For example, RBAC check
++   against some keys is only possible when the VM's metadata is received from an
++   input stream while the call has passed RBAC check in API message entry on
++   coordinator and has been forwarded to a supporter host. *)
++let original_session ~__context =
++  match Context.get_session_id __context with
++  | exception Failure _ ->
++      (* No session, check is not needed. *)
++      Ok None
++  | session_id ->
++      let is_forwarding_session =
++        (* Quick check on local session. *)
++        (not (Session_check.is_local_session __context session_id))
++        (* Quick check on forwarded_task as well. *)
++        && Context.forwarded_task __context
++        &&
++        let session = Db.Session.get_record ~__context ~self:session_id in
++        session.API.session_pool && session.API.session_is_local_superuser
++      in
++      if is_forwarding_session then (
++        let ( let* ) = Result.bind in
++        let* task_id =
++          if Context.task_in_database __context then
++            Ok (Context.get_task_id __context)
++          else (
++            warn "%s: no task" __FUNCTION__ ;
++            Error ()
++          )
++        in
++        match Db.Task.get_session ~__context ~self:task_id with
++        | session_id when session_id <> Ref.null ->
++            Ok (Some session_id)
++        | _ ->
++            warn "%s: no session" __FUNCTION__ ;
++            Error ()
++        | exception e ->
++            warn "%s: failed to get originating session: %s" __FUNCTION__
++              (Printexc.to_string e) ;
++            Error ()
++      ) else
++        Ok (Some session_id)
++
++(* With similar purpose of set_map_with_rbac, this is a pure checking function
++   to ensure the session is privileged enough to set values for the protected
++   keys if they present in the map [value]. *)
++let assert_map_with_rbac ~__context ~match_protected ~object_name ~field_name
++    ~value =
++  match original_session ~__context with
++  | Ok None ->
++      ()
++  | Ok (Some session_id) ->
++      set_map_with_rbac' ~session_id ~__context ~self:Ref.null ~value
++        ~get_fn:(fun ~__context:_ ~self:_ -> [])
++        ~set_fn:(fun ~__context:_ ~self:_ ~value:_ -> ())
++        ~match_protected ~object_name ~field_name
++  | Error () ->
++      let action = Printf.sprintf "%s.set_%s" object_name field_name in
++      raise
++        Api_errors.(
++          Server_error
++            ( rbac_permission_denied
++            , [action; "cannot determine the originating session"]
++            )
++        )
++
++(* With similar purpose of assert_map_with_rbac, check if setting a non-default
++   value on a field of an object is allowed. *)
++let assert_field_value_with_rbac ~__context ~object_name ~field_name ~is_default
++    =
++  if not is_default then
++    let action = Printf.sprintf "%s.set_%s" object_name field_name in
++    let permission = String.lowercase_ascii action in
++    match original_session ~__context with
++    | Ok None ->
++        ()
++    | Ok (Some session_id) ->
++        if not (Rbac.is_access_allowed ~__context ~session_id ~permission) then
++          raise
++            (Rbac.disallowed_permission_exn ~extra_dmsg:"" ~extra_msg:""
++               ~__context ~permission ~action
++            )
++    | Error () ->
++        raise
++          Api_errors.(
++            Server_error
++              ( rbac_permission_denied
++              , [action; "cannot determine the originating session"]
++              )
++          )
+diff --git a/ocaml/xapi/import.ml b/ocaml/xapi/import.ml
+index 3f4d1e89e2..afc6cf2618 100644
+--- a/ocaml/xapi/import.ml
++++ b/ocaml/xapi/import.ml
+@@ -511,20 +511,28 @@ module VM : HandlerTools = struct
+                     List.remove_assoc Xapi_globs.default_template_key
+                       vm_record.API.vM_other_config
+                 }
+               else
+                 vm_record
+             in
+             Clean_import vm_record
+         in
+         match import_action with
+         | Replace (_, vm_record) | Clean_import vm_record ->
++            Xapi_vm_helpers.assert_protected_map_keys_allowed ~__context
++              ~field_name:"other_config" ~value:vm_record.API.vM_other_config ;
++            Xapi_vm_helpers.assert_protected_map_keys_allowed ~__context
++              ~field_name:"platform" ~value:vm_record.API.vM_platform ;
++            (* The appliance is cleared on import, so it isn't checked. *)
++            Xapi_vm_helpers.assert_protected_field_allowed ~__context
++              ~field_name:"ha_restart_priority"
++              ~is_default:(vm_record.API.vM_ha_restart_priority = "") ;
+             if is_live config then assert_can_live_import __context vm_record ;
+             ( if needs_cpu_check config vm_record then
+                 let vmm_record =
+                   find_in_export
+                     (Ref.string_of vm_record.API.vM_metrics)
+                     state.export
+                   |> API.vM_metrics_t_of_rpc
+                 in
+                 let host = Helpers.get_localhost ~__context in
+                 (* Don't check CPUID on 'unspecified' snapshots *)
+diff --git a/ocaml/xapi/xapi_vm.ml b/ocaml/xapi/xapi_vm.ml
+index f32b651ca6..f24d7fbd9a 100644
+--- a/ocaml/xapi/xapi_vm.ml
++++ b/ocaml/xapi/xapi_vm.ml
+@@ -584,20 +584,28 @@ let create ~__context ~name_label ~name_description ~power_state ~user_version
+     ~hardware_platform_version ~has_vendor_device ~reference_label ~domain_type
+     ~nVRAM : API.ref_VM =
+   (* Add random mac_seed if there isn't one specified already *)
+   let other_config =
+     let gen_mac_seed () = Uuidx.to_string (Uuidx.make ()) in
+     if not (List.mem_assoc Xapi_globs.mac_seed other_config) then
+       (Xapi_globs.mac_seed, gen_mac_seed ()) :: other_config
+     else
+       other_config
+   in
++  Xapi_vm_helpers.assert_protected_map_keys_allowed ~__context
++    ~field_name:"other_config" ~value:other_config ;
++  Xapi_vm_helpers.assert_protected_map_keys_allowed ~__context
++    ~field_name:"platform" ~value:platform ;
++  Xapi_vm_helpers.assert_protected_field_allowed ~__context
++    ~field_name:"ha_restart_priority" ~is_default:(ha_restart_priority = "") ;
++  Xapi_vm_helpers.assert_protected_field_allowed ~__context
++    ~field_name:"appliance" ~is_default:(appliance = Ref.null) ;
+   (* NB apart from the above, parameter validation is delayed until VM.start *)
+   let uuid = Uuidx.make () in
+   let vm_ref = Ref.make () in
+   let resident_on = Ref.null in
+   let scheduled_to_be_resident_on = Ref.null in
+   (* TODO: Raise bad power state error (once all API clients make sure to only call the needed params in the create method) when:
+      - power_state = `Halted and suspend_VDI <> Ref.null
+      - power_state = `Suspended and suspend_VDI = Ref.null || last_booted_record = "" || last_boot_CPU_flags = []
+      - power_state not in [`Halted, `Suspended]
+   *)
+diff --git a/ocaml/xapi/xapi_vm_clone.ml b/ocaml/xapi/xapi_vm_clone.ml
+index 25a30eac27..3d62851e52 100644
+--- a/ocaml/xapi/xapi_vm_clone.ml
++++ b/ocaml/xapi/xapi_vm_clone.ml
+@@ -412,24 +412,48 @@ let copy_vm_record ?snapshot_info_record ~__context ~vm ~disk_op ~new_name
+       ()
+   | Disk_op_snapshot | Disk_op_checkpoint ->
+       Db.VM.set_parent ~__context ~self:vm ~value:ref
+   ) ;
+   (ref, uuid)
+ 
+ (* epoch hint for netapp backend *)
+ let make_driver_params () =
+   [(Constants._sm_epoch_hint, Uuidx.to_string (Uuidx.make ()))]
+ 
++let assert_protected_map_keys_allowed ~__context ~vm disk_op =
++  match disk_op with
++  | Disk_op_clone | Disk_op_copy _ ->
++      Xapi_vm_helpers.assert_protected_map_keys_allowed ~__context
++        ~field_name:"other_config"
++        ~value:(Db.VM.get_other_config ~__context ~self:vm) ;
++      Xapi_vm_helpers.assert_protected_map_keys_allowed ~__context
++        ~field_name:"platform"
++        ~value:(Db.VM.get_platform ~__context ~self:vm)
++  | Disk_op_snapshot | Disk_op_checkpoint ->
++      ()
++
++let assert_protected_fields_allowed ~__context ~vm disk_op =
++  match disk_op with
++  | Disk_op_clone | Disk_op_copy _ ->
++      (* The appliance of the new VM is reset, so it isn't checked. *)
++      Xapi_vm_helpers.assert_protected_field_allowed ~__context
++        ~field_name:"ha_restart_priority"
++        ~is_default:(Db.VM.get_ha_restart_priority ~__context ~self:vm = "")
++  | Disk_op_snapshot | Disk_op_checkpoint ->
++      ()
++
+ (* NB this function may be called when the VM is suspended for copy/clone
+    operations. Snapshot can be done in live. *)
+ let clone ?snapshot_info_record ?(ignore_vdis = []) disk_op ~__context ~vm
+     ~new_name =
++  assert_protected_map_keys_allowed ~__context ~vm disk_op ;
++  assert_protected_fields_allowed ~__context ~vm disk_op ;
+   Helpers.call_api_functions ~__context (fun rpc session_id ->
+       let task_id = Ref.string_of (Context.get_task_id __context) in
+       let vbds = Db.VM.get_VBDs ~__context ~self:vm in
+       let vifs = Db.VM.get_VIFs ~__context ~self:vm in
+       let vgpus = Db.VM.get_VGPUs ~__context ~self:vm in
+       let vtpms = Db.VM.get_VTPMs ~__context ~self:vm in
+       let power_state = Db.VM.get_power_state ~__context ~self:vm in
+       (* If a VM is snapshotted, then the new VM must remain halted.
+          Otherwise, we keep the same power-state as the initial VM *)
+       let new_power_state =
+diff --git a/ocaml/xapi/xapi_vm_clone.mli b/ocaml/xapi/xapi_vm_clone.mli
+index 05843952fc..b0936d9301 100644
+--- a/ocaml/xapi/xapi_vm_clone.mli
++++ b/ocaml/xapi/xapi_vm_clone.mli
+@@ -55,10 +55,18 @@ val clone_single_vdi :
+ 
+ (* NB this function may be called when the VM is suspended for copy/clone operations. Snapshot can be done in live.*)
+ val clone :
+      ?snapshot_info_record:(string * string) list
+   -> ?ignore_vdis:[`VDI] API.Ref.t list
+   -> disk_op_t
+   -> __context:Context.t
+   -> vm:[`VM] API.Ref.t
+   -> new_name:string
+   -> [`VM] Ref.t
++
++(* For test purpose only *)
++val assert_protected_map_keys_allowed :
++  __context:Context.t -> vm:[`VM] API.Ref.t -> disk_op_t -> unit
++
++(* For test purpose only *)
++val assert_protected_fields_allowed :
++  __context:Context.t -> vm:[`VM] API.Ref.t -> disk_op_t -> unit
+diff --git a/ocaml/xapi/xapi_vm_helpers.ml b/ocaml/xapi/xapi_vm_helpers.ml
+index c2500e3b36..b5119a3904 100644
+--- a/ocaml/xapi/xapi_vm_helpers.ml
++++ b/ocaml/xapi/xapi_vm_helpers.ml
+@@ -1723,10 +1723,19 @@ let check_secureboot_certificates_state ~__context ~self :
+       | other ->
+           D.warn
+             "varstore-nvram-certcheck returned unexpected output for VM %s: %s"
+             vm_uuid other ;
+           `ok
+     with e ->
+       D.warn "Failed to check secureboot certificate state for VM %s: %s"
+         vm_uuid (Printexc.to_string e) ;
+       `ok
+   )
++
++let assert_protected_map_keys_allowed ~__context ~field_name ~value =
++  let match_protected = Helpers.match_protected_key "VM" in
++  Helpers.assert_map_with_rbac ~__context ~match_protected ~object_name:"vm"
++    ~field_name ~value
++
++let assert_protected_field_allowed ~__context ~field_name ~is_default =
++  Helpers.assert_field_value_with_rbac ~__context ~object_name:"vm" ~field_name
++    ~is_default
+-- 
+2.47.0
+

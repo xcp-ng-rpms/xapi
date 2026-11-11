@@ -1,0 +1,475 @@
+From 67667d44bf3f6b02dcc9621fcac4e7d92d26beea Mon Sep 17 00:00:00 2001
+From: Ming Lu <ming.lu@citrix.com>
+Date: Mon, 2 Nov 2026 19:20:42 +0800
+Subject: [PATCH 10/13] CA-430075: Symlink/directory creation traversal via PUT
+ /messages body
+
+Add sanity check against the ref, object_uuid and uuid in the message
+XML body in PUT requests. These fields will be used to create symlinks
+on dom0's filesystem.
+
+Includes a unit test for the sanity check of the message body.
+
+This is CVE-2026-102708, part of XSA-530.
+
+Signed-off-by: Ming Lu <ming.lu@citrix.com>
+Reviewed-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/tests/dune              |   1 +
+ ocaml/tests/suite_alcotest.ml |   1 +
+ ocaml/tests/test_message.ml   | 215 ++++++++++++++++++++++++++++++++++
+ ocaml/xapi/xapi_message.ml    |  45 ++++++-
+ 4 files changed, 261 insertions(+), 1 deletion(-)
+ create mode 100644 ocaml/tests/test_message.ml
+
+diff --git a/ocaml/tests/dune b/ocaml/tests/dune
+index 4908fd1937..785651b0b9 100644
+--- a/ocaml/tests/dune
++++ b/ocaml/tests/dune
+@@ -47,20 +47,21 @@
+     xapi-stdext-threads
+     xapi-stdext-unix
+     xapi-test-utils
+     xapi-tracing
+     xapi-types
+     xapi_xenopsd
+     xapi_cli_server
+     xapi_database
+     xapi_internal
+     xml-light2
++    xmlm
+   )
+   (deps
+     (source_tree test_data)
+   )
+ )
+ 
+ (test
+   (name suite_alcotest_server)
+   (package xapi)
+   (modules suite_alcotest_server test_client test_valid_ref_list test_vm_group)
+diff --git a/ocaml/tests/suite_alcotest.ml b/ocaml/tests/suite_alcotest.ml
+index 05b6c848aa..5d5c3491d9 100644
+--- a/ocaml/tests/suite_alcotest.ml
++++ b/ocaml/tests/suite_alcotest.ml
+@@ -39,20 +39,21 @@ let () =
+      ; ("Test_vif_helpers", Test_vif_helpers.test)
+      ; ("Test_vif_trunks", Test_vif_trunks.test)
+      ; ("Test_vm_memory_constraints", Test_vm_memory_constraints.test)
+      ; ("Test_xapi_xenops", Test_xapi_xenops.test)
+      ; ("Test_network_event_loop", Test_network_event_loop.test)
+      ; ("Test_vgpu_type", Test_vgpu_type.test)
+      ; ("Test_storage_migrate_state", Test_storage_migrate_state.test)
+      ; ("Test_bios_strings", Test_bios_strings.test)
+      ; ("Test_certificates", Test_certificates.test)
+      ; ("Test_caller_limit", Test_caller_limit.test)
++     ; ("Test_message", Test_message.test)
+      ]
+     @ Test_guest_agent.tests
+     @ Test_nm.tests
+     @ Test_xenopsd_metadata.tests
+     @ Test_http.tests
+     @ Test_ha_vm_failover.tests
+     @ Test_map_check.tests
+     @ Test_pool_license.tests
+     @ Test_features.tests
+     @ Test_platformdata.tests
+diff --git a/ocaml/tests/test_message.ml b/ocaml/tests/test_message.ml
+new file mode 100644
+index 0000000000..b2b768d1f5
+--- /dev/null
++++ b/ocaml/tests/test_message.ml
+@@ -0,0 +1,215 @@
++(*
++ * Copyright (C) Cloud Software Group, Inc.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published
++ * by the Free Software Foundation; version 2.1 only. with the special
++ * exception on linking described in file LICENSE.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU Lesser General Public License for more details.
++ *)
++
++module Date = Clock.Date
++
++let ok_ref = "OpaqueRef:9d2c1f80-3e4b-4a6d-8b12-0f7a5c3e9d44"
++
++let ok_uuid = "7f3e2a10-88c4-4e5b-a9d1-2c6b0f4e7a35"
++
++let ok_obj_uuid = "b4a0f7e2-0c5d-4a11-9f3c-6d2e8a17c9b1"
++
++let xml_decl = {|<?xml version="1.0" encoding="UTF-8"?>|}
++
++let message_xml ?(_ref = ok_ref) ?(uuid = ok_uuid) ?(obj_uuid = ok_obj_uuid)
++    ?(cls = "VM") () =
++  String.concat ""
++    [
++      "<message>"
++    ; Printf.sprintf "<ref>%s</ref>" _ref
++    ; "<name>VM_SHUTDOWN</name>"
++    ; "<priority>5</priority>"
++    ; Printf.sprintf "<cls>%s</cls>" cls
++    ; Printf.sprintf "<obj_uuid>%s</obj_uuid>" obj_uuid
++    ; "<timestamp>20260818T09:14:22Z</timestamp>"
++    ; Printf.sprintf "<uuid>%s</uuid>" uuid
++    ; "<body>Guest requested shutdown</body>"
++    ; "</message>"
++    ]
++
++let test_message =
++  {
++    API.message_name= "VM_SHUTDOWN"
++  ; API.message_uuid= ok_uuid
++  ; API.message_priority= 5L
++  ; API.message_cls= `VM
++  ; API.message_obj_uuid= ok_obj_uuid
++  ; API.message_timestamp= Date.of_iso8601 "20260818T09:14:22Z"
++  ; API.message_body= "Guest requested shutdown"
++  }
++
++let of_xml_string str = Xapi_message.of_xml (Xmlm.make_input (`String (0, str)))
++
++let import_string str =
++  Xapi_message.import_xml (Xmlm.make_input (`String (0, str)))
++
++let check_rejected what str =
++  match of_xml_string str with
++  | exception Failure _ ->
++      ()
++  | exception e ->
++      Alcotest.failf "%s: expected Failure, got %s" what (Printexc.to_string e)
++  | _ ->
++      Alcotest.failf "%s: expected a rejection, but the message parsed" what
++
++let check_accepted what str =
++  match of_xml_string str with
++  | _gen, _ref, message ->
++      (_ref, message)
++  | exception e ->
++      Alcotest.failf "%s: expected success, got %s" what (Printexc.to_string e)
++
++let test_accepts_well_formed () =
++  let _ref, message = check_accepted "well-formed" (message_xml ()) in
++  Alcotest.(check string) "ref" ok_ref (Ref.string_of _ref) ;
++  Alcotest.(check string) "uuid" ok_uuid message.API.message_uuid ;
++  Alcotest.(check string) "obj_uuid" ok_obj_uuid message.API.message_obj_uuid ;
++  Alcotest.(check string) "name" "VM_SHUTDOWN" message.API.message_name
++
++let test_expect_failure_bad_ref () =
++  List.iter
++    (fun _ref -> check_rejected ("ref " ^ _ref) (message_xml ~_ref ()))
++    [
++      "OpaqueRef:../../../../etc/cron.d/x"
++    ; "../../../../etc/cron.d/x"
++    ; "OpaqueRef:9d2c1f80-3e4b-4a6d-8b12-0f7a5c3e9d44/../../x"
++    ; "OpaqueRef:NULL"
++    ; "OpaqueRef:not-a-uuid"
++    ; "OpaqueRef:"
++    ; "DummyRef:|" ^ ok_uuid ^ "|a-name"
++    ; ok_uuid
++    ]
++
++let test_expect_failure_bad_uuid () =
++  List.iter
++    (fun uuid -> check_rejected ("uuid " ^ uuid) (message_xml ~uuid ()))
++    [
++      "../../../root/.ssh/authorized_keys"
++    ; ok_uuid ^ "/../../x"
++    ; "not-a-uuid"
++    ; ok_ref
++    ]
++
++let test_expect_failure_bad_obj_uuid () =
++  List.iter
++    (fun obj_uuid ->
++      check_rejected ("obj_uuid " ^ obj_uuid) (message_xml ~obj_uuid ())
++    )
++    ["../../../tmp/x"; ok_obj_uuid ^ "/../../x"; "not-a-uuid"]
++
++let test_expect_failure_missing_identifiers () =
++  List.iter
++    (fun (what, xml) -> check_rejected what xml)
++    [
++      ( "empty ref"
++      , Printf.sprintf
++          "<message><ref></ref><uuid>%s</uuid><obj_uuid>%s</obj_uuid></message>"
++          ok_uuid ok_obj_uuid
++      )
++    ; ( "self-closing uuid"
++      , Printf.sprintf
++          "<message><ref>%s</ref><uuid/><obj_uuid>%s</obj_uuid></message>"
++          ok_ref ok_obj_uuid
++      )
++    ; ( "absent obj_uuid"
++      , Printf.sprintf "<message><ref>%s</ref><uuid>%s</uuid></message>" ok_ref
++          ok_uuid
++      )
++    ; ("no identifiers at all", "<message/>")
++    ]
++
++(* Whatever to_xml writes must still be accepted by of_xml, or cross-pool
++   migration would stop replicating messages. *)
++let test_export_import_round_trip () =
++  let body = Xapi_message.export_xml [(Ref.of_string ok_ref, test_message)] in
++  match import_string body with
++  | [(_gen, _ref, message)] ->
++      Alcotest.(check string) "ref" ok_ref (Ref.string_of _ref) ;
++      Alcotest.(check string) "uuid" ok_uuid message.API.message_uuid ;
++      Alcotest.(check string)
++        "obj_uuid" ok_obj_uuid message.API.message_obj_uuid ;
++      Alcotest.(check string) "name" "VM_SHUTDOWN" message.API.message_name ;
++      Alcotest.(check string)
++        "body" "Guest requested shutdown" message.API.message_body
++  | messages ->
++      Alcotest.failf "expected 1 message, got %d" (List.length messages)
++
++(* import_xml parses the whole batch before the handler writes any of it, so one
++   bad message aborts the import instead of leaving its neighbours written. *)
++let test_import_expect_failure_whole_batch () =
++  let good = xml_decl ^ message_xml () in
++  let bad = xml_decl ^ message_xml ~_ref:"OpaqueRef:../../../etc/x" () in
++  List.iter
++    (fun (what, body) ->
++      match import_string body with
++      | exception Failure _ ->
++          ()
++      | exception e ->
++          Alcotest.failf "%s: expected Failure, got %s" what
++            (Printexc.to_string e)
++      | _ ->
++          Alcotest.failf "%s: expected the batch to be rejected" what
++    )
++    [("bad message first", bad ^ good); ("bad message last", good ^ bad)] ;
++  Alcotest.(check int)
++    "a batch of good messages still imports" 2
++    (List.length (import_string (good ^ good)))
++
++(* The query params name the object the request was admitted for, and the
++   handler has already resolved them in the database. A message that claims a
++   different class or object must not be written under it. *)
++let test_assert_query_matches_body () =
++  let expect_no_failure what ~cls ~uuid message =
++    match Xapi_message.assert_query_matches_body ~cls ~uuid message with
++    | () ->
++        ()
++    | exception e ->
++        Alcotest.failf "%s: unexpected %s" what (Printexc.to_string e)
++  in
++  let expect_failure what ~cls ~uuid message =
++    match Xapi_message.assert_query_matches_body ~cls ~uuid message with
++    | () ->
++        Alcotest.failf "%s: expected a rejection" what
++    | exception Failure _ ->
++        ()
++    | exception e ->
++        Alcotest.failf "%s: expected Failure, got %s" what (Printexc.to_string e)
++  in
++  expect_no_failure "matching cls and obj_uuid" ~cls:`VM ~uuid:ok_obj_uuid
++    test_message ;
++  expect_failure "body claims another class" ~cls:`Host ~uuid:ok_obj_uuid
++    test_message ;
++  expect_failure "body claims another object" ~cls:`VM
++    ~uuid:"11111111-2222-3333-4444-555555555555" test_message
++
++let test =
++  [
++    ("test_accepts_well_formed", `Quick, test_accepts_well_formed)
++  ; ("test_expect_failure_bad_ref", `Quick, test_expect_failure_bad_ref)
++  ; ("test_expect_failure_bad_uuid", `Quick, test_expect_failure_bad_uuid)
++  ; ( "test_expect_failure_bad_obj_uuid"
++    , `Quick
++    , test_expect_failure_bad_obj_uuid
++    )
++  ; ( "test_expect_failure_missing_identifiers"
++    , `Quick
++    , test_expect_failure_missing_identifiers
++    )
++  ; ("test_export_import_round_trip", `Quick, test_export_import_round_trip)
++  ; ( "test_import_expect_failure_whole_batch"
++    , `Quick
++    , test_import_expect_failure_whole_batch
++    )
++  ; ("test_assert_query_matches_body", `Quick, test_assert_query_matches_body)
++  ]
+diff --git a/ocaml/xapi/xapi_message.ml b/ocaml/xapi/xapi_message.ml
+index af1f35608e..a774aeb21a 100644
+--- a/ocaml/xapi/xapi_message.ml
++++ b/ocaml/xapi/xapi_message.ml
+@@ -49,20 +49,29 @@ let in_memory_cache_mutex = Mutex.create ()
+ 
+ let in_memory_cache_length = ref 0
+ 
+ let in_memory_cache_length_max = 512
+ 
+ let in_memory_cache_length_default = 256
+ 
+ (* We use the timestamp to name the file. For consistency, use this function *)
+ let timestamp_to_string f = Printf.sprintf "%0.5f" f
+ 
++let is_valid_uuid str = String.length str = 36 && Uuidx.is_uuid str
++
++let is_opaque_ref str =
++  let prefix = "OpaqueRef:" in
++  String.starts_with ~prefix str
++  &&
++  let n = String.length prefix in
++  is_valid_uuid (String.sub str n (String.length str - n))
++
+ (************* Marshalling/unmarshalling functions ************)
+ 
+ let to_xml output _ref gen message =
+   let tag n next () =
+     Xmlm.output output (`El_start (("", n), [])) ;
+     List.iter (fun x -> x ()) next ;
+     Xmlm.output output `El_end
+   in
+   let data dat () = Xmlm.output output (`Data dat) in
+   Xmlm.output output (`Dtd None) ;
+@@ -81,20 +90,24 @@ let to_xml output _ref gen message =
+   let message_subtags =
+     match gen with
+     | Some g ->
+         tag "generation" [data (Int64.to_string g)] :: message_subtags
+     | None ->
+         message_subtags
+   in
+   tag "message" message_subtags ()
+ 
+ let of_xml input =
++  let fn = __FUNCTION__ in
++  let bad_xml tag dat =
++    failwith (Printf.sprintf "%s: bad XML: tag:%s data:'%s'" fn tag dat)
++  in
+   let current_elt = ref "" in
+   let message =
+     ref
+       {
+         API.message_name= ""
+       ; API.message_priority= 0L
+       ; API.message_cls= `VM
+       ; API.message_obj_uuid= ""
+       ; API.message_timestamp= Date.epoch
+       ; API.message_body= ""
+@@ -117,42 +130,53 @@ let of_xml input =
+     | `Data dat ->
+         ( match !current_elt with
+         | "name" ->
+             message := {!message with API.message_name= dat}
+         | "priority" ->
+             message := {!message with API.message_priority= Int64.of_string dat}
+         | "cls" ->
+             message :=
+               {!message with API.message_cls= Record_util.cls_of_string dat}
+         | "obj_uuid" ->
++            if not (is_valid_uuid dat) then bad_xml "obj_uuid" dat ;
+             message := {!message with API.message_obj_uuid= dat}
+         | "timestamp" ->
+             message :=
+               {!message with API.message_timestamp= Date.of_iso8601 dat}
+         | "uuid" ->
++            if not (is_valid_uuid dat) then bad_xml "uuid" dat ;
+             message := {!message with API.message_uuid= dat}
+         | "body" ->
+             message := {!message with API.message_body= dat}
+         | "generation" ->
+             gen := Int64.of_string dat
+         | "ref" ->
++            if not (is_opaque_ref dat) then bad_xml "ref" dat ;
+             _ref := dat
+         | _ ->
+             failwith "Bad XML!"
+         ) ;
+         f ()
+     | `Dtd _ ->
+         f ()
+   in
+   try
+     f () ;
+-    (!gen, Ref.of_string !_ref, !message)
++    let msg = !message in
++    (* See if any keys are missing. *)
++    [
++      ("ref", !_ref)
++    ; ("uuid", msg.API.message_uuid)
++    ; ("obj_uuid", msg.API.message_obj_uuid)
++    ]
++    |> List.iter (fun (tag, dat) -> if dat = "" then bad_xml tag dat) ;
++    (!gen, Ref.of_string !_ref, msg)
+   with e -> Backtrace.is_important e ; raise e
+ 
+ let export_xml messages =
+   let size = 500 * List.length messages in
+   let buf = Buffer.create size in
+   let output = Xmlm.make_output (`Buffer buf) in
+   List.iter (function r, m -> to_xml output r None m) messages ;
+   Buffer.contents buf
+ 
+ let import_xml xml_in =
+@@ -819,20 +843,36 @@ let repopulate_cache () =
+             (get_ts (List.hd (List.rev last_256)))
+         with _ -> ()
+       ) ;
+       in_memory_cache_length := List.length !in_memory_cache
+   )
+ 
+ let register_event_hook () =
+   repopulate_cache () ;
+   Xapi_event.Message.get_since_for_events := get_since_for_events
+ 
++let assert_query_matches_body ~cls ~uuid message =
++  let mismatch reason =
++    failwith (Printf.sprintf "Xapi_message.handler: %s" reason)
++  in
++  if message.API.message_cls <> cls then
++    mismatch
++      (Printf.sprintf "Message cls '%s' does not match query cls '%s'"
++         (Record_util.cls_to_string message.API.message_cls)
++         (Record_util.cls_to_string cls)
++      ) ;
++  if message.API.message_obj_uuid <> uuid then
++    mismatch
++      (Printf.sprintf "Message obj_uuid '%s' does not match query uuid '%s'"
++         message.API.message_obj_uuid uuid
++      )
++
+ (** Handler for PUTing messages to a host.
+     	Query params: { cls=<obj class>, uuid=<obj uuid> } *)
+ let handler (req : Http.Request.t) fd _ =
+   let query = req.Http.Request.query in
+   req.Http.Request.close <- true ;
+   debug "Xapi_message.handler: receiving messages" ;
+   let check_query param =
+     if not (List.mem_assoc param query) then (
+       error "Xapi_message.handler: HTTP request for message lacked %s parameter"
+         param ;
+@@ -868,20 +908,23 @@ let handler (req : Http.Request.t) fd _ =
+           in
+           if not (check_uuid ~__context ~cls ~uuid) then
+             failwith ("Xapi_message.handler: Bad uuid " ^ uuid) ;
+           (* Tell client we're good to receive *)
+           Http_svr.headers fd (Http.http_200_ok ()) ;
+           (* Read messages in, and write to filesystem *)
+           let xml_in =
+             Xmlm.make_input (`Channel (Unix.in_channel_of_descr fd))
+           in
+           let messages = import_xml xml_in in
++          List.iter
++            (function _, _, m -> assert_query_matches_body ~cls ~uuid m)
++            messages ;
+           List.iter
+             (function _, r, m -> ignore (write ~__context ~_ref:r ~message:m))
+             messages ;
+           (* Flush cache and reload *)
+           repopulate_cache ()
+       with e ->
+         error "Xapi_message.handler: caught exception '%s'"
+           (ExnHelper.string_of_exn e)
+   )
+ 
+-- 
+2.47.0
+

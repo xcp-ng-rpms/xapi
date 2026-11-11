@@ -1,5 +1,5 @@
-%global package_speccommit f0bd703e1e87c64586550a1e33e3a4b3587a9f33
-%global package_srccommit v26.1.21
+%global package_speccommit c5dfe41c0dad7e5c367df6c128eb014b7ebf9ad3
+%global package_srccommit v26.1.23
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.21
-Release: 1%{?xsrel}.4%{?dist}
+Version: 26.1.23
+Release: 2%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.21.tar.gz
+Source0: xen-api-26.1.23.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -83,6 +83,16 @@ Patch1: 0001-Xen-4.19-domctl_create_config.vmtrace_buf_kb.patch
 Patch2: 0002-Xen-4.20-domctl_create_config.altp2m_ops.patch
 Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
+%endif
+
+# Security fixes: XSA-529, XSA-530. XS8.4 only
+%if 0%{?xenserver} < 9
+Patch8:  0008-CA-430073-VM.create-bypasses-per-key-RBAC-on-other_c.patch
+Patch9:  0009-CA-430074-Network.create-lets-vm-admin-reconfigure-d.patch
+Patch10: 0010-CA-430075-Symlink-directory-creation-traversal-via-P.patch
+Patch11: 0011-CA-430076-Variable-time-comparison-of-pool_secret.patch
+Patch12: 0012-CA-430077-Low-privilege-user-can-force-fail-arbitrar.patch
+Patch13: 0013-CA-430810-Newline-in-repository_proxy_url-injects-yu.patch
 %endif
 
 # XCP-ng patches
@@ -1153,6 +1163,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
+/etc/xensource/call-costs.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
@@ -1562,6 +1573,60 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Nov 11 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.23-2.1
+- Fix forkexecd potentially exhausting dom0 memory when using tracing
+- Introduce a new API for rate-limiting clients
+- Update to upstream 26.1.23-2
+- *** Upstream changelog ***
+  * Tue Nov 03 2026 Ming Lu <ming.lu@citrix.com> - 26.1.23-2
+  - CA-430073: VM.create bypasses per-key RBAC on other_config and platform protected keys
+  - CA-430074: Network.create lets vm-admin reconfigure dom0 IP and HIMN listener
+  - CA-430075: Symlink/directory creation traversal via PUT /messages body
+  - CA-430076: Variable-time comparison of pool_secret
+  - CA-430077: Low-privilege user can force-fail arbitrary tasks via task_id parameter
+  - CA-430810: Newline in repository_proxy_url injects yum/dnf .repo directives
+
+  * Tue Sep 29 2026 Ming Lu <ming.lu@cloud.com> - 26.1.23-1
+  - Add "hvm-pirq" platform key
+  - quicktest: add -with-tag and -without-tag suite filters
+  - Switch hvm-pirq default back to true
+  - Rate limit: Implement token buckets
+  - Rate limit: Implement queueing mechanism
+  - Add tests for rate limits and token buckets
+  - Add LRU cache to rate limiting library
+  - Add caller table to rate limit library
+  - Add caller statistics tracker to rate limit library
+  - Update rate limit library name to avoid name clashes
+  - Add Caller and Rate_limit datamodels
+  - Instrument RPC calls with usage logging and rate limiting
+  - Add rate limit and caller to xapi CLI
+  - Add quicktest for rate limiting
+  - Update rate limit design document with correct caller API
+  - xapi-caller: Load call costs from external file at startup
+  - rate-limit: Remove fairness bug in worker thread
+  - rate-limit: Allow tokens to go negative on big requests
+  - xapi_caller: Initialise caller table on module load
+  - quicktest: Use more realistic bounds in rate limit test
+  - http-lib: Canonicalise IPv4-mapped IPv6 client addresses
+  - xapi_caller: Serialise all caller_table mutations
+  - rate-limit: Skip redundant caller refreshes
+  - CA-431811: Install depexts explicitly for opam 2.6
+  - CA-431670: Hold the LRU lock across the mutation
+  - CA-431322: Rolled up livepatches not reported for host update
+  - CA-431322: Unit tests for Rolled up livepatches for host update report
+  - CA-431283: Close the tracing exporter's HTTP channels
+  - CA-431283: Treat a non-2xx span export as a failure
+  - CA-431283: Cap forkexecd control message length
+  - CA-431283: Log rejected forkexecd headers to syslog
+  - rate-limit: Fix deadlock in rate limit deletion
+  - opam: Fix rate limit package dependencies
+  - xapi-rate-limit: Add auto-registered caller limit
+  - rate-limit: Only show caller groups in the RRDs
+  - rate-limit: Improve debug messages when rate limit applied
+  - rate-limit: Add observers to rate limited calls
+  - opam: Change all package URLs to point to 26.1-lcm instead of master
+  - Update datamodel_lifecycle.ml for release 26.1.21
+
 * Tue Nov 10 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.4
 - XSA-529 and XSA-530
 
