@@ -26,10 +26,10 @@ Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
  create mode 100644 opam/vhd_qcow_parsing.opam
 
 diff --git a/dune-project b/dune-project
-index 09fa04faa..9d14bc44b 100644
+index 5062e2bbe..01de2ef3e 100644
 --- a/dune-project
 +++ b/dune-project
-@@ -371,6 +371,25 @@
+@@ -391,6 +391,25 @@
    (xapi-test-utils :with-test)
    (xenstore_transport :with-test)))
  
@@ -55,7 +55,7 @@ index 09fa04faa..9d14bc44b 100644
  (package
   (name xapi)
   (synopsis "The toolstack daemon which implements the XenAPI")
-@@ -490,6 +509,8 @@
+@@ -512,6 +531,8 @@
    xmlm
    (xml-light2
     (= :version))
@@ -64,7 +64,7 @@ index 09fa04faa..9d14bc44b 100644
    yojson
    (zstd
     (= :version))))
-@@ -531,6 +552,8 @@
+@@ -553,6 +574,8 @@
     (= :version))
    (vhd-format-lwt
     (= :version))
@@ -166,10 +166,10 @@ index f43b56dab..b990ea855 100644
 +  val parse_header_interval : string -> int * (int * int) list
 +end
 diff --git a/ocaml/xapi/dune b/ocaml/xapi/dune
-index b2c78a30c..961d8eed1 100644
+index 125a38971..ffaa819ce 100644
 --- a/ocaml/xapi/dune
 +++ b/ocaml/xapi/dune
-@@ -195,6 +195,7 @@
+@@ -204,6 +204,7 @@
    uri
    uuid
    uuidm
@@ -338,10 +338,10 @@ index 000000000..068192870
 +dev-repo: "git+https://github.com/xapi-project/xen-api.git"
 +x-maintenance-intent: ["(latest)"]
 diff --git a/opam/xapi.opam b/opam/xapi.opam
-index 34dd9af3b..9af7ce8b4 100644
+index 81ea9b185..9b43a6db2 100644
 --- a/opam/xapi.opam
 +++ b/opam/xapi.opam
-@@ -93,6 +93,7 @@ depends: [
+@@ -94,6 +94,7 @@ depends: [
    "xenstore_transport"
    "xmlm"
    "xml-light2" {= version}

@@ -160,15 +160,15 @@ index 5b74ec474..a8127944f 100644
    let p = progress size in
    let rec loop offset remaining =
 diff --git a/quality-gate.sh b/quality-gate.sh
-index 7143abe02..0ff70a541 100755
+index 7080f3db0..f362c54d7 100755
 --- a/quality-gate.sh
 +++ b/quality-gate.sh
 @@ -3,7 +3,7 @@
  set -e
  
- list-hd () {
--  N=239
-+  N=240
-   LIST_HD=$(git grep -r --count 'List.hd' -- **/*.ml | cut -d ':' -f 2 | paste -sd+ - | bc)
-   if [ "$LIST_HD" -eq "$N" ]; then
-     echo "OK counted $LIST_HD List.hd usages"
+ list-hd() {
+-        N=239
++        N=240
+         LIST_HD=$(git grep -r --count 'List.hd' -- **/*.ml | cut -d ':' -f 2 | paste -sd+ - | bc)
+         if [ "$LIST_HD" -eq "$N" ]; then
+                 echo "OK counted $LIST_HD List.hd usages"

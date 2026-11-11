@@ -97,7 +97,7 @@ Patch13: 0013-CA-430810-Newline-in-repository_proxy_url-injects-yu.patch
 
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.1.21..v26.1.21-8.3
+#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.1.23..v26.1.23-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -120,53 +120,30 @@ Patch1008: 0008-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 Patch1009: 0009-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
 Patch1010: 0010-vhd-tool-Add-a-hybridqcow-mode.patch
 
-# Posted upstream: https://github.com/xapi-project/xen-api/pull/7271
+# In v26.1.24 upstream
 Patch1011: 0011-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
-
-# In v26.1.23 upstream
-Patch1012: 0012-Add-hvm-pirq-platform-key.patch
-Patch1013: 0013-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 
 # Optimize VDI migration by pipelining NBD writes
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7272
-Patch1014: 0014-libs-vhd_format-Allow-alternatively-provided-buffers.patch
-Patch1015: 0015-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
-Patch1016: 0016-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
+Patch1012: 0012-libs-vhd_format-Allow-alternatively-provided-buffers.patch
+Patch1013: 0013-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
+Patch1014: 0014-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
 # Use a newer version of qemu-img (only available in xcp-ng, not upstream)
-Patch1017: 0017-xapi_globs-Switch-to-the-newer-version-of-qemu-img.patch
+Patch1015: 0015-xapi_globs-Switch-to-the-newer-version-of-qemu-img.patch
 
 # Fix race leading to VDI.snapshot_of corruption
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7290
-Patch1018: 0018-xapi_sr-Don-t-reset-VDI.snapshot_of-during-SR.scan.patch
-Patch1019: 0019-xapi_vm_snapshot-Don-t-corrupt-non-snapshot-VDIs.patch
+Patch1016: 0016-xapi_sr-Don-t-reset-VDI.snapshot_of-during-SR.scan.patch
+Patch1017: 0017-xapi_vm_snapshot-Don-t-corrupt-non-snapshot-VDIs.patch
 
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7308
-Patch1020: 0020-tests-test_vdi_cbt-Add-an-offline-host-test-for-VDI..patch
-Patch1021: 0021-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
+Patch1018: 0018-tests-test_vdi_cbt-Add-an-offline-host-test-for-VDI..patch
+Patch1019: 0019-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
 
-# Backport of upstream: https://github.com/xapi-project/xen-api/pull/7321
-Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
-
-# Revert upstream commit breaking Veeam VM restore
-Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
-
-Patch1024: 0024-CA-430076-Variable-time-comparison-of-pool_secret.patch
-Patch1025: 0025-CA-430073-VM.create-bypasses-per-key-RBAC-on-other_c.patch
-Patch1026: 0026-CA-430073-Unit-tests-for-per-key-RBAC-check-on-maps-.patch
-Patch1027: 0027-CA-430073-VM.create-bypasses-RBAC-on-HA-restart-prio.patch
-Patch1028: 0028-CA-430073-Unit-tests-for-RBAC-check-on-protected-fie.patch
-Patch1029: 0029-CA-430074-Network.create-lets-vm-admin-reconfigure-d.patch
-Patch1030: 0030-CA-430074-Don-t-take-bridge-from-an-import-for-netwo.patch
-Patch1031: 0031-CA-430074-Unit-tests-for-per-key-RBAC-check-on-maps-.patch
-Patch1032: 0032-CA-430075-Symlink-directory-creation-traversal-via-P.patch
-Patch1033: 0033-CA-430075-Unit-test-for-sanity-check-of-message-body.patch
-Patch1034: 0034-CA-430077-Low-privilege-user-can-force-fail-arbitrar.patch
-Patch1035: 0035-CA-430077-Unit-tests-for-task-ownership-check-before.patch
-Patch1036: 0036-CA-430077-Unit-tests-for-client-certificate-sessions.patch
-Patch1037: 0037-CA-430810-Newline-in-repository_proxy_url-injects-yu.patch
-Patch1038: 0038-Adjust-the-schema-hash.patch
-Patch1039: 0039-Adjust-upstream-XSAs-to-the-LCM-code.patch
+# In v26.1.24 upstream
+Patch1020: 0020-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
+Patch1021: 0021-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
