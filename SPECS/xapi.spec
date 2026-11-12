@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.21
-Release: 1%{?xsrel}.3%{?dist}
+Release: 1%{?xsrel}.4%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -140,6 +140,23 @@ Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
 
 # Revert upstream commit breaking Veeam VM restore
 Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
+
+Patch1024: 0024-CA-430076-Variable-time-comparison-of-pool_secret.patch
+Patch1025: 0025-CA-430073-VM.create-bypasses-per-key-RBAC-on-other_c.patch
+Patch1026: 0026-CA-430073-Unit-tests-for-per-key-RBAC-check-on-maps-.patch
+Patch1027: 0027-CA-430073-VM.create-bypasses-RBAC-on-HA-restart-prio.patch
+Patch1028: 0028-CA-430073-Unit-tests-for-RBAC-check-on-protected-fie.patch
+Patch1029: 0029-CA-430074-Network.create-lets-vm-admin-reconfigure-d.patch
+Patch1030: 0030-CA-430074-Don-t-take-bridge-from-an-import-for-netwo.patch
+Patch1031: 0031-CA-430074-Unit-tests-for-per-key-RBAC-check-on-maps-.patch
+Patch1032: 0032-CA-430075-Symlink-directory-creation-traversal-via-P.patch
+Patch1033: 0033-CA-430075-Unit-test-for-sanity-check-of-message-body.patch
+Patch1034: 0034-CA-430077-Low-privilege-user-can-force-fail-arbitrar.patch
+Patch1035: 0035-CA-430077-Unit-tests-for-task-ownership-check-before.patch
+Patch1036: 0036-CA-430077-Unit-tests-for-client-certificate-sessions.patch
+Patch1037: 0037-CA-430810-Newline-in-repository_proxy_url-injects-yu.patch
+Patch1038: 0038-Adjust-the-schema-hash.patch
+Patch1039: 0039-Adjust-upstream-XSAs-to-the-LCM-code.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1545,6 +1562,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Tue Nov 10 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.4
+- XSA-529 and XSA-530
+
 * Fri Oct 30 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.3
 - Revert the commit breaking Veeam VM restore
 
