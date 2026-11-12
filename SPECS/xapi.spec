@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.23
-Release: 2%{?xsrel}.1%{?dist}
+Release: 2%{?xsrel}.1~26123.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
