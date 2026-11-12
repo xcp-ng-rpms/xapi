@@ -1,0 +1,77 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 11 Nov 2026 10:06:23 +0000
+Subject: [PATCH] xapi_vm_snapshot: Clone VBDs even for reverted VDIs in
+ VM.revert
+
+The VDI.revert path taken when the storage drivers support the new VDI.revert
+call kept the same VBD objects. This causes issues when reverting to a
+checkpoint (snapshot with memory).
+
+During VM.revert, xapi hard-shutdowns the VM, setting
+VBD.currently_attached = false. While VM.start (used for regular snapshots)
+forcibly sets currently_attached to true, VM.resume (used for snapshots with
+memory) does not, so these VBDs are skipped by xenopsd, backends are not
+attached and the VM's frontends error out.
+
+The VDI clone path does not have this issue because it destroys the VM VBDs
+and clones the snapshot's VBDs in their place, restoring the saved value of
+currently_attached.
+
+To avoid this issue (and fix the fact that we did not restore other VBD
+parameters from the snapshot VBDs either), destroy the VBDs whose VDIs were
+reverted, replacing them with the cloned VBDs from the snapshot.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_vm_snapshot.ml | 19 ++++++++++++++++++-
+ 1 file changed, 18 insertions(+), 1 deletion(-)
+
+diff --git a/ocaml/xapi/xapi_vm_snapshot.ml b/ocaml/xapi/xapi_vm_snapshot.ml
+index 3527eb945..99c9840ac 100644
+--- a/ocaml/xapi/xapi_vm_snapshot.ml
++++ b/ocaml/xapi/xapi_vm_snapshot.ml
+@@ -311,17 +311,34 @@ let revert_vbds ~__context ~rpc ~session_id ~snapshot ~vm =
+     )
+   in
+ 
++  let vm_VBDs_reverted =
++    filter_vbds_from_vdis vm_VBDs_all vm_disks_already_reverted
++  in
++
+   let vm_vbds_to_be_destroyed =
+     let ( +++ ) = VBDSet.union in
+     filter_vbds_from_vdis vm_VBDs_all vm_disks_to_be_destroyed
+     +++ filter_vbds_from_vdis vm_VBDs_all vm_disks_without_snapshot
+     +++ vm_VBDs_CD
++    +++ vm_VBDs_reverted
+   in
+ 
+   let snap_VBDs_reverted =
+     filter_vbds_from_vdis snap_VBDs_disk snap_disks_reverted
+   in
+ 
++  let reverted_disks =
++    let snap_VBDs_reverted =
++      snap_VBDs_reverted |> VBDSet.to_seq |> List.of_seq
++    in
++    List.map
++      (fun self ->
++        let vdi = Db.VBD.get_VDI ~__context ~self |> get_snapshot_of in
++        (self, vdi, false)
++      )
++      snap_VBDs_reverted
++  in
++
+   (*
+      snap VBDs (disk)
+    - snap VBDs from reverted disks
+@@ -420,7 +437,7 @@ let revert_vbds ~__context ~rpc ~session_id ~snapshot ~vm =
+   in
+   let destroy_vdis_on_error = cloned_suspend_VDI :: destroy_vdis_on_error in
+   let@ () = with_vdis_on_error ~vdis:destroy_vdis_on_error in
+-  let vbds_to_copy = List.map fst cloned_disks @ cloned_CDs in
++  let vbds_to_copy = List.map fst cloned_disks @ cloned_CDs @ reverted_disks in
+   TaskHelper.set_progress ~__context 0.6 ;
+   if vbds_to_copy <> [] then debug "%s: Copying the VBDs" __FUNCTION__ ;
+   let (_ : [`VBD] Ref.t list) =

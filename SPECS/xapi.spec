@@ -164,6 +164,10 @@ Patch1027: 0027-XCPNG-3898-Copy-snapshots-before-their-overlays.patch
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7365
 Patch1028: 0028-xapi_pool-Handle-dangling-Host.local_cache_sr-on-poo.patch
 
+# Fix for VM.revert for storage testing of VDI.revert
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7397
+Patch1029: 0029-xapi_vm_snapshot-Clone-VBDs-even-for-reverted-VDIs-i.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel
