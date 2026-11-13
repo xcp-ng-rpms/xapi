@@ -15,7 +15,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.19.0
-Release: 2%{?xsrel}.1%{?dist}
+Release: 2%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -49,6 +49,9 @@ Source24: xapi-service-local.conf
 Source25: xenopsd-xc-local.conf
 # replace NTP configuration
 Source27: xcpng-ntp.conf
+# OpenvSwitch unit override
+Source28: openvswitch-service.conf
+Source29: openvswitch-clear-bridges.sh
 
 Patch1: 0001-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
@@ -705,6 +708,9 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
 
+%{__install} -D -m 0644 %{SOURCE28} %{buildroot}/%{_sysconfdir}/systemd/system/openvswitch.service.d/xapi.conf
+%{__install} -D -m 0755 %{SOURCE29} %{buildroot}/opt/xensource/libexec/openvswitch-clear-bridges.sh
+
 %pre -n xenopsd
 /usr/bin/getent passwd qemu >/dev/null 2>&1 || /usr/sbin/useradd \
     -M -U -r \
@@ -996,6 +1002,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 %{_sysconfdir}/systemd/system/stunnel@xapi.service.d/*-stunnel-*.conf
 %{_sysconfdir}/systemd/system/xapi.service.d/local.conf
 %{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
+%{_sysconfdir}/systemd/system/openvswitch.service.d/xapi.conf
 /opt/xensource/bin/update-ca-bundle.sh
 /opt/xensource/bin/mpathalert
 /opt/xensource/bin/perfmon
@@ -1065,6 +1072,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
+/opt/xensource/libexec/openvswitch-clear-bridges.sh
 /etc/xensource/usb-policy.conf
 /etc/xensource/call-costs.conf
 /opt/xensource/packages/post-install-scripts/
@@ -1472,6 +1480,11 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Thu Nov 12 2026 Sebastien Rodot <sebastien.rodot@vates.tech> - 26.19.0-2.2
+- Add proper ordering between openvswitch.service and xapi units
+- Ensures the first boot of openvswitch is done with no bridges (to let's
+  xcp-networkd to create and configure them)
+
 * Wed 21 Oct 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.19.0-2.1
 - Switch back to the optimized QCOW2 path
 - Update to upstream 26.19.0-2
