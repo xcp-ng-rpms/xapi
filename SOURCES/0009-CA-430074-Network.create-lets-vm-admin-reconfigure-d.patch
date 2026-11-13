@@ -1,24 +1,106 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Andrii Sultanov <andriy.sultanov@vates.tech>
-Date: Mon, 2 Nov 2026 11:10:37 +0000
-Subject: [PATCH] CA-430074: Unit tests for per-key RBAC check on maps of
- Network
+From 855ef7f678513b99a43433d252b06bda26083bb8 Mon Sep 17 00:00:00 2001
+From: Ming Lu <ming.lu@citrix.com>
+Date: Mon, 2 Nov 2026 19:20:41 +0800
+Subject: [PATCH 09/13] CA-430074: Network.create lets vm-admin reconfigure
+ dom0 IP and HIMN listener
+
+The minimum allowed role of invoking Network.create is vm-admin. But the
+[other_config] map of a Network object (except the key specified by
+[map_keys_roles]) are of minimum role of pool-operator. So the [other_config]
+parameter of Network.create should be checked to not allow two
+particular keys which might impact the host internal management network
+(HIMN) when the caller of the API is of vm-admin role. The HIMN is
+allowed to be managed with pool-operator or higher privilege levels.
+
+Additionally, there is another path (import) to get the privilege
+escalation happen. When VM.import decides to create a network that
+doesn't exist on this pool, the original bridge is meaningless to this
+pool. So make Network.create choose the bridge, and always create a
+managed network. This also eliminates the bypass of the
+bridge_blacklist.
+
+Includes unit tests for the per-key RBAC check on maps of Network, and
+the corresponding last_known_schema_hash update.
 
 This is CVE-2026-102707, part of XSA-530.
 
 Signed-off-by: Ming Lu <ming.lu@citrix.com>
 Reviewed-by: Andrii Sultanov <andriy.sultanov@vates.tech>
 ---
+ ocaml/idl/datamodel.ml                     |   5 +
+ ocaml/idl/schematest.ml                    |   2 +-
  ocaml/tests/suite_alcotest.ml              |   1 +
  ocaml/tests/test_network_protected_keys.ml | 264 +++++++++++++++++++++
- 2 files changed, 265 insertions(+)
+ ocaml/xapi/import.ml                       |  17 ++
+ ocaml/xapi/xapi_network.ml                 |   2 +
+ ocaml/xapi/xapi_network_helpers.ml         |   5 +
+ 7 files changed, 295 insertions(+), 1 deletion(-)
  create mode 100644 ocaml/tests/test_network_protected_keys.ml
 
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 9ffdb8a1a0..4f95e607f5 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -1996,20 +1996,25 @@ module Network = struct
+               ~lifecycle:[(Published, rel_midnight_ride, "MTU in octets")]
+               "MTU" "MTU in octets"
+           ; field ~writer_roles:_R_POOL_OP
+               ~ty:(Map (String, String))
+               "other_config" "additional configuration"
+               ~map_keys_roles:
+                 [
+                   ("folder", _R_VM_OP)
+                 ; ("XenCenter.CustomFields.*", _R_VM_OP)
+                 ; ("XenCenterCreateInProgress", _R_VM_OP)
++                ; (* Host Internal Management Network markers. Redundant for
++                     the writer_roles, but they generate the per-key rules that
++                     Network.create checks, its default role being VM admin. *)
++                  ("is_guest_installer_network", _R_POOL_OP)
++                ; ("is_host_internal_management_network", _R_POOL_OP)
+                 ]
+               ~lifecycle:[(Published, rel_rio, "additional configuration")]
+           ; field
+               ~lifecycle:
+                 [
+                   (Published, rel_rio, "")
+                 ; ( Changed
+                   , rel_falcon
+                   , "Added to the constructor (network.create)"
+                   )
+diff --git a/ocaml/idl/schematest.ml b/ocaml/idl/schematest.ml
+index 194af69f9f..3759f23e4a 100644
+--- a/ocaml/idl/schematest.ml
++++ b/ocaml/idl/schematest.ml
+@@ -1,16 +1,16 @@
+ let hash x = Digest.string x |> Digest.to_hex
+ 
+ (* BEWARE: if this changes, check that schema has been bumped accordingly in
+    ocaml/idl/datamodel_common.ml, usually schema_minor_vsn *)
+ 
+-let last_known_schema_hash = "269054daa3a59a4f5f4ccc213b3b9048"
++let last_known_schema_hash = "395607fe99633f636662cf6be7753d16"
+ 
+ let current_schema_hash : string =
+   let open Datamodel_types in
+   let hash_of_obj x =
+     List.map rpc_of_content x.contents
+     |> List.map Jsonrpc.to_string
+     |> String.concat ""
+     |> hash
+   in
+   Datamodel.all_system |> List.map hash_of_obj |> String.concat ":" |> hash
 diff --git a/ocaml/tests/suite_alcotest.ml b/ocaml/tests/suite_alcotest.ml
-index 4adb89092..43157f131 100644
+index b93ad873ae..05b6c848aa 100644
 --- a/ocaml/tests/suite_alcotest.ml
 +++ b/ocaml/tests/suite_alcotest.ml
-@@ -73,4 +73,5 @@ let () =
+@@ -67,11 +67,12 @@ let () =
+     @ Test_datamodel_lifecycle.tests
+     @ Test_psr.tests
+     @ Test_context.tests
+     @ Test_session.tests
+     @ Test_xapi_cmd_result.tests
+     @ Test_extauth_plugin_ADwinbind.tests
+     @ Test_rfb_client_msgtype_parser.tests
      @ Test_tracked_user_agents.tests
      @ Test_vm_protected_keys.tests
      @ Test_vm_protected_fields.tests
@@ -26,7 +108,7 @@ index 4adb89092..43157f131 100644
      )
 diff --git a/ocaml/tests/test_network_protected_keys.ml b/ocaml/tests/test_network_protected_keys.ml
 new file mode 100644
-index 000000000..0027ed8e9
+index 0000000000..0027ed8e9a
 --- /dev/null
 +++ b/ocaml/tests/test_network_protected_keys.ml
 @@ -0,0 +1,264 @@
@@ -294,3 +376,95 @@ index 000000000..0027ed8e9
 +    ("Network protected keys: helper", Helper.tests)
 +  ; ("Network protected keys: Network.create", Create.tests)
 +  ]
+diff --git a/ocaml/xapi/import.ml b/ocaml/xapi/import.ml
+index afc6cf2618..3a0f089a46 100644
+--- a/ocaml/xapi/import.ml
++++ b/ocaml/xapi/import.ml
+@@ -1248,20 +1248,37 @@ module Net : HandlerTools = struct
+         state.table <- (x.cls, x.id, Ref.string_of net) :: state.table
+     | Create _ ->
+         let dummy_net = Ref.make () in
+         state.table <- (x.cls, x.id, Ref.string_of dummy_net) :: state.table
+ 
+   let handle __context config rpc session_id state x precheck_result =
+     match precheck_result with
+     | Found_net _ ->
+         handle_dry_run __context config rpc session_id state x precheck_result
+     | Create net_record ->
++        (* The [session_id] passed to Client.Network.create_from_record
++           (and hence to Network.create) may have been created by
++           Helpers.call_api_functions with a higher privilege level than the
++           requesting client session. This is intentional, but it means the
++           per-key RBAC check inside Network.create would evaluate that
++           elevated session and let protected keys through. The import
++           metadata is caller-controlled, so enforce the check here instead,
++           where Helpers.assert_map_with_rbac can still resolve the
++           originating session. *)
++        Xapi_network_helpers.assert_protected_map_keys_allowed ~__context
++          ~field_name:"other_config" ~value:net_record.API.network_other_config ;
++        (* The bridge from the import is meaningless to this pool.
++           Network.create will choose the bridge. A network created during
++           import must be a managed one. *)
++        let net_record =
++          {net_record with API.network_bridge= ""; network_managed= true}
++        in
+         let net =
+           log_reraise
+             ("failed to create Network with name_label "
+             ^ net_record.API.network_name_label
+             )
+             (fun value ->
+               Client.Network.create_from_record ~rpc ~session_id ~value
+             )
+             net_record
+         in
+diff --git a/ocaml/xapi/xapi_network.ml b/ocaml/xapi/xapi_network.ml
+index c2329074dc..7943dca46b 100644
+--- a/ocaml/xapi/xapi_network.ml
++++ b/ocaml/xapi/xapi_network.ml
+@@ -229,20 +229,22 @@ let pool_introduce ~__context ~name_label ~name_description ~mTU ~other_config
+ let rec choose_bridge_name bridges =
+   let name = stem ^ string_of_int !counter in
+   incr counter ;
+   if List.mem name bridges then
+     choose_bridge_name bridges
+   else
+     name
+ 
+ let create ~__context ~name_label ~name_description ~mTU ~other_config ~bridge
+     ~managed ~tags =
++  Xapi_network_helpers.assert_protected_map_keys_allowed ~__context
++    ~field_name:"other_config" ~value:other_config ;
+   with_lock mutex (fun () ->
+       let networks = Db.Network.get_all ~__context in
+       let bridges =
+         List.map (fun self -> Db.Network.get_bridge ~__context ~self) networks
+       in
+       let mTU =
+         if mTU <= 0L then
+           1500L
+         else
+           mTU
+diff --git a/ocaml/xapi/xapi_network_helpers.ml b/ocaml/xapi/xapi_network_helpers.ml
+index 0a6bcd47c0..0e1932abfd 100644
+--- a/ocaml/xapi/xapi_network_helpers.ml
++++ b/ocaml/xapi/xapi_network_helpers.ml
+@@ -116,10 +116,15 @@ let assert_network_compatible_with_sriov ~__context ~pif ~network =
+         in
+         if not (is_device_underneath_same_type ~__context pif existing_pif) then
+           raise
+             Api_errors.(
+               Server_error
+                 ( network_has_incompatible_sriov_pifs
+                 , [Ref.string_of pif; Ref.string_of network]
+                 )
+             )
+   )
++
++let assert_protected_map_keys_allowed ~__context ~field_name ~value =
++  let match_protected = Helpers.match_protected_key "network" in
++  Helpers.assert_map_with_rbac ~__context ~match_protected
++    ~object_name:"network" ~field_name ~value
+-- 
+2.47.0
+

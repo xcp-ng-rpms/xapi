@@ -1,5 +1,5 @@
-%global package_speccommit f0bd703e1e87c64586550a1e33e3a4b3587a9f33
-%global package_srccommit v26.1.21
+%global package_speccommit c5dfe41c0dad7e5c367df6c128eb014b7ebf9ad3
+%global package_srccommit v26.1.23
 
 # This matches the location where xen installs the ocaml libraries
 %global _ocamlpath %{_libdir}/ocaml
@@ -27,12 +27,12 @@
 
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
-Version: 26.1.21
-Release: 1%{?xsrel}.4%{?dist}
+Version: 26.1.23
+Release: 2%{?xsrel}.1%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
-Source0: xen-api-26.1.21.tar.gz
+Source0: xen-api-26.1.23.tar.gz
 Source1: xenopsd-xc.service
 Source2: xenopsd-simulator.service
 Source3: xenopsd-sysconfig
@@ -85,9 +85,19 @@ Patch3: 0003-Xen-4.21-domain_create_flag.CDF_TRAP_UNMAPPED_ACCESS.patch
 Patch4: 0004-Xen-4.21-domctl_create_config.altp2m_count.patch
 %endif
 
+# Security fixes: XSA-529, XSA-530. XS8.4 only
+%if 0%{?xenserver} < 9
+Patch8:  0008-CA-430073-VM.create-bypasses-per-key-RBAC-on-other_c.patch
+Patch9:  0009-CA-430074-Network.create-lets-vm-admin-reconfigure-d.patch
+Patch10: 0010-CA-430075-Symlink-directory-creation-traversal-via-P.patch
+Patch11: 0011-CA-430076-Variable-time-comparison-of-pool_secret.patch
+Patch12: 0012-CA-430077-Low-privilege-user-can-force-fail-arbitrar.patch
+Patch13: 0013-CA-430810-Newline-in-repository_proxy_url-injects-yu.patch
+%endif
+
 # XCP-ng patches
 #   - Generated from our XAPI repository: https://github.com/xcp-ng/xen-api
-#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.1.21..v26.1.21-8.3
+#   - git format-patch --no-numbered --no-signature --histogram --zero-commit v26.1.23..v26.1.23-8.3
 # Enables our additional sm drivers
 Patch1001: 0001-xcp-ng-configure-xapi.conf-to-meet-our-needs.patch
 Patch1002: 0002-xcp-ng-renamed-xs-clipboardd-to-xcp-clipboardd.patch
@@ -110,53 +120,57 @@ Patch1008: 0008-quicktest-Exclude-linstor-SRs-from-QCOW2-quicktests.patch
 Patch1009: 0009-ocaml-libs-Move-Vhd_qcow_parsing-into-a-library-outs.patch
 Patch1010: 0010-vhd-tool-Add-a-hybridqcow-mode.patch
 
-# Posted upstream: https://github.com/xapi-project/xen-api/pull/7271
+# In v26.1.24 upstream
 Patch1011: 0011-quicktest-Add-VDI.pool_migrate-tests-to-vdi_ops_data.patch
-
-# In v26.1.23 upstream
-Patch1012: 0012-Add-hvm-pirq-platform-key.patch
-Patch1013: 0013-quicktest-add-with-tag-and-without-tag-suite-filters.patch
 
 # Optimize VDI migration by pipelining NBD writes
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7272
-Patch1014: 0014-libs-vhd_format-Allow-alternatively-provided-buffers.patch
-Patch1015: 0015-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
-Patch1016: 0016-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
+Patch1012: 0012-libs-vhd_format-Allow-alternatively-provided-buffers.patch
+Patch1013: 0013-libs-vhd-Add-auxiliary-information-to-every-Sector-e.patch
+Patch1014: 0014-vhd-tool-Pipeline-the-writes-in-stream_nbd.patch
 
 # Use a newer version of qemu-img (only available in xcp-ng, not upstream)
-Patch1017: 0017-xapi_globs-Switch-to-the-newer-version-of-qemu-img.patch
+Patch1015: 0015-xapi_globs-Switch-to-the-newer-version-of-qemu-img.patch
 
 # Fix race leading to VDI.snapshot_of corruption
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7290
-Patch1018: 0018-xapi_sr-Don-t-reset-VDI.snapshot_of-during-SR.scan.patch
-Patch1019: 0019-xapi_vm_snapshot-Don-t-corrupt-non-snapshot-VDIs.patch
+Patch1016: 0016-xapi_sr-Don-t-reset-VDI.snapshot_of-during-SR.scan.patch
+Patch1017: 0017-xapi_vm_snapshot-Don-t-corrupt-non-snapshot-VDIs.patch
 
 # Posted upstream: https://github.com/xapi-project/xen-api/pull/7308
-Patch1020: 0020-tests-test_vdi_cbt-Add-an-offline-host-test-for-VDI..patch
-Patch1021: 0021-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
+Patch1018: 0018-tests-test_vdi_cbt-Add-an-offline-host-test-for-VDI..patch
+Patch1019: 0019-xapi_vdi-Fix-VDI.get_nbd_info-erroring-out-on-offlin.patch
 
-# Backport of upstream: https://github.com/xapi-project/xen-api/pull/7321
-Patch1022: 0022-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
+# In v26.1.24 upstream
+Patch1020: 0020-Disable-HVM-PIRQ-on-fresh-boots-on-non-VGPU-VMs.patch
+Patch1021: 0021-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
+Patch1022: 0022-XCPNG-736-Accept-server-certificates-signed-with-SHA.patch
+Patch1023: 0023-storage_access-Remove-duplicate-SM-records.patch
+Patch1024: 0024-CA-432792-Tag-the-mirror-leaf-VDI-through-the-destin.patch
 
-# Revert upstream commit breaking Veeam VM restore
-Patch1023: 0023-Revert-CA-426637-Drain-the-remaining-bytes-in-metada.patch
+# XCPNG-3914: Fix incomplete VDI cleanup when HA is disabled while host is fenced
+# Merged upstream
+Patch1025: 0025-Release-leftover-HA-static-VDIs-when-HA-is-disabled-.patch
 
-Patch1024: 0024-CA-430076-Variable-time-comparison-of-pool_secret.patch
-Patch1025: 0025-CA-430073-VM.create-bypasses-per-key-RBAC-on-other_c.patch
-Patch1026: 0026-CA-430073-Unit-tests-for-per-key-RBAC-check-on-maps-.patch
-Patch1027: 0027-CA-430073-VM.create-bypasses-RBAC-on-HA-restart-prio.patch
-Patch1028: 0028-CA-430073-Unit-tests-for-RBAC-check-on-protected-fie.patch
-Patch1029: 0029-CA-430074-Network.create-lets-vm-admin-reconfigure-d.patch
-Patch1030: 0030-CA-430074-Don-t-take-bridge-from-an-import-for-netwo.patch
-Patch1031: 0031-CA-430074-Unit-tests-for-per-key-RBAC-check-on-maps-.patch
-Patch1032: 0032-CA-430075-Symlink-directory-creation-traversal-via-P.patch
-Patch1033: 0033-CA-430075-Unit-test-for-sanity-check-of-message-body.patch
-Patch1034: 0034-CA-430077-Low-privilege-user-can-force-fail-arbitrar.patch
-Patch1035: 0035-CA-430077-Unit-tests-for-task-ownership-check-before.patch
-Patch1036: 0036-CA-430077-Unit-tests-for-client-certificate-sessions.patch
-Patch1037: 0037-CA-430810-Newline-in-repository_proxy_url-injects-yu.patch
-Patch1038: 0038-Adjust-the-schema-hash.patch
-Patch1039: 0039-Adjust-upstream-XSAs-to-the-LCM-code.patch
+# XCPNG-3991: Fix Host.evacuate getting stuck due to losing track of an event in some cases
+# Merged upstream
+Patch1026: 0026-xapi-client-tasks-keep-updated-classes-in-wait_for_a.patch
+
+# XCPNG-3898: Performance optimization for storage migrations with snapshots
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7349
+Patch1027: 0027-XCPNG-3898-Copy-snapshots-before-their-overlays.patch
+
+# Fix pool.join breaking due to dangling ref
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7365
+Patch1028: 0028-xapi_pool-Handle-dangling-Host.local_cache_sr-on-poo.patch
+
+# Fix for VM.revert for storage testing of VDI.revert
+# Posted upstream: https://github.com/xapi-project/xen-api/pull/7397
+Patch1029: 0029-xapi_vm_snapshot-Clone-VBDs-even-for-reverted-VDIs-i.patch
+
+# sdn-controller reliability fixes
+Patch1030: 0030-xenopsd-setup-vif-rules-error-out-on-failure-to-call.patch
+Patch1031: 0031-xenopsd-setup-vif-rules-ensure-OpenFlow10-commands-a.patch
 
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
@@ -1153,6 +1167,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --no-legend | /usr/bin/
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
 /etc/xensource/usb-policy.conf
+/etc/xensource/call-costs.conf
 /opt/xensource/packages/post-install-scripts/
 /etc/xensource/udhcpd.skel
 /opt/xensource/debug/rbac_static.csv
@@ -1562,6 +1577,68 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Wed Nov 11 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.23-2.1
+- XCPNG-736: Support adding SSL certificates signed with SHA384
+- Fix issue with duplicate SM plugins registered breaking SR functionality
+- Fix migration of VDIs with tags to SRs not plugged on the source host
+- XCPNG-3914: Fix incomplete VDI cleanup when HA is disabled while host is fenced
+- XCPNG-3991: Fix Host.evacuate getting stuck due to losing track of an event in some cases
+- XCPNG-3898: Improve performance for storage migrations with snapshots by fixing the order of migrations
+- Fix issue with a host getting stuck when joining the pool because of a dangling reference
+- sdn-controller: Add reliability fixes, guarantee rules are applied
+- Fix forkexecd potentially exhausting dom0 memory when using tracing
+- Introduce a new API for rate-limiting clients
+- Update to upstream 26.1.23-2
+- *** Upstream changelog ***
+  * Tue Nov 03 2026 Ming Lu <ming.lu@citrix.com> - 26.1.23-2
+  - CA-430073: VM.create bypasses per-key RBAC on other_config and platform protected keys
+  - CA-430074: Network.create lets vm-admin reconfigure dom0 IP and HIMN listener
+  - CA-430075: Symlink/directory creation traversal via PUT /messages body
+  - CA-430076: Variable-time comparison of pool_secret
+  - CA-430077: Low-privilege user can force-fail arbitrary tasks via task_id parameter
+  - CA-430810: Newline in repository_proxy_url injects yum/dnf .repo directives
+
+  * Tue Sep 29 2026 Ming Lu <ming.lu@cloud.com> - 26.1.23-1
+  - Add "hvm-pirq" platform key
+  - quicktest: add -with-tag and -without-tag suite filters
+  - Switch hvm-pirq default back to true
+  - Rate limit: Implement token buckets
+  - Rate limit: Implement queueing mechanism
+  - Add tests for rate limits and token buckets
+  - Add LRU cache to rate limiting library
+  - Add caller table to rate limit library
+  - Add caller statistics tracker to rate limit library
+  - Update rate limit library name to avoid name clashes
+  - Add Caller and Rate_limit datamodels
+  - Instrument RPC calls with usage logging and rate limiting
+  - Add rate limit and caller to xapi CLI
+  - Add quicktest for rate limiting
+  - Update rate limit design document with correct caller API
+  - xapi-caller: Load call costs from external file at startup
+  - rate-limit: Remove fairness bug in worker thread
+  - rate-limit: Allow tokens to go negative on big requests
+  - xapi_caller: Initialise caller table on module load
+  - quicktest: Use more realistic bounds in rate limit test
+  - http-lib: Canonicalise IPv4-mapped IPv6 client addresses
+  - xapi_caller: Serialise all caller_table mutations
+  - rate-limit: Skip redundant caller refreshes
+  - CA-431811: Install depexts explicitly for opam 2.6
+  - CA-431670: Hold the LRU lock across the mutation
+  - CA-431322: Rolled up livepatches not reported for host update
+  - CA-431322: Unit tests for Rolled up livepatches for host update report
+  - CA-431283: Close the tracing exporter's HTTP channels
+  - CA-431283: Treat a non-2xx span export as a failure
+  - CA-431283: Cap forkexecd control message length
+  - CA-431283: Log rejected forkexecd headers to syslog
+  - rate-limit: Fix deadlock in rate limit deletion
+  - opam: Fix rate limit package dependencies
+  - xapi-rate-limit: Add auto-registered caller limit
+  - rate-limit: Only show caller groups in the RRDs
+  - rate-limit: Improve debug messages when rate limit applied
+  - rate-limit: Add observers to rate limited calls
+  - opam: Change all package URLs to point to 26.1-lcm instead of master
+  - Update datamodel_lifecycle.ml for release 26.1.21
+
 * Tue Nov 10 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.21-1.4
 - XSA-529 and XSA-530
 

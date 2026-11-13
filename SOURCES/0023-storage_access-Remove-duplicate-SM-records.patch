@@ -1,0 +1,98 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 14 Oct 2026 15:07:00 +0000
+Subject: [PATCH] storage_access: Remove duplicate SM records
+
+If multiple hosts have installed a new SM plugin since the last toolstack
+restart and are restarting simultaneously, there's a race window between
+checking for registered plugins and registering a new one, which can lead to
+duplicate SM plugins being registered.
+
+I was not able to reproduce this myself, but we've seen this case in support:
+
+12:00:00 hostA: dbsync (update_env) |xapi_sm] Xapi_sm.create_from_query_result Registering SM plugin linstor (version 1.0)
+12:00:00 hostB: dbsync (update_env) |xapi_sm] Xapi_sm.create_from_query_result Registering SM plugin linstor (version 1.0)
+12:00:00 hostA: dbsync (update_env) |storage_access] Storage_access.on_xapi_start: found duplicate SM plugins for the same type: type:linstor...
+
+Clean up these duplicate entries instead of just logging them.
+
+Sort the records by reference to get deterministic ordering from
+multiple hosts. Remove all but the first such duplicate record.
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+(cherry picked from commit 568cda40736e62b4bd05120b3a9f8b2d0de0fd86)
+---
+ ocaml/xapi/storage_access.ml | 59 +++++++++++-------------------------
+ 1 file changed, 18 insertions(+), 41 deletions(-)
+
+diff --git a/ocaml/xapi/storage_access.ml b/ocaml/xapi/storage_access.ml
+index 87e0b266e..af14b153d 100644
+--- a/ocaml/xapi/storage_access.ml
++++ b/ocaml/xapi/storage_access.ml
+@@ -278,48 +278,25 @@ let on_xapi_start ~__context =
+     )
+     (StringSet.inter running_smapiv2_drivers existing_types) ;
+ 
+-  (* Warn in logs when there are still duplicates *)
+-  let add_to_dups (last, dups) (_, curr) =
+-    match (last.API.sM_type = curr.API.sM_type, dups) with
+-    | false, _ ->
+-        (curr, dups)
+-    | true, x :: _ when x = last ->
+-        (curr, curr :: dups)
+-    | true, _ ->
+-        (curr, curr :: last :: dups)
++  (* Remove duplicate SM records.
++     Several hosts might be running this function at the same time, they need
++     to agree on which SM plugins to remove, so sort them by reference *)
++  let remove_duplicates () =
++    Db.SM.get_all_records ~__context
++    |> List.sort (fun (a_ref, _) (b_ref, _) -> Ref.compare a_ref b_ref)
++    |> List.fold_left
++         (fun seen (ref, rc) ->
++           if StringSet.mem rc.API.sM_type seen then (
++             let reason = "it's a duplicate of another SM of the same type" in
++             log_and_unregister ~__context ~reason __FUNCTION__ (ref, rc) ;
++             seen
++           ) else
++             StringSet.add rc.API.sM_type seen
++         )
++         StringSet.empty
+   in
+-  let find_all_duplicates lst =
+-    lst
+-    |> List.sort (fun (_, a_rc) (_, b_rc) ->
+-        Stdlib.compare a_rc.API.sM_type b_rc.API.sM_type
+-    )
+-    |> function
+-    | [] ->
+-        []
+-    | head :: rest ->
+-        List.fold_left add_to_dups (snd head, []) rest |> snd
+-  in
+-
+-  let features_to_string feats =
+-    Fmt.(to_to_string (Dump.list (Dump.pair string int64)) feats)
+-  in
+-  let plugin_to_string plugin =
+-    Printf.sprintf "{ type:%s; name:%s; UUID:%s; features:%s; }"
+-      plugin.API.sM_type plugin.API.sM_name_label plugin.API.sM_uuid
+-      (features_to_string plugin.API.sM_features)
+-  in
+-  let log_plugins = function
+-    | [] ->
+-        ()
+-    | duplicates ->
+-        let duplicates =
+-          String.concat "\n; " (List.map plugin_to_string duplicates)
+-        in
+-        warn "%s: found duplicate SM plugins for the same type: [\n  %s\n]"
+-          __FUN duplicates
+-  in
+-
+-  Db.SM.get_all_records ~__context |> find_all_duplicates |> log_plugins
++  let _ = remove_duplicates () in
++  ()
+ 
+ let bind ~__context ~pbd =
+   let dbg = Context.string_of_task __context in

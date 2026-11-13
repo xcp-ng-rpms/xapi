@@ -30,7 +30,7 @@ index 86540cc1b..7d3cff7a6 100644
    let read_header qcow_path =
      let progress_cb _ = () in
 diff --git a/ocaml/xapi/xapi_globs.ml b/ocaml/xapi/xapi_globs.ml
-index 474a752fc..3682b36e9 100644
+index 211ada75e..251428dba 100644
 --- a/ocaml/xapi/xapi_globs.ml
 +++ b/ocaml/xapi/xapi_globs.ml
 @@ -843,7 +843,7 @@ let qcow_to_stdout = ref "/opt/xensource/libexec/qcow2-to-stdout.py"

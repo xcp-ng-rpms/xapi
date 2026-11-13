@@ -1,0 +1,62 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Andrii Sultanov <andriy.sultanov@vates.tech>
+Date: Wed, 28 Oct 2026 14:15:03 +0000
+Subject: [PATCH] xapi_pool: Handle dangling Host.local_cache_sr on pool join
+
+SR.forget can create a dangling reference in Host.local_cache_sr. During
+pool join, this will prevent the supporter host from creating its host object
+on the coordinator, which leads to a broken supporter host:
+
+    [debug||pool.join|xapi_pool] Found no host with uuid = 'SUPPORTER' on the master, so creating one.
+    [debug||pool.join|xapi_pool] Ignoring exception: Db_exn.DBCache_NotFound("missing row", "SR", "OpaqueRef:DANGLING")
+    [error||pool.join|backtrace] Raised Db_exn.DBCache_NotFound("missing row", "SR", "OpaqueRef:DANGLING")
+    [error||pool.join|backtrace] 1/5 xapi Raised at file ocaml/database/db_cache_impl.ml, line 151
+    [error||pool.join|backtrace] 2/5 xapi Called from file ocaml/xapi/db_actions.ml, line 14885
+    [error||pool.join|backtrace] 3/5 xapi Called from file ocaml/xapi/xapi_pool.ml, line 1101
+    [error||pool.join|backtrace] 4/5 xapi Called from file ocaml/xapi/xapi_pool.ml, line 1539
+    [error||pool.join|backtrace] 5/5 xapi Called from file lib/backtrace.ml, line 110
+
+In case of an error, simply set Host.local_cache_sr to Ref.null and continue.
+Thus, after the fix:
+
+    [debug||pool.join|xapi_pool] Found no host with uuid = 'SUPPORTER' on the master, so creating one.
+    [debug||pool.join|xapi_pool] Creating host object on master
+
+Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
+---
+ ocaml/xapi/xapi_pool.ml | 22 ++++++++++++----------
+ 1 file changed, 12 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/xapi/xapi_pool.ml b/ocaml/xapi/xapi_pool.ml
+index 77b2d867c..c1a77ca44 100644
+--- a/ocaml/xapi/xapi_pool.ml
++++ b/ocaml/xapi/xapi_pool.ml
+@@ -1094,16 +1094,18 @@ let rec create_or_get_host_on_master __context rpc session_id (host_ref, host) :
+         Db.Host.get_local_cache_sr ~__context ~self:host_ref
+       in
+       let local_cache_sr =
+-        if my_local_cache_sr = Ref.null then
+-          Ref.null
+-        else
+-          let my_local_cache_sr_rec =
+-            Db.SR.get_record ~__context ~self:my_local_cache_sr
+-          in
+-          debug "Copying the local cache SR (uuid=%s)"
+-            my_local_cache_sr_rec.API.sR_uuid ;
+-          create_or_get_sr_on_master __context rpc session_id
+-            (my_local_cache_sr, my_local_cache_sr_rec)
++        try
++          if my_local_cache_sr = Ref.null then
++            Ref.null
++          else
++            let my_local_cache_sr_rec =
++              Db.SR.get_record ~__context ~self:my_local_cache_sr
++            in
++            debug "Copying the local cache SR (uuid=%s)"
++              my_local_cache_sr_rec.API.sR_uuid ;
++            create_or_get_sr_on_master __context rpc session_id
++              (my_local_cache_sr, my_local_cache_sr_rec)
++        with _ -> Ref.null
+       in
+ 
+       debug "Creating host object on master" ;

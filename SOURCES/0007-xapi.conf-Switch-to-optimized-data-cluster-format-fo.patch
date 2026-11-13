@@ -10,10 +10,10 @@ Signed-off-by: Andrii Sultanov <andriy.sultanov@vates.tech>
  1 file changed, 3 insertions(+)
 
 diff --git a/scripts/xapi.conf b/scripts/xapi.conf
-index 396e7da96..7fc2e8046 100644
+index c8e451d37..cbc4cc3fc 100644
 --- a/scripts/xapi.conf
 +++ b/scripts/xapi.conf
-@@ -410,3 +410,6 @@ create-tools-sr = true
+@@ -419,3 +419,6 @@ create-tools-sr = true
  
  # Allows to modify the host's scheduler granularity
  allow-host-sched-gran-modification = true
