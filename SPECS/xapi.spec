@@ -28,7 +28,7 @@
 Summary: xapi - xen toolstack for XCP
 Name:    xapi
 Version: 26.1.23
-Release: 2%{?xsrel}.1%{?dist}
+Release: 2%{?xsrel}.2%{?dist}
 Group:   System/Hypervisor
 License: LGPL-2.1-or-later WITH OCaml-LGPL-linking-exception
 URL:  http://www.xen.org
@@ -1577,6 +1577,9 @@ Coverage files from unit tests
 %{?_cov_results_package}
 
 %changelog
+* Fri Nov 13 2026 Philippe Coval <philippe.coval@vates.tech> - 26.1.23-2.2
+- XCPNG-2942: Use ntp.xcp-ng.org as ntpservers
+
 * Wed Nov 11 2026 Andrii Sultanov <andriy.sultanov@vates.tech> - 26.1.23-2.1
 - XCPNG-736: Support adding SSL certificates signed with SHA384
 - Fix issue with duplicate SM plugins registered breaking SR functionality
