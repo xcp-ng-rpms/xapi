@@ -51,6 +51,7 @@ Source25: xenopsd-xc-local.conf
 Source27: xcpng-ntp.conf
 # OpenvSwitch unit override
 Source28: openvswitch-service.conf
+Source29: openvswitch-clear-bridges.sh
 
 Patch1: 0001-CA-430692-RPU-host-evacuate-fails-for-VMs-restarted-.patch
 
@@ -705,9 +706,10 @@ mkdir -p %{buildroot}%{_sysconfdir}/xapi.pool-recommendations.d
 %{__install} -D -m 0644 %{SOURCE24} %{buildroot}/%{_sysconfdir}/systemd/system/xapi.service.d/local.conf
 %{__install} -D -m 0644 %{SOURCE25} %{buildroot}/%{_sysconfdir}/systemd/system/xenopsd-xc.service.d/local.conf
 
-%{__install} -D -m 0644 %{SOURCE28} %{buildroot}/%{_sysconfdir}/systemd/system/openvswitch.service.d/xapi.conf
-
 %{__install} -D -m 0644 %{SOURCE27} %{buildroot}/%{_sysconfdir}/xapi.conf.d/
+
+%{__install} -D -m 0644 %{SOURCE28} %{buildroot}/%{_sysconfdir}/systemd/system/openvswitch.service.d/xapi.conf
+%{__install} -D -m 0755 %{SOURCE29} %{buildroot}/opt/xensource/libexec/openvswitch-clear-bridges.sh
 
 %pre -n xenopsd
 /usr/bin/getent passwd qemu >/dev/null 2>&1 || /usr/sbin/useradd \
@@ -1070,6 +1072,7 @@ plugins=$(/usr/bin/systemctl list-units xcp-rrdd-* --all --plain --no-legend | /
 /opt/xensource/libexec/usb_reset.py
 /opt/xensource/libexec/usb_scan.py
 /opt/xensource/libexec/qcow2-to-stdout.py
+/opt/xensource/libexec/openvswitch-clear-bridges.sh
 /etc/xensource/usb-policy.conf
 /etc/xensource/call-costs.conf
 /opt/xensource/packages/post-install-scripts/
