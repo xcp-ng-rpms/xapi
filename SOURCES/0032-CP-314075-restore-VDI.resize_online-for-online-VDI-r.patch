@@ -1,0 +1,176 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Mark Syms <mark.syms@citrix.com>
+Date: Tue, 4 Aug 2026 17:11:05 +0100
+Subject: [PATCH] CP-314075: restore VDI.resize_online for online VDI resize
+
+Reinstate the VDI.resize_online API that was removed in
+31b22ccc94dcbcae89bb4099fd303000f2c71a24 (CA-262059), so that
+"xe vdi-resize online=true" can resize a VDI attached to a running VM.
+resize_online shares the offline resize storage path (SM vdi_resize); the
+online/offline distinction lives in xapi's allowed-operations checks, which
+permit resize_online on an attached VDI only when the SM backend advertises
+the VDI_RESIZE_ONLINE capability. It is then up to the backend to decide
+whether it can satisfy the request and to fail with an appropriate error if
+it cannot.
+
+- datamodel: mark resize_online as published again
+- message_forwarding: restore resize_online forwarding
+- xapi_vdi: resize_online implementation; revert resize live-permission change
+- tests: cover resize_online allowed/blocked by VDI_RESIZE_ONLINE feature and
+  offline resize still blocked while attached
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Signed-off-by: Mark Syms <mark.syms@citrix.com>
+(cherry picked from commit 64be2cec9623442da5f80555c3facdf894270be8)
+---
+ ocaml/idl/datamodel.ml                     | 10 +---
+ ocaml/tests/test_vdi_allowed_operations.ml | 55 ++++++++++++++++++++++
+ ocaml/xapi/message_forwarding.ml           | 11 +++++
+ ocaml/xapi/xapi_vdi.ml                     |  6 +++
+ ocaml/xapi/xapi_vdi.mli                    |  3 ++
+ 5 files changed, 76 insertions(+), 9 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 9ffdb8a1a..47b56c7ff 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -5406,15 +5406,7 @@ module VDI = struct
+ 
+   let resize_online =
+     call ~name:"resize_online" ~in_oss_since:None
+-      ~lifecycle:
+-        [
+-          (Published, rel_rio, "")
+-        ; (Deprecated, rel_inverness, "Dummy transition")
+-        ; ( Removed
+-          , rel_inverness
+-          , "Online VDI resize is not supported by any of the storage backends."
+-          )
+-        ]
++      ~lifecycle:[(Published, rel_rio, "")]
+       ~params:
+         [
+           (Ref _vdi, "vdi", "The VDI to resize")
+diff --git a/ocaml/tests/test_vdi_allowed_operations.ml b/ocaml/tests/test_vdi_allowed_operations.ml
+index 001774202..e9f4dff69 100644
+--- a/ocaml/tests/test_vdi_allowed_operations.ml
++++ b/ocaml/tests/test_vdi_allowed_operations.ml
+@@ -621,6 +621,60 @@ let test_revert =
+   ; ("Revert: Cannot revert live", `Quick, test_cannot_revert_live)
+   ]
+ 
++(* A VDI attached to a running VM (i.e. with an active RW VBD) can only be
++   resized via VDI.resize_online, and only when the SM backend advertises the
++   VDI_RESIZE_ONLINE capability. Offline VDI.resize remains disallowed while the
++   VDI is attached. *)
++let test_online_resize =
++  let features_with_online_resize =
++    ("VDI_RESIZE_ONLINE", 1L) :: Test_common.default_sm_features
++  in
++  let with_attached_rw_vbd __context vdi_ref =
++    make_vbd ~__context ~vDI:vdi_ref ~currently_attached:true ~mode:`RW ()
++  in
++  (* Offline resize of an attached VDI is still refused. *)
++  let test_offline_resize_blocked_when_attached () =
++    let __context = Mock.make_context_with_new_db "Mock context" in
++    run_assert_equal_with_vdi ~__context
++      ~vdi_fun:(with_attached_rw_vbd __context)
++      `resize
++      (Error (Api_errors.vdi_in_use, []))
++  in
++  (* Online resize is refused unless the SM backend supports it. *)
++  let test_resize_online_blocked_without_feature () =
++    let __context = Mock.make_context_with_new_db "Mock context" in
++    run_assert_equal_with_vdi ~__context
++      ~vdi_fun:(with_attached_rw_vbd __context)
++      `resize_online
++      (Error (Api_errors.sr_operation_not_supported, []))
++  in
++  (* Online resize of an attached VDI is allowed when the SM backend advertises
++     VDI_RESIZE_ONLINE. *)
++  let test_resize_online_allowed_with_feature () =
++    let __context = Mock.make_context_with_new_db "Mock context" in
++    run_assert_equal_with_vdi ~__context
++      ~sm_fun:(fun sm ->
++        Db.SM.set_features ~__context ~self:sm
++          ~value:features_with_online_resize
++      )
++      ~vdi_fun:(with_attached_rw_vbd __context)
++      `resize_online (Ok ())
++  in
++  [
++    ( "test_offline_resize_blocked_when_attached"
++    , `Quick
++    , test_offline_resize_blocked_when_attached
++    )
++  ; ( "test_resize_online_blocked_without_feature"
++    , `Quick
++    , test_resize_online_blocked_without_feature
++    )
++  ; ( "test_resize_online_allowed_with_feature"
++    , `Quick
++    , test_resize_online_allowed_with_feature
++    )
++  ]
++
+ let test =
+   [
+     ("test_ca98944", `Quick, test_ca98944)
+@@ -635,3 +689,4 @@ let test =
+     ; ("test_update_allowed_operations", `Quick, test_update_allowed_operations)
+     ]
+   @ test_revert
++  @ test_online_resize
+diff --git a/ocaml/xapi/message_forwarding.ml b/ocaml/xapi/message_forwarding.ml
+index 4844ea237..037ae5bb2 100644
+--- a/ocaml/xapi/message_forwarding.ml
++++ b/ocaml/xapi/message_forwarding.ml
+@@ -5738,6 +5738,17 @@ functor
+             forward_vdi_op ~local_fn ~__context ~self:vdi ~remote_fn
+         )
+ 
++      let resize_online ~__context ~vdi ~size =
++        info "VDI.resize_online: VDI = '%s'; size = %Ld"
++          (vdi_uuid ~__context vdi) size ;
++        let local_fn = Local.VDI.resize_online ~vdi ~size in
++        let remote_fn = Client.VDI.resize_online ~vdi ~size in
++        let sR = Db.VDI.get_SR ~__context ~self:vdi in
++        with_sr_andor_vdi ~__context ~sr:(sR, `vdi_resize)
++          ~vdi:(vdi, `resize_online) ~doc:"VDI.resize_online" (fun () ->
++            forward_vdi_op ~local_fn ~__context ~self:vdi ~remote_fn
++        )
++
+       let generate_config ~__context ~host ~vdi =
+         info "VDI.generate_config: VDI = '%s'; host = '%s'"
+           (vdi_uuid ~__context vdi)
+diff --git a/ocaml/xapi/xapi_vdi.ml b/ocaml/xapi/xapi_vdi.ml
+index 89e394de2..3d98b81a2 100644
+--- a/ocaml/xapi/xapi_vdi.ml
++++ b/ocaml/xapi/xapi_vdi.ml
+@@ -1066,6 +1066,12 @@ let resize ~__context ~vdi ~size =
+       Db.VDI.set_virtual_size ~__context ~self:vdi ~value:new_size
+   )
+ 
++(* Online resize follows exactly the same storage path as the offline resize;
++   the distinction lives in xapi's allowed-operations checks, which permit
++   resize_online on a VDI attached to a running VM (subject to the SM backend
++   advertising the VDI_RESIZE_ONLINE capability). *)
++let resize_online = resize
++
+ let generate_config ~__context ~host:_ ~vdi =
+   Sm.assert_pbd_is_plugged ~__context ~sr:(Db.VDI.get_SR ~__context ~self:vdi) ;
+   Xapi_vdi_helpers.assert_managed ~__context ~vdi ;
+diff --git a/ocaml/xapi/xapi_vdi.mli b/ocaml/xapi/xapi_vdi.mli
+index 68d15e56d..4c057ad73 100644
+--- a/ocaml/xapi/xapi_vdi.mli
++++ b/ocaml/xapi/xapi_vdi.mli
+@@ -164,6 +164,9 @@ val _data_destroy :
+ 
+ val resize : __context:Context.t -> vdi:[`VDI] API.Ref.t -> size:int64 -> unit
+ 
++val resize_online :
++  __context:Context.t -> vdi:[`VDI] API.Ref.t -> size:int64 -> unit
++
+ val generate_config :
+   __context:Context.t -> host:'a -> vdi:[`VDI] API.Ref.t -> string
+ 

@@ -172,6 +172,10 @@ Patch1029: 0029-xapi_vm_snapshot-Clone-VBDs-even-for-reverted-VDIs-i.patch
 Patch1030: 0030-xenopsd-setup-vif-rules-error-out-on-failure-to-call.patch
 Patch1031: 0031-xenopsd-setup-vif-rules-ensure-OpenFlow10-commands-a.patch
 
+# Backport VDI.resize_online re-enablement
+Patch1032: 0032-CP-314075-restore-VDI.resize_online-for-online-VDI-r.patch
+Patch1033: 0033-CP-314075-allow-reintroduction-of-removed-lifecycle-.patch
+
 %{?_cov_buildrequires}
 BuildRequires: ocaml-ocamldoc
 BuildRequires: pam-devel

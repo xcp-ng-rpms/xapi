@@ -1,0 +1,104 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Mark Syms <mark.syms@citrix.com>
+Date: Thu, 6 Aug 2026 08:56:30 +0100
+Subject: [PATCH] CP-314075: allow reintroduction of removed lifecycle features
+
+Address PR review feedback: rather than rewriting the resize_online
+history to claim it was always present, extend the datamodel lifecycle
+automaton so a Removed object can be Published again (reintroduced).
+
+The resize_online lifecycle now records its true history (published at
+rio, removed at inverness) and appends a fresh Published transition for
+the reintroduction that re-enables online resize where the SR supports
+it. Add a matching success case to the lifecycle creation tests.
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+Signed-off-by: Mark Syms <mark.syms@citrix.com>
+(cherry picked from commit 4aaa358c8b92aebeeaac594f6aa73c9d00c2c8cb)
+---
+ ocaml/idl/datamodel.ml                  | 14 +++++++++++++-
+ ocaml/idl/datamodel_types.ml            |  3 ++-
+ ocaml/tests/test_datamodel_lifecycle.ml | 17 +++++++++--------
+ 3 files changed, 24 insertions(+), 10 deletions(-)
+
+diff --git a/ocaml/idl/datamodel.ml b/ocaml/idl/datamodel.ml
+index 47b56c7ff..cf1e97c43 100644
+--- a/ocaml/idl/datamodel.ml
++++ b/ocaml/idl/datamodel.ml
+@@ -5406,7 +5406,19 @@ module VDI = struct
+ 
+   let resize_online =
+     call ~name:"resize_online" ~in_oss_since:None
+-      ~lifecycle:[(Published, rel_rio, "")]
++      ~lifecycle:
++        [
++          (Published, rel_rio, "")
++        ; (Deprecated, rel_inverness, "Dummy transition")
++        ; ( Removed
++          , rel_inverness
++          , "Online VDI resize is not supported by any of the storage backends."
++          )
++        ; ( Published
++          , "26.16.1-next"
++          , "Reintroduced to allow online resize of a VDI whose SR supports it"
++          )
++        ]
+       ~params:
+         [
+           (Ref _vdi, "vdi", "The VDI to resize")
+diff --git a/ocaml/idl/datamodel_types.ml b/ocaml/idl/datamodel_types.ml
+index 1be905288..3fce39aa1 100644
+--- a/ocaml/idl/datamodel_types.ml
++++ b/ocaml/idl/datamodel_types.ml
+@@ -504,6 +504,7 @@ module Lifecycle = struct
+      - The rest of the changes are not idempotent, they cannot be applied twice
+        in a row
+      - Objects can only be removed when are prototyped or deprecated
++     - A removed object can be published again, i.e. reintroduced
+   *)
+   let automaton =
+     {
+@@ -519,7 +520,7 @@ module Lifecycle = struct
+           )
+         | (Published as into), _, _ -> (
+             function
+-            | Unreleased_s | Prototyped_s ->
++            | Unreleased_s | Prototyped_s | Removed_s ->
+                 Published_s
+             | from ->
+                 raise_invalid_next ~from ~into
+diff --git a/ocaml/tests/test_datamodel_lifecycle.ml b/ocaml/tests/test_datamodel_lifecycle.ml
+index ea008d171..676daa7ee 100644
+--- a/ocaml/tests/test_datamodel_lifecycle.ml
++++ b/ocaml/tests/test_datamodel_lifecycle.ml
+@@ -49,6 +49,15 @@ module SuccessfulLifecycleCreation = Generic.MakeStateless (struct
+             ]
+           , Removed_s
+           )
++        ; (* A removed element can be reintroduced by publishing it again *)
++          ( [
++              (Published, "release1", "")
++            ; (Deprecated, "release2", "")
++            ; (Removed, "release3", "")
++            ; (Published, "release4", "")
++            ]
++          , Published_s
++          )
+         ]
+ end)
+ 
+@@ -82,14 +91,6 @@ module FailingLifecycleCreation = Generic.MakeStateless (struct
+           ( [(Removed, "release1", "")]
+           , Invalid "Invalid transition Removed from Unreleased_s"
+           )
+-        ; ( [
+-              (Published, "release1", "")
+-            ; (Deprecated, "release2", "")
+-            ; (Removed, "release3", "")
+-            ; (Published, "release4", "")
+-            ]
+-          , Invalid "Invalid transition Published from Removed_s"
+-          )
+         ]
+ end)
+ 
